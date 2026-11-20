@@ -81,6 +81,23 @@ impl HealthState {
     }
 }
 
+/// The stored snapshot (`Starting` before the first check). Async so it never
+/// runs on the main thread; it returns `Result` because async commands that
+/// borrow `State` must.
+#[tauri::command]
+pub async fn health_status(state: tauri::State<'_, HealthState>) -> Result<HealthSnapshot, String> {
+    Ok(state.snapshot())
+}
+
+/// Wakes the check thread for an immediate round.
+#[tauri::command]
+pub async fn check_health_now(state: tauri::State<'_, HealthState>) -> Result<(), String> {
+    state
+        .wake
+        .send(())
+        .map_err(|_| "Wątek sprawdzania nie działa".to_string())
+}
+
 /// Shows, unminimises and focuses the main window.
 pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {

@@ -29,12 +29,6 @@ impl VaultState {
     }
 }
 
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
@@ -86,7 +80,7 @@ pub fn run() {
                 let _ = window.hide();
             }
         })
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![runtime::health_status, runtime::check_health_now])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|_app, event| {

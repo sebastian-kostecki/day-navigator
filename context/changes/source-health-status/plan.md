@@ -497,10 +497,10 @@ No data migration. `VaultState` changes shape (now swappable), but nothing outsi
 
 #### Automated
 
-- [x] 3.1 Type check and build pass: `npm run build`
-- [x] 3.2 Rust build succeeds: `cargo build`
-- [x] 3.3 All tests pass: `cargo test`
-- [x] 3.4 Demo command removed: `grep -rn "greet" src src-tauri/src` returns nothing
+- [x] 3.1 Type check and build pass: `npm run build` — 428a923
+- [x] 3.2 Rust build succeeds: `cargo build` — 428a923
+- [x] 3.3 All tests pass: `cargo test` — 428a923
+- [x] 3.4 Demo command removed: `grep -rn "greet" src src-tauri/src` returns nothing — 428a923
 
 #### Manual
 

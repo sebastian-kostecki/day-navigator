@@ -1,6 +1,7 @@
 //! Guarded access to Obsidian vaults. Nothing here imports `tauri`.
 
 pub mod edit;
+pub mod fsops;
 mod error;
 pub mod markdown;
 mod path;
@@ -286,6 +287,152 @@ impl Vault {
         }
         entries.sort_by_key(|e| (e.name.to_lowercase(), e.name.clone()));
         Ok(entries)
+    }
+}
+
+
+const MAX_WRITE_ATTEMPTS: usize = 3;
+
+impl Vault {
+    fn ensure_root(&self) -> Result<PathBuf, VaultError> {
+        canonical_root(self.space, &self.root)
+    }
+
+    /// Guard, read, pure edit, atomic replace. Recomputes from fresh bytes when
+    /// the file changed in between, up to 3 attempts, then `Conflict`.
+    #[doc(hidden)]
+    pub fn apply(
+        &self,
+        path: &VaultPath,
+        edit: &dyn Fn(&[u8]) -> Result<Vec<u8>, VaultError>,
+    ) -> Result<(), VaultError> {
+        self.ensure_root()?;
+        let label = path.to_string();
+        for _ in 0..MAX_WRITE_ATTEMPTS {
+            let note = self.read_note(path)?;
+            let new_bytes = edit(note.bytes()).map_err(|e| match e {
+                VaultError::Conflict { .. } => VaultError::Conflict {
+                    path: label.clone(),
+                },
+                other => other,
+            })?;
+            let abs = self.resolve(path)?;
+            match fsops::replace_atomic(&abs, &new_bytes, note.bytes(), &label) {
+                Ok(()) => return Ok(()),
+                Err(fsops::ReplaceError::Changed) => continue,
+                Err(fsops::ReplaceError::Failed(e)) => return Err(e),
+            }
+        }
+        Err(VaultError::Conflict { path: label })
+    }
+
+    pub fn replace_field(
+        &self,
+        path: &VaultPath,
+        key: &str,
+        value: FieldValue,
+        expected: SpanHash,
+    ) -> Result<(), VaultError> {
+        self.apply(path, &|b| edit::replace_field(b, key, &value, &expected))
+    }
+
+    pub fn replace_section(
+        &self,
+        path: &VaultPath,
+        heading: &Heading,
+        body: &str,
+        expected: SpanHash,
+    ) -> Result<(), VaultError> {
+        self.apply(path, &|b| edit::replace_section(b, heading, body, &expected))
+    }
+
+    pub fn append_to_section(
+        &self,
+        path: &VaultPath,
+        heading: &Heading,
+        lines: &str,
+    ) -> Result<(), VaultError> {
+        self.apply(path, &|b| edit::append_to_section(b, heading, lines))
+    }
+
+    /// Creates a new note; missing parent folders are created under the existing root only.
+    pub fn create_note(&self, path: &VaultPath, content: &str) -> Result<(), VaultError> {
+        self.ensure_root()?;
+        let label = path.to_string();
+        if !path.is_markdown() {
+            return Err(VaultError::NotMarkdown { path: label });
+        }
+        let abs = self.resolve(path)?;
+        if abs.exists() {
+            return Err(VaultError::AlreadyExists { path: label });
+        }
+        if let Some(parent) = abs.parent() {
+            fs::create_dir_all(parent).map_err(|e| io_error(path, &e))?;
+        }
+        // Folders now exist: re-run containment and exclusion before writing.
+        let abs = self.resolve(path)?;
+        fsops::create_new(&abs, content.as_bytes(), &label)
+    }
+
+    /// Moves a note into the root-level `.trash/` and returns its name there.
+    pub fn trash(&self, path: &VaultPath) -> Result<String, VaultError> {
+        let root = self.ensure_root()?;
+        let label = path.to_string();
+        if !path.is_markdown() {
+            return Err(VaultError::NotMarkdown { path: label });
+        }
+        let abs = self.resolve(path)?;
+        match fs::metadata(&abs) {
+            Ok(m) if m.is_file() => {}
+            Ok(_) => return Err(VaultError::NotFound { path: label }),
+            Err(e) => return Err(io_error(path, &e)),
+        }
+        let trash_dir = trash_dest(&root)?;
+        let file_name = path.file_name().unwrap_or_default().to_string();
+        let (stem, ext) = match file_name.rfind('.') {
+            Some(i) => (&file_name[..i], &file_name[i..]),
+            None => (file_name.as_str(), ""),
+        };
+        let mut n = 1u32;
+        loop {
+            let candidate = if n == 1 {
+                file_name.clone()
+            } else {
+                format!("{stem} {n}{ext}")
+            };
+            match fsops::move_noclobber(&abs, &trash_dir.join(&candidate), &label) {
+                Ok(()) => return Ok(candidate),
+                Err(VaultError::AlreadyExists { .. }) if n < 10_000 => n += 1,
+                Err(e) => return Err(e),
+            }
+        }
+    }
+}
+
+/// The only code that names `.trash`: the root-level folder, created if
+/// missing, canonicalised and required to stay exactly `<root>/.trash`
+/// (a junction pointing elsewhere is refused).
+fn trash_dest(root: &Path) -> Result<PathBuf, VaultError> {
+    let outside = || VaultError::OutsideVault {
+        path: ".trash".to_string(),
+    };
+    let dir = root.join(".trash");
+    match fs::create_dir(&dir) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+        Err(e) => {
+            return Err(VaultError::Io {
+                path: ".trash".to_string(),
+                kind: format!("{:?}", e.kind()),
+            });
+        }
+    }
+    let canon = dunce::canonicalize(&dir).map_err(|_| outside())?;
+    match relative_remainder(&canon, root) {
+        Some(rest) if rest.len() == 1 && rest[0].eq_ignore_ascii_case(".trash") && canon.is_dir() => {
+            Ok(canon)
+        }
+        _ => Err(outside()),
     }
 }
 

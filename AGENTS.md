@@ -33,7 +33,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 
 ## Testing
 
-No test framework is configured yet. Until one is added, verify every change with `npm run build` and `cargo build`.
+Run `cargo test` in `src-tauri/` (unit, property and integration tests). Fixtures live in `src-tauri/tests/fixtures/vault/`: invented data only, kept byte-exact (CRLF, BOM) by `.gitattributes`. Tests never touch the fixture itself; a slice that writes vault notes reuses `src-tauri/tests/common` (`test_vault()` copies the fixture into a temp dir). Also verify every change with `npm run build` and `cargo build`.
 
 ## Commits and Pull Requests
 

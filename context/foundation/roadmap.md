@@ -39,7 +39,7 @@ A single developer on one Windows 11 machine switches during the day between com
 
 | ID   | Change ID                 | Outcome (user can …)                                                                   | Prerequisites | PRD refs                      | Status   |
 | ---- | ------------------------- | -------------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
-| F-01 | safe-vault-access         | (foundation) guarded vault read/write: configured folders only, section-scoped writes   | —             | NFR-integrity, Access Control | in-progress |
+| F-01 | safe-vault-access         | (foundation) guarded vault read/write: configured folders only, section-scoped writes   | —             | NFR-integrity, Access Control | done     |
 | F-02 | source-health-status      | (foundation) every source failure shows in the tray icon and as a Windows notice        | —             | NFR-health, FR-001            | ready    |
 | F-03 | ci-release-pipeline       | (foundation) CI builds and tests every change; merges to main publish an installer      | —             | NFR-no-secrets, NFR-work-data | ready    |
 | S-01 | morning-plan-today        | make the morning plan in "Today" and save it in the work daily note                     | F-01, F-02    | US-01, FR-003, FR-004         | proposed |
@@ -97,7 +97,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Sequenced first because `main_goal: quality` and the note-integrity guardrail make any vault write unsafe without it; kept to the access contract only — note formats (daily note, inbox, tasks, issues) belong to the slices that use them.
-- **Status:** in-progress
+- **Status:** done
 
 ### F-02: Source health status
 
@@ -375,3 +375,5 @@ None open. All eight PRD Open Questions were resolved by the user on 2026-11-20;
 ## Milestone History
 
 ## Done
+
+- **F-01: (foundation) the app reads and writes only inside vault folders configured per space (Work, Private), never sees excluded paths, changes only the targeted line or section of a note (rest of the file byte-identical), and sends deletions to the vault trash — proven against a small invented test vault.** — Archived 2026-11-20 → `context/archive/2026-11-20-safe-vault-access/`. Lesson: —.

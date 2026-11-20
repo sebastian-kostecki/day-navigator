@@ -1,13 +1,32 @@
+pub mod health;
 pub mod settings;
 pub mod vault;
+
+use std::sync::{Arc, RwLock};
 
 use tauri::Manager;
 
 use crate::vault::{VaultError, VaultRegistry};
 
-/// Result of loading settings at startup, kept in Tauri managed state.
-/// Later slices read it; a failure is stored, never fatal.
-pub struct VaultState(pub Result<VaultRegistry, VaultError>);
+/// Registry (or the error that stopped it) built from `settings.json`, kept in
+/// Tauri managed state. Each health check replaces it, so fixing settings
+/// takes effect without a restart. A failure is stored, never fatal.
+pub struct VaultState(RwLock<Arc<Result<VaultRegistry, VaultError>>>);
+
+impl VaultState {
+    pub fn new(initial: Result<VaultRegistry, VaultError>) -> Self {
+        VaultState(RwLock::new(Arc::new(initial)))
+    }
+
+    /// Cheap snapshot; the lock is not held after this returns.
+    pub fn current(&self) -> Arc<Result<VaultRegistry, VaultError>> {
+        Arc::clone(&self.0.read().unwrap_or_else(|p| p.into_inner()))
+    }
+
+    pub fn replace(&self, next: Result<VaultRegistry, VaultError>) {
+        *self.0.write().unwrap_or_else(|p| p.into_inner()) = Arc::new(next);
+    }
+}
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -27,7 +46,7 @@ pub fn run() {
                     reason: format!("cannot resolve app config dir: {e}"),
                 }),
             };
-            app.manage(VaultState(state));
+            app.manage(VaultState::new(state));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![greet])

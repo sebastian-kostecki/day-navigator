@@ -1,0 +1,320 @@
+//! Guarded access to Obsidian vaults. Nothing here imports `tauri`.
+
+mod error;
+mod path;
+
+use std::fs;
+use std::path::{Component, Path, PathBuf};
+
+pub use error::VaultError;
+pub use path::VaultPath;
+
+use crate::settings::{Settings, SpaceSettings};
+
+const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Space {
+    Work,
+    Private,
+}
+
+impl std::fmt::Display for Space {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Space::Work => "work",
+            Space::Private => "private",
+        })
+    }
+}
+
+/// Configured vaults, one per space. Built once from settings.
+#[derive(Debug, Clone)]
+pub struct VaultRegistry {
+    work: Option<SpaceSettings>,
+    private: Option<SpaceSettings>,
+}
+
+impl VaultRegistry {
+    pub fn from_settings(settings: &Settings) -> VaultRegistry {
+        VaultRegistry {
+            work: settings.work.clone(),
+            private: settings.private.clone(),
+        }
+    }
+
+    fn config(&self, space: Space) -> Option<&SpaceSettings> {
+        match space {
+            Space::Work => self.work.as_ref(),
+            Space::Private => self.private.as_ref(),
+        }
+    }
+
+    pub fn vault(&self, space: Space) -> Result<Vault, VaultError> {
+        let cfg = self
+            .config(space)
+            .ok_or(VaultError::SpaceNotConfigured(space))?;
+        let root = canonical_root(space, &cfg.vault)?;
+        let other = match space {
+            Space::Work => Space::Private,
+            Space::Private => Space::Work,
+        };
+        if let Some(other_cfg) = self.config(other) {
+            if let Ok(other_root) = canonical_root(other, &other_cfg.vault) {
+                if relative_remainder(&root, &other_root).is_some()
+                    || relative_remainder(&other_root, &root).is_some()
+                {
+                    return Err(VaultError::RootsOverlap);
+                }
+            }
+        }
+        Ok(Vault {
+            space,
+            root: cfg.vault.clone(),
+            excluded: cfg.excluded.clone(),
+        })
+    }
+}
+
+/// One space's vault: a configured root plus its exclusions.
+#[derive(Debug, Clone)]
+pub struct Vault {
+    space: Space,
+    root: PathBuf,
+    excluded: Vec<VaultPath>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EntryKind {
+    Dir,
+    Note,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Entry {
+    pub name: String,
+    pub path: VaultPath,
+    pub kind: EntryKind,
+}
+
+/// A note read from disk: vault path plus raw bytes (BOM included).
+#[derive(Debug, Clone)]
+pub struct Note {
+    path: VaultPath,
+    bytes: Vec<u8>,
+}
+
+impl Note {
+    pub fn path(&self) -> &VaultPath {
+        &self.path
+    }
+
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    /// The note text without a leading BOM.
+    pub fn text(&self) -> &str {
+        let body = self.bytes.strip_prefix(&BOM[..]).unwrap_or(&self.bytes);
+        std::str::from_utf8(body).unwrap_or("")
+    }
+}
+
+impl Vault {
+    pub fn space(&self) -> Space {
+        self.space
+    }
+
+    fn is_excluded(&self, path: &VaultPath) -> bool {
+        self.excluded.iter().any(|e| path.starts_with_ci(e))
+    }
+
+    /// Guard: turns a vault path into a checked absolute path, or a typed error.
+    pub(crate) fn resolve(&self, path: &VaultPath) -> Result<PathBuf, VaultError> {
+        if self.is_excluded(path) {
+            return Err(VaultError::Excluded {
+                path: path.to_string(),
+            });
+        }
+        let root = canonical_root(self.space, &self.root)?;
+        let mut joined = root.clone();
+        for seg in path.segments() {
+            joined.push(seg);
+        }
+        let canon = canonicalize_lenient(&joined, path)?;
+        let remainder = relative_remainder(&canon, &root).ok_or_else(|| VaultError::OutsideVault {
+            path: path.to_string(),
+        })?;
+        if remainder.iter().any(|s| s.starts_with('.')) {
+            return Err(VaultError::Hidden {
+                path: path.to_string(),
+            });
+        }
+        if self.is_excluded(&VaultPath::from_segments_unchecked(remainder)) {
+            return Err(VaultError::Excluded {
+                path: path.to_string(),
+            });
+        }
+        Ok(canon)
+    }
+
+    pub fn read_note(&self, path: &VaultPath) -> Result<Note, VaultError> {
+        if !path.is_markdown() {
+            return Err(VaultError::NotMarkdown {
+                path: path.to_string(),
+            });
+        }
+        let abs = self.resolve(path)?;
+        match fs::metadata(&abs) {
+            Ok(m) if m.is_file() => {}
+            Ok(_) => {
+                return Err(VaultError::NotFound {
+                    path: path.to_string(),
+                });
+            }
+            Err(e) => return Err(io_error(path, &e)),
+        }
+        let bytes = fs::read(&abs).map_err(|e| io_error(path, &e))?;
+        let body = bytes.strip_prefix(&BOM[..]).unwrap_or(&bytes);
+        if std::str::from_utf8(body).is_err() {
+            return Err(VaultError::NotUtf8 {
+                path: path.to_string(),
+            });
+        }
+        Ok(Note {
+            path: path.clone(),
+            bytes,
+        })
+    }
+
+    /// Non-recursive listing of notes and folders, sorted by name.
+    pub fn list(&self, dir: Option<&VaultPath>) -> Result<Vec<Entry>, VaultError> {
+        let display = dir.map(|d| d.to_string()).unwrap_or_default();
+        let abs_dir = match dir {
+            Some(d) => self.resolve(d)?,
+            None => canonical_root(self.space, &self.root)?,
+        };
+        let io = |e: std::io::Error| VaultError::Io {
+            path: display.clone(),
+            kind: format!("{:?}", e.kind()),
+        };
+        match fs::metadata(&abs_dir) {
+            Ok(m) if m.is_dir() => {}
+            Ok(_) => return Err(VaultError::NotFound { path: display }),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                return Err(VaultError::NotFound { path: display });
+            }
+            Err(e) => return Err(io(e)),
+        }
+        let mut entries = Vec::new();
+        for item in fs::read_dir(&abs_dir).map_err(io)? {
+            let item = item.map_err(io)?;
+            let Some(name) = item.file_name().to_str().map(str::to_string) else {
+                continue;
+            };
+            let child = match dir {
+                Some(d) => d.join(&name),
+                None => VaultPath::parse(&name),
+            };
+            let Ok(child) = child else { continue };
+            let abs = match self.resolve(&child) {
+                Ok(abs) => abs,
+                Err(
+                    VaultError::Excluded { .. }
+                    | VaultError::Hidden { .. }
+                    | VaultError::OutsideVault { .. },
+                ) => continue,
+                Err(e) => return Err(e),
+            };
+            let meta = match fs::metadata(&abs) {
+                Ok(m) => m,
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(e) => return Err(io_error(&child, &e)),
+            };
+            let kind = if meta.is_dir() {
+                EntryKind::Dir
+            } else if meta.is_file() && child.is_markdown() {
+                EntryKind::Note
+            } else {
+                continue;
+            };
+            entries.push(Entry {
+                name,
+                path: child,
+                kind,
+            });
+        }
+        entries.sort_by_key(|e| (e.name.to_lowercase(), e.name.clone()));
+        Ok(entries)
+    }
+}
+
+fn io_error(path: &VaultPath, e: &std::io::Error) -> VaultError {
+    if e.kind() == std::io::ErrorKind::NotFound {
+        VaultError::NotFound {
+            path: path.to_string(),
+        }
+    } else {
+        VaultError::Io {
+            path: path.to_string(),
+            kind: format!("{:?}", e.kind()),
+        }
+    }
+}
+
+fn canonical_root(space: Space, root: &Path) -> Result<PathBuf, VaultError> {
+    match dunce::canonicalize(root) {
+        Ok(p) if p.is_dir() => Ok(p),
+        _ => Err(VaultError::RootMissing {
+            space,
+            root: root.to_path_buf(),
+        }),
+    }
+}
+
+/// Canonicalises `p`, or its deepest existing ancestor with the missing tail re-appended.
+fn canonicalize_lenient(p: &Path, vp: &VaultPath) -> Result<PathBuf, VaultError> {
+    let mut existing = p.to_path_buf();
+    let mut tail: Vec<std::ffi::OsString> = Vec::new();
+    loop {
+        match dunce::canonicalize(&existing) {
+            Ok(mut canon) => {
+                for part in tail.iter().rev() {
+                    canon.push(part);
+                }
+                return Ok(canon);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                let Some(name) = existing.file_name().map(|n| n.to_os_string()) else {
+                    return Err(io_error(vp, &e));
+                };
+                tail.push(name);
+                if !existing.pop() {
+                    return Err(io_error(vp, &e));
+                }
+            }
+            Err(e) => return Err(io_error(vp, &e)),
+        }
+    }
+}
+
+fn component_key(c: Component<'_>) -> String {
+    c.as_os_str().to_string_lossy().to_lowercase()
+}
+
+/// If `path` is `base` or lies under it (case-insensitive, whole components),
+/// returns the remaining components.
+fn relative_remainder(path: &Path, base: &Path) -> Option<Vec<String>> {
+    let mut p = path.components();
+    for b in base.components() {
+        let a = p.next()?;
+        if component_key(a) != component_key(b) {
+            return None;
+        }
+    }
+    Some(
+        p.map(|c| c.as_os_str().to_string_lossy().into_owned())
+            .collect(),
+    )
+}

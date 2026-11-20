@@ -39,7 +39,7 @@ A single developer on one Windows 11 machine switches during the day between com
 
 | ID   | Change ID                 | Outcome (user can …)                                                                   | Prerequisites | PRD refs                      | Status   |
 | ---- | ------------------------- | -------------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
-| F-01 | safe-vault-access         | (foundation) guarded vault read/write: configured folders only, section-scoped writes   | —             | NFR-integrity, Access Control | planning |
+| F-01 | safe-vault-access         | (foundation) guarded vault read/write: configured folders only, section-scoped writes   | —             | NFR-integrity, Access Control | in-progress |
 | F-02 | source-health-status      | (foundation) every source failure shows in the tray icon and as a Windows notice        | —             | NFR-health, FR-001            | ready    |
 | F-03 | ci-release-pipeline       | (foundation) CI builds and tests every change; merges to main publish an installer      | —             | NFR-no-secrets, NFR-work-data | ready    |
 | S-01 | morning-plan-today        | make the morning plan in "Today" and save it in the work daily note                     | F-01, F-02    | US-01, FR-003, FR-004         | proposed |
@@ -97,7 +97,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Sequenced first because `main_goal: quality` and the note-integrity guardrail make any vault write unsafe without it; kept to the access contract only — note formats (daily note, inbox, tasks, issues) belong to the slices that use them.
-- **Status:** planning
+- **Status:** in-progress
 
 ### F-02: Source health status
 

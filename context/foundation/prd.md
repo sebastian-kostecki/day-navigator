@@ -1,8 +1,9 @@
 ---
 project: "Nawigator dnia"
-version: 1
+version: 2
 status: draft
 created: 2026-11-20
+updated: 2026-11-20
 context_type: greenfield
 product_type: desktop
 target_scale:
@@ -100,6 +101,7 @@ Aktor: Użytkownik (jedyny). Priorytety i treść po rundzie Sokratesa (2026-11-
   > Socrates: Kontrargument: „zaległości rosną w nieskończoność” — niezrobione przechodzą dzień w dzień i zapychają ekran. Rozstrzygnięcie: rano każda zaległość wymaga decyzji (dziś / skrzynka / porzuć).
 - FR-004: Użytkownik może wybrać 1–3 priorytety dnia i listę „jeśli starczy czasu”; plan zapisuje się w notatce dziennej w vaulcie, z linkami do zgłoszeń i zadań. Priority: must-have
   > Socrates: Kontrargument: „dwa źródła prawdy” — plan w notatce dziennej i pole `Today` w `Issues/`/`Tasks/` mogą się rozjechać. Rozstrzygnięcie: jedynym źródłem „co dziś” jest notatka dzienna; pole `Today` jest pochodną (aktualizowane razem) albo pomijane.
+  > Decyzja (2026-11-20, pytanie #4): pole `Today` jest pomijane; aplikacja go nie zapisuje.
 - FR-005: Użytkownik ma dziennik dnia w notatce dziennej, który zasila się sam (zamknięte zgłoszenia i zadania, czas pracy, zakończone bloki skupienia); ręcznie dopisuje tylko własne wpisy. Priority: must-have
   > Socrates: Kontrargument: „kolejna ręczna lista, którą porzucisz”. Rozstrzygnięcie: dziennik zasila się automatycznie; ręcznie tylko myśli.
 - FR-006: Użytkownik może skrótem globalnym z dowolnego miejsca w Windows otworzyć okienko szybkiego wpisu, wybrać przestrzeń (Praca/Prywatne; domyślnie Praca, gdy biegnie czas pracy) i zapisać myśl do dziennika dnia albo skrzynki. Priority: must-have
@@ -114,6 +116,7 @@ Aktor: Użytkownik (jedyny). Priorytety i treść po rundzie Sokratesa (2026-11-
 ### Zgłoszenia i zadania
 - FR-010: Użytkownik ma przypisane zgłoszenia i MR-y z GitLaba synchronizowane do vaultu pracy automatycznie w interwale z ustawień oraz na żądanie („synchronizuj teraz”), bez ręcznego uruchamiania komendy. Priority: must-have
   > Socrates: Kontrargument: „częstotliwość” — za rzadko = spóźnione zgłoszenia, za często = obciążenie. Rozstrzygnięcie: interwał w ustawieniach + synchronizacja na żądanie.
+  > Decyzja (2026-11-20, pytanie #2): aplikacja jest jedynym autorem notatek w `Issues/` (synchronizacja przez `glab`, w dotychczasowym formacie notatek); gdy synchronizacja w aplikacji działa, komendy synchronizacji Helper App w Obsidianie zostają wyłączone.
 - FR-011: Użytkownik dostaje powiadomienie Windows o nowym przypisanym zgłoszeniu lub MR z akcją „dodaj do listy”; gdy nowych jest więcej niż kilka naraz, dostaje jedno zbiorcze powiadomienie. Priority: must-have
   > Socrates: Kontrargument: „burza powiadomień” — po urlopie 20 powiadomień naraz. Rozstrzygnięcie: powyżej kilku nowych jedno zbiorcze powiadomienie.
 - FR-012: Użytkownik może z listy zgłoszeń wciągnąć zgłoszenie na dzisiejszą listę rzeczy do zrobienia. Priority: must-have
@@ -130,6 +133,7 @@ Aktor: Użytkownik (jedyny). Priorytety i treść po rundzie Sokratesa (2026-11-
 ### Czas pracy, przerwy, bloker
 - FR-016: Użytkownik może kliknięciem rozpocząć i zakończyć czas pracy oraz zobaczyć sumę dnia i miesiąca; start, koniec i sumy pochodzą z jednej ewidencji czasu; aplikacja nie prowadzi drugiej, równoległej. Priority: must-have
   > Socrates: Kontrargument: „dwa zapisy czasu” — aplikacja i istniejąca ewidencja liczą czas osobno i się rozjeżdżają. Rozstrzygnięcie: jedna ewidencja, jeden właściciel zapisu.
+  > Decyzja (2026-11-20, pytania #2 i #3): właścicielem ewidencji jest aplikacja. Źródłem są start i koniec pracy w notatce dziennej; aplikacja generuje z nich `Timeline.md` w dotychczasowym formacie, z którego dalej korzysta raport mailowy Helper App. Komendy start/koniec Helper App w Obsidianie zostają wyłączone. Aplikacja przejmuje zapis dopiero po migracji historii (FR-027).
 - FR-017: Użytkownik dostaje przypomnienie, gdy jest pora pracy, a czas nie biegnie, oraz gdy czas biegnie po godzinach pracy — tylko w dni robocze z ustawień, jedno przypomnienie na zdarzenie. Priority: must-have
   > Socrates: Kontrargument: „fałszywe alarmy” przy elastycznych godzinach. Rozstrzygnięcie: tylko dni robocze, jedno przypomnienie, nie seria.
 - FR-018: Użytkownik dostaje w czasie pracy przypomnienia o mikroprzerwach i dłuższych przerwach w interwałach z ustawień, może je odłożyć albo pominąć, a jednym kliknięciem wstrzymać przerwy na N minut („nie teraz”, np. na spotkanie). Priority: must-have
@@ -140,6 +144,10 @@ Aktor: Użytkownik (jedyny). Priorytety i treść po rundzie Sokratesa (2026-11-
   > Socrates: Kontrargument: „ingerencja w system” — blokowanie wymaga podwyższonych uprawnień i zmian w systemie. Rozstrzygnięcie: akceptowane; aplikacja prosi o zgodę jawnie i cofa zmiany przy wyłączeniu blokady.
 - FR-021: Użytkownik może wyłączyć blokadę w każdej chwili po krótkim potwierdzeniu. Priority: must-have
   > Socrates: Kontrargument: „za łatwe” — jeden klik niweczy sens blokera. Rozstrzygnięcie: wyłączenie wymaga krótkiego potwierdzenia, ale zawsze jest możliwe.
+- FR-026: Użytkownik dostaje pytanie, czy zatrzymać czas pracy, gdy czas biegnie, a komputer jest bezczynny od N minut z ustawień, oraz przypomnienie, gdy używa komputera w godzinach pracy, a czas nie biegnie; aplikacja wykrywa wyłącznie aktywność (bez treści okien i nazw programów). Priority: must-have
+  > Dodane 2026-11-20 (pytanie #8): z funkcji „rozważonych, nie wykluczonych” do v1 trafia pomiar aktywności, zawężony do wykrywania bezczynności. Cel: łatanie dziur w ewidencji czasu (Vision).
+- FR-027: Użytkownik może jednorazowo przenieść historię czasu pracy z `Timeline.md` do notatek dziennych; po migracji sumy każdego miesiąca w wygenerowanym `Timeline.md` zgadzają się z dotychczasowymi, a aplikacja przejmuje zapis ewidencji dopiero po tej weryfikacji. Priority: must-have
+  > Dodane 2026-11-20 (decyzja do pytania #3): migracja z próbą na sucho; warunkiem jest zgodność sum miesięcznych, format pojedynczych wpisów może się zmienić.
 
 ### Ustawienia i zasobnik
 - FR-022: Użytkownik może ustawić w aplikacji ścieżki vaultów, repozytoriów i narzędzi dla każdej przestrzeni, listę wykluczonych ścieżek oraz listę wyróżnianych etykiet zgłoszeń; przy pierwszym uruchomieniu prowadzi go przez to kreator. Priority: must-have
@@ -170,6 +178,7 @@ Każdego dnia roboczego aplikacja proponuje uporządkowaną listę kandydatów n
 **Rytm.** Aplikacja zaczepia użytkownika tylko wtedy, gdy wynika to ze stanu dnia:
 - przy pierwszym włączeniu lub odblokowaniu komputera w dniu roboczym, jeśli nie ma planu;
 - gdy w godzinach pracy czas pracy nie biegnie albo biegnie po godzinach (jedno przypomnienie na zdarzenie);
+- gdy czas pracy biegnie, a komputer jest bezczynny, albo komputer jest używany w godzinach pracy, a czas nie biegnie (FR-026);
 - w interwałach przerw, gdy biegnie czas pracy, chyba że użytkownik wstrzymał je („nie teraz”) albo trwa blok skupienia;
 - po zakończonym bloku skupienia;
 - przy nowych przypisanych zgłoszeniach (zbiorczo, gdy jest ich kilka).
@@ -197,15 +206,25 @@ Uwaga: zakaz łączenia się aplikacji z siecią (rekomendacja z seeda) **nie** 
 - **Poza MVP (nice-to-have):** widok tygodnia (FR-008) i zadania prywatne z szablonu (FR-025).
 
 ### Rozważone i świadomie NIE wykluczone
-Te pozycje nie są non-goals, ale żadne FR ich nie obejmuje, więc w v1 nie są budowane z braku wymagania, a nie z zakazu: zapis do GitLaba/GitHuba (status, komentarze), automatyczny pomiar aktywności, integracje z Domowym Skarbnikiem i Menu Makerem, udostępnianie danych asystentowi AI, bloker odporny na zdeterminowane obejście.
+Te pozycje nie są non-goals, ale żadne FR ich nie obejmuje, więc w v1 nie są budowane z braku wymagania, a nie z zakazu: zapis do GitLaba/GitHuba (status, komentarze), pomiar aktywności poza wykrywaniem bezczynności (np. dziennik użycia programów; bezczynność obejmuje FR-026), integracje z Domowym Skarbnikiem i Menu Makerem, udostępnianie danych asystentowi AI, bloker odporny na zdeterminowane obejście.
 
 ## Open Questions
 
+Wszystkie pytania rozstrzygnięte przez użytkownika 2026-11-20.
+
 1. **Nazwa produktu** — robocza „Nawigator dnia”; kandydaci: Sternik, Skryba, Kompas, Brulion, Strażnik dnia. Owner: użytkownik. Blokuje: nie.
+   **Rozstrzygnięte:** nazwa „Nawigator dnia”.
 2. **Rola Helper App** — czy pozostaje jedynym właścicielem zapisu zgłoszeń (`Issues/`) i ewidencji czasu (`Timeline.md`), wywoływanym przez aplikację? FR-016 wymaga jednego właściciela ewidencji czasu, ale nie przesądza którego; dla zgłoszeń (FR-010) reguła jednego właściciela nie została przyjęta — ryzyko równoległego zapisu z ręczną komendą w Obsidianie. Owner: użytkownik, przed planem implementacji.
+   **Rozstrzygnięte:** aplikacja przejmuje zapis `Issues/` i ewidencji czasu; komendy synchronizacji i start/koniec Helper App w Obsidianie zostają wyłączone; raport mailowy i sprzątanie skrzynek zostają w Helper App, a raport czyta generowany `Timeline.md` (FR-010, FR-016).
 3. **Ewidencja czasu docelowo** — czy start i koniec pracy zapisywać w notatce dziennej, a `Timeline.md` generować? (seed, pytanie 5). Owner: użytkownik.
+   **Rozstrzygnięte:** tak — notatka dzienna jest źródłem, `Timeline.md` jest generowany; historia jest migrowana do notatek dziennych, a warunkiem przejęcia zapisu jest zgodność sum miesięcznych (FR-027).
 4. **Pole `Today` w zgłoszeniach i zadaniach** — aktualizować razem z notatką dzienną jako pochodną, czy pomijać? (FR-004). Owner: użytkownik.
+   **Rozstrzygnięte:** pomijać.
 5. **Stare listy** — co z `DASHBOARD.md`, `ToDo List.md` i `Notatki bieżące.md` po wdrożeniu „Dziś” i skrzynki? (seed, pytanie 8). Owner: użytkownik.
+   **Rozstrzygnięte:** aplikacja ich nie czyta i nie zapisuje; użytkownik wycofa je ręcznie.
 6. **Skrót globalny i domyślne godziny** — propozycja Ctrl+Alt+Spacja; domyślne godziny pracy, interwały przerw, długość bloku skupienia, próg „kilku” zgłoszeń dla powiadomienia zbiorczego. Owner: użytkownik.
+   **Rozstrzygnięte (wartości domyślne, zmienialne w ustawieniach):** skrót Ctrl+Alt+Spacja; godziny pracy pon–pt 8:00–16:00; mikroprzerwa co 20 min na 20 s, dłuższa przerwa co 60 min na 5 min; blok skupienia 25 min; powiadomienie zbiorcze od 3 nowych zgłoszeń.
 7. **Repozytorium publiczne (portfolio)?** — jeśli tak, w repo nie mogą się pojawić nazwy hostów ani dane z pracy (seed, pytanie 9). Owner: użytkownik.
+   **Rozstrzygnięte:** repozytorium prywatne teraz, możliwe upublicznienie później; reguła „tylko zmyślone dane” obowiązuje od początku.
 8. **Funkcje rozważone, nie wykluczone, bez FR** — zapis do GitLaba/GitHuba, pomiar aktywności, integracje (Domowy Skarbnik, Menu Maker), MCP/AI, odporność blokera. Czy którakolwiek ma trafić do v1? Owner: użytkownik.
+   **Rozstrzygnięte:** do v1 trafia tylko wykrywanie bezczynności (FR-026); reszta pozostaje poza v1.

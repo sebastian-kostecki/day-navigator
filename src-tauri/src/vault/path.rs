@@ -60,13 +60,16 @@ impl VaultPath {
     }
 
     /// True if `prefix` is a whole-segment, case-insensitive prefix of `self`.
+    /// Segments are compared in Unicode NFC: NTFS stores names as given, so a
+    /// folder synced from macOS can be NFD (`e` + combining ogonek) while the
+    /// settings file typed on Windows is NFC (`ę`).
     pub fn starts_with_ci(&self, prefix: &VaultPath) -> bool {
         self.segments.len() >= prefix.segments.len()
             && self
                 .segments
                 .iter()
                 .zip(&prefix.segments)
-                .all(|(a, b)| a.to_lowercase() == b.to_lowercase())
+                .all(|(a, b)| fold(a) == fold(b))
     }
 
     /// True for an `.md` extension, ignoring case.
@@ -81,6 +84,17 @@ impl fmt::Display for VaultPath {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.segments.join("/"))
     }
+}
+
+/// True if two segments name the same entry: NFC, case-insensitive.
+pub(crate) fn segment_eq(a: &str, b: &str) -> bool {
+    fold(a) == fold(b)
+}
+
+/// Comparison key for a segment: NFC, then lowercase.
+fn fold(seg: &str) -> String {
+    use unicode_normalization::UnicodeNormalization;
+    seg.nfc().collect::<String>().to_lowercase()
 }
 
 fn validate_segment(seg: &str, whole: &str) -> Result<(), VaultError> {

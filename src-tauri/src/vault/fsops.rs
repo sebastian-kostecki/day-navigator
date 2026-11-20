@@ -83,11 +83,9 @@ pub fn replace_atomic_with(
     label: &str,
     replace: ReplaceFn<'_>,
 ) -> Result<(), ReplaceError> {
-    let dir = target
-        .parent()
-        .ok_or_else(|| VaultError::NotFound {
-            path: label.to_string(),
-        })?;
+    let dir = target.parent().ok_or_else(|| VaultError::NotFound {
+        path: label.to_string(),
+    })?;
     let name = file_name_of(target);
 
     // 0. Crash leftovers of this note.
@@ -99,8 +97,17 @@ pub fn replace_atomic_with(
     let temp = write_temp(dir, &name, new_bytes, label)?;
 
     // 2. Re-read: the target must be what the edit was computed from, and writable.
+    //    A note still locked by another writer reads as `Busy`.
     let precheck = || -> Result<(), ReplaceError> {
-        let current = fs::read(target).map_err(|e| io_err(label, &e))?;
+        let current = fs::read(target).map_err(|e| {
+            if is_lock_error(&e) {
+                VaultError::Busy {
+                    path: label.to_string(),
+                }
+            } else {
+                io_err(label, &e)
+            }
+        })?;
         if current != expected_current {
             return Err(ReplaceError::Changed);
         }
@@ -118,29 +125,61 @@ pub fn replace_atomic_with(
         return Err(e);
     }
 
-    // 3-5. Replace with retry on sharing/lock violations, recovering from 1176/1177.
+    // 3-5. Replace. Sharing/lock violations, and a 1176 that left both files in
+    // place, are retried with backoff. Every retry re-runs the step-2 check first:
+    // a write that landed while the note was locked is never overwritten.
     let backup = temp.with_extension("bak");
     let mut attempt = 0;
     loop {
-        match replace(target, &temp, &backup) {
+        let code = match replace(target, &temp, &backup) {
             Ok(()) => {
                 let _ = fs::remove_file(&backup);
                 return Ok(());
             }
-            Err(ERR_SHARING_VIOLATION | ERR_LOCK_VIOLATION) => {
-                if attempt < RETRY_DELAYS_MS.len() {
-                    std::thread::sleep(Duration::from_millis(RETRY_DELAYS_MS[attempt]));
-                    attempt += 1;
-                } else {
+            Err(code) => code,
+        };
+        let retryable = match code {
+            ERR_SHARING_VIOLATION | ERR_LOCK_VIOLATION => true,
+            // Documented for ReplaceFileW with a backup name: "the replaced and
+            // replacement files retain their original file names" — the target
+            // is untouched, so this is safe to retry.
+            ERR_UNABLE_TO_MOVE_REPLACEMENT => !backup.exists(),
+            _ => false,
+        };
+        if retryable {
+            loop {
+                if attempt == RETRY_DELAYS_MS.len() {
                     let _ = fs::remove_file(&temp);
-                    return Err(VaultError::Busy {
-                        path: label.to_string(),
+                    return Err(if code == ERR_UNABLE_TO_MOVE_REPLACEMENT {
+                        VaultError::Io {
+                            path: label.to_string(),
+                            kind: format!("ReplaceFile failed ({code}), note unchanged"),
+                        }
+                    } else {
+                        VaultError::Busy {
+                            path: label.to_string(),
+                        }
                     }
                     .into());
                 }
+                std::thread::sleep(Duration::from_millis(RETRY_DELAYS_MS[attempt]));
+                attempt += 1;
+                match precheck() {
+                    Ok(()) => break,
+                    // Still locked: wait again without calling replace.
+                    Err(ReplaceError::Failed(VaultError::Busy { .. })) => {}
+                    Err(e) => {
+                        let _ = fs::remove_file(&temp);
+                        return Err(e);
+                    }
+                }
             }
-            Err(ERR_UNABLE_TO_MOVE_REPLACEMENT) => {
-                // Original sits under the backup name; new content only in the temp file.
+            continue;
+        }
+        match code {
+            ERR_UNABLE_TO_MOVE_REPLACEMENT => {
+                // Undocumented state, handled defensively: the original was moved
+                // to the backup name and the new content is only in the temp file.
                 return match move_replace(&temp, target) {
                     Ok(()) => {
                         let _ = fs::remove_file(&backup);
@@ -149,7 +188,7 @@ pub fn replace_atomic_with(
                     Err(_) => Err(incomplete(label, &temp, &backup)),
                 };
             }
-            Err(ERR_UNABLE_TO_MOVE_REPLACEMENT_2) => {
+            ERR_UNABLE_TO_MOVE_REPLACEMENT_2 => {
                 // Original was moved to the backup name; put it back.
                 return match move_replace(&backup, target) {
                     Ok(()) => {
@@ -163,7 +202,7 @@ pub fn replace_atomic_with(
                     Err(_) => Err(incomplete(label, &temp, &backup)),
                 };
             }
-            Err(code) => {
+            _ => {
                 let _ = fs::remove_file(&temp);
                 return Err(VaultError::Io {
                     path: label.to_string(),
@@ -173,6 +212,13 @@ pub fn replace_atomic_with(
             }
         }
     }
+}
+
+fn is_lock_error(e: &std::io::Error) -> bool {
+    matches!(
+        e.raw_os_error().map(|c| c as u32),
+        Some(ERR_SHARING_VIOLATION | ERR_LOCK_VIOLATION)
+    )
 }
 
 fn incomplete(label: &str, temp: &Path, backup: &Path) -> ReplaceError {
@@ -187,14 +233,15 @@ fn incomplete(label: &str, temp: &Path, backup: &Path) -> ReplaceError {
 /// Writes `bytes` to a new `.<name>.dn-<random>.tmp` file and returns its path.
 /// On any failure the temp file is removed.
 fn write_temp(dir: &Path, name: &str, bytes: &[u8], label: &str) -> Result<PathBuf, VaultError> {
-    let mut tf = new_temp(dir, name)
-        .map_err(|e| io_err(label, &e))?;
+    let mut tf = new_temp(dir, name).map_err(|e| io_err(label, &e))?;
     tf.write_all(bytes)
         .and_then(|_| tf.flush())
         .and_then(|_| tf.as_file().sync_all())
         .map_err(|e| io_err(label, &e))?;
     // Drop the handle (ReplaceFileW needs the replacement unopened), keep the file.
-    tf.into_temp_path().keep().map_err(|e| io_err(label, &e.error))
+    tf.into_temp_path()
+        .keep()
+        .map_err(|e| io_err(label, &e.error))
 }
 
 fn new_temp(dir: &Path, name: &str) -> std::io::Result<tempfile::NamedTempFile> {
@@ -206,13 +253,15 @@ fn new_temp(dir: &Path, name: &str) -> std::io::Result<tempfile::NamedTempFile> 
         .tempfile_in(dir)
 }
 
-/// Removes this note's `.dn-*.tmp` / `.dn-*.bak` files older than a minute. Best effort.
+/// Removes this note's `.dn-*.tmp` files older than a minute. Best effort.
+/// `.dn-*.bak` files are never deleted: after a failed recovery a backup can be
+/// the only copy of the original note (`ReplaceIncomplete` names it).
 fn remove_leftovers(dir: &Path, name: &str) {
     let prefix = format!(".{name}.dn-");
     let Ok(rd) = fs::read_dir(dir) else { return };
     for entry in rd.flatten() {
         let fname = entry.file_name().to_string_lossy().into_owned();
-        if !fname.starts_with(&prefix) || !(fname.ends_with(".tmp") || fname.ends_with(".bak")) {
+        if !fname.starts_with(&prefix) || !fname.ends_with(".tmp") {
             continue;
         }
         let old = entry
@@ -232,8 +281,7 @@ pub fn create_new(target: &Path, bytes: &[u8], label: &str) -> Result<(), VaultE
     let dir = target.parent().ok_or_else(|| VaultError::NotFound {
         path: label.to_string(),
     })?;
-    let mut tf = new_temp(dir, &file_name_of(target))
-        .map_err(|e| io_err(label, &e))?;
+    let mut tf = new_temp(dir, &file_name_of(target)).map_err(|e| io_err(label, &e))?;
     tf.write_all(bytes)
         .and_then(|_| tf.flush())
         .and_then(|_| tf.as_file().sync_all())

@@ -1,13 +1,18 @@
 //! Guarded access to Obsidian vaults. Nothing here imports `tauri`.
 
 pub mod edit;
-pub mod fsops;
+// The write layer takes raw absolute paths with no guard: only `Vault` may call
+// it. Integration tests reach it through the `test-support` feature.
 mod error;
+#[cfg(feature = "test-support")]
+pub mod fsops;
+#[cfg(not(feature = "test-support"))]
+mod fsops;
 pub mod markdown;
 mod path;
 
 use std::fs;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Path, PathBuf, Prefix};
 
 pub use edit::FieldValue;
 pub use error::VaultError;
@@ -130,7 +135,7 @@ impl Note {
     pub fn field(&self, key: &str) -> Result<FieldView, VaultError> {
         let span = markdown::find_field(&self.bytes, key)?;
         Ok(FieldView {
-            value_text: String::from_utf8_lossy(span.slice(&self.bytes)).into_owned(),
+            raw_block: String::from_utf8_lossy(span.slice(&self.bytes)).into_owned(),
             hash: markdown::span_hash(&self.bytes, span),
         })
     }
@@ -146,11 +151,11 @@ impl Note {
     }
 }
 
-/// A frontmatter field as read: `value_text` is the raw block text (the
+/// A frontmatter field as read: `raw_block` is the raw block text (the
 /// `key:` line plus any list lines, with their original line endings).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FieldView {
-    pub value_text: String,
+    pub raw_block: String,
     pub hash: SpanHash,
 }
 
@@ -183,9 +188,10 @@ impl Vault {
             joined.push(seg);
         }
         let canon = canonicalize_lenient(&joined, path)?;
-        let remainder = relative_remainder(&canon, &root).ok_or_else(|| VaultError::OutsideVault {
-            path: path.to_string(),
-        })?;
+        let remainder =
+            relative_remainder(&canon, &root).ok_or_else(|| VaultError::OutsideVault {
+                path: path.to_string(),
+            })?;
         if remainder.iter().any(|s| s.starts_with('.')) {
             return Err(VaultError::Hidden {
                 path: path.to_string(),
@@ -288,8 +294,39 @@ impl Vault {
         entries.sort_by_key(|e| (e.name.to_lowercase(), e.name.clone()));
         Ok(entries)
     }
+
+    /// Excluded entries that match nothing on disk, e.g. a typo in settings.
+    /// They protect nothing, so callers surface them instead of trusting the
+    /// exclusion. Only the folders leading to an entry are listed; nothing
+    /// inside an excluded entry is read.
+    pub fn unmatched_exclusions(&self) -> Result<Vec<VaultPath>, VaultError> {
+        let root = canonical_root(self.space, &self.root)?;
+        Ok(self
+            .excluded
+            .iter()
+            .filter(|e| !exists_matching(&root, e.segments()))
+            .cloned()
+            .collect())
+    }
 }
 
+/// True if `segs` names an existing entry under `dir`, matching each segment
+/// the way exclusions match (NFC, case-insensitive).
+fn exists_matching(dir: &Path, segs: &[String]) -> bool {
+    let Some((first, rest)) = segs.split_first() else {
+        return true;
+    };
+    let Ok(rd) = fs::read_dir(dir) else {
+        return false;
+    };
+    rd.flatten().any(|entry| {
+        entry
+            .file_name()
+            .to_str()
+            .is_some_and(|name| path::segment_eq(name, first))
+            && (rest.is_empty() || exists_matching(&entry.path(), rest))
+    })
+}
 
 const MAX_WRITE_ATTEMPTS: usize = 3;
 
@@ -298,10 +335,21 @@ impl Vault {
         canonical_root(self.space, &self.root)
     }
 
+    /// Test hook for `apply`: lets integration tests inject an arbitrary edit.
+    /// Absent from production builds, where only span-scoped edits exist.
+    #[cfg(feature = "test-support")]
+    #[doc(hidden)]
+    pub fn apply_for_tests(
+        &self,
+        path: &VaultPath,
+        edit: &dyn Fn(&[u8]) -> Result<Vec<u8>, VaultError>,
+    ) -> Result<(), VaultError> {
+        self.apply(path, edit)
+    }
+
     /// Guard, read, pure edit, atomic replace. Recomputes from fresh bytes when
     /// the file changed in between, up to 3 attempts, then `Conflict`.
-    #[doc(hidden)]
-    pub fn apply(
+    fn apply(
         &self,
         path: &VaultPath,
         edit: &dyn Fn(&[u8]) -> Result<Vec<u8>, VaultError>,
@@ -343,7 +391,9 @@ impl Vault {
         body: &str,
         expected: SpanHash,
     ) -> Result<(), VaultError> {
-        self.apply(path, &|b| edit::replace_section(b, heading, body, &expected))
+        self.apply(path, &|b| {
+            edit::replace_section(b, heading, body, &expected)
+        })
     }
 
     pub fn append_to_section(
@@ -429,7 +479,9 @@ fn trash_dest(root: &Path) -> Result<PathBuf, VaultError> {
     }
     let canon = dunce::canonicalize(&dir).map_err(|_| outside())?;
     match relative_remainder(&canon, root) {
-        Some(rest) if rest.len() == 1 && rest[0].eq_ignore_ascii_case(".trash") && canon.is_dir() => {
+        Some(rest)
+            if rest.len() == 1 && rest[0].eq_ignore_ascii_case(".trash") && canon.is_dir() =>
+        {
             Ok(canon)
         }
         _ => Err(outside()),
@@ -485,7 +537,26 @@ fn canonicalize_lenient(p: &Path, vp: &VaultPath) -> Result<PathBuf, VaultError>
     }
 }
 
+/// Case-insensitive comparison key. Verbatim prefixes compare equal to their
+/// plain forms: `dunce` keeps `\\?\` on paths longer than 260 characters, so a
+/// deep note canonicalises to `\\?\D:\…` while its root stays `D:\…`.
 fn component_key(c: Component<'_>) -> String {
+    if let Component::Prefix(p) = c {
+        match p.kind() {
+            Prefix::Disk(d) | Prefix::VerbatimDisk(d) => {
+                return format!("{}:", (d as char).to_ascii_lowercase());
+            }
+            Prefix::UNC(server, share) | Prefix::VerbatimUNC(server, share) => {
+                return format!(
+                    r"\\{}\{}",
+                    server.to_string_lossy(),
+                    share.to_string_lossy()
+                )
+                .to_lowercase();
+            }
+            _ => {}
+        }
+    }
     c.as_os_str().to_string_lossy().to_lowercase()
 }
 
@@ -520,11 +591,15 @@ mod tests {
     fn note_views_expose_block_text_and_matching_hashes() {
         let n = note(b"---\nStatus:\n  - Open\n---\n## Plan\nbody\n");
         let f = n.field("Status").unwrap();
-        assert_eq!(f.value_text, "Status:\n  - Open\n");
+        assert_eq!(f.raw_block, "Status:\n  - Open\n");
         let s = n.section(&Heading::new(2, "Plan")).unwrap();
         assert_eq!(s.body, "body\n");
-        let out = edit::replace_section(n.bytes(), &Heading::new(2, "Plan"), "new\n", &s.hash).unwrap();
+        let out =
+            edit::replace_section(n.bytes(), &Heading::new(2, "Plan"), "new\n", &s.hash).unwrap();
         assert_eq!(out, b"---\nStatus:\n  - Open\n---\n## Plan\nnew\n");
-        assert!(matches!(n.field("Nope"), Err(VaultError::FieldNotFound { .. })));
+        assert!(matches!(
+            n.field("Nope"),
+            Err(VaultError::FieldNotFound { .. })
+        ));
     }
 }

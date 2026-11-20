@@ -45,7 +45,12 @@ fn parse_rejects_traversal_absolute_unc_ads_and_reserved() {
 
 #[test]
 fn parse_rejects_dot_segments_as_hidden() {
-    for input in [".obsidian/app.json", "a/.hidden/x.md", ".trash/x.md", "..x/y.md"] {
+    for input in [
+        ".obsidian/app.json",
+        "a/.hidden/x.md",
+        ".trash/x.md",
+        "..x/y.md",
+    ] {
         assert!(
             matches!(VaultPath::parse(input), Err(VaultError::Hidden { .. })),
             "{input}"
@@ -73,7 +78,9 @@ fn read_note_reads_fixture_and_strips_bom_in_text() {
     let note = vault.read_note(&vp("Dziennik/2026/2026-01-06.md")).unwrap();
     assert_eq!(&note.bytes()[..3], &[0xEF, 0xBB, 0xBF]);
     assert!(note.text().starts_with("# 2026-01-06"));
-    let task = vault.read_note(&vp("Tasks/Przykładowe zadanie.md")).unwrap();
+    let task = vault
+        .read_note(&vp("Tasks/Przykładowe zadanie.md"))
+        .unwrap();
     assert!(task.text().contains("Status: Todo"));
 }
 
@@ -168,7 +175,10 @@ fn root_missing_after_delete_mid_test() {
         vault.read_note(&vp("Tasks/Przykładowe zadanie.md")),
         Err(VaultError::RootMissing { .. })
     ));
-    assert!(matches!(vault.list(None), Err(VaultError::RootMissing { .. })));
+    assert!(matches!(
+        vault.list(None),
+        Err(VaultError::RootMissing { .. })
+    ));
     assert!(matches!(
         reg.vault(Space::Work),
         Err(VaultError::RootMissing { .. })
@@ -185,7 +195,10 @@ fn roots_overlap_when_nested_or_equal() {
         }
     });
     let _ = &tmp;
-    assert!(matches!(reg.vault(Space::Work), Err(VaultError::RootsOverlap)));
+    assert!(matches!(
+        reg.vault(Space::Work),
+        Err(VaultError::RootsOverlap)
+    ));
     assert!(matches!(
         reg.vault(Space::Private),
         Err(VaultError::RootsOverlap)
@@ -292,4 +305,79 @@ fn junction_into_hidden_is_rejected() {
         vault.list(Some(&vp("Notes/cfg"))),
         Err(VaultError::Hidden { .. })
     ));
+}
+
+#[test]
+fn notes_beyond_260_characters_are_readable_and_listed() {
+    let (tmp, reg) = test_vault();
+    let root = vault_root(&tmp);
+    let vault = reg.vault(Space::Work).unwrap();
+    let seg = "g".repeat(100);
+    let dir_rel = format!("Deep/{seg}/{seg}");
+    let note_rel = format!("{dir_rel}/long note.md");
+    let abs = root.join(&note_rel);
+    assert!(
+        abs.as_os_str().len() > 260,
+        "test path must exceed MAX_PATH"
+    );
+    fs::create_dir_all(abs.parent().unwrap()).unwrap();
+    fs::write(&abs, b"# Long\n").unwrap();
+
+    let note = vault.read_note(&vp(&note_rel)).unwrap();
+    assert_eq!(note.text(), "# Long\n");
+    let listed = vault.list(Some(&vp(&dir_rel))).unwrap();
+    assert_eq!(listed.len(), 1, "{listed:?}");
+    assert_eq!(listed[0].name, "long note.md");
+    assert_eq!(listed[0].kind, EntryKind::Note);
+}
+
+#[test]
+fn exclusion_matches_nfd_folder_names_from_nfc_settings() {
+    // Settings typed on Windows (NFC `ę`), folder stored as NFD (`e` + U+0328).
+    let nfc = "Dost\u{0119}py";
+    let nfd = "Doste\u{0328}py";
+    let (tmp, reg) = test_vault_with(|root| Settings {
+        work: Some(space_settings(root, &[nfc])),
+        private: None,
+    });
+    let root = vault_root(&tmp);
+    fs::create_dir(root.join(nfd)).unwrap();
+    fs::write(root.join(nfd).join("x.md"), b"# invented\n").unwrap();
+    let vault = reg.vault(Space::Work).unwrap();
+
+    assert!(matches!(
+        vault.read_note(&vp(&format!("{nfd}/x.md"))),
+        Err(VaultError::Excluded { .. })
+    ));
+    assert!(matches!(
+        vault.list(Some(&vp(nfd))),
+        Err(VaultError::Excluded { .. })
+    ));
+    let names: Vec<String> = vault
+        .list(None)
+        .unwrap()
+        .into_iter()
+        .map(|e| e.name)
+        .collect();
+    assert!(!names.iter().any(|n| n == nfd), "{names:?}");
+    assert!(vault.unmatched_exclusions().unwrap().is_empty());
+}
+
+#[test]
+fn unmatched_exclusions_lists_entries_that_match_nothing() {
+    let (_tmp, reg) = test_vault_with(|root| Settings {
+        work: Some(space_settings(
+            root,
+            &["dostepy", "Dostpey", "Notes/duplicate-headings.md"],
+        )),
+        private: None,
+    });
+    let vault = reg.vault(Space::Work).unwrap();
+    let unmatched: Vec<String> = vault
+        .unmatched_exclusions()
+        .unwrap()
+        .iter()
+        .map(|p| p.to_string())
+        .collect();
+    assert_eq!(unmatched, vec!["Dostpey".to_string()]);
 }

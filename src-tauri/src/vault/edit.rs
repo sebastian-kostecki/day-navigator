@@ -7,7 +7,8 @@
 
 use super::error::VaultError;
 use super::markdown::{
-    Eol, Heading, Span, SpanHash, detect_eol, find_field, find_section, span_hash,
+    Eol, Heading, Span, SpanHash, check_section_text, detect_eol, find_field, find_section,
+    span_hash,
 };
 
 /// New value for a frontmatter field.
@@ -49,11 +50,15 @@ fn check_plain(value: &str) -> Result<(), VaultError> {
     if value.contains(" #") || value.starts_with('#') {
         return Err(invalid("value contains ' #' and would need quoting"));
     }
-    if value.starts_with(|c| "[]{}&*!|>'\"%@`".contains(c)) {
-        return Err(invalid("value starts with a YAML indicator and would need quoting"));
+    if value.starts_with(|c| "[]{}&*!|>'\"%@`,".contains(c)) {
+        return Err(invalid(
+            "value starts with a YAML indicator and would need quoting",
+        ));
     }
-    if value.starts_with("- ") || value.starts_with("? ") {
-        return Err(invalid("value starts with a YAML indicator and would need quoting"));
+    if value.starts_with("- ") || value.starts_with("? ") || value == "-" || value == "?" {
+        return Err(invalid(
+            "value starts with a YAML indicator and would need quoting",
+        ));
     }
     Ok(())
 }
@@ -145,6 +150,7 @@ pub fn replace_section(
     }
     let eol = detect_eol(bytes);
     let mut text = normalize_eol(new_body, eol);
+    check_section_text(text.as_bytes(), heading)?;
     if !text.is_empty() {
         if mid_line(bytes, span.start) {
             // The heading is the last line and has no ending yet.
@@ -167,13 +173,17 @@ pub fn append_to_section(
     }
     let span = find_section(bytes, heading)?;
     let eol = detect_eol(bytes);
+    check_section_text(normalize_eol(lines, eol).as_bytes(), heading)?;
     // Insert after the last non-blank body line; a blank body inserts right after the heading.
     let body = span.slice(bytes);
     let mut pos = span.start;
     let mut offset = 0;
     for chunk in body.split_inclusive(|b| *b == b'\n') {
         offset += chunk.len();
-        if !chunk.iter().all(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n')) {
+        if !chunk
+            .iter()
+            .all(|b| matches!(b, b' ' | b'\t' | b'\r' | b'\n'))
+        {
             pos = span.start + offset;
         }
     }
@@ -185,7 +195,14 @@ pub fn append_to_section(
     if !text.ends_with(eol.as_str()) {
         text.push_str(eol.as_str());
     }
-    Ok(splice(bytes, Span { start: pos, end: pos }, text.as_bytes()))
+    Ok(splice(
+        bytes,
+        Span {
+            start: pos,
+            end: pos,
+        },
+        text.as_bytes(),
+    ))
 }
 
 #[cfg(test)]
@@ -217,7 +234,8 @@ mod tests {
     #[test]
     fn list_valued_status_is_replaced_as_one_block() {
         let doc = b"---\nStatus:\n  - Open\n  - In review\nLabels: x\n---\nbody\n";
-        let out = replace_field(doc, "Status", &list(&["Done"]), &field_hash(doc, "Status")).unwrap();
+        let out =
+            replace_field(doc, "Status", &list(&["Done"]), &field_hash(doc, "Status")).unwrap();
         assert_eq!(s(out), "---\nStatus:\n  - Done\nLabels: x\n---\nbody\n");
     }
 
@@ -252,7 +270,10 @@ mod tests {
     fn crlf_file_gets_crlf_in_inserted_field_text() {
         let doc = b"---\r\nA: x\r\nB: 1\r\n---\r\nbody\r\n";
         let out = replace_field(doc, "A", &list(&["p", "q"]), &field_hash(doc, "A")).unwrap();
-        assert_eq!(s(out), "---\r\nA:\r\n  - p\r\n  - q\r\nB: 1\r\n---\r\nbody\r\n");
+        assert_eq!(
+            s(out),
+            "---\r\nA:\r\n  - p\r\n  - q\r\nB: 1\r\n---\r\nbody\r\n"
+        );
     }
 
     #[test]
@@ -385,12 +406,48 @@ mod tests {
     }
 
     #[test]
+    fn section_text_that_would_restructure_the_note_is_refused() {
+        let doc = b"# Day\n## Plan\na\n### Sub\nb\n## Log\nc\n";
+        let plan = Heading::new(2, "Plan");
+        let hash = span_hash(doc, find_section(doc, &plan).unwrap());
+        for bad in ["x\n## Log\n", "# Top\n", "x\n```\ncode\n", "~~~~\n~~~\n"] {
+            assert!(
+                matches!(
+                    replace_section(doc, &plan, bad, &hash),
+                    Err(VaultError::InvalidValue { .. })
+                ),
+                "replace {bad:?} should be refused"
+            );
+            assert!(
+                matches!(
+                    append_to_section(doc, &plan, bad),
+                    Err(VaultError::InvalidValue { .. })
+                ),
+                "append {bad:?} should be refused"
+            );
+        }
+        // Deeper subheadings, headings inside a closed fence and #tags are fine.
+        for ok in [
+            "### New sub\nx\n",
+            "```\n## not a heading\n```\n",
+            "#tag line\n",
+        ] {
+            assert!(
+                replace_section(doc, &plan, ok, &hash).is_ok(),
+                "replace {ok:?}"
+            );
+            assert!(append_to_section(doc, &plan, ok).is_ok(), "append {ok:?}");
+        }
+    }
+
+    #[test]
     fn values_needing_yaml_quoting_or_line_breaks_are_refused() {
         let doc = b"---\nA: x\n---\n";
         let hash = field_hash(doc, "A");
         let bad = [
             "", " lead", "trail ", "a: b", "a #c", "#c", "[x]", "{x}", "&a", "*a", "!a", "|a",
-            ">a", "'a", "\"a", "%a", "@a", "`a", "- a", "? a", "a:", "a\nb", "a\rb", "a\tb",
+            ">a", "'a", "\"a", "%a", "@a", "`a", "- a", "? a", "-", "?", ",a", "a:", "a\nb",
+            "a\rb", "a\tb",
         ];
         for v in bad {
             assert!(
@@ -405,7 +462,15 @@ mod tests {
             replace_field(doc, "A", &list(&["ok", "a: b"]), &hash),
             Err(VaultError::InvalidValue { .. })
         ));
-        for v in ["Done", "In review", "a-b", "x:y", "C#", "2026-01-05", "zażółć"] {
+        for v in [
+            "Done",
+            "In review",
+            "a-b",
+            "x:y",
+            "C#",
+            "2026-01-05",
+            "zażółć",
+        ] {
             assert!(
                 replace_field(doc, "A", &scalar(v), &hash).is_ok(),
                 "scalar {v:?} should be accepted"
@@ -416,11 +481,20 @@ mod tests {
     #[test]
     fn fixture_issue_status_list_round_trips_outside_the_block() {
         let doc = include_bytes!("../../tests/fixtures/vault/Issues/Fake issue 101.md");
-        let out = replace_field(doc, "Status", &list(&["Closed"]), &field_hash(doc, "Status")).unwrap();
+        let out = replace_field(
+            doc,
+            "Status",
+            &list(&["Closed"]),
+            &field_hash(doc, "Status"),
+        )
+        .unwrap();
         let out = s(out);
         let orig = String::from_utf8(doc.to_vec()).unwrap();
         assert!(out.contains("Status:\n  - Closed\nLabels:\n  - fake\n  - demo\nPriority: High\n"));
-        assert_eq!(out.len() + "  - Open\n  - In review\n".len(), orig.len() + "  - Closed\n".len());
+        assert_eq!(
+            out.len() + "  - Open\n  - In review\n".len(),
+            orig.len() + "  - Closed\n".len()
+        );
     }
 }
 

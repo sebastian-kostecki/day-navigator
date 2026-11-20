@@ -26,12 +26,20 @@ thiserror = "2"
 dunce = "1"
 sha2 = "0.10"
 tempfile = "3"
+unicode-normalization = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 
+[features]
+# Exposes the unguarded write layer (`vault::fsops`, `Vault::apply`) to the
+# integration tests only; production builds never enable it.
+test-support = []
+
 [dev-dependencies]
 proptest = "1"
+# Self dev-dependency: turns on `test-support` for `cargo test` alone.
+day-navigator = { path = ".", features = ["test-support"] }
 
 [target.'cfg(windows)'.dev-dependencies]
 junction = "1"

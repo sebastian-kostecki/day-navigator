@@ -89,7 +89,7 @@ Decisions settled in planning:
 
 **ReplaceFileW failure branches.** `ReplaceFileW` is always called with an explicit backup name (`.<file name>.dn-<random>.bak` in the same folder), so the original always has a known name:
 - The temp file's handle must be closed before the call (`NamedTempFile::into_temp_path()`). ReplaceFileW opens the replacement with no sharing, and an open handle fails with a sharing violation (32) even when full sharing is allowed (verified on this machine).
-- `ERROR_UNABLE_TO_MOVE_REPLACEMENT` (1176): the original now sits under the backup name, and the new content is only in the temp file. Rename the temp file onto the target (`MoveFileExW`).
+- `ERROR_UNABLE_TO_MOVE_REPLACEMENT` (1176): per Microsoft's docs, with a backup name "the replaced and replacement files retain their original file names". The target is untouched, so retry it like a lock (re-check first, see `replace_atomic` step 4). If a backup file does exist anyway (an undocumented state), the original sits under the backup name and the new content is only in the temp file; rename the temp file onto the target (`MoveFileExW`). *(Corrected after impl review F2.)*
 - `ERROR_UNABLE_TO_MOVE_REPLACEMENT_2` (1177): the original was moved to the backup name, and the temp file keeps its name. Move the backup back onto the target (`MoveFileExW`), restoring the original, then return an error.
 - In both branches, never delete the temp or backup file. If the recovery rename also fails, return `ReplaceIncomplete { path, temp, backup }`, which names both files. The ordinary clean-up that runs on every other failure skips these branches.
 - After a successful replace, delete the backup.
@@ -97,7 +97,9 @@ Decisions settled in planning:
 
 **Git line-ending normalisation of fixtures.** The fixture vault deliberately contains CRLF and BOM files. Without a `.gitattributes` rule marking `src-tauri/tests/fixtures/**` as `-text`, git on Windows (with `core.autocrlf`) rewrites them and the byte-identity tests stop meaning anything.
 
-**Accepted race.** The last re-read (step 4 of the write path) and the replace (step 5) are a few milliseconds apart, with no lock shared with Obsidian. A write that lands in that window is lost. This is accepted. obsidian-git and Obsidian's file recovery cover it, and narrowing the window further would need a file lock that Obsidian does not honour.
+**Accepted race.** The last re-read (step 4 of the write path) and the replace (step 5) are a few milliseconds apart, with no lock shared with Obsidian. A write that lands in that window is lost. This is accepted. obsidian-git and Obsidian's file recovery cover it, and narrowing the window further would need a file lock that Obsidian does not honour. A lock retry never widens this window: every retry re-runs the re-read first (impl review F1).
+
+**Accepted race: junction swap.** Between `resolve()` and the final write or move in `create_note`, `trash` and the edit operations, a folder inside the vault could be swapped for a junction, and the operation would follow it. This needs another process that creates junctions inside the vault, which is out of scope on a personal machine. It is accepted; hardening would mean writing through a handle checked with `GetFinalPathNameByHandle` (impl review F10).
 
 ## Phase 1: Settings and path guard
 
@@ -178,7 +180,7 @@ Settings loading, the `Space` / `VaultPath` / `Vault` / `VaultRegistry` types, a
   - reserved device names (`CON`, `PRN`, `AUX`, `NUL`, `COM1-9`, `LPT1-9`), with or without an extension
   - any segment starting with `.`
 - `Display` joins segments with `/`.
-- `fn starts_with_ci(&self, prefix: &VaultPath) -> bool` compares lowercased whole segments.
+- `fn starts_with_ci(&self, prefix: &VaultPath) -> bool` compares whole segments after Unicode NFC normalisation and lowercasing, so an NFD folder name on disk still matches an NFC entry in settings (impl review F8).
 - `fn is_markdown(&self) -> bool` is true for an `.md` extension, ignoring case.
 
 #### 5. Vault and registry
@@ -201,7 +203,7 @@ Settings loading, the `Space` / `VaultPath` / `Vault` / `VaultRegistry` types, a
 - `Vault::resolve(&VaultPath) -> Result<PathBuf, VaultError>` is the internal guard:
   - `Excluded` if any excluded entry is a case-insensitive prefix.
   - Joins the path onto the canonical root and canonicalises the target, or its deepest existing ancestor.
-  - `OutsideVault` if the result does not start with the canonical root.
+  - `OutsideVault` if the result does not start with the canonical root. Verbatim prefixes (`\\?\D:`, which `dunce` keeps for paths over 260 characters) compare equal to their plain forms (impl review F5).
   - Re-runs the excluded and hidden checks on the canonical relative remainder.
 - `Vault::read_note(&VaultPath) -> Result<Note, VaultError>`:
   - The target must be `.md` and must exist (`NotFound`).
@@ -212,6 +214,7 @@ Settings loading, the `Space` / `VaultPath` / `Vault` / `VaultRegistry` types, a
   - `Entry { name, path: VaultPath, kind: Dir | Note }`.
   - Omits dot-entries, non-`.md` files, excluded entries and entries whose canonical path leaves the root.
   - Listing an excluded directory returns `Excluded`.
+- `Vault::unmatched_exclusions() -> Result<Vec<VaultPath>, VaultError>` returns excluded entries that match nothing on disk (for example a typo), so a later slice (F-02) can show them instead of trusting a setting that protects nothing (impl review F8).
 
 #### 6. Tauri wiring
 
@@ -303,7 +306,7 @@ Pure functions that locate a frontmatter field block or a heading section in a n
 - **`find_field(bytes, key) -> Result<Span, VaultError>`**:
   - It matches a top-level line `key:` at column 0, with a case-sensitive key.
   - The block continues over following lines that are indented or start with `- `.
-  - It stops at the next column-0 key, a column-0 `#` comment, a blank line or the end of the frontmatter. None of these belong to the block.
+  - It stops at the next column-0 key, a column-0 `#` comment, a blank line or the end of the frontmatter. None of these belong to the block. If an indented or `- ` line follows blank or comment lines before the next key or the end, YAML still counts it as part of the field, so `find_field` returns `FieldLayoutUnsupported { key }` instead of a partial span (impl review F4).
   - Errors: `NoFrontmatter`, `FieldNotFound`, or `FieldAmbiguous` for a duplicate key.
 - **`find_section(bytes, &Heading) -> Result<Span, VaultError>`**:
   - The span is the section *body*: from the line after the matching ATX heading up to the next ATX heading of the same or higher level, or EOF.
@@ -324,16 +327,17 @@ Pure functions that locate a frontmatter field block or a heading section in a n
   - `FieldValue::Scalar(String)` renders as `key: value`.
   - `FieldValue::List(Vec<String>)` renders as `key:` plus one `<indent>- item` per element. The indent is copied from the existing block's first item, or two spaces if there is none. An empty list renders as `key: []`.
   - A value containing CR or LF returns `InvalidValue`.
-  - Values are written verbatim, with no quoting. A value that would need YAML quoting returns `InvalidValue`. That covers leading or trailing whitespace, `: `, ` #`, a leading one of `[ ] { } & * ! | > ' " % @ `` ` ``, a leading `- ` or `? `, and an empty string. This way a write never breaks Obsidian's Properties block.
+  - Values are written verbatim, with no quoting. A value that would need YAML quoting returns `InvalidValue`. That covers leading or trailing whitespace, `: `, ` #`, a leading one of `[ ] { } & * ! | > ' " % @ `` ` ``, a leading `- ` or `? `, a leading `,`, a bare `-` or `?`, and an empty string (impl review F4). This way a write never breaks Obsidian's Properties block.
 - `replace_section(bytes, &Heading, new_body: &str, expected: &SpanHash) -> Result<Vec<u8>, VaultError>`
   - Adds a trailing EOL if the body lacks one and the section is not at EOF.
+  - `replace_section` and `append_to_section` refuse (`InvalidValue`) text that contains an ATX heading at the target's level or higher outside fences, or that leaves a fence open, because either would restructure the rest of the note. Deeper subheadings are allowed (impl review F6).
 - `append_to_section(bytes, &Heading, lines: &str) -> Result<Vec<u8>, VaultError>`
   - Inserts after the last non-blank line of the body, so blank lines before the next heading stay put.
   - With a blank body, it inserts directly after the heading line.
   - If the heading is the last line with no EOL, it first adds one EOL.
 - In both replace functions, if the hash of the span found in `bytes` ≠ `expected`, they return `Conflict`.
 - The BOM, if present, always stays at offset 0.
-- `Note::field(key) -> Result<FieldView { value_text, hash }, VaultError>` and `Note::section(&Heading) -> Result<SectionView { body, hash }, VaultError>` live in `vault/mod.rs`. Callers get the expected hash from these.
+- `Note::field(key) -> Result<FieldView { raw_block, hash }, VaultError>` and `Note::section(&Heading) -> Result<SectionView { body, hash }, VaultError>` live in `vault/mod.rs`. Callers get the expected hash from these.
 
 #### 3. Unit and property tests
 
@@ -395,15 +399,16 @@ One atomic, conflict-checked write path that every mutating operation uses. It a
 
 **Contract**:
 - `replace_atomic(target, new_bytes, expected_current: &[u8]) -> Result<(), VaultError>`:
-  0. Delete this note's leftover `.<file name>.dn-*.tmp` and `.dn-*.bak` files in the target's folder that are older than 1 minute. These are leftovers from a crash, and without this step obsidian-git would commit them.
+  0. Delete this note's leftover `.<file name>.dn-*.tmp` files in the target's folder that are older than 1 minute. These are leftovers from a crash, and without this step obsidian-git would commit them. `.dn-*.bak` files are never deleted: after a failed recovery a backup can be the only copy of the original (impl review F9).
   1. Write a temp file in the target's folder, named `.<file name>.dn-<random>.tmp`. The dot prefix keeps Obsidian from showing it. Flush and sync it, then close its handle (`into_temp_path()`).
   2. Re-read the target. If its bytes ≠ `expected_current`, delete the temp file and return an internal `Changed` signal. If the target is read-only, delete the temp file and return `ReadOnly`.
   3. Replace. On Windows this uses `ReplaceFileW(target, temp, backup, REPLACEFILE_IGNORE_MERGE_ERRORS | REPLACEFILE_IGNORE_ACL_ERRORS, …)`, with `backup` = `.<file name>.dn-<random>.bak` in the same folder. This keeps the creation time, attributes and ACLs. Delete the backup after success. Elsewhere it uses `std::fs::rename`.
-  4. On a sharing violation (32) or lock violation (33), retry with backoff (about 5 tries, ≤ 1 s in total), then return `Busy`.
+  4. On a sharing violation (32) or lock violation (33), or a 1176 that left both files in place, retry with backoff (about 5 tries, ≤ 1 s in total), then return `Busy` (or `Io` for 1176). Before every retry, re-run step 2: a changed note returns `Changed` and is never overwritten (impl review F1).
   5. Handle errors 1176 and 1177 as described in Critical Implementation Details. The Windows replace call sits behind an injectable function, so tests can force these branches.
   6. Delete the temp file on every other failure.
 - `create_new(target, bytes) -> Result<(), VaultError>`: temp file, then `NamedTempFile::persist_noclobber`. An existing target returns `AlreadyExists`.
 - `move_noclobber(from, to) -> Result<(), VaultError>`: Windows `MoveFileExW(from, to, 0)`, which does not replace. Elsewhere it uses `hard_link` plus `remove_file`.
+- `fsops` and `Vault::apply` are crate-private. Integration tests reach them only through the `test-support` cargo feature, which a self dev-dependency turns on for `cargo test` (impl review F3).
 
 #### 2. Vault edit operations
 
@@ -553,8 +558,8 @@ There is no existing data to migrate. Until S-06 ships the wizard, the user crea
 
 #### Manual
 
-- [ ] 1.6 App starts cleanly with and without settings.json
-- [ ] 1.7 Fixture vault contains only invented data
+- [x] 1.6 App starts cleanly with and without settings.json
+- [x] 1.7 Fixture vault contains only invented data
 
 ### Phase 2: Markdown spans and pure edits
 
@@ -566,7 +571,7 @@ There is no existing data to migrate. Until S-06 ships the wizard, the user crea
 
 #### Manual
 
-- [ ] 2.4 Obsidian section folding matches expected spans
+- [x] 2.4 Obsidian section folding matches expected spans
 
 ### Phase 3: Safe writes and trash
 
@@ -580,6 +585,6 @@ There is no existing data to migrate. Until S-06 ships the wizard, the user crea
 
 #### Manual
 
-- [ ] 3.6 Smoke test on scratch vault open in Obsidian shows only targeted changes
-- [ ] 3.7 Trashed note in .trash and no temp files visible
-- [ ] 3.8 AGENTS.md Testing section matches the commands
+- [x] 3.6 Smoke test on scratch vault open in Obsidian shows only targeted changes
+- [x] 3.7 Trashed note in .trash and no temp files visible
+- [x] 3.8 AGENTS.md Testing section matches the commands

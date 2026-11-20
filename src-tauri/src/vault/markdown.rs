@@ -137,7 +137,11 @@ fn lines(bytes: &[u8], from: usize, to: usize) -> Vec<Line> {
 }
 
 fn bom_len(bytes: &[u8]) -> usize {
-    if bytes.starts_with(&BOM) { BOM.len() } else { 0 }
+    if bytes.starts_with(&BOM) {
+        BOM.len()
+    } else {
+        0
+    }
 }
 
 fn is_blank(text: &[u8]) -> bool {
@@ -188,7 +192,8 @@ fn is_key_line(text: &[u8], key: &str) -> bool {
 }
 
 fn is_continuation(text: &[u8]) -> bool {
-    !is_blank(text) && (text.starts_with(b" ") || text.starts_with(b"\t") || text.starts_with(b"- "))
+    !is_blank(text)
+        && (text.starts_with(b" ") || text.starts_with(b"\t") || text.starts_with(b"- "))
 }
 
 /// Span of a top-level frontmatter field: the `key:` line plus its indented or
@@ -210,6 +215,19 @@ pub fn find_field(bytes: &[u8], key: &str) -> Result<Span, VaultError> {
             let mut last = *i;
             while last + 1 < ls.len() && is_continuation(ls[last + 1].text(bytes)) {
                 last += 1;
+            }
+            // An indented or `- ` line after blank or comment lines still belongs
+            // to this field in YAML; a partial replace would leave it behind and
+            // could break the Properties block. Refuse instead.
+            let detached = ls[last + 1..]
+                .iter()
+                .map(|l| l.text(bytes))
+                .find(|t| !is_blank(t) && !t.starts_with(b"#"))
+                .is_some_and(is_continuation);
+            if detached {
+                return Err(VaultError::FieldLayoutUnsupported {
+                    key: key.to_string(),
+                });
             }
             Ok(Span {
                 start: ls[*i].start,
@@ -333,6 +351,43 @@ fn headings(bytes: &[u8]) -> Vec<(Line, u8, String)> {
     out
 }
 
+/// Checks text about to be written into the body of `heading`'s section. A
+/// heading at that level or higher (outside fences) would end the section
+/// early, and an unclosed fence would hide every later heading; either would
+/// change the structure of the rest of the note. Deeper subheadings are fine.
+pub fn check_section_text(text: &[u8], heading: &Heading) -> Result<(), VaultError> {
+    let mut fence: Option<(u8, usize)> = None;
+    for line in lines(text, 0, text.len()) {
+        let t = line.text(text);
+        if let Some((ch, len)) = fence {
+            if fence_close(t, ch, len) {
+                fence = None;
+            }
+            continue;
+        }
+        if let Some(open) = fence_open(t) {
+            fence = Some(open);
+            continue;
+        }
+        if let Some((level, _)) = parse_heading(t) {
+            if level <= heading.level {
+                return Err(VaultError::InvalidValue {
+                    reason: format!(
+                        "text contains a level-{level} heading, which would end the section {}",
+                        heading.display()
+                    ),
+                });
+            }
+        }
+    }
+    if fence.is_some() {
+        return Err(VaultError::InvalidValue {
+            reason: "text leaves a code fence open".to_string(),
+        });
+    }
+    Ok(())
+}
+
 /// Span of a section body: from the line after the matching heading up to the
 /// next heading of the same or higher level, or EOF.
 pub fn find_section(bytes: &[u8], heading: &Heading) -> Result<Span, VaultError> {
@@ -383,8 +438,15 @@ pub(crate) mod testgen {
 
     #[derive(Debug, Clone)]
     enum Frag {
-        Heading { level: u8, text: &'static str, closed: bool },
-        Fence { tilde: bool, inner: Vec<&'static str> },
+        Heading {
+            level: u8,
+            text: &'static str,
+            closed: bool,
+        },
+        Fence {
+            tilde: bool,
+            inner: Vec<&'static str>,
+        },
         Text(&'static str),
         Blank,
     }
@@ -431,12 +493,22 @@ pub(crate) mod testgen {
                 prop::sample::select(vec!["A", "B", "C"]),
                 any::<bool>()
             )
-                .prop_map(|(level, text, closed)| Frag::Heading { level, text, closed }),
+                .prop_map(|(level, text, closed)| Frag::Heading {
+                    level,
+                    text,
+                    closed
+                }),
             (
                 any::<bool>(),
                 prop::collection::vec(
                     prop::sample::select(vec![
-                        "## Target", "# Target", "### A", "~~~", "```", "text", ""
+                        "## Target",
+                        "# Target",
+                        "### A",
+                        "~~~",
+                        "```",
+                        "text",
+                        ""
                     ]),
                     0..4
                 )
@@ -464,12 +536,12 @@ pub(crate) mod testgen {
 
     pub fn gen_note() -> impl Strategy<Value = GenNote> {
         (
-            any::<bool>(),                                              // BOM
+            any::<bool>(),                                                              // BOM
             prop::option::of(prop::collection::vec(prop::option::of(field_spec()), 4)), // frontmatter
             prop::collection::vec(frag(), 0..12),
-            any::<usize>(),                                             // target position
-            1u8..=6,                                                    // target level
-            (any::<bool>(), 0usize..4),                                 // target closed / indent
+            any::<usize>(),             // target position
+            1u8..=6,                    // target level
+            (any::<bool>(), 0usize..4), // target closed / indent
             eol_strategy(),
             any::<bool>(), // trailing EOL
         )
@@ -511,7 +583,11 @@ pub(crate) mod testgen {
                 lines_out.push((target_text.clone(), Kind::Target));
             }
             match f {
-                Frag::Heading { level, text, closed } => lines_out.push((
+                Frag::Heading {
+                    level,
+                    text,
+                    closed,
+                } => lines_out.push((
                     format!(
                         "{} {}{}",
                         "#".repeat(*level as usize),
@@ -563,7 +639,14 @@ pub(crate) mod testgen {
                         }
                     }
                 }
-                fields.push((*key, spec, Span { start, end: bytes.len() }));
+                fields.push((
+                    *key,
+                    spec,
+                    Span {
+                        start,
+                        end: bytes.len(),
+                    },
+                ));
             }
             bytes.extend_from_slice(format!("---{eol_s}").as_bytes());
         }
@@ -668,7 +751,10 @@ mod tests {
         let span = find_section(doc, &plan()).unwrap();
         assert_eq!(text_of(doc, span), "    ## Log\n####### x\n");
         let doc = b"   ## Plan\nbody\n";
-        assert!(find_section(doc, &plan()).is_ok(), "3 spaces of indent is a heading");
+        assert!(
+            find_section(doc, &plan()).is_ok(),
+            "3 spaces of indent is a heading"
+        );
     }
 
     #[test]
@@ -706,7 +792,13 @@ mod tests {
     fn heading_on_last_line_without_eol_has_empty_body_at_eof() {
         let doc = b"x\n## Plan";
         let span = find_section(doc, &plan()).unwrap();
-        assert_eq!(span, Span { start: doc.len(), end: doc.len() });
+        assert_eq!(
+            span,
+            Span {
+                start: doc.len(),
+                end: doc.len()
+            }
+        );
         assert!(span.is_empty());
     }
 
@@ -775,15 +867,41 @@ mod tests {
     #[test]
     fn unindented_dash_items_belong_to_the_block() {
         let doc = b"---\nStatus:\n- a\n- b\nNext: 1\n---\n";
-        assert_eq!(text_of(doc, find_field(doc, "Status").unwrap()), "Status:\n- a\n- b\n");
+        assert_eq!(
+            text_of(doc, find_field(doc, "Status").unwrap()),
+            "Status:\n- a\n- b\n"
+        );
     }
 
     #[test]
     fn field_block_stops_at_comment_blank_line_and_next_key() {
-        let doc = b"---\nA:\n  - 1\n# note\n  - 2\nB: x\n\n  - lost\n---\n";
+        let doc = b"---\nA:\n  - 1\n# note\nB: x\n\nC: y\n---\n";
         assert_eq!(text_of(doc, find_field(doc, "A").unwrap()), "A:\n  - 1\n");
+        assert_eq!(text_of(doc, find_field(doc, "B").unwrap()), "B: x\n");
         let doc = b"---\nA: 1\n\nB: 2\n---\n";
         assert_eq!(text_of(doc, find_field(doc, "A").unwrap()), "A: 1\n");
+    }
+
+    #[test]
+    fn list_items_after_blank_or_comment_lines_are_refused_not_split() {
+        // YAML still counts `- 2` as part of A: a partial replace would leave it behind.
+        for doc in [
+            &b"---\nA:\n  - 1\n# note\n  - 2\nB: x\n---\n"[..],
+            &b"---\nA:\n  - 1\n\n  - 2\n---\n"[..],
+            &b"---\nA: x\n\n# c\n\n- lost\n---\n"[..],
+        ] {
+            assert!(
+                matches!(
+                    find_field(doc, "A"),
+                    Err(VaultError::FieldLayoutUnsupported { .. })
+                ),
+                "{}",
+                String::from_utf8_lossy(doc)
+            );
+        }
+        // Other fields of the same note stay editable.
+        let doc = b"---\nA:\n  - 1\n\n  - 2\nB: x\n---\n";
+        assert_eq!(text_of(doc, find_field(doc, "B").unwrap()), "B: x\n");
     }
 
     #[test]
@@ -809,8 +927,8 @@ mod tests {
     fn no_frontmatter_cases() {
         for doc in [
             &b"A: 1\n"[..],
-            b"\n---\nA: 1\n---\n",   // not at the start
-            b"---\nA: 1\n",          // never closed
+            b"\n---\nA: 1\n---\n",    // not at the start
+            b"---\nA: 1\n",           // never closed
             b"# T\n---\nA: 1\n---\n", // later `---` is not frontmatter
         ] {
             assert!(

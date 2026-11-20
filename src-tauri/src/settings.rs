@@ -58,13 +58,19 @@ pub fn load_settings(path: &Path) -> Result<Settings, VaultError> {
             });
         }
         Err(e) => {
+            // File name only: error paths never carry absolute locations.
             return Err(VaultError::Io {
-                path: path.display().to_string(),
+                path: path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
                 kind: format!("{:?}", e.kind()),
             });
         }
     };
-    let bytes = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF][..]).unwrap_or(&bytes);
+    let bytes = bytes
+        .strip_prefix(&[0xEF, 0xBB, 0xBF][..])
+        .unwrap_or(&bytes);
     let text =
         std::str::from_utf8(bytes).map_err(|_| invalid("settings file is not valid UTF-8"))?;
     parse_settings(text)

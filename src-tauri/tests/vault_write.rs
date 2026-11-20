@@ -88,7 +88,12 @@ fn replace_section_changes_only_that_section() {
 fn replace_section_in_crlf_bom_note_keeps_bom_and_crlf() {
     let (_tmp, root, vault) = setup();
     let heading = Heading::new(2, "Log");
-    let hash = vault.read_note(&vp(CRLF_NOTE)).unwrap().section(&heading).unwrap().hash;
+    let hash = vault
+        .read_note(&vp(CRLF_NOTE))
+        .unwrap()
+        .section(&heading)
+        .unwrap()
+        .hash;
     vault
         .replace_section(&vp(CRLF_NOTE), &heading, "- new\n- lines\n", hash)
         .unwrap();
@@ -98,12 +103,18 @@ fn replace_section_in_crlf_bom_note_keeps_bom_and_crlf() {
     let after = disk(&root, CRLF_NOTE);
     assert_eq!(&after[..3], &[0xEF, 0xBB, 0xBF]);
     assert_eq!(after, spliced(&original, span, b"- new\r\n- lines\r\n"));
+    assert_no_leftovers(&root);
 }
 
 #[test]
 fn replace_field_replaces_list_block_only() {
     let (_tmp, root, vault) = setup();
-    let hash = vault.read_note(&vp(ISSUE_NOTE)).unwrap().field("Status").unwrap().hash;
+    let hash = vault
+        .read_note(&vp(ISSUE_NOTE))
+        .unwrap()
+        .field("Status")
+        .unwrap()
+        .hash;
     vault
         .replace_field(
             &vp(ISSUE_NOTE),
@@ -119,14 +130,25 @@ fn replace_field_replaces_list_block_only() {
         disk(&root, ISSUE_NOTE),
         spliced(&original, span, b"Status:\n  - Done\n")
     );
+    assert_no_leftovers(&root);
 }
 
 #[test]
 fn replace_field_replaces_scalar_only() {
     let (_tmp, root, vault) = setup();
-    let hash = vault.read_note(&vp(TASK_NOTE)).unwrap().field("Status").unwrap().hash;
+    let hash = vault
+        .read_note(&vp(TASK_NOTE))
+        .unwrap()
+        .field("Status")
+        .unwrap()
+        .hash;
     vault
-        .replace_field(&vp(TASK_NOTE), "Status", FieldValue::Scalar("Done".into()), hash)
+        .replace_field(
+            &vp(TASK_NOTE),
+            "Status",
+            FieldValue::Scalar("Done".into()),
+            hash,
+        )
         .unwrap();
 
     let original = fixture_bytes(TASK_NOTE);
@@ -135,6 +157,7 @@ fn replace_field_replaces_scalar_only() {
         disk(&root, TASK_NOTE),
         spliced(&original, span, b"Status: Done\n")
     );
+    assert_no_leftovers(&root);
 }
 
 #[test]
@@ -158,7 +181,12 @@ fn append_to_section_inserts_after_last_body_line() {
 fn stale_section_hash_is_conflict_with_path_and_file_untouched() {
     let (_tmp, root, vault) = setup();
     let heading = Heading::new(2, "Log");
-    let hash = vault.read_note(&vp(PLAN_NOTE)).unwrap().section(&heading).unwrap().hash;
+    let hash = vault
+        .read_note(&vp(PLAN_NOTE))
+        .unwrap()
+        .section(&heading)
+        .unwrap()
+        .hash;
     // Someone edits the same section after the caller read it.
     let mut edited = fixture_bytes(PLAN_NOTE);
     edited.extend_from_slice(b"\n- 09:30 Edited elsewhere");
@@ -179,7 +207,12 @@ fn stale_section_hash_is_conflict_with_path_and_file_untouched() {
 fn change_elsewhere_in_note_is_preserved() {
     let (_tmp, root, vault) = setup();
     let plan = Heading::new(2, "Plan");
-    let hash = vault.read_note(&vp(PLAN_NOTE)).unwrap().section(&plan).unwrap().hash;
+    let hash = vault
+        .read_note(&vp(PLAN_NOTE))
+        .unwrap()
+        .section(&plan)
+        .unwrap()
+        .hash;
     // The Log section changes after the caller read the Plan section.
     let mut edited = fixture_bytes(PLAN_NOTE);
     edited.extend_from_slice(b"\n- 09:30 Edited elsewhere");
@@ -191,21 +224,31 @@ fn change_elsewhere_in_note_is_preserved() {
 
     let after = String::from_utf8(disk(&root, PLAN_NOTE)).unwrap();
     assert!(after.contains("- [x] only this"));
-    assert!(after.ends_with("- 09:30 Edited elsewhere"), "outside edit lost: {after}");
+    assert!(
+        after.ends_with("- 09:30 Edited elsewhere"),
+        "outside edit lost: {after}"
+    );
     assert!(!after.contains("Invented task one"));
+    assert_no_leftovers(&root);
 }
 
 #[test]
 fn file_changing_between_read_and_replace_is_retried_then_succeeds() {
     let (_tmp, root, vault) = setup();
     let plan = Heading::new(2, "Plan");
-    let hash = vault.read_note(&vp(PLAN_NOTE)).unwrap().section(&plan).unwrap().hash;
+    let hash = vault
+        .read_note(&vp(PLAN_NOTE))
+        .unwrap()
+        .section(&plan)
+        .unwrap()
+        .hash;
     let calls = Cell::new(0);
     let target = root.join(PLAN_NOTE);
     vault
-        .apply(&vp(PLAN_NOTE), &|bytes| {
+        .apply_for_tests(&vp(PLAN_NOTE), &|bytes| {
             calls.set(calls.get() + 1);
-            let out = day_navigator_lib::vault::edit::replace_section(bytes, &plan, "- p\n\n", &hash);
+            let out =
+                day_navigator_lib::vault::edit::replace_section(bytes, &plan, "- p\n\n", &hash);
             if calls.get() == 1 {
                 // Simulated Obsidian write after our read, in another section.
                 let mut b = bytes.to_vec();
@@ -228,7 +271,7 @@ fn file_changing_on_every_attempt_gives_conflict_after_three_attempts() {
     let calls = Cell::new(0);
     let target = root.join(PLAN_NOTE);
     let err = vault
-        .apply(&vp(PLAN_NOTE), &|bytes| {
+        .apply_for_tests(&vp(PLAN_NOTE), &|bytes| {
             calls.set(calls.get() + 1);
             let mut b = bytes.to_vec();
             b.extend_from_slice(b"\n- churn");
@@ -238,7 +281,10 @@ fn file_changing_on_every_attempt_gives_conflict_after_three_attempts() {
         })
         .unwrap_err();
     assert_eq!(calls.get(), 3);
-    assert!(matches!(err, VaultError::Conflict { ref path } if path == PLAN_NOTE), "{err:?}");
+    assert!(
+        matches!(err, VaultError::Conflict { ref path } if path == PLAN_NOTE),
+        "{err:?}"
+    );
     assert_no_leftovers(&root);
 }
 
@@ -255,7 +301,10 @@ fn writes_into_excluded_and_hidden_and_non_markdown_are_refused() {
         vault.create_note(&vp("Dostepy/new.md"), "x"),
         Err(VaultError::Excluded { .. })
     ));
-    assert!(matches!(vault.trash(&excluded), Err(VaultError::Excluded { .. })));
+    assert!(matches!(
+        vault.trash(&excluded),
+        Err(VaultError::Excluded { .. })
+    ));
     assert_eq!(disk(&root, "Dostepy/invented-secret.md"), before);
     assert!(!root.join("Dostepy/new.md").exists());
     assert!(!root.join(".trash").exists());
@@ -269,7 +318,11 @@ fn writes_into_excluded_and_hidden_and_non_markdown_are_refused() {
         vault.create_note(&vp("notes.txt"), "x"),
         Err(VaultError::NotMarkdown { .. })
     ));
-    assert!(matches!(vault.trash(&vp("notes.txt")), Err(VaultError::NotMarkdown { .. })));
+    assert!(matches!(
+        vault.trash(&vp("notes.txt")),
+        Err(VaultError::NotMarkdown { .. })
+    ));
+    assert_no_leftovers(&root);
 }
 
 // ---------------------------------------------------------------------------
@@ -280,8 +333,13 @@ fn writes_into_excluded_and_hidden_and_non_markdown_are_refused() {
 fn create_note_writes_content_as_given_and_creates_parents() {
     let (_tmp, root, vault) = setup();
     let content = "---\r\nStatus: Todo\r\n---\r\n# Nowa\r\n";
-    vault.create_note(&vp("Dziennik/2027/2027-01-01.md"), content).unwrap();
-    assert_eq!(disk(&root, "Dziennik/2027/2027-01-01.md"), content.as_bytes());
+    vault
+        .create_note(&vp("Dziennik/2027/2027-01-01.md"), content)
+        .unwrap();
+    assert_eq!(
+        disk(&root, "Dziennik/2027/2027-01-01.md"),
+        content.as_bytes()
+    );
     assert_no_leftovers(&root);
 }
 
@@ -324,13 +382,20 @@ fn trash_moves_note_into_root_trash() {
     let name = vault.trash(&vp(TASK_NOTE)).unwrap();
     assert_eq!(name, "Przykładowe zadanie.md");
     assert!(!root.join(TASK_NOTE).exists());
-    assert_eq!(disk(&root, ".trash/Przykładowe zadanie.md"), fixture_bytes(TASK_NOTE));
+    assert_eq!(
+        disk(&root, ".trash/Przykładowe zadanie.md"),
+        fixture_bytes(TASK_NOTE)
+    );
     // Trashed notes are no longer readable through the vault.
     assert!(matches!(
         vault.read_note(&vp(TASK_NOTE)),
         Err(VaultError::NotFound { .. })
     ));
-    assert!(matches!(vault.trash(&vp(TASK_NOTE)), Err(VaultError::NotFound { .. })));
+    assert!(matches!(
+        vault.trash(&vp(TASK_NOTE)),
+        Err(VaultError::NotFound { .. })
+    ));
+    assert_no_leftovers(&root);
 }
 
 #[test]
@@ -350,6 +415,7 @@ fn trash_collision_gets_numeric_suffix_and_keeps_existing_entry() {
     );
     assert_eq!(disk(&root, ".trash/duplicate-headings 2.md"), b"# second\n");
     assert_eq!(disk(&root, ".trash/duplicate-headings 3.md"), b"# third\n");
+    assert_no_leftovers(&root);
 }
 
 #[cfg(windows)]
@@ -414,10 +480,48 @@ fn replace_atomic_reports_changed_when_target_differs_and_cleans_temp() {
 }
 
 #[test]
-fn error_1176_moves_temp_onto_target_and_cleans_up() {
+fn error_1176_documented_state_is_retried_after_recheck() {
+    // Documented ReplaceFileW state with a backup name: both files keep their
+    // names, the target is untouched.
+    let (tmp, target) = scratch_file(b"old");
+    let calls = Cell::new(0);
+    let replace = |t: &Path, temp: &Path, _: &Path| {
+        calls.set(calls.get() + 1);
+        if calls.get() == 1 {
+            Err(1176)
+        } else {
+            fs::rename(temp, t).map_err(|_| 1u32)
+        }
+    };
+    fsops::replace_atomic_with(&target, b"new", b"old", "x.md", &replace).unwrap();
+    assert_eq!(calls.get(), 2);
+    assert_eq!(fs::read(&target).unwrap(), b"new");
+    assert_eq!(dir_names(tmp.path()), vec!["x.md"]);
+}
+
+#[test]
+fn error_1176_that_persists_is_io_and_note_unchanged() {
+    let (tmp, target) = scratch_file(b"old");
+    let calls = Cell::new(0);
+    let replace = |_: &Path, _: &Path, _: &Path| {
+        calls.set(calls.get() + 1);
+        Err(1176)
+    };
+    let err = fsops::replace_atomic_with(&target, b"new", b"old", "x.md", &replace).unwrap_err();
+    assert!(
+        matches!(err, ReplaceError::Failed(VaultError::Io { .. })),
+        "{err:?}"
+    );
+    assert_eq!(calls.get(), 5);
+    assert_eq!(fs::read(&target).unwrap(), b"old");
+    assert_eq!(dir_names(tmp.path()), vec!["x.md"]);
+}
+
+#[test]
+fn error_1176_with_original_moved_aside_moves_temp_onto_target() {
     let (tmp, target) = scratch_file(b"old");
     let replace = |t: &Path, temp: &Path, backup: &Path| {
-        // State after ERROR_UNABLE_TO_MOVE_REPLACEMENT: original under the backup
+        // Undocumented state, handled defensively: original under the backup
         // name, new content only in the temp file.
         assert!(temp.exists(), "temp must exist before recovery");
         fs::rename(t, backup).unwrap();
@@ -425,6 +529,23 @@ fn error_1176_moves_temp_onto_target_and_cleans_up() {
     };
     fsops::replace_atomic_with(&target, b"new", b"old", "x.md", &replace).unwrap();
     assert_eq!(fs::read(&target).unwrap(), b"new");
+    assert_eq!(dir_names(tmp.path()), vec!["x.md"]);
+}
+
+#[test]
+fn note_changed_while_locked_is_changed_and_not_overwritten() {
+    let (tmp, target) = scratch_file(b"old");
+    let calls = Cell::new(0);
+    let replace = |t: &Path, _: &Path, _: &Path| {
+        calls.set(calls.get() + 1);
+        // Obsidian holds the note and writes it; our replace sees a sharing violation.
+        fs::write(t, b"obsidian").unwrap();
+        Err(32)
+    };
+    let err = fsops::replace_atomic_with(&target, b"new", b"old", "x.md", &replace).unwrap_err();
+    assert!(matches!(err, ReplaceError::Changed), "{err:?}");
+    assert_eq!(calls.get(), 1, "no replace after the note changed");
+    assert_eq!(fs::read(&target).unwrap(), b"obsidian");
     assert_eq!(dir_names(tmp.path()), vec!["x.md"]);
 }
 
@@ -437,7 +558,10 @@ fn error_1177_restores_original_and_reports_error() {
         Err(1177)
     };
     let err = fsops::replace_atomic_with(&target, b"new", b"old", "x.md", &replace).unwrap_err();
-    assert!(matches!(err, ReplaceError::Failed(VaultError::Io { .. })), "{err:?}");
+    assert!(
+        matches!(err, ReplaceError::Failed(VaultError::Io { .. })),
+        "{err:?}"
+    );
     assert_eq!(fs::read(&target).unwrap(), b"old");
     assert_eq!(dir_names(tmp.path()), vec!["x.md"]);
 }
@@ -453,14 +577,23 @@ fn failed_recovery_keeps_temp_and_backup_and_names_both() {
             fs::create_dir(t).unwrap();
             Err(code)
         };
-        let err = fsops::replace_atomic_with(&target, b"new", b"old", "x.md", &replace).unwrap_err();
+        let err =
+            fsops::replace_atomic_with(&target, b"new", b"old", "x.md", &replace).unwrap_err();
         let ReplaceError::Failed(VaultError::ReplaceIncomplete { path, temp, backup }) = err else {
             panic!("expected ReplaceIncomplete for {code}");
         };
         assert_eq!(path, "x.md");
         // Neither file was deleted: the original and the new bytes both survive.
-        assert_eq!(fs::read(tmp.path().join(&backup)).unwrap(), b"old", "code {code}");
-        assert_eq!(fs::read(tmp.path().join(&temp)).unwrap(), b"new", "code {code}");
+        assert_eq!(
+            fs::read(tmp.path().join(&backup)).unwrap(),
+            b"old",
+            "code {code}"
+        );
+        assert_eq!(
+            fs::read(tmp.path().join(&temp)).unwrap(),
+            b"new",
+            "code {code}"
+        );
         assert!(temp.starts_with(".x.md.dn-") && temp.ends_with(".tmp"));
         assert!(backup.starts_with(".x.md.dn-") && backup.ends_with(".bak"));
     }
@@ -475,7 +608,10 @@ fn sharing_violation_is_retried_then_busy_and_cleans_temp() {
         Err(32)
     };
     let err = fsops::replace_atomic_with(&target, b"new", b"old", "x.md", &replace).unwrap_err();
-    assert!(matches!(err, ReplaceError::Failed(VaultError::Busy { .. })), "{err:?}");
+    assert!(
+        matches!(err, ReplaceError::Failed(VaultError::Busy { .. })),
+        "{err:?}"
+    );
     assert_eq!(calls.get(), 5);
     assert_eq!(fs::read(&target).unwrap(), b"old");
     assert_eq!(dir_names(tmp.path()), vec!["x.md"]);
@@ -504,7 +640,10 @@ fn other_replace_errors_are_io_and_clean_temp() {
     let (tmp, target) = scratch_file(b"old");
     let replace = |_: &Path, _: &Path, _: &Path| Err(1175);
     let err = fsops::replace_atomic_with(&target, b"new", b"old", "x.md", &replace).unwrap_err();
-    assert!(matches!(err, ReplaceError::Failed(VaultError::Io { .. })), "{err:?}");
+    assert!(
+        matches!(err, ReplaceError::Failed(VaultError::Io { .. })),
+        "{err:?}"
+    );
     assert_eq!(fs::read(&target).unwrap(), b"old");
     assert_eq!(dir_names(tmp.path()), vec!["x.md"]);
 }
@@ -525,7 +664,10 @@ fn read_only_target_is_read_only_error_without_retry_or_replace() {
         Err(5)
     };
     let err = fsops::replace_atomic_with(&target, b"new", b"old", "x.md", &replace).unwrap_err();
-    assert!(matches!(err, ReplaceError::Failed(VaultError::ReadOnly { .. })), "{err:?}");
+    assert!(
+        matches!(err, ReplaceError::Failed(VaultError::ReadOnly { .. })),
+        "{err:?}"
+    );
     assert_eq!(calls.get(), 0);
     assert_eq!(fs::read(&target).unwrap(), b"old");
     assert_eq!(dir_names(tmp.path()), vec!["x.md"]);
@@ -536,25 +678,34 @@ fn read_only_target_is_read_only_error_without_retry_or_replace() {
 fn read_only_note_through_vault_is_read_only_and_unchanged() {
     let (_tmp, root, vault) = setup();
     let heading = Heading::new(2, "Log");
-    let hash = vault.read_note(&vp(PLAN_NOTE)).unwrap().section(&heading).unwrap().hash;
+    let hash = vault
+        .read_note(&vp(PLAN_NOTE))
+        .unwrap()
+        .section(&heading)
+        .unwrap()
+        .hash;
     let file = root.join(PLAN_NOTE);
     set_readonly(&file, true);
     let err = vault
         .replace_section(&vp(PLAN_NOTE), &heading, "x\n", hash)
         .unwrap_err();
     set_readonly(&file, false);
-    assert!(matches!(err, VaultError::ReadOnly { ref path } if path == PLAN_NOTE), "{err:?}");
+    assert!(
+        matches!(err, VaultError::ReadOnly { ref path } if path == PLAN_NOTE),
+        "{err:?}"
+    );
     assert_eq!(disk(&root, PLAN_NOTE), fixture_bytes(PLAN_NOTE));
     assert_no_leftovers(&root);
 }
 
 fn age(path: &Path, secs: u64) {
     let f = fs::OpenOptions::new().write(true).open(path).unwrap();
-    f.set_modified(SystemTime::now() - Duration::from_secs(secs)).unwrap();
+    f.set_modified(SystemTime::now() - Duration::from_secs(secs))
+        .unwrap();
 }
 
 #[test]
-fn next_write_removes_old_leftovers_of_that_note_only() {
+fn next_write_removes_old_tmp_leftovers_of_that_note_only() {
     let (_tmp, root, vault) = setup();
     let dir = root.join("Dziennik/2026");
     let mine_old_tmp = dir.join(".2026-01-05.md.dn-aaaa1111.tmp");
@@ -562,7 +713,13 @@ fn next_write_removes_old_leftovers_of_that_note_only() {
     let mine_fresh = dir.join(".2026-01-05.md.dn-cccc3333.tmp");
     let other_old = dir.join(".2026-01-06.md.dn-dddd4444.tmp");
     let unrelated_old = dir.join(".2026-01-05.md.dn-eeee5555.txt");
-    for p in [&mine_old_tmp, &mine_old_bak, &mine_fresh, &other_old, &unrelated_old] {
+    for p in [
+        &mine_old_tmp,
+        &mine_old_bak,
+        &mine_fresh,
+        &other_old,
+        &unrelated_old,
+    ] {
         fs::write(p, b"leftover").unwrap();
     }
     for p in [&mine_old_tmp, &mine_old_bak, &other_old, &unrelated_old] {
@@ -573,12 +730,21 @@ fn next_write_removes_old_leftovers_of_that_note_only() {
         .append_to_section(&vp(PLAN_NOTE), &Heading::new(2, "Log"), "- x")
         .unwrap();
 
-    assert!(!mine_old_tmp.exists(), "old .tmp of this note should be removed");
-    assert!(!mine_old_bak.exists(), "old .bak of this note should be removed");
-    assert!(mine_fresh.exists(), "fresh file may belong to a running write");
+    assert!(
+        !mine_old_tmp.exists(),
+        "old .tmp of this note should be removed"
+    );
+    assert!(
+        mine_old_bak.exists(),
+        ".bak may be the only copy of an original: never deleted"
+    );
+    assert!(
+        mine_fresh.exists(),
+        "fresh file may belong to a running write"
+    );
     assert!(other_old.exists(), "other notes' leftovers are not touched");
-    assert!(unrelated_old.exists(), "only .tmp/.bak are removed");
-    for p in [&mine_fresh, &other_old, &unrelated_old] {
+    assert!(unrelated_old.exists(), "only .tmp files are removed");
+    for p in [&mine_old_bak, &mine_fresh, &other_old, &unrelated_old] {
         fs::remove_file(p).unwrap();
     }
     assert_no_leftovers(&root);
@@ -593,13 +759,23 @@ fn creation_time_is_preserved_by_replace_section() {
     std::thread::sleep(Duration::from_millis(100));
 
     let heading = Heading::new(2, "Log");
-    let hash = vault.read_note(&vp(PLAN_NOTE)).unwrap().section(&heading).unwrap().hash;
+    let hash = vault
+        .read_note(&vp(PLAN_NOTE))
+        .unwrap()
+        .section(&heading)
+        .unwrap()
+        .hash;
     vault
         .replace_section(&vp(PLAN_NOTE), &heading, "- changed\n", hash)
         .unwrap();
 
     assert_eq!(fs::metadata(&file).unwrap().created().unwrap(), created);
-    assert!(String::from_utf8(fs::read(&file).unwrap()).unwrap().contains("- changed"));
+    assert!(
+        String::from_utf8(fs::read(&file).unwrap())
+            .unwrap()
+            .contains("- changed")
+    );
+    assert_no_leftovers(&root);
 }
 
 // ---------------------------------------------------------------------------
@@ -609,26 +785,47 @@ fn creation_time_is_preserved_by_replace_section() {
 #[test]
 #[ignore = "manual: needs DN_SMOKE_VAULT pointing at a scratch copy of the fixture vault"]
 fn smoke_against_scratch_vault() {
-    let dir = std::env::var("DN_SMOKE_VAULT").expect("set DN_SMOKE_VAULT to a scratch copy of the fixture vault");
+    let dir = std::env::var("DN_SMOKE_VAULT")
+        .expect("set DN_SMOKE_VAULT to a scratch copy of the fixture vault");
     let root = PathBuf::from(dir);
     assert!(
         root.join(".dn-test-vault").is_file(),
         "refusing to run: {} has no .dn-test-vault marker",
         root.display()
     );
+    // The fixture itself carries the marker too: never run against it.
+    let canon_root = dunce::canonicalize(&root).unwrap();
+    let canon_fixture = dunce::canonicalize(fixture_dir()).unwrap();
+    assert!(
+        !canon_root.starts_with(&canon_fixture),
+        "refusing to run: {} is the fixture vault itself; use a scratch copy",
+        root.display()
+    );
     let settings = Settings {
         work: Some(space_settings(&root, &["Dostepy"])),
         private: None,
     };
-    let vault = VaultRegistry::from_settings(&settings).vault(Space::Work).unwrap();
+    let vault = VaultRegistry::from_settings(&settings)
+        .vault(Space::Work)
+        .unwrap();
 
     let plan = Heading::new(2, "Plan");
-    let hash = vault.read_note(&vp(PLAN_NOTE)).unwrap().section(&plan).unwrap().hash;
+    let hash = vault
+        .read_note(&vp(PLAN_NOTE))
+        .unwrap()
+        .section(&plan)
+        .unwrap()
+        .hash;
     vault
         .replace_section(&vp(PLAN_NOTE), &plan, "- [x] Smoke plan\n\n", hash)
         .unwrap();
 
-    let hash = vault.read_note(&vp(ISSUE_NOTE)).unwrap().field("Status").unwrap().hash;
+    let hash = vault
+        .read_note(&vp(ISSUE_NOTE))
+        .unwrap()
+        .field("Status")
+        .unwrap()
+        .hash;
     vault
         .replace_field(
             &vp(ISSUE_NOTE),

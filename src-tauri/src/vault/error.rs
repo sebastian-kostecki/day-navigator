@@ -1,7 +1,8 @@
 //! Typed refusals and failures for vault access.
 //!
 //! Invariant: no variant carries note content. Paths are vault-relative strings,
-//! except `RootMissing::root`, which is the user's own configured path.
+//! except `RootMissing::root` and `NotConfigured::settings_path`, which are the
+//! user's own configured root and the app's settings file.
 
 use std::path::PathBuf;
 
@@ -46,6 +47,10 @@ pub enum VaultError {
     FieldNotFound { key: String },
     #[error("frontmatter field is ambiguous: {key}")]
     FieldAmbiguous { key: String },
+    #[error(
+        "frontmatter field {key} has blank or comment lines inside its block; tidy it in Obsidian first"
+    )]
+    FieldLayoutUnsupported { key: String },
     #[error("section not found: {heading}")]
     SectionNotFound { heading: String },
     #[error("section is ambiguous ({count} matches): {heading}")]

@@ -16,6 +16,8 @@ use super::markdown::{
 pub enum FieldValue {
     Scalar(String),
     List(Vec<String>),
+    /// `key:` with nothing after it (YAML null); clears a scalar field.
+    Empty,
 }
 
 fn conflict() -> VaultError {
@@ -31,7 +33,7 @@ fn invalid(reason: &str) -> VaultError {
 }
 
 /// Values are written verbatim, so anything that would need YAML quoting is refused.
-fn check_plain(value: &str) -> Result<(), VaultError> {
+pub(crate) fn check_plain(value: &str) -> Result<(), VaultError> {
     if value.contains(['\r', '\n']) {
         return Err(invalid("value contains a line break"));
     }
@@ -89,6 +91,7 @@ fn render_field(
             check_plain(v)?;
             Ok(format!("{key}: {v}{nl}"))
         }
+        FieldValue::Empty => Ok(format!("{key}:{nl}")),
         FieldValue::List(items) if items.is_empty() => Ok(format!("{key}: []{nl}")),
         FieldValue::List(items) => {
             let mut out = format!("{key}:{nl}");
@@ -136,6 +139,34 @@ pub fn replace_field(
     let indent = block_indent(span.slice(bytes));
     let text = render_field(key, value, detect_eol(bytes), &indent)?;
     Ok(splice(bytes, span, text.as_bytes()))
+}
+
+/// Replaces several fields at once. Every hash is checked against the original
+/// bytes first; only then are the fields spliced one after another, each span
+/// found again in the progressively edited bytes.
+pub fn replace_fields(
+    bytes: &[u8],
+    edits: &[(&str, FieldValue, SpanHash)],
+) -> Result<Vec<u8>, VaultError> {
+    for (i, (key, _, _)) in edits.iter().enumerate() {
+        if edits[..i].iter().any(|(k, _, _)| k == key) {
+            return Err(invalid("duplicate field in edit list"));
+        }
+    }
+    for (key, _, expected) in edits {
+        let span = find_field(bytes, key)?;
+        if span_hash(bytes, span) != *expected {
+            return Err(conflict());
+        }
+    }
+    let mut out = bytes.to_vec();
+    for (key, value, _) in edits {
+        let span = find_field(&out, key)?;
+        let indent = block_indent(span.slice(&out));
+        let text = render_field(key, value, detect_eol(&out), &indent)?;
+        out = splice(&out, span, text.as_bytes());
+    }
+    Ok(out)
 }
 
 pub fn replace_section(
@@ -300,6 +331,78 @@ mod tests {
         let out = append_to_section(&doc, &h, "more").unwrap();
         assert_eq!(&out[..3], &BOM);
         assert!(out.ends_with(b"## Plan\nold\nmore\n"));
+    }
+
+    #[test]
+    fn empty_value_renders_key_and_colon_with_the_files_eol() {
+        let doc = b"---\nDone: 2026-01-10\nB: 1\n---\n";
+        let out = replace_field(doc, "Done", &FieldValue::Empty, &field_hash(doc, "Done")).unwrap();
+        assert_eq!(s(out), "---\nDone:\nB: 1\n---\n");
+        let doc = b"---\r\nDone: 2026-01-10\r\nB: 1\r\n---\r\n";
+        let out = replace_field(doc, "Done", &FieldValue::Empty, &field_hash(doc, "Done")).unwrap();
+        assert_eq!(s(out), "---\r\nDone:\r\nB: 1\r\n---\r\n");
+        // An empty string is still refused.
+        assert!(matches!(
+            replace_field(doc, "Done", &scalar(""), &field_hash(doc, "Done")),
+            Err(VaultError::InvalidValue { .. })
+        ));
+    }
+
+    #[test]
+    fn replace_fields_changes_status_and_done_in_one_pass() {
+        let doc = b"---\nStatus: Todo\nDue: x\nDone:\n---\nbody\n";
+        let edits = [
+            ("Status", scalar("Done"), field_hash(doc, "Status")),
+            ("Done", scalar("2026-02-01"), field_hash(doc, "Done")),
+        ];
+        let out = replace_fields(doc, &edits).unwrap();
+        assert_eq!(
+            s(out),
+            "---\nStatus: Done\nDue: x\nDone: 2026-02-01\n---\nbody\n"
+        );
+        let doc = b"---\r\nStatus: Done\r\nDone: 2026-01-10\r\n---\r\n";
+        let edits = [
+            ("Done", FieldValue::Empty, field_hash(doc, "Done")),
+            ("Status", scalar("Todo"), field_hash(doc, "Status")),
+        ];
+        assert_eq!(
+            s(replace_fields(doc, &edits).unwrap()),
+            "---\r\nStatus: Todo\r\nDone:\r\n---\r\n"
+        );
+        assert_eq!(replace_fields(doc, &[]).unwrap(), doc);
+    }
+
+    #[test]
+    fn replace_fields_conflicts_when_any_hash_is_stale_and_returns_no_bytes() {
+        let doc = b"---\nStatus: Todo\nDone:\n---\n";
+        let stale = field_hash(b"---\nDone: other\n---\n", "Done");
+        let edits = [
+            ("Status", scalar("Done"), field_hash(doc, "Status")),
+            ("Done", scalar("2026-02-01"), stale),
+        ];
+        assert!(matches!(
+            replace_fields(doc, &edits),
+            Err(VaultError::Conflict { .. })
+        ));
+    }
+
+    #[test]
+    fn replace_fields_refuses_duplicate_keys_and_missing_fields() {
+        let doc = b"---\nStatus: Todo\n---\n";
+        let h = field_hash(doc, "Status");
+        let dup = [
+            ("Status", scalar("A"), h.clone()),
+            ("Status", scalar("B"), h.clone()),
+        ];
+        assert!(matches!(
+            replace_fields(doc, &dup),
+            Err(VaultError::InvalidValue { .. })
+        ));
+        let missing = [("Nope", scalar("A"), h)];
+        assert!(matches!(
+            replace_fields(doc, &missing),
+            Err(VaultError::FieldNotFound { .. })
+        ));
     }
 
     #[test]
@@ -508,6 +611,7 @@ mod proptests {
         prop_oneof![
             scalar_value().prop_map(FieldValue::Scalar),
             prop::collection::vec(scalar_value(), 0..4).prop_map(FieldValue::List),
+            Just(FieldValue::Empty),
         ]
     }
 
@@ -589,6 +693,31 @@ mod proptests {
                     }
                 }
             }
+        }
+
+        /// `replace_fields`: bytes outside both field spans are the original's.
+        #[test]
+        fn replace_fields_keeps_every_byte_outside_both_spans(
+            note in gen_note(),
+            va in field_value(),
+            vb in field_value(),
+        ) {
+            prop_assume!(note.fields.len() >= 2);
+            let bytes = &note.bytes;
+            let (ka, _, a) = &note.fields[0];
+            let (kb, _, b) = &note.fields[1];
+            let edits = [
+                (*ka, va, span_hash(bytes, *a)),
+                (*kb, vb, span_hash(bytes, *b)),
+            ];
+            let out = replace_fields(bytes, &edits).unwrap();
+            let sa = find_field(&out, ka).unwrap();
+            let sb = find_field(&out, kb).unwrap();
+            prop_assert_eq!(&out[..sa.start], &bytes[..a.start]);
+            prop_assert_eq!(&out[sa.end..sb.start], &bytes[a.end..b.start]);
+            prop_assert_eq!(&out[sb.end..], &bytes[b.end..]);
+            prop_assert!(only_file_eol(sa.slice(&out), note.eol));
+            prop_assert!(only_file_eol(sb.slice(&out), note.eol));
         }
 
         /// 2. Replacing a section (or a canonical field) with its own current content is a no-op.

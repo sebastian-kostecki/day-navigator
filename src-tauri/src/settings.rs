@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
+use crate::vault::edit::check_plain;
 use crate::vault::{VaultError, VaultPath};
 
 const SUPPORTED_VERSION: u64 = 1;
@@ -19,6 +20,17 @@ pub struct Settings {
 pub struct SpaceSettings {
     pub vault: PathBuf,
     pub excluded: Vec<VaultPath>,
+    pub tasks: Option<TaskSettings>,
+}
+
+/// Where tasks live and which statuses and priorities exist.
+#[derive(Debug, Clone)]
+pub struct TaskSettings {
+    pub folder: VaultPath,
+    pub template: VaultPath,
+    pub statuses: Vec<String>,
+    pub done_status: String,
+    pub priorities: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -41,6 +53,19 @@ struct RawSpace {
     vault: PathBuf,
     #[serde(default)]
     excluded: Vec<String>,
+    #[serde(default)]
+    tasks: Option<RawTasks>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawTasks {
+    folder: String,
+    template: String,
+    statuses: Vec<String>,
+    done_status: String,
+    #[serde(default)]
+    priorities: Vec<String>,
 }
 
 fn invalid(reason: impl Into<String>) -> VaultError {
@@ -108,9 +133,51 @@ fn convert(name: &str, raw: RawSpace) -> Result<SpaceSettings, VaultError> {
                 .map_err(|err| invalid(format!("{name}: invalid excluded entry: {err}")))
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let tasks = raw
+        .tasks
+        .map(|t| convert_tasks(name, t))
+        .transpose()?;
     Ok(SpaceSettings {
         vault: raw.vault,
         excluded,
+        tasks,
+    })
+}
+
+fn convert_tasks(name: &str, raw: RawTasks) -> Result<TaskSettings, VaultError> {
+    let folder = VaultPath::parse(&raw.folder)
+        .map_err(|err| invalid(format!("{name}: invalid tasks folder: {err}")))?;
+    let template = VaultPath::parse(&raw.template)
+        .map_err(|err| invalid(format!("{name}: invalid tasks template: {err}")))?;
+    if !template.is_markdown() {
+        return Err(invalid(format!(
+            "{name}: tasks template must be a .md note"
+        )));
+    }
+    if raw.statuses.is_empty() {
+        return Err(invalid(format!("{name}: tasks statuses must not be empty")));
+    }
+    for (i, s) in raw.statuses.iter().enumerate() {
+        if raw.statuses[..i].contains(s) {
+            return Err(invalid(format!("{name}: duplicate task status {s:?}")));
+        }
+    }
+    if !raw.statuses.contains(&raw.done_status) {
+        return Err(invalid(format!(
+            "{name}: tasks done_status must be one of statuses"
+        )));
+    }
+    for v in raw.statuses.iter().chain(raw.priorities.iter()) {
+        check_plain(v).map_err(|err| {
+            invalid(format!("{name}: task status or priority {v:?} is not usable: {err}"))
+        })?;
+    }
+    Ok(TaskSettings {
+        folder,
+        template,
+        statuses: raw.statuses,
+        done_status: raw.done_status,
+        priorities: raw.priorities,
     })
 }
 
@@ -184,5 +251,70 @@ mod tests {
         assert_eq!(s.work.unwrap().excluded.len(), 2);
         let s = load_settings(&write(&dir, r#"{"version":1,"spaces":{}}"#)).unwrap();
         assert!(s.work.is_none() && s.private.is_none());
+    }
+
+    fn tasks_text(dir: &tempfile::TempDir, tasks: &str) -> String {
+        let root = json_path(dir);
+        format!(
+            r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":["Dostepy"],"tasks":{tasks}}}}}}}"#
+        )
+    }
+
+    const VALID_TASKS: &str = r#"{"folder":"Tasks","template":"Templates/Task.md","statuses":["Todo","In progress","Done"],"done_status":"Done","priorities":["High","Medium","Low"]}"#;
+
+    #[test]
+    fn settings_valid_tasks_block_is_parsed() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = load_settings(&write(&dir, &tasks_text(&dir, VALID_TASKS))).unwrap();
+        let t = s.work.unwrap().tasks.unwrap();
+        assert_eq!(t.folder.to_string(), "Tasks");
+        assert_eq!(t.template.to_string(), "Templates/Task.md");
+        assert_eq!(t.statuses, ["Todo", "In progress", "Done"]);
+        assert_eq!(t.done_status, "Done");
+        assert_eq!(t.priorities, ["High", "Medium", "Low"]);
+    }
+
+    #[test]
+    fn settings_absent_tasks_block_is_none_and_priorities_may_be_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = json_path(&dir);
+        let text = format!(
+            r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":[]}}}}}}"#
+        );
+        assert!(load_settings(&write(&dir, &text)).unwrap().work.unwrap().tasks.is_none());
+        let no_prio = r#"{"folder":"Tasks","template":"T.md","statuses":["Todo","Done"],"done_status":"Done"}"#;
+        let s = load_settings(&write(&dir, &tasks_text(&dir, no_prio))).unwrap();
+        assert!(s.work.unwrap().tasks.unwrap().priorities.is_empty());
+    }
+
+    #[test]
+    fn settings_invalid_tasks_blocks_are_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let cases = [
+            // unknown key
+            r#"{"folder":"Tasks","template":"T.md","statuses":["Done"],"done_status":"Done","extra":1}"#,
+            // empty statuses
+            r#"{"folder":"Tasks","template":"T.md","statuses":[],"done_status":"Done"}"#,
+            // done_status not listed
+            r#"{"folder":"Tasks","template":"T.md","statuses":["Todo"],"done_status":"Done"}"#,
+            // duplicate statuses
+            r#"{"folder":"Tasks","template":"T.md","statuses":["Todo","Todo","Done"],"done_status":"Done"}"#,
+            // template is not a note
+            r#"{"folder":"Tasks","template":"T.txt","statuses":["Done"],"done_status":"Done"}"#,
+            // invalid folder
+            r#"{"folder":"../up","template":"T.md","statuses":["Done"],"done_status":"Done"}"#,
+            // invalid template path
+            r#"{"folder":"Tasks","template":"/abs.md","statuses":["Done"],"done_status":"Done"}"#,
+            // status needing quoting
+            r#"{"folder":"Tasks","template":"T.md","statuses":["a: b","Done"],"done_status":"Done"}"#,
+            // priority needing quoting
+            r#"{"folder":"Tasks","template":"T.md","statuses":["Done"],"done_status":"Done","priorities":["[x]"]}"#,
+            // empty status
+            r#"{"folder":"Tasks","template":"T.md","statuses":["","Done"],"done_status":"Done"}"#,
+        ];
+        for bad in cases {
+            let err = load_settings(&write(&dir, &tasks_text(&dir, bad))).unwrap_err();
+            assert!(matches!(err, VaultError::SettingsInvalid { .. }), "{bad}");
+        }
     }
 }

@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use super::Space;
 
-#[derive(Debug, thiserror::Error, serde::Serialize)]
+#[derive(Debug, Clone, thiserror::Error, serde::Serialize)]
 #[serde(tag = "kind", content = "detail")]
 pub enum VaultError {
     #[error("settings file not found: {}", settings_path.display())]

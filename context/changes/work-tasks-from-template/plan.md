@@ -183,7 +183,9 @@ The `tasks` settings block, a way to clear a field, and one atomic write for sev
   - `replace_fields` on `Status` + `Done`
   - a mismatched second hash leaves the bytes untouched (`Conflict`)
   - duplicate keys
-- Proptest (in the existing `mod proptests`): for `replace_fields` over two generated scalar fields, the bytes outside both field spans equal the original.
+- Proptest (in the existing `mod proptests`):
+  - `Just(FieldValue::Empty)` joins the `field_value()` strategy, so every existing byte-identity property also covers clearing a field.
+  - For `replace_fields` over two generated fields, with values drawn from the same strategy, the bytes outside both field spans equal the original.
 - `tests/common`: `space_settings` sets `tasks: None`. A new `test_tasks_settings()` returns invented task settings that match the Phase 2 fixtures.
 
 ### Success Criteria:
@@ -226,18 +228,18 @@ A tauri-free `tasks` module that lists tasks, renders the template, creates a ta
 
   No variant carries note content, which matches the F-01 invariant.
 - `pub fn require_config(tasks: Option<&TaskSettings>) -> Result<&TaskSettings, TaskError>` returns `TasksNotConfigured` for `None`. Every command resolves its config through it.
-- `pub struct TaskRow { path: VaultPath /* serialised as string */, title: String, status: Option<String>, priority: Option<String>, due: Option<String>, status_hash: Option<SpanHash>, done_hash: Option<SpanHash>, problem: Option<String> }`
+- `pub struct TaskRow { path: VaultPath /* serialised as string */, title: String, status: Option<String>, priority: Option<String>, due: Option<String>, status_hash: Option<SpanHash>, done_hash: Option<SpanHash>, problem: Option<VaultError> }`
   - `title` is the file stem.
   - Scalar values are read from the field block: trimmed, with surrounding `"`/`'` stripped, and an empty value becomes `None`.
-  - `problem` is set when the note is unreadable (`NotUtf8`), has no frontmatter or no `Status` field, or has a list-valued `Status`. Such rows stay in the list with the status picker disabled. They are never dropped.
+  - `problem` holds the per-note error. That includes any `read_note` error (`NotUtf8`, `Io`, `Busy`, …), any `find_field` error on `Status` or `Done` (`NoFrontmatter`, `FieldNotFound` for `Status`, `FieldAmbiguous`, `FieldLayoutUnsupported`), and a list-valued `Status` (`InvalidValue`). A missing `Done` is not a problem: it gives `done_hash: None`. Such rows stay in the list with the status picker disabled. They are never dropped. The UI turns `problem` into Polish text through `taskErrorMessage`.
 - `pub fn list_tasks(vault: &Vault, cfg: &TaskSettings) -> Result<Vec<TaskRow>, TaskError>`
-  - `FolderMissing` if the folder does not exist, or is not a directory.
-  - The scan is non-recursive and covers `.md` notes only. Excluded and hidden notes are already omitted by `Vault::list`.
+  - `FolderMissing` if the folder does not exist, or is not a directory. Only folder-level errors return `Err`. Per-note errors become `problem` and never fail the list.
+  - The scan is non-recursive and covers `.md` notes only. Excluded and hidden notes are already omitted by `Vault::list`. The note at `cfg.template` is skipped when it lies inside the folder (compared with `starts_with_ci` on equal segment counts), so the template is never listed or edited as a task.
   - Sort order: configured status order first (unknown statuses after the listed ones), then `Due` ascending (empty last), then title case-insensitively.
 - `pub fn render_template(template: &str, title: &str, now: NaiveDateTime) -> Result<String, TaskError>`
   - It replaces `{{title}}`, `{{date}}` and `{{time}}`.
   - Any other `{{…}}` or any `<%` returns `TemplateUnsupported` with the first offending token.
-  - `{{title}}` inside frontmatter requires the title to pass `check_plain` (`InvalidTitle`).
+  - `{{title}}` inside frontmatter requires the title to pass `check_plain` (`InvalidTitle`). The frontmatter range comes from a new `pub(crate) fn frontmatter_span(bytes) -> Option<Span>` in `src-tauri/src/vault/markdown.rs`, which wraps the private `frontmatter()`.
 - `pub struct NewTask { title: String, priority: Option<String>, due: Option<String> }`
 - `pub fn create_task(vault, cfg, new: &NewTask, now: NaiveDateTime) -> Result<VaultPath, TaskError>`
   1. Validate the title: trim it; it must be non-empty; refuse `/ \ [ ] # ^ |`; `VaultPath::parse("<folder>/<title>.md")` must succeed.
@@ -248,9 +250,10 @@ A tauri-free `tasks` module that lists tasks, renders the template, creates a ta
 - `pub enum DoneUpdate { Set, Cleared, Unchanged, Absent }` and `pub fn set_status(vault, cfg, path: &VaultPath, status: &str, status_hash: SpanHash, done_hash: Option<SpanHash>, today: NaiveDate) -> Result<DoneUpdate, TaskError>`
   - `status` must be in `cfg.statuses` (`UnknownStatus`).
   - The previous status is read from the fresh note. If it equals `status`, nothing is written (`Unchanged`).
+  - If `done_hash` is `Some` but the fresh note has no `Done` field, or `None` while the fresh note has one, the note changed since listing. It returns `Vault(Conflict)` with the path filled in, and writes nothing.
   - The edit list is `Status`, plus `Done` (`Scalar(today)` or `Empty`) when the move crosses `done_status` in either direction and the note has a `Done` field.
   - It is one `vault.replace_fields` call. A stale `status_hash` or `done_hash` returns `Vault(Conflict)`.
-  - When the `Done` update is needed but the note has no `Done` field, it returns `Absent`.
+  - When the `Done` update is needed but the note has no `Done` field (and `done_hash` is `None`), it returns `Absent`.
 - Local date and time types: add `chrono` (`default-features = false`, features `["clock", "serde"]`) to `src-tauri/Cargo.toml`. Only `lib.rs` calls `Local::now()`. `tasks.rs` receives the values.
 
 #### 2. Invented fixtures
@@ -264,6 +267,7 @@ A tauri-free `tasks` module that lists tasks, renders the template, creates a ta
 - `Tasks/Invented done task.md`: `Status: Done`, `Done: 2026-01-10`.
 - `Tasks/Invented list status.md`: `Status` as a YAML list.
 - `Tasks/Invented crlf task.md`: CRLF line endings, `Status: Todo`, `Done:`.
+- `Tasks/Invented duplicate status.md`: two `Status:` lines (`FieldAmbiguous`).
 
 **Intent**: Cover every listing, rendering and status-change branch with notes that are obviously invented. The existing `Tasks/Przykładowe zadanie.md` stays byte-identical and serves as the "no `Done` field" case.
 
@@ -278,7 +282,8 @@ A tauri-free `tasks` module that lists tasks, renders the template, creates a ta
 **Contract**: Tests use `common::test_vault()` with `test_tasks_settings()`.
 - **Listing:**
   - The sort order follows the rule above.
-  - The list-status note appears with a `problem`.
+  - The list-status note and the duplicate-status note appear with a `problem`, and the rest of the list still loads.
+  - With `template` pointing at a note inside the tasks folder (written into the temp copy), that note is not listed.
   - A missing folder returns `FolderMissing`, not an empty list.
   - `require_config(None)` returns `TasksNotConfigured`.
 - **Rendering (unit tests in `tasks.rs`):**
@@ -307,6 +312,7 @@ A tauri-free `tasks` module that lists tasks, renders the template, creates a ta
   - An unknown status is refused.
   - A stale `status_hash` gives `Conflict` and the file is unchanged.
   - A `Done` line edited in between gives `Conflict` and the file is unchanged.
+  - A `Done` field added since listing (`done_hash: None`) or removed since listing (`done_hash: Some`) gives `Conflict` and the file is unchanged.
 
 ### Success Criteria:
 
@@ -352,6 +358,7 @@ Thin Tauri commands over `tasks::*`, typed TypeScript wrappers, and the "Zadania
 - The commands also expose the configured `statuses`, `done_status` and `priorities` through `get_work_task_settings() -> TaskSettingsView`, so the UI never hard-codes them.
 - A settings error maps to `TaskError::Vault(<stored error>.clone())`. `None` goes through `tasks::require_config`, which returns `TasksNotConfigured`.
 - Incoming `path` is parsed with `VaultPath::parse`, and incoming hashes with `SpanHash::from_hex`. Both errors pass through as `Vault(..)`.
+- Commands keep Tauri 2's default argument casing, so JS passes camelCase keys (`statusHash`, `doneHash`). Serialised structs (`TaskRow`, `TaskSettingsView`, `NewTask`) use `#[serde(rename_all = "camelCase")]`, so the TS types use camelCase throughout.
 - `Local::now()` is called here only.
 - The `greet` command is removed. No new capability or permission is needed, because app commands are allowed by default and `src-tauri/capabilities/default.json` stays unchanged.
 
@@ -362,7 +369,7 @@ Thin Tauri commands over `tasks::*`, typed TypeScript wrappers, and the "Zadania
 **Intent**: One typed boundary for the task commands, so the view never calls `invoke` with string names directly.
 
 **Contract**:
-- `TaskRow`, `NewTask`, `DoneUpdate`, `TaskSettingsView` and `TaskError` (`{ kind: string; detail?: unknown }`) types mirror the Rust serde shapes.
+- `TaskRow`, `NewTask`, `DoneUpdate`, `TaskSettingsView`, `VaultError` (`{ kind: string; detail?: unknown }`) and `TaskError` types mirror the Rust serde shapes. `TaskError` is a union in which `{ kind: "Vault"; detail: VaultError }` nests. A conflict is therefore `e.kind === "Vault" && e.detail.kind === "Conflict"`, exposed as `isConflict(e)`.
 - There is one function per command.
 - `taskErrorMessage(e: TaskError): string` returns a Polish message for every `TaskError` and `VaultError` kind, with a generic fallback that includes the kind. For example: "Brak pliku ustawień", "Zadania nie są skonfigurowane w settings.json", "Folder zadań nie istnieje: …", "Szablon używa nieobsługiwanego znacznika …", "Notatka zmieniła się w Obsidianie — odświeżono listę".
 
@@ -380,7 +387,7 @@ Thin Tauri commands over `tasks::*`, typed TypeScript wrappers, and the "Zadania
   - loaded and empty ("Brak zadań w folderze …", shown only after a successful load)
   - loaded with rows
 - **Row:** title, priority and due date, plus a status `<select>` with the configured statuses. The current unlisted value is shown as an extra disabled option.
-  - A row with a `problem` shows that message and its select is disabled.
+  - A row with a `problem` shows `taskErrorMessage` of it, and its select is disabled.
   - While the write is in flight, the select is disabled.
 - **After a status change:**
   - On success it reloads the list. On `Absent` it shows the notice "Notatka nie ma pola Done — zmieniono tylko status".
@@ -474,10 +481,10 @@ The template must use core-Templates placeholders only, and must contain `Status
 
 #### Automated
 
-- [ ] 1.1 Settings and edit unit tests pass: `cargo test -- settings vault::edit`
-- [ ] 1.2 Property tests pass: `cargo test proptests`
-- [ ] 1.3 Full suite still passes: `cargo test`
-- [ ] 1.4 Backend builds: `cargo build`
+- [x] 1.1 Settings and edit unit tests pass: `cargo test -- settings vault::edit`
+- [x] 1.2 Property tests pass: `cargo test proptests`
+- [x] 1.3 Full suite still passes: `cargo test`
+- [x] 1.4 Backend builds: `cargo build`
 
 #### Manual
 

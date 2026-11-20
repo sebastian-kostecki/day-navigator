@@ -70,12 +70,24 @@ pub fn detect_eol(bytes: &[u8]) -> Eol {
 }
 
 /// SHA-256 (hex) of a span's bytes. Callers keep it to detect concurrent edits.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct SpanHash(String);
 
 impl SpanHash {
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    /// Parses a hash that made a round trip through the webview: exactly 64
+    /// lowercase hex characters, as `span_hash` produces.
+    pub fn from_hex(hex: &str) -> Result<SpanHash, VaultError> {
+        if hex.len() == 64 && hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+            Ok(SpanHash(hex.to_string()))
+        } else {
+            Err(VaultError::InvalidValue {
+                reason: "hash must be 64 lowercase hex characters".to_string(),
+            })
+        }
     }
 }
 

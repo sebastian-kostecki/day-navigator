@@ -384,6 +384,15 @@ impl Vault {
         self.apply(path, &|b| edit::replace_field(b, key, &value, &expected))
     }
 
+    /// Several fields in one atomic, hash-checked write.
+    pub fn replace_fields(
+        &self,
+        path: &VaultPath,
+        edits: &[(&str, FieldValue, SpanHash)],
+    ) -> Result<(), VaultError> {
+        self.apply(path, &|b| edit::replace_fields(b, edits))
+    }
+
     pub fn replace_section(
         &self,
         path: &VaultPath,

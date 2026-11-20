@@ -1,12 +1,16 @@
 //! Guarded access to Obsidian vaults. Nothing here imports `tauri`.
 
+pub mod edit;
 mod error;
+pub mod markdown;
 mod path;
 
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
+pub use edit::FieldValue;
 pub use error::VaultError;
+pub use markdown::{Eol, Heading, Span, SpanHash};
 pub use path::VaultPath;
 
 use crate::settings::{Settings, SpaceSettings};
@@ -119,6 +123,41 @@ impl Note {
         let body = self.bytes.strip_prefix(&BOM[..]).unwrap_or(&self.bytes);
         std::str::from_utf8(body).unwrap_or("")
     }
+
+    /// A frontmatter field block and its hash. The hash is what a later
+    /// `replace_field` expects.
+    pub fn field(&self, key: &str) -> Result<FieldView, VaultError> {
+        let span = markdown::find_field(&self.bytes, key)?;
+        Ok(FieldView {
+            value_text: String::from_utf8_lossy(span.slice(&self.bytes)).into_owned(),
+            hash: markdown::span_hash(&self.bytes, span),
+        })
+    }
+
+    /// A heading section body and its hash. The hash is what a later
+    /// `replace_section` expects.
+    pub fn section(&self, heading: &Heading) -> Result<SectionView, VaultError> {
+        let span = markdown::find_section(&self.bytes, heading)?;
+        Ok(SectionView {
+            body: String::from_utf8_lossy(span.slice(&self.bytes)).into_owned(),
+            hash: markdown::span_hash(&self.bytes, span),
+        })
+    }
+}
+
+/// A frontmatter field as read: `value_text` is the raw block text (the
+/// `key:` line plus any list lines, with their original line endings).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FieldView {
+    pub value_text: String,
+    pub hash: SpanHash,
+}
+
+/// A section body as read, with its original line endings.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SectionView {
+    pub body: String,
+    pub hash: SpanHash,
 }
 
 impl Vault {
@@ -317,4 +356,28 @@ fn relative_remainder(path: &Path, base: &Path) -> Option<Vec<String>> {
         p.map(|c| c.as_os_str().to_string_lossy().into_owned())
             .collect(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn note(bytes: &[u8]) -> Note {
+        Note {
+            path: VaultPath::parse("a.md").unwrap(),
+            bytes: bytes.to_vec(),
+        }
+    }
+
+    #[test]
+    fn note_views_expose_block_text_and_matching_hashes() {
+        let n = note(b"---\nStatus:\n  - Open\n---\n## Plan\nbody\n");
+        let f = n.field("Status").unwrap();
+        assert_eq!(f.value_text, "Status:\n  - Open\n");
+        let s = n.section(&Heading::new(2, "Plan")).unwrap();
+        assert_eq!(s.body, "body\n");
+        let out = edit::replace_section(n.bytes(), &Heading::new(2, "Plan"), "new\n", &s.hash).unwrap();
+        assert_eq!(out, b"---\nStatus:\n  - Open\n---\n## Plan\nnew\n");
+        assert!(matches!(n.field("Nope"), Err(VaultError::FieldNotFound { .. })));
+    }
 }

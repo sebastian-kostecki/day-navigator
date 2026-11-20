@@ -545,11 +545,11 @@ There is no existing data to migrate. Until S-06 ships the wizard, the user crea
 
 #### Automated
 
-- [ ] 1.1 Backend builds: `cargo build`
-- [ ] 1.2 Guard tests pass: `cargo test --test vault_guard`
-- [ ] 1.3 Settings unit tests pass: `cargo test settings`
-- [ ] 1.4 Frontend type check and build pass: `npm run build`
-- [ ] 1.5 No advisories in newly added crates: `cargo audit`
+- [x] 1.1 Backend builds: `cargo build` — e1ac067
+- [x] 1.2 Guard tests pass: `cargo test --test vault_guard` — e1ac067
+- [x] 1.3 Settings unit tests pass: `cargo test settings` — e1ac067
+- [x] 1.4 Frontend type check and build pass: `npm run build` — e1ac067
+- [x] 1.5 No advisories in newly added crates: `cargo audit` — e1ac067
 
 #### Manual
 
@@ -560,9 +560,9 @@ There is no existing data to migrate. Until S-06 ships the wizard, the user crea
 
 #### Automated
 
-- [ ] 2.1 Span and edit unit tests pass
-- [ ] 2.2 Property tests pass
-- [ ] 2.3 Backend builds: `cargo build`
+- [x] 2.1 Span and edit unit tests pass
+- [x] 2.2 Property tests pass
+- [x] 2.3 Backend builds: `cargo build`
 
 #### Manual
 

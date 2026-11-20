@@ -1,4 +1,5 @@
 pub mod health;
+pub mod runtime;
 pub mod settings;
 pub mod vault;
 
@@ -36,20 +37,63 @@ fn greet(name: &str) -> String {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
+
+    let mut log_targets = vec![Target::new(TargetKind::LogDir { file_name: None })];
+    #[cfg(debug_assertions)]
+    log_targets.push(Target::new(TargetKind::Stdout));
+
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            runtime::show_main(app);
+        }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .clear_targets()
+                .targets(log_targets)
+                .max_file_size(1_000_000)
+                .rotation_strategy(RotationStrategy::KeepSome(3))
+                .level(log::LevelFilter::Warn)
+                .level_for("day_navigator_lib", log::LevelFilter::Info)
+                .build(),
+        )
         .setup(|app| {
-            let state = match app.path().app_config_dir() {
-                Ok(dir) => settings::load_settings(&dir.join("settings.json"))
-                    .map(|s| VaultRegistry::from_settings(&s)),
-                Err(e) => Err(VaultError::SettingsInvalid {
-                    reason: format!("cannot resolve app config dir: {e}"),
+            let settings_path = app
+                .path()
+                .app_config_dir()
+                .ok()
+                .map(|dir| dir.join("settings.json"));
+            let state = match &settings_path {
+                Some(path) => {
+                    settings::load_settings(path).map(|s| VaultRegistry::from_settings(&s))
+                }
+                None => Err(VaultError::SettingsInvalid {
+                    reason: "cannot resolve app config dir".to_string(),
                 }),
             };
             app.manage(VaultState::new(state));
+            let wake_rx = runtime::build_tray(app)?;
+            runtime::start(app.handle(), settings_path, wake_rx);
             Ok(())
         })
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event
+                && window.label() == "main"
+            {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
         .invoke_handler(tauri::generate_handler![greet])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app, event| {
+            // Closing the window hides it; only "Zakończ" (`app.exit(0)`, code
+            // `Some`) really quits.
+            if let tauri::RunEvent::ExitRequested { code: None, api, .. } = event {
+                api.prevent_exit();
+            }
+        });
 }

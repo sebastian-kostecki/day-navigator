@@ -7,7 +7,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 - No secrets anywhere: no passwords, tokens or keys in code, settings or the repo. Reach GitLab and GitHub only through the logged-in `glab` / `gh` CLIs; if logged out, report it instead of adding credentials.
 - Work data (work vault content, company issues, hostnames) never goes into the repo, tests, fixtures, logs or the private space. Tests use invented data only.
 - A write to a vault note changes only the targeted line or section; the rest of the file stays byte-identical. Never hard-delete: move to the vault trash.
-- Read and write only inside folders configured in settings. If a configured path is missing, show an error; never create it silently. The distraction blocker is the only feature allowed outside those folders.
+- Read and write only inside folders configured in settings. If a configured path is missing, show an error; never create it silently. The only exceptions are the distraction blocker and the app's own state folders under its bundle identifier (the app config dir holding `settings.json`, and the app log dir): app-owned state only, never user content or vault data.
 - Never render an empty plan or list in place of a failed source; surface the failure.
 - Change-scoped docs (research, plans, reviews) go in `context/changes/<change-id>/`.
 

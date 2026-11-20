@@ -464,10 +464,10 @@ No data migration. `VaultState` changes shape (now swappable), but nothing outsi
 
 #### Automated
 
-- [x] 1.1 Health unit and integration tests pass: `cargo test` in `src-tauri/`
-- [x] 1.2 Rust build succeeds: `cargo build` in `src-tauri/`
-- [x] 1.3 `health/` imports nothing from `tauri`
-- [x] 1.4 Frontend still type-checks and builds: `npm run build`
+- [x] 1.1 Health unit and integration tests pass: `cargo test` in `src-tauri/` — b70ebf2
+- [x] 1.2 Rust build succeeds: `cargo build` in `src-tauri/` — b70ebf2
+- [x] 1.3 `health/` imports nothing from `tauri` — b70ebf2
+- [x] 1.4 Frontend still type-checks and builds: `npm run build` — b70ebf2
 
 #### Manual
 
@@ -477,10 +477,10 @@ No data migration. `VaultState` changes shape (now swappable), but nothing outsi
 
 #### Automated
 
-- [ ] 2.1 Rust build succeeds with the tray feature and plugins: `cargo build`
-- [ ] 2.2 All tests still pass: `cargo test`
-- [ ] 2.3 No new advisories: `cargo audit`
-- [ ] 2.4 Frontend still builds: `npm run build`
+- [x] 2.1 Rust build succeeds with the tray feature and plugins: `cargo build`
+- [x] 2.2 All tests still pass: `cargo test`
+- [x] 2.3 No new advisories: `cargo audit`
+- [x] 2.4 Frontend still builds: `npm run build`
 
 #### Manual
 

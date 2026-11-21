@@ -9,6 +9,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 - A write to a vault note changes only the targeted line or section; the rest of the file stays byte-identical. Never hard-delete: move to the vault trash.
 - Read and write only inside folders configured in settings. If a configured path is missing, show an error; never create it silently. The distraction blocker is the only feature allowed outside those folders.
 - Never render an empty plan or list in place of a failed source; surface the failure.
+- Never bypass the pre-push hook (`--no-verify`) and never commit the denylist or its terms. `core.hooksPath` is relative, so push only from a checkout that contains `.githooks/pre-push`.
 - Change-scoped docs (research, plans, reviews) go in `context/changes/<change-id>/`.
 
 ## Project Structure
@@ -37,4 +38,8 @@ Run `cargo test` in `src-tauri/` (unit, property and integration tests). Fixture
 
 ## Commits and Pull Requests
 
-No commit convention, remote or CI yet. Planned release flow: `@context/foundation/tech-stack.md`.
+The remote is a private GitHub repository, reached only through `gh`. CI is `.github/workflows/ci.yml`: every push runs secret scan, audits and build/test; a push to `main` also publishes the NSIS installer as a GitHub Release.
+
+- Release: bump `version` in `src-tauri/Cargo.toml`, run `cargo build` to refresh `Cargo.lock`, commit both and push to `main`. No bump means nothing is published (CI still runs). `Cargo.toml` is the only version source; the `package.json` version is unused.
+- One-time setup per clone: `git config core.hooksPath .githooks`, and a denylist of work terms at `%USERPROFILE%\.day-navigator\push-denylist.txt` (the pre-push hook blocks pushes without it).
+- Stack background: `@context/foundation/tech-stack.md`.

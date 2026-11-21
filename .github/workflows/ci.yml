@@ -1,0 +1,176 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  GITLEAKS_VERSION: 8.30.1
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install gitleaks
+        run: |
+          curl -sSfL -o "$RUNNER_TEMP/gitleaks.tar.gz" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          mkdir "$RUNNER_TEMP/gitleaks"
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP/gitleaks" gitleaks
+          echo "$RUNNER_TEMP/gitleaks" >> "$GITHUB_PATH"
+
+      - name: Scan full history for secrets
+        run: gitleaks git --redact --exit-code 1 .
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: cargo audit
+        working-directory: src-tauri
+        run: cargo audit
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: npm audit
+        run: npm audit --audit-level=high
+
+      - name: Pre-push hook self-test
+        run: bash scripts/test-pre-push.sh
+
+  build-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: cargo build
+        working-directory: src-tauri
+        run: cargo build --locked
+
+      - name: cargo test
+        working-directory: src-tauri
+        run: cargo test --locked
+
+  version:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.decide.outputs.version }}
+      publish: ${{ steps.decide.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Decide whether this version needs publishing
+        id: decide
+        # No -e: exit codes are inspected explicitly so that no failure is masked.
+        shell: bash --noprofile --norc {0}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version="$(awk '
+            /^\[/ { in_pkg = ($0 == "[package]") }
+            in_pkg && /^version[[:space:]]*=/ {
+              gsub(/^version[[:space:]]*=[[:space:]]*"/, ""); gsub(/".*$/, ""); print; exit
+            }' src-tauri/Cargo.toml)"
+          if [ -z "$version" ]; then
+            echo "Could not read version from src-tauri/Cargo.toml" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+          tag="app-v$version"
+          err_file="$RUNNER_TEMP/gh-err.txt"
+          assets="$(gh release view "$tag" --json assets 2>"$err_file")"
+          rc=$?
+
+          if [ "$rc" -eq 0 ]; then
+            count="$(printf '%s' "$assets" | jq '[.assets[] | select(.label | endswith("-setup.exe"))] | length')"
+            jq_rc=$?
+            if [ "$jq_rc" -ne 0 ]; then
+              echo "Could not parse release assets for $tag" >&2
+              exit 1
+            fi
+            if [ "$count" -gt 0 ]; then
+              echo "Release $tag already has an installer; nothing to publish."
+              echo "publish=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "Release $tag exists without an installer; publish to complete it."
+              echo "publish=true" >> "$GITHUB_OUTPUT"
+            fi
+          elif grep -q "release not found" "$err_file"; then
+            echo "Release $tag not found; publish."
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "gh release view failed (exit $rc):" >&2
+            cat "$err_file" >&2
+            exit 1
+          fi
+
+  release:
+    needs: [checks, build-test, version]
+    if: needs.version.outputs.publish == 'true'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: .
+          tagName: app-v__VERSION__
+          releaseName: 'Nawigator dnia v__VERSION__'
+          releaseBody: 'Unsigned installer: if Windows SmartScreen warns, choose "More info" and then "Run anyway". It installs per user, no admin rights needed.'
+          releaseDraft: false
+          prerelease: false
+          args: --bundles nsis
+          uploadUpdaterJson: false

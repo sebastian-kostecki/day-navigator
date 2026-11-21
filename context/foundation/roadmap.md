@@ -41,7 +41,7 @@ A single developer on one Windows 11 machine switches during the day between com
 | ---- | ------------------------- | -------------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
 | F-01 | safe-vault-access         | (foundation) guarded vault read/write: configured folders only, section-scoped writes   | —             | NFR-integrity, Access Control | done     |
 | F-02 | source-health-status      | (foundation) every source failure shows in the tray icon and as a Windows notice        | —             | NFR-health, FR-001            | ready    |
-| F-03 | ci-release-pipeline       | (foundation) CI builds and tests every change; merges to main publish an installer      | —             | NFR-no-secrets, NFR-work-data | ready    |
+| F-03 | ci-release-pipeline       | (foundation) CI builds and tests every change; a version bump on main publishes an installer | —             | NFR-no-secrets, NFR-work-data | in-progress |
 | S-01 | morning-plan-today        | make the morning plan in "Today" and save it in the work daily note                     | F-01, F-02    | US-01, FR-003, FR-004         | proposed |
 | S-02 | autostart-plan-nudge      | have the app start with Windows and get "Plan your day" on the first workday unlock     | S-01, F-03    | FR-001, FR-002, FR-023        | proposed |
 | S-03 | quick-capture-inbox       | capture a thought via global shortcut and triage the inbox                               | S-01          | FR-005, FR-006, FR-007        | proposed |
@@ -114,7 +114,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 ### F-03: CI and release pipeline
 
-- **Outcome:** (foundation) a private GitHub repository exists, every change is built and tested in CI against invented data only, and each merge to `main` publishes a Windows installer as a GitHub Release named "Nawigator dnia".
+- **Outcome:** (foundation) a private GitHub repository exists, every change is built and tested in CI against invented data only, and a merge to `main` publishes a Windows installer as a GitHub Release named "Nawigator dnia" only when it bumps the version in `src-tauri/Cargo.toml`; every other merge only runs CI.
 - **Change ID:** ci-release-pipeline
 - **PRD refs:** NFR "Zero sekretów", NFR "Dane pracy nie opuszczają maszyny" (nothing from work in repo or CI), Open Question #7 (private now, may go public later), Open Question #1 (name); deployment target from `tech-stack.md`
 - **Unlocks:** S-02 (autostart needs an installed build); verification path: CI gate for F-01's invented-vault tests.
@@ -123,7 +123,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Needed before autostart can be used daily; because the repo may go public later, nothing work-related may ever enter its history.
-- **Status:** ready
+- **Status:** in-progress
 
 ## Slices
 

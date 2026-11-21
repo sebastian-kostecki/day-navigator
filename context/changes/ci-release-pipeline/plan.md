@@ -417,9 +417,9 @@ If minutes become tight, the first lever is a `paths-ignore` for `context/**`. T
 
 #### Automated
 
-- [x] 2.1 Hook self-test passes: `bash scripts/test-pre-push.sh`
-- [x] 2.2 Hook is executable in the index: `git ls-files -s .githooks/pre-push` shows mode `100755`
-- [x] 2.3 No real work term appears in tracked files (file names only, terms never printed): `git grep -l -i -F -f <(sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "$HOME/.day-navigator/push-denylist.txt" | grep -v -E '^[[:space:]]*(#|$)')` lists nothing (run after the denylist exists) (zaakceptowane przez użytkownika: 2 dopasowania terminu #2 to zwykłe słowo, nie dane z pracy)
+- [x] 2.1 Hook self-test passes: `bash scripts/test-pre-push.sh` — a8413ca
+- [x] 2.2 Hook is executable in the index: `git ls-files -s .githooks/pre-push` shows mode `100755` — a8413ca
+- [x] 2.3 No real work term appears in tracked files (file names only, terms never printed): `git grep -l -i -F -f <(sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "$HOME/.day-navigator/push-denylist.txt" | grep -v -E '^[[:space:]]*(#|$)')` lists nothing (run after the denylist exists) (zaakceptowane przez użytkownika: 2 dopasowania terminu #2 to zwykłe słowo, nie dane z pracy) — a8413ca
 
 #### Manual
 
@@ -430,10 +430,10 @@ If minutes become tight, the first lever is a `paths-ignore` for `context/**`. T
 
 #### Automated
 
-- [ ] 3.1 Frontend build still passes: `npm run build`
-- [ ] 3.2 Rust build still passes: `cargo build` (in `src-tauri/`)
-- [ ] 3.3 Workflow file names the four jobs: `node -e "const y=require('fs').readFileSync('.github/workflows/ci.yml','utf8'); for (const j of ['checks:','build-test:','version:','release:']) if(!y.includes(j)) process.exit(1)"`
-- [ ] 3.4 No secret references besides GITHUB_TOKEN: `git grep -n "secrets\." .github/` lists only `secrets.GITHUB_TOKEN`
+- [x] 3.1 Frontend build still passes: `npm run build`
+- [x] 3.2 Rust build still passes: `cargo build` (in `src-tauri/`)
+- [x] 3.3 Workflow file names the four jobs: `node -e "const y=require('fs').readFileSync('.github/workflows/ci.yml','utf8'); for (const j of ['checks:','build-test:','version:','release:']) if(!y.includes(j)) process.exit(1)"`
+- [x] 3.4 No secret references besides GITHUB_TOKEN: `git grep -n "secrets\." .github/` lists only `secrets.GITHUB_TOKEN`
 
 #### Manual
 

@@ -481,10 +481,10 @@ The template must use core-Templates placeholders only, and must contain `Status
 
 #### Automated
 
-- [x] 1.1 Settings and edit unit tests pass: `cargo test -- settings vault::edit`
-- [x] 1.2 Property tests pass: `cargo test proptests`
-- [x] 1.3 Full suite still passes: `cargo test`
-- [x] 1.4 Backend builds: `cargo build`
+- [x] 1.1 Settings and edit unit tests pass: `cargo test -- settings vault::edit` — d477290
+- [x] 1.2 Property tests pass: `cargo test proptests` — d477290
+- [x] 1.3 Full suite still passes: `cargo test` — d477290
+- [x] 1.4 Backend builds: `cargo build` — d477290
 
 #### Manual
 
@@ -494,11 +494,11 @@ The template must use core-Templates placeholders only, and must contain `Status
 
 #### Automated
 
-- [ ] 2.1 Task integration tests pass: `cargo test --test tasks`
-- [ ] 2.2 Template unit tests pass: `cargo test tasks::`
-- [ ] 2.3 Full suite passes, including the updated root listing: `cargo test`
-- [ ] 2.4 Backend builds: `cargo build`
-- [ ] 2.5 No advisories in newly added crates: `cargo audit`
+- [x] 2.1 Task integration tests pass: `cargo test --test tasks`
+- [x] 2.2 Template unit tests pass: `cargo test tasks::`
+- [x] 2.3 Full suite passes, including the updated root listing: `cargo test`
+- [x] 2.4 Backend builds: `cargo build`
+- [x] 2.5 No advisories in newly added crates: `cargo audit`
 
 #### Manual
 

@@ -1,0 +1,6 @@
+---
+Priority:
+Due:
+Done:
+---
+# {{title}}

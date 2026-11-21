@@ -145,7 +145,7 @@ fn list_omits_excluded_hidden_and_non_markdown() {
     let names: Vec<_> = root.iter().map(|e| e.name.as_str()).collect();
     assert_eq!(
         names,
-        ["Dostepy-stare", "Dziennik", "Issues", "Notes", "Tasks"]
+        ["Dostepy-stare", "Dziennik", "Issues", "Notes", "Tasks", "Templates"]
     );
     assert!(root.iter().all(|e| e.kind == EntryKind::Dir));
 

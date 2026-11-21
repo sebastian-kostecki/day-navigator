@@ -27,6 +27,7 @@ dunce = "1"
 sha2 = "0.10"
 tempfile = "3"
 unicode-normalization = "0.1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "serde"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }

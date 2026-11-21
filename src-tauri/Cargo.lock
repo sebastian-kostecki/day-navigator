@@ -760,6 +760,7 @@ dependencies = [
 name = "day-navigator"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "day-navigator",
  "dunce",
  "junction",

@@ -195,6 +195,14 @@ fn frontmatter(bytes: &[u8]) -> Option<Frontmatter> {
     None
 }
 
+/// Byte range of the frontmatter body (between the `---` fences), if any.
+pub(crate) fn frontmatter_span(bytes: &[u8]) -> Option<Span> {
+    frontmatter(bytes).map(|fm| Span {
+        start: fm.body_start,
+        end: fm.body_end,
+    })
+}
+
 fn is_key_line(text: &[u8], key: &str) -> bool {
     let key = key.as_bytes();
     !key.is_empty()

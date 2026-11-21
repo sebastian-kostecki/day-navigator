@@ -403,10 +403,10 @@ If minutes become tight, the first lever is a `paths-ignore` for `context/**`. T
 
 #### Automated
 
-- [x] 1.1 Frontend type check and build pass: `npm run build`
-- [x] 1.2 Rust build passes: `cargo build` (in `src-tauri/`)
-- [x] 1.3 Tests pass: `cargo test` (in `src-tauri/`)
-- [x] 1.4 Local release bundle produces `src-tauri/target/release/bundle/nsis/Nawigator dnia_0.1.0_x64-setup.exe` and no `msi/` folder: `npm run tauri build`
+- [x] 1.1 Frontend type check and build pass: `npm run build` — 8a1c12d
+- [x] 1.2 Rust build passes: `cargo build` (in `src-tauri/`) — 8a1c12d
+- [x] 1.3 Tests pass: `cargo test` (in `src-tauri/`) — 8a1c12d
+- [x] 1.4 Local release bundle produces `src-tauri/target/release/bundle/nsis/Nawigator dnia_0.1.0_x64-setup.exe` and no `msi/` folder: `npm run tauri build` — 8a1c12d
 
 #### Manual
 
@@ -417,9 +417,9 @@ If minutes become tight, the first lever is a `paths-ignore` for `context/**`. T
 
 #### Automated
 
-- [ ] 2.1 Hook self-test passes: `bash scripts/test-pre-push.sh`
-- [ ] 2.2 Hook is executable in the index: `git ls-files -s .githooks/pre-push` shows mode `100755`
-- [ ] 2.3 No real work term appears in tracked files (file names only, terms never printed): `git grep -l -i -F -f <(sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "$HOME/.day-navigator/push-denylist.txt" | grep -v -E '^[[:space:]]*(#|$)')` lists nothing (run after the denylist exists)
+- [x] 2.1 Hook self-test passes: `bash scripts/test-pre-push.sh`
+- [x] 2.2 Hook is executable in the index: `git ls-files -s .githooks/pre-push` shows mode `100755`
+- [x] 2.3 No real work term appears in tracked files (file names only, terms never printed): `git grep -l -i -F -f <(sed -e '1s/^\xEF\xBB\xBF//' -e 's/\r$//' "$HOME/.day-navigator/push-denylist.txt" | grep -v -E '^[[:space:]]*(#|$)')` lists nothing (run after the denylist exists) (zaakceptowane przez użytkownika: 2 dopasowania terminu #2 to zwykłe słowo, nie dane z pracy)
 
 #### Manual
 

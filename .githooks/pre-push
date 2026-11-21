@@ -1,0 +1,92 @@
+#!/bin/sh
+# Pre-push guard: blocks pushes whose outgoing commits contain a denylisted term.
+# Denylist: $DAYNAV_DENYLIST or $HOME/.day-navigator/push-denylist.txt (one term per line).
+# Output never contains the matched term, only the denylist line number.
+
+remote="$1"
+denylist="${DAYNAV_DENYLIST:-$HOME/.day-navigator/push-denylist.txt}"
+zero=0000000000000000000000000000000000000000
+
+fail_closed() {
+  echo "pre-push: $1" >&2
+  echo "pre-push: expected denylist at: $denylist" >&2
+  exit 1
+}
+
+[ -f "$denylist" ] || fail_closed "denylist missing"
+
+work="$(mktemp -d 2>/dev/null)" || { echo "pre-push: cannot create temp dir" >&2; exit 1; }
+trap 'rm -rf "$work"' EXIT
+
+# Pick a UTF-8 locale so grep -i folds non-ASCII letters (e.g. Polish).
+LOCALE_OK=
+for loc in C.UTF-8 C.utf8 en_US.UTF-8 pl_PL.UTF-8; do
+  if [ "$(printf 'Ł' | LC_ALL=$loc grep -F -i -c 'ł' 2>/dev/null)" = "1" ]; then
+    LOCALE_OK=$loc
+    break
+  fi
+done
+[ -n "$LOCALE_OK" ] || LOCALE_OK=C.UTF-8
+
+# Normalize denylist into "<original line no>\t<term>" records.
+terms="$work/terms"
+: > "$terms"
+bom="$(printf '\357\273\277')"
+n=0
+while IFS= read -r line || [ -n "$line" ]; do
+  n=$((n + 1))
+  if [ "$n" -eq 1 ]; then
+    line="${line#"$bom"}"
+  fi
+  line="$(printf '%s' "$line" | tr -d '\r')"
+  line="${line#"${line%%[![:space:]]*}"}"
+  line="${line%"${line##*[![:space:]]}"}"
+  case "$line" in
+    ''|'#'*) continue ;;
+  esac
+  printf '%s\t%s\n' "$n" "$line" >> "$terms"
+done < "$denylist"
+
+[ -s "$terms" ] || fail_closed "denylist has no usable terms"
+
+found=0
+tab="$(printf '\t')"
+
+check_text() { # <file> <short sha> <label>
+  while IFS="$tab" read -r num term; do
+    if LC_ALL=$LOCALE_OK grep -F -i -q -e "$term" "$1"; then
+      echo "$2 $3 denylist line $num" >&2
+      found=1
+    fi
+  done < "$terms"
+}
+
+check_commit() {
+  sha="$1"
+  short="$(git rev-parse --short "$sha")"
+  git log -1 --format=%B "$sha" > "$work/msg"
+  git -c core.quotepath=off show --format= --name-only "$sha" > "$work/paths"
+  git -c core.quotepath=off show --format= --unified=0 "$sha" | grep '^+' | grep -v '^+++' > "$work/added"
+  check_text "$work/msg" "$short" "commit message"
+  check_text "$work/paths" "$short" "path"
+  check_text "$work/added" "$short" "added line"
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  if [ "$remote_sha" = "$zero" ]; then
+    git rev-list "$local_sha" --not --remotes="$remote" > "$work/commits"
+  else
+    git rev-list "$remote_sha..$local_sha" > "$work/commits" 2>/dev/null \
+      || git rev-list "$local_sha" --not --remotes="$remote" > "$work/commits"
+  fi
+  while read -r c; do
+    [ -n "$c" ] && check_commit "$c"
+  done < "$work/commits"
+done
+
+if [ "$found" -ne 0 ]; then
+  echo "pre-push: push blocked by denylist" >&2
+  exit 1
+fi
+exit 0

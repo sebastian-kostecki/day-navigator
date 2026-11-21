@@ -494,11 +494,11 @@ The template must use core-Templates placeholders only, and must contain `Status
 
 #### Automated
 
-- [x] 2.1 Task integration tests pass: `cargo test --test tasks`
-- [x] 2.2 Template unit tests pass: `cargo test tasks::`
-- [x] 2.3 Full suite passes, including the updated root listing: `cargo test`
-- [x] 2.4 Backend builds: `cargo build`
-- [x] 2.5 No advisories in newly added crates: `cargo audit`
+- [x] 2.1 Task integration tests pass: `cargo test --test tasks` — 2008525
+- [x] 2.2 Template unit tests pass: `cargo test tasks::` — 2008525
+- [x] 2.3 Full suite passes, including the updated root listing: `cargo test` — 2008525
+- [x] 2.4 Backend builds: `cargo build` — 2008525
+- [x] 2.5 No advisories in newly added crates: `cargo audit` — 2008525
 
 #### Manual
 
@@ -509,9 +509,9 @@ The template must use core-Templates placeholders only, and must contain `Status
 
 #### Automated
 
-- [ ] 3.1 Frontend type check and build pass: `npm run build`
-- [ ] 3.2 Backend builds: `cargo build`
-- [ ] 3.3 Full suite passes: `cargo test`
+- [x] 3.1 Frontend type check and build pass: `npm run build`
+- [x] 3.2 Backend builds: `cargo build`
+- [x] 3.3 Full suite passes: `cargo test`
 
 #### Manual
 

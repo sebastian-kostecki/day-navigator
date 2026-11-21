@@ -3,7 +3,7 @@ project: "Nawigator dnia"
 version: 2
 status: draft
 created: 2026-11-20
-updated: 2026-11-20
+updated: 2026-11-21
 prd_version: 2
 main_goal: quality
 top_blocker: decisions
@@ -41,7 +41,7 @@ A single developer on one Windows 11 machine switches during the day between com
 | ---- | ------------------------- | -------------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
 | F-01 | safe-vault-access         | (foundation) guarded vault read/write: configured folders only, section-scoped writes   | —             | NFR-integrity, Access Control | done     |
 | F-02 | source-health-status      | (foundation) every source failure shows in the tray icon and as a Windows notice        | —             | NFR-health, FR-001            | ready    |
-| F-03 | ci-release-pipeline       | (foundation) CI builds and tests every change; a version bump on main publishes an installer | —             | NFR-no-secrets, NFR-work-data | in-progress |
+| F-03 | ci-release-pipeline       | (foundation) CI builds and tests every change; a version bump on main publishes an installer | —             | NFR-no-secrets, NFR-work-data | done |
 | S-01 | morning-plan-today        | make the morning plan in "Today" and save it in the work daily note                     | F-01, F-02    | US-01, FR-003, FR-004         | proposed |
 | S-02 | autostart-plan-nudge      | have the app start with Windows and get "Plan your day" on the first workday unlock     | S-01, F-03    | FR-001, FR-002, FR-023        | proposed |
 | S-03 | quick-capture-inbox       | capture a thought via global shortcut and triage the inbox                               | S-01          | FR-005, FR-006, FR-007        | proposed |
@@ -123,7 +123,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Needed before autostart can be used daily; because the repo may go public later, nothing work-related may ever enter its history.
-- **Status:** in-progress
+- **Status:** done
 
 ## Slices
 
@@ -377,3 +377,4 @@ None open. All eight PRD Open Questions were resolved by the user on 2026-11-20;
 ## Done
 
 - **F-01: (foundation) the app reads and writes only inside vault folders configured per space (Work, Private), never sees excluded paths, changes only the targeted line or section of a note (rest of the file byte-identical), and sends deletions to the vault trash — proven against a small invented test vault.** — Archived 2026-11-20 → `context/archive/2026-11-20-safe-vault-access/`. Lesson: —.
+- **F-03: (foundation) a private GitHub repository exists, every change is built and tested in CI against invented data only, and a merge to `main` publishes a Windows installer as a GitHub Release named "Nawigator dnia" only when it bumps the version in `src-tauri/Cargo.toml`; every other merge only runs CI.** — Archived 2026-11-21 → `context/archive/2026-11-20-ci-release-pipeline/`. Lesson: —.

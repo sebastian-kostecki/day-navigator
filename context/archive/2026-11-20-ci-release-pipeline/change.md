@@ -1,10 +1,10 @@
 ---
 change_id: ci-release-pipeline
 title: Ci release pipeline
-status: impl_reviewed
+status: archived
 created: 2026-11-20
 updated: 2026-11-21
-archived_at: null
+archived_at: 2026-11-21T06:57:20Z
 ---
 
 ## Notes

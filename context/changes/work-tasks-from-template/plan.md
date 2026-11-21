@@ -509,9 +509,9 @@ The template must use core-Templates placeholders only, and must contain `Status
 
 #### Automated
 
-- [x] 3.1 Frontend type check and build pass: `npm run build`
-- [x] 3.2 Backend builds: `cargo build`
-- [x] 3.3 Full suite passes: `cargo test`
+- [x] 3.1 Frontend type check and build pass: `npm run build` — bc3e564
+- [x] 3.2 Backend builds: `cargo build` — bc3e564
+- [x] 3.3 Full suite passes: `cargo test` — bc3e564
 
 #### Manual
 

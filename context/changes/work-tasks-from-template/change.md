@@ -1,9 +1,9 @@
 ---
 change_id: work-tasks-from-template
 title: Work tasks from template
-status: implementing
+status: implemented
 created: 2026-11-20
-updated: 2026-11-20
+updated: 2026-11-21
 archived_at: null
 ---
 

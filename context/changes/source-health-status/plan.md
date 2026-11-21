@@ -456,6 +456,25 @@ No data migration. `VaultState` changes shape (now swappable), but nothing outsi
 - Guards reused: `src-tauri/src/vault/mod.rs:61-85` (`VaultRegistry::vault`), `src-tauri/src/vault/mod.rs:302-310` (`unmatched_exclusions`), `src-tauri/src/settings.rs:52` (`load_settings`)
 - Tauri docs: https://v2.tauri.app/learn/system-tray/ · https://v2.tauri.app/plugin/notification/ · https://v2.tauri.app/plugin/single-instance/ · https://v2.tauri.app/plugin/logging/
 
+## Addendum (implementation review, 2026-11-21)
+
+Two impl-review rounds (`reviews/impl-review-round1.md`, `reviews/impl-review.md`) changed the code below. The plan text above is unchanged; where the two disagree, this list wins.
+
+- **Heartbeat (Phase 2, check-thread step 8):** stamped right after `probe` returns, not after emit. The probe is the part that can hang. Stamping after the tray calls, which block on the main thread, let the watchdog flag a finished round as stalled.
+- **Stall flag ownership (Phase 2, watchdog):** only the watchdog sets or clears `stale`. A check round reads it under the snapshot lock, so after a real stall the state stays grey until the next watchdog tick (up to 15 s) clears it.
+- **Resume rule (Critical Implementation Details, `is_stale`):** a watchdog gap above `RESUME_GAP` (30 s, two intervals), not above the 75 s threshold, counts as a resume. On a resume the watchdog wakes the check thread and starts a grace period (`stall_age` = min(heartbeat age, time since resume)). Clearing a stall still needs a fresh heartbeat. The whole tick is the pure `health::watchdog_step(..) -> WatchdogAction` with table tests. `is_stale` takes a fourth `resume_gap` argument.
+- **Ordering (Phase 1 `HealthSnapshot`, Phase 3 `useHealth`):** `HealthSnapshot` has a `seq: u64`, bumped under the write lock on every stored change. The UI orders by `seq`, not `checkedAtMs`, so a clock moved back cannot freeze the panel. `checkedAtMs` is for display only.
+- **Publishing (Phase 2):** tray and emit go through one `publish` step guarded by a `published: Mutex<u64>` that only the two health threads take. It pushes the stored snapshot only when its `seq` is newer, so the tray and panel converge on the latest state. In a check round, emit therefore happens before the toast, not after the log.
+- **Commands (Phase 3):** `health_status` returns `Result<HealthSnapshot, String>`, because Tauri requires that of async commands that borrow `State`.
+- **Capabilities (Phase 3, "No capability changes"):** `core:default` is replaced by `core:event:allow-listen` and `core:event:allow-unlisten` (plus the existing `opener:default`). The webview can neither drive the health tray nor emit a forged `health-changed`. A CSP is still open: see `follow-ups/review-fixes.md`.
+- **Config dir fallback:** the pure `health::probe::unresolved_config_dir()` builds the settings error when the app config dir cannot be resolved; `lib.rs` setup and every round use it.
+- **Frontend:**
+  - `useHealth` also returns `retry` (re-runs subscribe and load; the load-error `ErrorState` retries with it) and `checkError` (a failed "Sprawdź teraz", shown as an inline `ErrorState`, not as a load failure);
+  - `invoke` runs only after `listen` resolves;
+  - `HealthPanel` renders `ErrorState` when the loop stalls before the first check finishes;
+  - with rows present, the stall shows as a plain notice above them.
+- **Demo leftovers:** `index.html` has `lang="pl"`, the title "Nawigator dnia" and no favicon link; `react.svg`, `vite.svg` and `tauri.svg` were deleted.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.

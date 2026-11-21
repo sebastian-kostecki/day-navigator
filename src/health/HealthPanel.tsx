@@ -18,7 +18,7 @@ function formatTime(ms: number): string {
 }
 
 export function HealthPanel() {
-  const { snapshot, loadError, checkNow } = useHealth();
+  const { snapshot, loadError, checkError, checkNow, retry } = useHealth();
 
   if (loadError) {
     return (
@@ -27,6 +27,21 @@ export function HealthPanel() {
         <ErrorState
           title="Nie można odczytać stanu źródeł"
           message={loadError}
+          onRetry={retry}
+        />
+      </main>
+    );
+  }
+
+  // Stalled before the first check finished: there are no rows to show, so
+  // the failure takes their place instead of an empty list.
+  if (snapshot?.overall === "notRunning" && snapshot.checkedAtMs == null) {
+    return (
+      <main className="container">
+        <h1>Stan źródeł</h1>
+        <ErrorState
+          title="Sprawdzanie stanu nie działa"
+          message={checkError ?? "Pierwsze sprawdzenie źródeł nie zakończyło się."}
           onRetry={checkNow}
         />
       </main>
@@ -66,6 +81,13 @@ export function HealthPanel() {
           </span>
         )}
       </div>
+      {checkError && (
+        <ErrorState
+          title="Nie udało się uruchomić sprawdzenia"
+          message={checkError}
+          onRetry={checkNow}
+        />
+      )}
     </main>
   );
 }

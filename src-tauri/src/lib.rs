@@ -63,9 +63,7 @@ pub fn run() {
                 Some(path) => {
                     settings::load_settings(path).map(|s| VaultRegistry::from_settings(&s))
                 }
-                None => Err(VaultError::SettingsInvalid {
-                    reason: "cannot resolve app config dir".to_string(),
-                }),
+                None => health::unresolved_config_dir().0,
             };
             app.manage(VaultState::new(state));
             let wake_rx = runtime::build_tray(app)?;

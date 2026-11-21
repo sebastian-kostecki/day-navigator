@@ -10,40 +10,39 @@ function errorText(e: unknown): string {
 export function useHealth() {
   const [snapshot, setSnapshot] = useState<HealthSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [checkError, setCheckError] = useState<string | null>(null);
+  // Bumped by `retry` to re-run the subscribe-and-load effect.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     let unlisten: (() => void) | undefined;
 
-    // Keep the newer snapshot by check time. `strict` is for the one-off
-    // invoke result, which must not replace an equally old event (the
-    // watchdog re-emits with the same time when the loop stalls).
-    const accept = (next: HealthSnapshot, strict: boolean) =>
-      setSnapshot((cur) => {
-        if (!cur) return next;
-        const a = next.checkedAtMs ?? -1;
-        const b = cur.checkedAtMs ?? -1;
-        return (strict ? a > b : a >= b) ? next : cur;
-      });
+    // Keep the newer snapshot by `seq`, never by the wall clock (a slow
+    // invoke must not overwrite a newer event, and a clock moved back must
+    // not freeze the panel).
+    const accept = (next: HealthSnapshot) =>
+      setSnapshot((cur) => (!cur || next.seq > cur.seq ? next : cur));
 
+    // Subscribe first and load only once the listener is registered, so no
+    // event between the two is lost. A failed subscribe never loads, so a
+    // snapshot that can no longer update is never shown without the error.
     listen<HealthSnapshot>("health-changed", (e) => {
       if (cancelled) return;
       setLoadError(null);
-      accept(e.payload, false);
+      accept(e.payload);
     })
       .then((fn) => {
-        if (cancelled) fn();
-        else unlisten = fn;
-      })
-      .catch((e) => {
-        if (!cancelled) setLoadError(errorText(e));
-      });
-
-    invoke<HealthSnapshot>("health_status")
-      .then((s) => {
-        if (cancelled) return;
-        setLoadError(null);
-        accept(s, true);
+        if (cancelled) {
+          fn();
+          return;
+        }
+        unlisten = fn;
+        return invoke<HealthSnapshot>("health_status").then((s) => {
+          if (cancelled) return;
+          setLoadError(null);
+          accept(s);
+        });
       })
       .catch((e) => {
         if (!cancelled) setLoadError(errorText(e));
@@ -53,13 +52,19 @@ export function useHealth() {
       cancelled = true;
       unlisten?.();
     };
-  }, []);
+  }, [attempt]);
 
+  /** Re-runs the subscribe and the load that failed. */
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+
+  // A failed "check now" is not a failed load: the stored snapshot is still
+  // readable, so it gets its own error next to the button.
   const checkNow = useCallback(async () => {
     try {
       await invoke("check_health_now");
+      setCheckError(null);
     } catch (e) {
-      setLoadError(errorText(e));
+      setCheckError(errorText(e));
     }
   }, []);
 
@@ -69,5 +74,5 @@ export function useHealth() {
     [snapshot],
   );
 
-  return { snapshot, loadError, checkNow, source };
+  return { snapshot, loadError, checkError, checkNow, retry, source };
 }

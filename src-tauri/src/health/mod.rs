@@ -9,7 +9,7 @@ use serde::{Serialize, Serializer};
 
 use crate::vault::Space;
 
-pub use probe::probe;
+pub use probe::{probe, unresolved_config_dir};
 
 /// Longest tooltip the Windows tray accepts, in UTF-16 units (`szTip` holds 128
 /// including the terminator).
@@ -89,7 +89,12 @@ pub enum Overall {
 pub struct HealthSnapshot {
     pub overall: Overall,
     pub sources: Vec<SourceStatus>,
+    /// Wall-clock time of the last finished check, for display only.
     pub checked_at_ms: Option<u64>,
+    /// Bumped on every change to the stored snapshot. Consumers order
+    /// snapshots by this, never by `checked_at_ms`, which jumps when the
+    /// clock is changed.
+    pub seq: u64,
 }
 
 /// A change worth telling the user about. Carries no message text.
@@ -242,12 +247,69 @@ fn cap_utf16(text: String, max: usize) -> String {
     out
 }
 
+/// True when the watchdog's own gap since its previous wake-up exceeds
+/// `resume_gap`: the machine slept (or the watchdog was starved), so an old
+/// heartbeat proves nothing. The runtime uses two watchdog intervals (30 s).
+/// Without a suspend the heartbeat is then at most about 60 s old plus the probe
+/// time, so even a short suspend cannot push it past the stall threshold unseen.
+pub fn is_resume(watchdog_gap: Duration, resume_gap: Duration) -> bool {
+    watchdog_gap > resume_gap
+}
+
 /// True when the check loop has stalled: the last heartbeat is older than
-/// `threshold` while the watchdog itself kept running (its own gap since the
-/// previous wake-up stayed below `threshold`). A long watchdog gap means the
-/// machine slept, so the old heartbeat proves nothing.
-pub fn is_stale(heartbeat_age: Duration, watchdog_gap: Duration, threshold: Duration) -> bool {
-    heartbeat_age > threshold && watchdog_gap < threshold
+/// `threshold` while the watchdog itself kept running (see [`is_resume`]).
+pub fn is_stale(
+    heartbeat_age: Duration,
+    watchdog_gap: Duration,
+    threshold: Duration,
+    resume_gap: Duration,
+) -> bool {
+    heartbeat_age > threshold && !is_resume(watchdog_gap, resume_gap)
+}
+
+/// What one watchdog tick does with the stall flag.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WatchdogAction {
+    /// The loop just stalled: go grey, log and toast once.
+    Stall,
+    /// A stalled loop stamped a fresh heartbeat again.
+    Clear,
+    Nothing,
+}
+
+/// One watchdog tick. `since_resume` is the time since the last detected
+/// resume, `Some(0)` on the resume tick itself. Setting a stall uses the
+/// resume-adjusted [`stall_age`]; clearing one needs a really fresh heartbeat.
+pub fn watchdog_step(
+    was_stale: bool,
+    heartbeat_age: Duration,
+    watchdog_gap: Duration,
+    since_resume: Option<Duration>,
+    threshold: Duration,
+    resume_gap: Duration,
+) -> WatchdogAction {
+    if was_stale {
+        if heartbeat_age <= threshold {
+            WatchdogAction::Clear
+        } else {
+            WatchdogAction::Nothing
+        }
+    } else if is_stale(stall_age(heartbeat_age, since_resume), watchdog_gap, threshold, resume_gap) {
+        WatchdogAction::Stall
+    } else {
+        WatchdogAction::Nothing
+    }
+}
+
+/// Heartbeat age as the stall rule sees it: time since the later of the last
+/// heartbeat and the last resume from sleep. After a resume the check thread
+/// gets a full threshold to finish a round, whether or not the OS counted the
+/// sleep in its timers.
+pub fn stall_age(heartbeat_age: Duration, since_resume: Option<Duration>) -> Duration {
+    match since_resume {
+        Some(r) => heartbeat_age.min(r),
+        None => heartbeat_age,
+    }
 }
 
 /// Gate for toasts. Always `true` until the pause and day-off modes (FR-023,
@@ -297,10 +359,12 @@ mod tests {
             overall: Overall::NotRunning,
             sources: vec![err(W, "Vault Praca", "RootMissing", "x")],
             checked_at_ms: Some(5),
+            seq: 7,
         };
         let v = serde_json::to_value(&snap).unwrap();
         assert_eq!(v["overall"], "notRunning");
         assert_eq!(v["checkedAtMs"], 5);
+        assert_eq!(v["seq"], 7);
         assert_eq!(v["sources"][0]["id"], "vault:work");
         assert_eq!(v["sources"][0]["state"], "error");
         assert_eq!(v["sources"][0]["kind"], "RootMissing");
@@ -501,13 +565,69 @@ mod tests {
         }
     }
 
+    const TH: Duration = Duration::from_secs(75);
+    const RESUME: Duration = Duration::from_secs(30);
+    const NORMAL: Duration = Duration::from_secs(15);
+
+    fn secs(s: u64) -> Duration {
+        Duration::from_secs(s)
+    }
+
     #[test]
     fn staleness_rules() {
-        let th = Duration::from_secs(75);
-        let normal = Duration::from_secs(15);
-        assert!(!is_stale(Duration::from_secs(30), normal, th));
-        assert!(is_stale(Duration::from_secs(90), normal, th));
-        assert!(!is_stale(Duration::from_secs(3600), Duration::from_secs(3600), th));
+        assert!(!is_stale(secs(30), NORMAL, TH, RESUME));
+        assert!(is_stale(secs(90), NORMAL, TH, RESUME));
+        assert!(!is_stale(secs(3600), secs(3600), TH, RESUME));
+        // A short suspend: the gap is below the threshold but above two intervals.
+        assert!(!is_stale(secs(77), secs(65), TH, RESUME));
+        assert!(is_resume(secs(31), RESUME));
+        assert!(!is_resume(secs(30), RESUME));
+    }
+
+    #[test]
+    fn second_tick_after_resume_is_not_stale() {
+        // The heartbeat age still includes an hour of sleep; the tick after the
+        // resume tick has a normal gap.
+        let age = stall_age(secs(3615), Some(secs(15)));
+        assert!(!is_stale(age, NORMAL, TH, RESUME));
+        // A loop that stays dead after the resume is reported once the grace runs out.
+        let age = stall_age(secs(3690), Some(secs(90)));
+        assert!(is_stale(age, NORMAL, TH, RESUME));
+        // Without a resume the heartbeat age is used as is.
+        assert_eq!(stall_age(secs(90), None), secs(90));
+    }
+
+    #[test]
+    fn watchdog_step_table() {
+        use WatchdogAction::*;
+        // (was_stale, heartbeat age, watchdog gap, since resume) -> action
+        let cases = [
+            // Healthy loop.
+            (false, secs(20), NORMAL, None, Nothing),
+            // Real stall with the watchdog ticking normally.
+            (false, secs(90), NORMAL, None, Stall),
+            // A 52 s suspend: gap 65 s, heartbeat 77 s; the resume tick itself.
+            (false, secs(77), secs(65), Some(secs(0)), Nothing),
+            // The tick after that short suspend, check thread still probing.
+            (false, secs(92), NORMAL, Some(secs(15)), Nothing),
+            // An hour of sleep, resume tick and the tick after it.
+            (false, secs(3600), secs(3600), Some(secs(0)), Nothing),
+            (false, secs(3615), NORMAL, Some(secs(15)), Nothing),
+            // The loop stays dead after a resume: reported once the grace runs out.
+            (false, secs(3690), NORMAL, Some(secs(90)), Stall),
+            // Already stalled: no second stall while the heartbeat stays old.
+            (true, secs(120), NORMAL, None, Nothing),
+            // A resume does not clear a stall; only a fresh heartbeat does.
+            (true, secs(120), NORMAL, Some(secs(0)), Nothing),
+            (true, secs(5), NORMAL, None, Clear),
+        ];
+        for (was_stale, age, gap, since_resume, want) in cases {
+            assert_eq!(
+                watchdog_step(was_stale, age, gap, since_resume, TH, RESUME),
+                want,
+                "was_stale={was_stale} age={age:?} gap={gap:?} since_resume={since_resume:?}"
+            );
+        }
     }
 
     #[test]

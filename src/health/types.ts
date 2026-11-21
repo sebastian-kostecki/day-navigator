@@ -17,5 +17,8 @@ export type SourceStatus = {
 export type HealthSnapshot = {
   overall: Overall;
   sources: SourceStatus[];
+  /** Wall-clock time of the last finished check, for display only. */
   checkedAtMs: number | null;
+  /** Bumped on every stored change; snapshots are ordered by this. */
+  seq: number;
 };

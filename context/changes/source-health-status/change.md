@@ -1,9 +1,9 @@
 ---
 change_id: source-health-status
 title: Source health status
-status: implemented
+status: impl_reviewed
 created: 2026-11-20
-updated: 2026-11-20
+updated: 2026-11-21
 archived_at: null
 ---
 

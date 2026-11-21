@@ -5,11 +5,13 @@
 //! Locking rule: `TrayIcon::set_icon`/`set_tooltip` block until the main thread
 //! runs them, and sync commands run on the main thread. So the `snapshot` and
 //! `VaultState` locks are never held across a tray, notification or emit call.
+//! The one lock held across tray and emit calls is `published`, which only the
+//! check and watchdog threads take, never the main thread.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
-use std::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use tauri::image::Image;
@@ -19,13 +21,15 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::VaultState;
-use crate::health::{self, HealthSnapshot, Overall, SourceId, SourceState, SourceStatus};
+use crate::health::{self, HealthSnapshot, Overall, SourceStatus};
 use crate::vault::{VaultError, VaultRegistry};
 
 const TRAY_ID: &str = "health";
 const CHECK_INTERVAL: Duration = Duration::from_secs(30);
 const WATCHDOG_INTERVAL: Duration = Duration::from_secs(15);
 const STALE_AFTER: Duration = Duration::from_secs(75);
+/// A watchdog gap above two intervals means the machine slept.
+const RESUME_GAP: Duration = Duration::from_secs(30);
 const EVENT: &str = "health-changed";
 const STALL_TITLE: &str = "Nawigator dnia — sprawdzanie stanu nie działa";
 
@@ -35,9 +39,12 @@ pub struct HealthState {
     /// Wakes the check thread for an immediate round.
     pub wake: mpsc::Sender<()>,
     origin: Instant,
-    /// Milliseconds since `origin` at the end of the last finished check.
+    /// Milliseconds since `origin` when the last check's probe returned.
     heartbeat_ms: AtomicU64,
+    /// Set and cleared only by the watchdog.
     stale: AtomicBool,
+    /// `seq` of the last snapshot pushed to the tray and the webview.
+    published: Mutex<u64>,
 }
 
 impl HealthState {
@@ -48,11 +55,13 @@ impl HealthState {
                 overall: Overall::Starting,
                 sources: Vec::new(),
                 checked_at_ms: None,
+                seq: 0,
             }),
             wake,
             origin: Instant::now(),
             heartbeat_ms: AtomicU64::new(0),
             stale: AtomicBool::new(false),
+            published: Mutex::new(0),
         };
         (state, rx)
     }
@@ -197,6 +206,21 @@ fn emit_snapshot(app: &AppHandle, snap: &HealthSnapshot) {
     }
 }
 
+/// Pushes the stored snapshot to the tray and the webview unless a newer one
+/// was already pushed. The check and watchdog threads publish independently;
+/// re-reading the stored snapshot under `published` keeps the tray and the
+/// panel on the latest state whatever order the two threads run in.
+fn publish(app: &AppHandle, state: &HealthState) {
+    let mut last = state.published.lock().unwrap_or_else(|p| p.into_inner());
+    let snap = state.snapshot();
+    if snap.seq <= *last {
+        return;
+    }
+    *last = snap.seq;
+    update_tray(app, &snap);
+    emit_snapshot(app, &snap);
+}
+
 fn toast(app: &AppHandle, title: &str, body: &str) {
     if !health::notices_allowed() {
         return;
@@ -211,20 +235,7 @@ type ProbeResult = (Result<VaultRegistry, VaultError>, Vec<SourceStatus>);
 fn probe_round(settings_path: &Option<PathBuf>) -> ProbeResult {
     match settings_path {
         Some(p) => health::probe(p),
-        None => {
-            let status = SourceStatus {
-                id: SourceId::Settings,
-                label: "Ustawienia".to_string(),
-                state: SourceState::Error {
-                    kind: "SettingsInvalid".to_string(),
-                    message: "Nie można ustalić folderu konfiguracji aplikacji".to_string(),
-                },
-            };
-            let err = VaultError::SettingsInvalid {
-                reason: "cannot resolve app config dir".to_string(),
-            };
-            (Err(err), vec![status])
-        }
+        None => health::unresolved_config_dir(),
     }
 }
 
@@ -252,25 +263,31 @@ fn check_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Rec
 fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut Vec<SourceStatus>) {
     let state = app.state::<HealthState>();
     let (registry, sources) = probe_round(settings_path);
+    // Stamp as soon as the probe returns. The probe is the part that can hang;
+    // stamping after the blocking tray calls below let the watchdog flag a
+    // finished round as stalled.
+    state.stamp_heartbeat();
     app.state::<VaultState>().replace(registry);
 
     let transitions = health::transitions(baseline, &sources);
     *baseline = health::baseline(baseline, &sources);
 
-    // The loop is alive again, so any stall flag from the watchdog is stale.
-    state.stale.store(false, Ordering::Release);
-    let snap = {
+    {
         let mut guard = state.write();
+        // The watchdog owns the stall flag and sets it before taking this lock,
+        // so reading it here keeps the stored overall consistent with it.
+        let stale = state.stale.load(Ordering::Acquire);
+        let seq = guard.seq + 1;
         *guard = HealthSnapshot {
-            overall: health::overall(&sources, false, true),
+            overall: health::overall(&sources, stale, true),
             sources,
             checked_at_ms: Some(now_ms()),
+            seq,
         };
-        guard.clone()
-    };
+    }
 
-    // Tray first: the reliable channel never lags the toast.
-    update_tray(app, &snap);
+    // Tray and panel first: the reliable channel never lags the toast.
+    publish(app, &state);
     if let Some(notice) = health::notice_for(&transitions) {
         toast(app, &notice.title, &notice.body);
     }
@@ -278,48 +295,56 @@ fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut 
         log::info!(
             "health: {} {} -> {}",
             t.id.key(),
-            t.from_kind.as_deref().unwrap_or("ok"),
+            // No from-kind: Unknown, Ok or NotConfigured. No to-kind: recovery to Ok.
+            t.from_kind.as_deref().unwrap_or("-"),
             t.to_kind.as_deref().unwrap_or("ok"),
         );
     }
-    emit_snapshot(app, &snap);
-    state.stamp_heartbeat();
 }
 
 fn watchdog_loop(app: AppHandle) {
     let state = app.state::<HealthState>();
     state.stamp_heartbeat();
     let mut last_wake = Instant::now();
+    let mut resumed_at: Option<Instant> = None;
     loop {
         std::thread::sleep(WATCHDOG_INTERVAL);
         let now = Instant::now();
         let gap = now.duration_since(last_wake);
         last_wake = now;
 
-        let age = state.heartbeat_age();
-        let stale = health::is_stale(age, gap, STALE_AFTER);
-        let was_stale = state.stale.load(Ordering::Acquire);
-        if stale && !was_stale {
-            state.stale.store(true, Ordering::Release);
-            let snap = {
-                let mut guard = state.write();
-                guard.overall = health::overall(&guard.sources, true, guard.checked_at_ms.is_some());
-                guard.clone()
-            };
-            update_tray(&app, &snap);
+        if health::is_resume(gap, RESUME_GAP) {
+            // The machine slept: give the check loop a fresh grace period and
+            // run a round now instead of waiting out its 30 s timer.
+            resumed_at = Some(now);
+            let _ = state.wake.send(());
+        }
+
+        let action = health::watchdog_step(
+            state.stale.load(Ordering::Acquire),
+            state.heartbeat_age(),
+            gap,
+            resumed_at.map(|t| now.duration_since(t)),
+            STALE_AFTER,
+            RESUME_GAP,
+        );
+        let stale = match action {
+            health::WatchdogAction::Stall => true,
+            health::WatchdogAction::Clear => false,
+            health::WatchdogAction::Nothing => continue,
+        };
+        state.stale.store(stale, Ordering::Release);
+        {
+            let mut guard = state.write();
+            guard.overall = health::overall(&guard.sources, stale, guard.checked_at_ms.is_some());
+            guard.seq += 1;
+        }
+        publish(&app, &state);
+        if stale {
             log::warn!("health: check loop stalled");
-            emit_snapshot(&app, &snap);
             toast(&app, STALL_TITLE, "");
-        } else if was_stale && age <= STALE_AFTER {
-            state.stale.store(false, Ordering::Release);
-            let snap = {
-                let mut guard = state.write();
-                guard.overall = health::overall(&guard.sources, false, guard.checked_at_ms.is_some());
-                guard.clone()
-            };
-            update_tray(&app, &snap);
+        } else {
             log::info!("health: check loop resumed");
-            emit_snapshot(&app, &snap);
         }
     }
 }

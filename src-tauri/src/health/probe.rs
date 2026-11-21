@@ -42,6 +42,16 @@ pub fn probe(settings_path: &Path) -> (Result<VaultRegistry, VaultError>, Vec<So
     (Ok(registry), sources)
 }
 
+/// The check result when the app config dir cannot be resolved, so there is no
+/// `settings.json` to read. Used for the initial state and for every round.
+pub fn unresolved_config_dir() -> (Result<VaultRegistry, VaultError>, Vec<SourceStatus>) {
+    let e = VaultError::SettingsInvalid {
+        reason: "nie można ustalić folderu konfiguracji aplikacji".to_string(),
+    };
+    let status = error_status(SourceId::Settings, "Ustawienia", &e);
+    (Err(e), vec![status])
+}
+
 fn space_name(space: Space) -> &'static str {
     match space {
         Space::Work => "Praca",
@@ -181,6 +191,21 @@ mod tests {
         // Fallback: Display text.
         let other = VaultError::NoFrontmatter;
         assert_eq!(message_pl(&other), other.to_string());
+    }
+
+    #[test]
+    fn unresolved_config_dir_is_a_settings_error() {
+        let (registry, sources) = unresolved_config_dir();
+        assert!(matches!(registry, Err(VaultError::SettingsInvalid { .. })));
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].id, SourceId::Settings);
+        match &sources[0].state {
+            SourceState::Error { kind, message } => {
+                assert_eq!(kind, "SettingsInvalid");
+                assert!(message.starts_with("Ustawienia są nieprawidłowe: "));
+            }
+            other => panic!("expected Error, got {other:?}"),
+        }
     }
 
     #[test]

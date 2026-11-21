@@ -1,10 +1,11 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
+  "description": "Capability for the main window. Only what the UI uses: listening to app events. No core:tray, so the webview cannot change the health tray; no event emit, so it cannot forge health-changed. The app's own commands need no permission.",
   "windows": ["main"],
   "permissions": [
-    "core:default",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
     "opener:default"
   ]
 }

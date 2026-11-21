@@ -430,10 +430,10 @@ If minutes become tight, the first lever is a `paths-ignore` for `context/**`. T
 
 #### Automated
 
-- [x] 3.1 Frontend build still passes: `npm run build`
-- [x] 3.2 Rust build still passes: `cargo build` (in `src-tauri/`)
-- [x] 3.3 Workflow file names the four jobs: `node -e "const y=require('fs').readFileSync('.github/workflows/ci.yml','utf8'); for (const j of ['checks:','build-test:','version:','release:']) if(!y.includes(j)) process.exit(1)"`
-- [x] 3.4 No secret references besides GITHUB_TOKEN: `git grep -n "secrets\." .github/` lists only `secrets.GITHUB_TOKEN`
+- [x] 3.1 Frontend build still passes: `npm run build` — 85143b7
+- [x] 3.2 Rust build still passes: `cargo build` (in `src-tauri/`) — 85143b7
+- [x] 3.3 Workflow file names the four jobs: `node -e "const y=require('fs').readFileSync('.github/workflows/ci.yml','utf8'); for (const j of ['checks:','build-test:','version:','release:']) if(!y.includes(j)) process.exit(1)"` — 85143b7
+- [x] 3.4 No secret references besides GITHUB_TOKEN: `git grep -n "secrets\." .github/` lists only `secrets.GITHUB_TOKEN` — 85143b7
 
 #### Manual
 

@@ -12,7 +12,8 @@ export type TaskError =
   | { kind: "InvalidTitle"; detail: { reason: string } }
   | { kind: "UnknownStatus"; detail: { status: string } }
   | { kind: "UnknownPriority"; detail: { priority: string } }
-  | { kind: "InvalidDue"; detail: { value: string } };
+  | { kind: "InvalidDue"; detail: { value: string } }
+  | { kind: "NotATask"; detail: { path: string } };
 
 export interface TaskRow {
   path: string;
@@ -23,6 +24,8 @@ export interface TaskRow {
   statusHash: string | null;
   doneHash: string | null;
   problem: VaultError | null;
+  /** Priority/Due read errors; the status stays editable. */
+  fieldProblems: VaultError[];
 }
 
 export interface NewTask {
@@ -31,7 +34,8 @@ export interface NewTask {
   due: string | null;
 }
 
-export type DoneUpdate = "Set" | "Cleared" | "Unchanged" | "Absent";
+/** Every value except "NoWrite" means Status was written. */
+export type DoneUpdate = "Set" | "Cleared" | "Unchanged" | "Absent" | "NoWrite";
 
 export interface TaskSettingsView {
   statuses: string[];
@@ -76,6 +80,19 @@ function asTaskError(e: unknown): TaskError | null {
 export function isConflict(e: unknown): boolean {
   const err = asTaskError(e);
   return err?.kind === "Vault" && err.detail.kind === "Conflict";
+}
+
+/**
+ * True when the note on disk may no longer match the list: a conflict, an
+ * interrupted replace, an I/O failure, or a note that vanished. The view then
+ * reloads instead of keeping the row's old value.
+ */
+export function needsReload(e: unknown): boolean {
+  const err = asTaskError(e);
+  return (
+    err?.kind === "Vault" &&
+    ["Conflict", "ReplaceIncomplete", "Io", "NotFound"].includes(err.detail.kind)
+  );
 }
 
 function str(detail: unknown, key: string): string {
@@ -136,7 +153,7 @@ export function vaultErrorMessage(e: VaultError): string {
     case "ReadOnly":
       return `Plik jest tylko do odczytu: ${str(d, "path")}`;
     case "ReplaceIncomplete":
-      return `Zapis nie został dokończony: ${str(d, "path")}`;
+      return `Zapis nie został dokończony: ${str(d, "path")}. Oryginał może być tylko w kopii ${str(d, "backup")}, nowa treść w ${str(d, "temp")} — sprawdź te pliki w vaulcie`;
     case "Io":
       return `Błąd odczytu lub zapisu: ${str(d, "path")}`;
     default:
@@ -166,6 +183,8 @@ export function taskErrorMessage(e: TaskError): string {
       return `Nieznany priorytet: ${e.detail.priority}`;
     case "InvalidDue":
       return `Nieprawidłowy termin: ${e.detail.value}`;
+    case "NotATask":
+      return `To nie jest zadanie z folderu zadań: ${e.detail.path}`;
     default:
       return `Nieoczekiwany błąd (${(e as { kind: string }).kind})`;
   }

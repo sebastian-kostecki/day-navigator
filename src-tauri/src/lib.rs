@@ -37,6 +37,21 @@ fn work_vault(state: &VaultState) -> Result<Vault, TaskError> {
     Ok(registry.vault(Space::Work)?)
 }
 
+/// Runs vault I/O off the main thread, so a slow or cloud-synced vault never
+/// freezes the window. `Vault::apply`'s re-check keeps concurrent writes safe.
+async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, TaskError> + Send + 'static,
+) -> Result<T, TaskError> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|e| {
+            TaskError::Vault(VaultError::Io {
+                path: String::new(),
+                kind: format!("background task failed: {e}"),
+            })
+        })?
+}
+
 #[tauri::command]
 fn get_work_task_settings(
     state: tauri::State<'_, TasksState>,
@@ -51,29 +66,33 @@ fn get_work_task_settings(
 }
 
 #[tauri::command]
-fn list_work_tasks(
+async fn list_work_tasks(
     vault_state: tauri::State<'_, VaultState>,
     tasks_state: tauri::State<'_, TasksState>,
 ) -> Result<Vec<TaskRow>, TaskError> {
-    let cfg = task_cfg(&tasks_state)?;
+    let cfg = task_cfg(&tasks_state)?.clone();
     let vault = work_vault(&vault_state)?;
-    tasks::list_tasks(&vault, cfg)
+    blocking(move || tasks::list_tasks(&vault, &cfg)).await
 }
 
 #[tauri::command]
-fn create_work_task(
+async fn create_work_task(
     vault_state: tauri::State<'_, VaultState>,
     tasks_state: tauri::State<'_, TasksState>,
     new: NewTask,
 ) -> Result<String, TaskError> {
-    let cfg = task_cfg(&tasks_state)?;
+    let cfg = task_cfg(&tasks_state)?.clone();
     let vault = work_vault(&vault_state)?;
-    let path = tasks::create_task(&vault, cfg, &new, Local::now().naive_local())?;
-    Ok(path.to_string())
+    let now = Local::now().naive_local();
+    blocking(move || {
+        let path = tasks::create_task(&vault, &cfg, &new, now)?;
+        Ok(path.to_string())
+    })
+    .await
 }
 
 #[tauri::command]
-fn set_work_task_status(
+async fn set_work_task_status(
     vault_state: tauri::State<'_, VaultState>,
     tasks_state: tauri::State<'_, TasksState>,
     path: String,
@@ -81,20 +100,16 @@ fn set_work_task_status(
     status_hash: String,
     done_hash: Option<String>,
 ) -> Result<DoneUpdate, TaskError> {
-    let cfg = task_cfg(&tasks_state)?;
+    let cfg = task_cfg(&tasks_state)?.clone();
     let vault = work_vault(&vault_state)?;
     let path = VaultPath::parse(&path)?;
     let status_hash = SpanHash::from_hex(&status_hash)?;
     let done_hash = done_hash.as_deref().map(SpanHash::from_hex).transpose()?;
-    tasks::set_status(
-        &vault,
-        cfg,
-        &path,
-        &status,
-        status_hash,
-        done_hash,
-        Local::now().date_naive(),
-    )
+    let today = Local::now().date_naive();
+    blocking(move || {
+        tasks::set_status(&vault, &cfg, &path, &status, status_hash, done_hash, today)
+    })
+    .await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

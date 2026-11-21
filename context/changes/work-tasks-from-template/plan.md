@@ -498,7 +498,7 @@ The template must use core-Templates placeholders only, and must contain `Status
 - [x] 2.2 Template unit tests pass: `cargo test tasks::` — 2008525
 - [x] 2.3 Full suite passes, including the updated root listing: `cargo test` — 2008525
 - [x] 2.4 Backend builds: `cargo build` — 2008525
-- [x] 2.5 No advisories in newly added crates: `cargo audit` — 2008525
+- [x] 2.5 No advisories in newly added crates: `cargo audit` — 2008525 (accepted warning: RUSTSEC-2026-0543, chrono unmaintained, no fix; see change.md)
 
 #### Manual
 

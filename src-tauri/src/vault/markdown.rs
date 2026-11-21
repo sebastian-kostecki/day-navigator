@@ -7,7 +7,8 @@ use sha2::{Digest, Sha256};
 
 use super::error::VaultError;
 
-const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
+/// UTF-8 byte order mark.
+pub(crate) const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
 /// An ATX heading: level 1..=6 and its text (without `#` markers).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -718,6 +719,26 @@ mod tests {
 
     fn plan() -> Heading {
         Heading::new(2, "Plan")
+    }
+
+    #[test]
+    fn span_hash_from_hex_accepts_only_64_lowercase_hex() {
+        let good = span_hash(b"Status: Todo\n", Span { start: 0, end: 13 });
+        assert_eq!(SpanHash::from_hex(good.as_str()).unwrap(), good);
+        let bad = [
+            "a".repeat(63),
+            "a".repeat(65),
+            "A".repeat(64),
+            format!("{}g", "a".repeat(63)),
+            String::new(),
+            format!("{} ", "a".repeat(63)),
+        ];
+        for h in bad {
+            assert!(
+                matches!(SpanHash::from_hex(&h), Err(VaultError::InvalidValue { .. })),
+                "{h:?}"
+            );
+        }
     }
 
     #[test]

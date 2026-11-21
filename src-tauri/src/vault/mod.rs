@@ -416,6 +416,26 @@ impl Vault {
 
     /// Creates a new note; missing parent folders are created under the existing root only.
     pub fn create_note(&self, path: &VaultPath, content: &str) -> Result<(), VaultError> {
+        self.create_note_with(path, content, true)
+    }
+
+    /// Creates a new note in a folder that must already exist. A missing parent
+    /// is `NotFound` naming that folder, and nothing is created. Use it for
+    /// configured folders, which the app never creates.
+    pub fn create_note_in_existing_folder(
+        &self,
+        path: &VaultPath,
+        content: &str,
+    ) -> Result<(), VaultError> {
+        self.create_note_with(path, content, false)
+    }
+
+    fn create_note_with(
+        &self,
+        path: &VaultPath,
+        content: &str,
+        make_parents: bool,
+    ) -> Result<(), VaultError> {
         self.ensure_root()?;
         let label = path.to_string();
         if !path.is_markdown() {
@@ -426,7 +446,14 @@ impl Vault {
             return Err(VaultError::AlreadyExists { path: label });
         }
         if let Some(parent) = abs.parent() {
-            fs::create_dir_all(parent).map_err(|e| io_error(path, &e))?;
+            if make_parents {
+                fs::create_dir_all(parent).map_err(|e| io_error(path, &e))?;
+            } else if !parent.is_dir() {
+                let segs = path.segments();
+                return Err(VaultError::NotFound {
+                    path: segs[..segs.len() - 1].join("/"),
+                });
+            }
         }
         // Folders now exist: re-run containment and exclusion before writing.
         let abs = self.resolve(path)?;

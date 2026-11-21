@@ -5,7 +5,7 @@ use std::path::Path;
 use std::time::SystemTime;
 
 use chrono::{NaiveDate, NaiveDateTime};
-use common::{fixture_dir, test_tasks_settings, test_vault, vault_root};
+use common::{assert_no_leftovers, fixture_dir, test_tasks_settings, test_vault, vault_root};
 use day_navigator_lib::settings::TaskSettings;
 use day_navigator_lib::tasks::{
     DoneUpdate, NewTask, TaskError, create_task, list_tasks, require_config, set_status,
@@ -113,6 +113,7 @@ fn list_sorts_by_status_due_then_title_and_keeps_problem_rows() {
     assert_eq!(open.due.as_deref(), Some("2026-02-01"));
     assert!(open.status_hash.is_some() && open.done_hash.is_some());
     assert!(open.problem.is_none());
+    assert!(rows.iter().all(|r| r.field_problems.is_empty()));
 
     let done = by("Invented done task");
     assert_eq!(done.status.as_deref(), Some("Done"));
@@ -152,6 +153,26 @@ fn list_skips_template_inside_tasks_folder() {
 }
 
 #[test]
+fn unreadable_priority_or_due_is_a_field_problem_not_a_blank() {
+    let (tmp, vault, cfg) = setup();
+    let root = vault_root(&tmp);
+    fs::write(
+        root.join("Tasks/Zle pola.md"),
+        "---\nStatus: Todo\nPriority:\n  - High\nDue: 2026-01-01\nDue: 2026-01-02\nDone:\n---\n",
+    )
+    .unwrap();
+    let rows = list_tasks(&vault, &cfg).unwrap();
+    let row = rows.iter().find(|r| r.title == "Zle pola").unwrap();
+    assert!(row.problem.is_none());
+    assert!(row.status_hash.is_some(), "status stays editable");
+    assert_eq!((row.priority.as_deref(), row.due.as_deref()), (None, None));
+    assert!(matches!(
+        row.field_problems.as_slice(),
+        [VaultError::InvalidValue { .. }, VaultError::FieldAmbiguous { .. }]
+    ));
+}
+
+#[test]
 fn list_with_missing_folder_is_an_error_not_an_empty_list() {
     let (_tmp, vault, mut cfg) = setup();
     cfg.folder = vp("Nope");
@@ -178,6 +199,23 @@ fn create_renders_template_and_sets_app_owned_fields() {
     assert_eq!(path.to_string(), "Tasks/Nowe zadanie testowe.md");
     let expected = "---\nStatus: Todo\nPriority: High\nDue: 2026-05-06\nIssue:\nToday:\nDone:\n---\n# Nowe zadanie testowe\n\nUtworzono 2026-03-04 09:05\n";
     assert_eq!(disk(&root, "Tasks/Nowe zadanie testowe.md"), expected.as_bytes());
+    assert_no_leftovers(&root);
+}
+
+#[test]
+fn create_normalises_the_title_to_nfc() {
+    let (tmp, vault, cfg) = setup();
+    // "Zażółć" with combining marks (NFD).
+    let nfd = "Zaz\u{307}o\u{301}łc\u{301}";
+    let path = create_task(&vault, &cfg, &new_task(nfd), now()).unwrap();
+    assert_eq!(path.to_string(), "Tasks/Zażółć.md");
+    let got = String::from_utf8(disk(&vault_root(&tmp), "Tasks/Zażółć.md")).unwrap();
+    assert!(got.contains("# Zażółć\n"));
+    // The NFD spelling of an existing title is the same note.
+    assert!(matches!(
+        create_task(&vault, &cfg, &new_task(nfd), now()),
+        Err(TaskError::Vault(VaultError::AlreadyExists { .. }))
+    ));
 }
 
 #[test]
@@ -238,8 +276,10 @@ fn create_refusals_write_nothing() {
         Err(TaskError::Vault(VaultError::AlreadyExists { .. }))
     ));
 
+    let too_long = "x".repeat(253);
     for bad in [
         "", "   ", "a:b", "a/b", "a\\b", "a[b", "a]b", "a#b", "a^b", "a|b", "trailing.", "CON",
+        too_long.as_str(),
     ] {
         let r = create_task(&vault, &cfg, &new_task(bad), now());
         assert!(
@@ -324,6 +364,31 @@ fn todo_to_in_progress_changes_only_the_status_line() {
         disk(&vault_root(&tmp), CRLF),
         replace(&fixture(CRLF), "Status: Todo", "Status: In progress")
     );
+    assert_no_leftovers(&vault_root(&tmp));
+}
+
+#[test]
+fn status_change_outside_the_tasks_folder_is_refused() {
+    let (tmp, vault, cfg) = setup();
+    let root = vault_root(&tmp);
+    fs::create_dir(root.join("Tasks/Sub")).unwrap();
+    fs::write(root.join("Tasks/Sub/Nested.md"), "---\nStatus: Todo\nDone:\n---\n").unwrap();
+    let mut in_folder = cfg.clone();
+    in_folder.template = vp("Tasks/Invented crlf task.md");
+    let cases = [
+        (&cfg, "Templates/Task.md"),
+        (&cfg, "Issues/Fake issue 101.md"),
+        (&cfg, "Tasks/Sub/Nested.md"),
+        // The template is never a task, even inside the tasks folder.
+        (&in_folder, "tasks/invented CRLF task.md"),
+    ];
+    for (cfg, rel) in cases {
+        let status = SpanHash::from_hex(&"0".repeat(64)).unwrap();
+        let r = set_status(&vault, cfg, &vp(rel), "Done", status, None, today());
+        assert!(matches!(r, Err(TaskError::NotATask { .. })), "{rel}: {r:?}");
+    }
+    assert_eq!(disk(&root, "Templates/Task.md"), fixture("Templates/Task.md"));
+    assert_eq!(disk(&root, CRLF), fixture(CRLF));
 }
 
 #[test]
@@ -348,6 +413,7 @@ fn moving_to_done_sets_done_in_one_write_and_keeps_crlf() {
         "Done: 2026-03-04\n",
     );
     assert_eq!(disk(&vault_root(&tmp), OPEN), expected);
+    assert_no_leftovers(&vault_root(&tmp));
 }
 
 #[test]
@@ -384,7 +450,7 @@ fn same_status_writes_nothing() {
     let before = mtime(&root, OPEN);
     let (s, d) = hashes(&vault, OPEN);
     let r = set_status(&vault, &cfg, &vp(OPEN), "In progress", s, d, today()).unwrap();
-    assert_eq!(r, DoneUpdate::Unchanged);
+    assert_eq!(r, DoneUpdate::NoWrite);
     assert_eq!(disk(&root, OPEN), fixture(OPEN));
     assert_eq!(mtime(&root, OPEN), before);
 }

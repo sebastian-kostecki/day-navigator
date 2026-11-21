@@ -157,9 +157,14 @@ fn convert_tasks(name: &str, raw: RawTasks) -> Result<TaskSettings, VaultError> 
     if raw.statuses.is_empty() {
         return Err(invalid(format!("{name}: tasks statuses must not be empty")));
     }
-    for (i, s) in raw.statuses.iter().enumerate() {
-        if raw.statuses[..i].contains(s) {
-            return Err(invalid(format!("{name}: duplicate task status {s:?}")));
+    // Case-insensitive: "Todo" and "todo" would be two picker entries for one
+    // status as the user reads it.
+    for (what, list) in [("status", &raw.statuses), ("priority", &raw.priorities)] {
+        for (i, v) in list.iter().enumerate() {
+            let folded = v.to_lowercase();
+            if list[..i].iter().any(|p| p.to_lowercase() == folded) {
+                return Err(invalid(format!("{name}: duplicate task {what} {v:?}")));
+            }
         }
     }
     if !raw.statuses.contains(&raw.done_status) {
@@ -299,6 +304,10 @@ mod tests {
             r#"{"folder":"Tasks","template":"T.md","statuses":["Todo"],"done_status":"Done"}"#,
             // duplicate statuses
             r#"{"folder":"Tasks","template":"T.md","statuses":["Todo","Todo","Done"],"done_status":"Done"}"#,
+            // duplicate statuses differing only in case
+            r#"{"folder":"Tasks","template":"T.md","statuses":["Todo","todo","Done"],"done_status":"Done"}"#,
+            // duplicate priorities, also case-insensitively
+            r#"{"folder":"Tasks","template":"T.md","statuses":["Done"],"done_status":"Done","priorities":["High","high"]}"#,
             // template is not a note
             r#"{"folder":"Tasks","template":"T.txt","statuses":["Done"],"done_status":"Done"}"#,
             // invalid folder

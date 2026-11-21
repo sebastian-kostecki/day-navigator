@@ -695,29 +695,38 @@ mod proptests {
             }
         }
 
-        /// `replace_fields`: bytes outside both field spans are the original's.
+        /// `replace_fields`: bytes outside both field spans are the original's,
+        /// for every ordered pair of present fields (edit order = file order
+        /// and the reverse, as `set_status` produces when `Done` precedes `Status`).
         #[test]
         fn replace_fields_keeps_every_byte_outside_both_spans(
             note in gen_note(),
             va in field_value(),
             vb in field_value(),
         ) {
-            prop_assume!(note.fields.len() >= 2);
             let bytes = &note.bytes;
-            let (ka, _, a) = &note.fields[0];
-            let (kb, _, b) = &note.fields[1];
-            let edits = [
-                (*ka, va, span_hash(bytes, *a)),
-                (*kb, vb, span_hash(bytes, *b)),
-            ];
-            let out = replace_fields(bytes, &edits).unwrap();
-            let sa = find_field(&out, ka).unwrap();
-            let sb = find_field(&out, kb).unwrap();
-            prop_assert_eq!(&out[..sa.start], &bytes[..a.start]);
-            prop_assert_eq!(&out[sa.end..sb.start], &bytes[a.end..b.start]);
-            prop_assert_eq!(&out[sb.end..], &bytes[b.end..]);
-            prop_assert!(only_file_eol(sa.slice(&out), note.eol));
-            prop_assert!(only_file_eol(sb.slice(&out), note.eol));
+            for (i, (ka, _, a)) in note.fields.iter().enumerate() {
+                for (j, (kb, _, b)) in note.fields.iter().enumerate() {
+                    if i == j {
+                        continue;
+                    }
+                    let edits = [
+                        (*ka, va.clone(), span_hash(bytes, *a)),
+                        (*kb, vb.clone(), span_hash(bytes, *b)),
+                    ];
+                    let out = replace_fields(bytes, &edits).unwrap();
+                    let sa = find_field(&out, ka).unwrap();
+                    let sb = find_field(&out, kb).unwrap();
+                    // Compare in file order, whichever was edited first.
+                    let ((s1, o1), (s2, o2)) =
+                        if a.start < b.start { ((sa, a), (sb, b)) } else { ((sb, b), (sa, a)) };
+                    prop_assert_eq!(&out[..s1.start], &bytes[..o1.start]);
+                    prop_assert_eq!(&out[s1.end..s2.start], &bytes[o1.end..o2.start]);
+                    prop_assert_eq!(&out[s2.end..], &bytes[o2.end..]);
+                    prop_assert!(only_file_eol(sa.slice(&out), note.eol));
+                    prop_assert!(only_file_eol(sb.slice(&out), note.eol));
+                }
+            }
         }
 
         /// 2. Replacing a section (or a canonical field) with its own current content is a no-op.

@@ -25,6 +25,23 @@ pub fn copy_dir(src: &Path, dst: &Path) {
     }
 }
 
+/// Panics if any `.dn-*.tmp` / `.dn-*.bak` file exists anywhere under `dir`.
+pub fn assert_no_leftovers(dir: &Path) {
+    for entry in fs::read_dir(dir).unwrap() {
+        let entry = entry.unwrap();
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if entry.file_type().unwrap().is_dir() {
+            assert_no_leftovers(&entry.path());
+        } else {
+            assert!(
+                !(name.contains(".dn-") && (name.ends_with(".tmp") || name.ends_with(".bak"))),
+                "leftover file {name} in {}",
+                dir.display()
+            );
+        }
+    }
+}
+
 pub fn space_settings(root: &Path, excluded: &[&str]) -> SpaceSettings {
     SpaceSettings {
         vault: root.to_path_buf(),

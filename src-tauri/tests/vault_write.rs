@@ -5,7 +5,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use common::{fixture_dir, space_settings, test_vault, vault_root};
+use common::{assert_no_leftovers, fixture_dir, space_settings, test_vault, vault_root};
 use day_navigator_lib::settings::Settings;
 use day_navigator_lib::vault::fsops::{self, ReplaceError};
 use day_navigator_lib::vault::{
@@ -35,23 +35,6 @@ fn spliced(original: &[u8], span: markdown::Span, replacement: &[u8]) -> Vec<u8>
     out.extend_from_slice(replacement);
     out.extend_from_slice(&original[span.end..]);
     out
-}
-
-/// Panics if any `.dn-*.tmp` / `.dn-*.bak` file exists anywhere under `dir`.
-fn assert_no_leftovers(dir: &Path) {
-    for entry in fs::read_dir(dir).unwrap() {
-        let entry = entry.unwrap();
-        let name = entry.file_name().to_string_lossy().into_owned();
-        if entry.file_type().unwrap().is_dir() {
-            assert_no_leftovers(&entry.path());
-        } else {
-            assert!(
-                !(name.contains(".dn-") && (name.ends_with(".tmp") || name.ends_with(".bak"))),
-                "leftover file {name} in {}",
-                dir.display()
-            );
-        }
-    }
 }
 
 fn setup() -> (tempfile::TempDir, PathBuf, Vault) {
@@ -340,6 +323,30 @@ fn create_note_writes_content_as_given_and_creates_parents() {
         disk(&root, "Dziennik/2027/2027-01-01.md"),
         content.as_bytes()
     );
+    assert_no_leftovers(&root);
+}
+
+#[test]
+fn create_note_in_existing_folder_refuses_a_missing_parent_and_creates_nothing() {
+    let (_tmp, root, vault) = setup();
+    let err = vault
+        .create_note_in_existing_folder(&vp("Dziennik/2027/2027-01-01.md"), "x")
+        .unwrap_err();
+    match err {
+        VaultError::NotFound { path } => assert_eq!(path, "Dziennik/2027"),
+        other => panic!("{other:?}"),
+    }
+    assert!(!root.join("Dziennik/2027").exists());
+
+    let content = "# Nowa\n";
+    vault
+        .create_note_in_existing_folder(&vp("Dziennik/2026/2026-02-01.md"), content)
+        .unwrap();
+    assert_eq!(disk(&root, "Dziennik/2026/2026-02-01.md"), content.as_bytes());
+    assert!(matches!(
+        vault.create_note_in_existing_folder(&vp(TASK_NOTE), "x"),
+        Err(VaultError::AlreadyExists { .. })
+    ));
     assert_no_leftovers(&root);
 }
 

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   anyErrorMessage,
   createWorkTask,
   getWorkTaskSettings,
-  isConflict,
   listWorkTasks,
+  needsReload,
   setWorkTaskStatus,
   vaultErrorMessage,
   type TaskRow,
@@ -28,15 +28,23 @@ export default function TasksView() {
   const [creating, setCreating] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Only the latest reload may set the list: an older listing resolving late
+  // would bring back stale hashes and a spurious conflict on the next edit.
+  const latestLoad = useRef(0);
   const reload = useCallback(async () => {
+    const id = ++latestLoad.current;
     try {
       const [settings, rows] = await Promise.all([
         getWorkTaskSettings(),
         listWorkTasks(),
       ]);
-      setLoad({ state: "loaded", settings, rows });
+      if (id === latestLoad.current) {
+        setLoad({ state: "loaded", settings, rows });
+      }
     } catch (e) {
-      setLoad({ state: "error", message: anyErrorMessage(e) });
+      if (id === latestLoad.current) {
+        setLoad({ state: "error", message: anyErrorMessage(e) });
+      }
     }
   }, []);
 
@@ -60,7 +68,7 @@ export default function TasksView() {
       }
     } catch (e) {
       setNotice(anyErrorMessage(e));
-      if (!isConflict(e)) {
+      if (!needsReload(e)) {
         setBusy((b) => {
           const next = new Set(b);
           next.delete(row.path);
@@ -208,6 +216,11 @@ export default function TasksView() {
                       {vaultErrorMessage(row.problem)}
                     </span>
                   )}
+                  {row.fieldProblems.map((p, i) => (
+                    <span key={i} className="error">
+                      {vaultErrorMessage(p)}
+                    </span>
+                  ))}
                 </div>
                 <select
                   value={row.status ?? ""}

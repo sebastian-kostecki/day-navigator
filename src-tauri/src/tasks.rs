@@ -5,13 +5,17 @@
 //! Invariant: no error variant carries note content.
 
 use chrono::{NaiveDate, NaiveDateTime};
+use unicode_normalization::UnicodeNormalization;
 
 use crate::settings::TaskSettings;
 use crate::vault::edit::{self, FieldValue, check_plain};
-use crate::vault::markdown::{self, SpanHash, find_field, span_hash};
+use crate::vault::markdown::{self, BOM, SpanHash, find_field, span_hash};
 use crate::vault::{EntryKind, Vault, VaultError, VaultPath};
 
-const BOM: &str = "\u{FEFF}";
+/// NTFS limit for one file name, in UTF-16 code units.
+const MAX_FILE_NAME: usize = 255;
+/// Longest unsupported-placeholder text an error repeats back.
+const MAX_TOKEN_LABEL: usize = 40;
 
 #[derive(Debug, Clone, thiserror::Error, serde::Serialize)]
 #[serde(tag = "kind", content = "detail")]
@@ -36,6 +40,8 @@ pub enum TaskError {
     UnknownPriority { priority: String },
     #[error("invalid due date: {value}")]
     InvalidDue { value: String },
+    #[error("not a task note: {path}")]
+    NotATask { path: String },
 }
 
 impl From<VaultError> for TaskError {
@@ -65,6 +71,8 @@ pub struct TaskRow {
     pub status_hash: Option<SpanHash>,
     pub done_hash: Option<SpanHash>,
     pub problem: Option<VaultError>,
+    /// `Priority`/`Due` read errors. They never disable the status change.
+    pub field_problems: Vec<VaultError>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -75,12 +83,20 @@ pub struct NewTask {
     pub due: Option<String>,
 }
 
+/// Outcome of a status change. Every value except `NoWrite` means `Status`
+/// was written; the name says what happened to `Done`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 pub enum DoneUpdate {
+    /// `Done` set to today.
     Set,
+    /// `Done` emptied.
     Cleared,
+    /// `Done` left as it was: the move did not cross the done status.
     Unchanged,
+    /// The move crossed the done status but the note has no `Done` field.
     Absent,
+    /// The note already had this status; nothing was written.
+    NoWrite,
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +142,7 @@ fn read_row(vault: &Vault, path: &VaultPath, title: String) -> TaskRow {
         status_hash: None,
         done_hash: None,
         problem: None,
+        field_problems: Vec::new(),
     };
     let note = match vault.read_note(path) {
         Ok(n) => n,
@@ -155,15 +172,34 @@ fn read_row(vault: &Vault, path: &VaultPath, title: String) -> TaskRow {
         Err(VaultError::FieldNotFound { .. }) => {}
         Err(e) => row.problem = Some(e),
     }
-    row.priority = note
-        .field("Priority")
-        .ok()
-        .and_then(|f| scalar_value(&f.raw_block, "Priority").ok().flatten());
-    row.due = note
-        .field("Due")
-        .ok()
-        .and_then(|f| scalar_value(&f.raw_block, "Due").ok().flatten());
+    let mut field_problems = Vec::new();
+    let mut optional = |key: &str| match note
+        .field(key)
+        .and_then(|f| scalar_value(&f.raw_block, key))
+    {
+        Ok(v) => v,
+        Err(VaultError::FieldNotFound { .. }) => None,
+        Err(e) => {
+            field_problems.push(e);
+            None
+        }
+    };
+    row.priority = optional("Priority");
+    row.due = optional("Due");
+    row.field_problems = field_problems;
     row
+}
+
+fn is_template(cfg: &TaskSettings, path: &VaultPath) -> bool {
+    path.segments().len() == cfg.template.segments().len() && path.starts_with_ci(&cfg.template)
+}
+
+/// A task is a `.md` note directly inside the tasks folder, other than the template.
+fn is_task_path(cfg: &TaskSettings, path: &VaultPath) -> bool {
+    path.is_markdown()
+        && path.segments().len() == cfg.folder.segments().len() + 1
+        && path.starts_with_ci(&cfg.folder)
+        && !is_template(cfg, path)
 }
 
 pub fn list_tasks(vault: &Vault, cfg: &TaskSettings) -> Result<Vec<TaskRow>, TaskError> {
@@ -178,9 +214,7 @@ pub fn list_tasks(vault: &Vault, cfg: &TaskSettings) -> Result<Vec<TaskRow>, Tas
         if entry.kind != EntryKind::Note {
             continue;
         }
-        if entry.path.segments().len() == cfg.template.segments().len()
-            && entry.path.starts_with_ci(&cfg.template)
-        {
+        if is_template(cfg, &entry.path) {
             continue;
         }
         let title = file_stem(&entry.name);
@@ -200,20 +234,55 @@ pub fn list_tasks(vault: &Vault, cfg: &TaskSettings) -> Result<Vec<TaskRow>, Tas
 // Template
 // ---------------------------------------------------------------------------
 
+/// An unsupported token as an error repeats it: first line only, capped, so
+/// no stretch of template text rides along in the error.
+fn token_label(token: &str) -> String {
+    let line = token.lines().next().unwrap_or("");
+    let mut label: String = line.chars().take(MAX_TOKEN_LABEL).collect();
+    if label.len() < token.len() {
+        label.push('…');
+    }
+    label
+}
+
+/// The earliest `<%` (Templater) or `{{..}}` other than title/date/time.
+fn first_unsupported(template: &str) -> Option<String> {
+    let templater = template.find("<%").map(|i| {
+        let end = template[i..].find("%>").map_or(i + 2, |e| i + e + 2);
+        (i, &template[i..end])
+    });
+    let mut braces = None;
+    let mut pos = 0;
+    while let Some(rel) = template[pos..].find("{{") {
+        let open = pos + rel;
+        let Some(close_rel) = template[open + 2..].find("}}") else {
+            break;
+        };
+        let close = open + 2 + close_rel;
+        if !matches!(&template[open + 2..close], "title" | "date" | "time") {
+            braces = Some((open, &template[open..close + 2]));
+            break;
+        }
+        pos = close + 2;
+    }
+    let first = match (templater, braces) {
+        (Some(t), Some(b)) => Some(if t.0 < b.0 { t } else { b }),
+        (t, b) => t.or(b),
+    };
+    first.map(|(_, token)| token_label(token))
+}
+
 /// Fills `{{title}}`, `{{date}}` and `{{time}}`. Any other `{{..}}` or `<%` is
-/// refused. A title inside the frontmatter must be a plain YAML scalar.
+/// refused, naming the earliest one. A title inside the frontmatter must be a
+/// plain YAML scalar without `,` or `'`, so it also fits a flow list
+/// (`[{{title}}]`) or a single-quoted value.
 pub fn render_template(
     template: &str,
     title: &str,
     now: NaiveDateTime,
 ) -> Result<String, TaskError> {
-    if let Some(i) = template.find("<%") {
-        let end = template[i..]
-            .find("%>")
-            .map_or(i + 2, |e| i + e + 2);
-        return Err(TaskError::TemplateUnsupported {
-            placeholder: template[i..end].to_string(),
-        });
+    if let Some(placeholder) = first_unsupported(template) {
+        return Err(TaskError::TemplateUnsupported { placeholder });
     }
     let fm = markdown::frontmatter_span(template.as_bytes());
     let date = now.format("%Y-%m-%d").to_string();
@@ -226,7 +295,6 @@ pub fn render_template(
             break;
         };
         let close = open + 2 + close_rel;
-        let token = &template[open..close + 2];
         out.push_str(&template[pos..open]);
         match &template[open + 2..close] {
             "title" => {
@@ -234,14 +302,20 @@ pub fn render_template(
                     check_plain(title).map_err(|e| TaskError::InvalidTitle {
                         reason: e.to_string(),
                     })?;
+                    if title.contains([',', '\'']) {
+                        return Err(invalid_title(
+                            "a title in the template's frontmatter must not contain a comma or an apostrophe",
+                        ));
+                    }
                 }
                 out.push_str(title);
             }
             "date" => out.push_str(&date),
             "time" => out.push_str(&time),
             _ => {
+                // `first_unsupported` refused every other token above.
                 return Err(TaskError::TemplateUnsupported {
-                    placeholder: token.to_string(),
+                    placeholder: token_label(&template[open..close + 2]),
                 });
             }
         }
@@ -262,7 +336,10 @@ fn invalid_title(reason: &str) -> TaskError {
 }
 
 fn validate_title(cfg: &TaskSettings, title: &str) -> Result<(String, VaultPath), TaskError> {
-    let title = title.trim();
+    // NFC, as `VaultPath` compares: an NFD twin of an existing note would
+    // otherwise become a second, visually identical file.
+    let title: String = title.trim().nfc().collect();
+    let title = title.as_str();
     if title.is_empty() {
         return Err(invalid_title("title is empty"));
     }
@@ -273,6 +350,9 @@ fn validate_title(cfg: &TaskSettings, title: &str) -> Result<(String, VaultPath)
     }
     if title.ends_with('.') {
         return Err(invalid_title("title ends with a dot"));
+    }
+    if title.encode_utf16().count() + ".md".len() > MAX_FILE_NAME {
+        return Err(invalid_title("title is too long for a file name"));
     }
     let path = cfg
         .folder
@@ -324,30 +404,31 @@ pub fn create_task(
     if let Some(d) = &new.due {
         validate_due(d)?;
     }
-    vault.list(Some(&cfg.folder)).map_err(|e| match e {
+    let folder_missing = |e: VaultError| match e {
         VaultError::NotFound { .. } => TaskError::FolderMissing {
             path: cfg.folder.to_string(),
         },
         other => TaskError::Vault(other),
-    })?;
+    };
+    vault.list(Some(&cfg.folder)).map_err(folder_missing)?;
     let note = vault.read_note(&cfg.template).map_err(|e| match e {
         VaultError::NotFound { .. } => TaskError::TemplateMissing {
             path: cfg.template.to_string(),
         },
         other => TaskError::Vault(other),
     })?;
-    let has_bom = note.bytes().starts_with(BOM.as_bytes());
+    let has_bom = note.bytes().starts_with(&BOM);
     let mut text = render_template(note.text(), &title, now)?;
     if has_bom {
-        text.insert_str(0, BOM);
+        text.insert(0, '\u{FEFF}');
     }
 
-    let status = cfg
-        .statuses
-        .first()
-        .ok_or_else(|| TaskError::UnknownStatus {
-            status: String::new(),
-        })?;
+    // Settings validation keeps `statuses` non-empty; a hand-built config may not be.
+    let status = cfg.statuses.first().ok_or_else(|| {
+        TaskError::Vault(VaultError::SettingsInvalid {
+            reason: "tasks statuses are empty".to_string(),
+        })
+    })?;
     let bytes = text.into_bytes();
     let mut fields = vec![("Status", FieldValue::Scalar(status.clone()))];
     if let Some(p) = &new.priority {
@@ -364,7 +445,11 @@ pub fn create_task(
     let content = String::from_utf8(bytes).map_err(|_| VaultError::NotUtf8 {
         path: path.to_string(),
     })?;
-    vault.create_note(&path, &content)?;
+    // The folder was checked above. If it vanished since, refuse instead of
+    // recreating a configured path.
+    vault
+        .create_note_in_existing_folder(&path, &content)
+        .map_err(folder_missing)?;
     Ok(path)
 }
 
@@ -381,6 +466,12 @@ pub fn set_status(
     done_hash: Option<SpanHash>,
     today: NaiveDate,
 ) -> Result<DoneUpdate, TaskError> {
+    // The webview names the note; only a listed task may be written.
+    if !is_task_path(cfg, path) {
+        return Err(TaskError::NotATask {
+            path: path.to_string(),
+        });
+    }
     if !cfg.statuses.iter().any(|s| s == status) {
         return Err(TaskError::UnknownStatus {
             status: status.to_string(),
@@ -393,7 +484,7 @@ pub fn set_status(
     let status_field = note.field("Status")?;
     let previous = scalar_value(&status_field.raw_block, "Status")?;
     if previous.as_deref() == Some(status) {
-        return Ok(DoneUpdate::Unchanged);
+        return Ok(DoneUpdate::NoWrite);
     }
     let fresh_done = match note.field("Done") {
         Ok(f) => Some(f),
@@ -500,6 +591,106 @@ mod tests {
         assert!(validate_due("2026-02-28").is_ok());
         for bad in ["2026-02-30", "2026-2-3", "26-02-03", "2026/02/03", "", "2026-02-03 "] {
             assert!(validate_due(bad).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_earliest_unsupported_token_is_named() {
+        let t = "# {{foo}}\n<% tp.date %>\n";
+        match render_template(t, "A", now()) {
+            Err(TaskError::TemplateUnsupported { placeholder }) => assert_eq!(placeholder, "{{foo}}"),
+            other => panic!("{other:?}"),
+        }
+        let t = "<% a %>\n{{foo}}\n";
+        match render_template(t, "A", now()) {
+            Err(TaskError::TemplateUnsupported { placeholder }) => assert_eq!(placeholder, "<% a %>"),
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn unsupported_token_label_is_one_capped_line() {
+        // A stray `{{` would otherwise pull body text into the error.
+        let t = "# {{ stray\nsecret body line\n}} end\n";
+        match render_template(t, "A", now()) {
+            Err(TaskError::TemplateUnsupported { placeholder }) => {
+                assert_eq!(placeholder, "{{ stray…");
+            }
+            other => panic!("{other:?}"),
+        }
+        let long = format!("{{{{{}}}}}", "x".repeat(100));
+        match render_template(&long, "A", now()) {
+            Err(TaskError::TemplateUnsupported { placeholder }) => {
+                assert_eq!(placeholder.chars().count(), MAX_TOKEN_LABEL + 1);
+                assert!(placeholder.ends_with('…'));
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[test]
+    fn title_in_frontmatter_refuses_comma_and_apostrophe() {
+        let t = "---\naliases: [{{title}}]\n---\n# {{title}}\n";
+        for bad in ["a, b", "it's"] {
+            assert!(
+                matches!(render_template(t, bad, now()), Err(TaskError::InvalidTitle { .. })),
+                "{bad}"
+            );
+        }
+        // In the body both are fine.
+        assert!(render_template("# {{title}}\n", "a, it's", now()).is_ok());
+    }
+
+    #[test]
+    fn serialised_shapes_match_the_typescript_types() {
+        use serde_json::json;
+        let hash = "a".repeat(64);
+        let row = TaskRow {
+            path: VaultPath::parse("Tasks/A.md").unwrap(),
+            title: "A".into(),
+            status: Some("Todo".into()),
+            priority: None,
+            due: None,
+            status_hash: Some(SpanHash::from_hex(&hash).unwrap()),
+            done_hash: None,
+            problem: Some(VaultError::NoFrontmatter),
+            field_problems: vec![VaultError::FieldAmbiguous { key: "Due".into() }],
+        };
+        assert_eq!(
+            serde_json::to_value(&row).unwrap(),
+            json!({
+                "path": "Tasks/A.md",
+                "title": "A",
+                "status": "Todo",
+                "priority": null,
+                "due": null,
+                "statusHash": hash,
+                "doneHash": null,
+                "problem": {"kind": "NoFrontmatter"},
+                "fieldProblems": [{"kind": "FieldAmbiguous", "detail": {"key": "Due"}}],
+            })
+        );
+        let conflict = TaskError::Vault(VaultError::Conflict { path: "Tasks/A.md".into() });
+        assert_eq!(
+            serde_json::to_value(&conflict).unwrap(),
+            json!({"kind": "Vault", "detail": {"kind": "Conflict", "detail": {"path": "Tasks/A.md"}}})
+        );
+        assert_eq!(
+            serde_json::to_value(TaskError::TasksNotConfigured).unwrap(),
+            json!({"kind": "TasksNotConfigured"})
+        );
+        assert_eq!(
+            serde_json::to_value(TaskError::NotATask { path: "x.md".into() }).unwrap(),
+            json!({"kind": "NotATask", "detail": {"path": "x.md"}})
+        );
+        for (u, s) in [
+            (DoneUpdate::Set, "Set"),
+            (DoneUpdate::Cleared, "Cleared"),
+            (DoneUpdate::Unchanged, "Unchanged"),
+            (DoneUpdate::Absent, "Absent"),
+            (DoneUpdate::NoWrite, "NoWrite"),
+        ] {
+            assert_eq!(serde_json::to_value(u).unwrap(), json!(s));
         }
     }
 

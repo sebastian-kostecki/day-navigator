@@ -50,6 +50,12 @@ grep -qF "$TERM1" "$out" && fail "output leaks term"
 pass "output does not contain term"
 reset_local "$base"
 
+echo "++ $TERM1" > pp.txt
+commit "plusplus"
+push && fail "added line starting with ++ should block"
+pass "added line starting with ++ blocks"
+reset_local "$base"
+
 echo x > "dir-$TERM2.txt"
 commit "add path"
 push && fail "path match should block"

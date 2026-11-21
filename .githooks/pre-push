@@ -66,7 +66,7 @@ check_commit() {
   short="$(git rev-parse --short "$sha")"
   git log -1 --format=%B "$sha" > "$work/msg"
   git -c core.quotepath=off show --format= --name-only "$sha" > "$work/paths"
-  git -c core.quotepath=off show --format= --unified=0 "$sha" | grep '^+' | grep -v '^+++' > "$work/added"
+  git -c core.quotepath=off show --format= --unified=0 "$sha" | grep '^+' | grep -v -E '^\+\+\+ (/dev/null|[ab]/)' > "$work/added"
   check_text "$work/msg" "$short" "commit message"
   check_text "$work/paths" "$short" "path"
   check_text "$work/added" "$short" "added line"

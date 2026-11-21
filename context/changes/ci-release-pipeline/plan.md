@@ -444,9 +444,9 @@ If minutes become tight, the first lever is a `paths-ignore` for `context/**`. T
 
 #### Automated
 
-- [ ] 4.1 Repo is private: `gh repo view --json visibility -q .visibility` prints `PRIVATE`
-- [ ] 4.2 First `main` run succeeded: `gh run list --branch main --limit 1 --json conclusion -q '.[0].conclusion'` prints `success`
-- [ ] 4.3 Release exists with exactly one NSIS asset: `gh release view app-v0.1.0 --json name,assets -q '.name, (.assets|length), .assets[0].label'` prints `Nawigator dnia v0.1.0`, `1`, `Nawigator dnia_0.1.0_x64-setup.exe`
+- [x] 4.1 Repo is private: `gh repo view --json visibility -q .visibility` prints `PRIVATE`
+- [x] 4.2 First `main` run succeeded: `gh run list --branch main --limit 1 --json conclusion -q '.[0].conclusion'` prints `success`
+- [x] 4.3 Release exists with exactly one NSIS asset: `gh release view app-v0.1.0 --json name,assets -q '.name, (.assets|length), .assets[0].label'` prints `Nawigator dnia v0.1.0`, `1`, `Nawigator dnia_0.1.0_x64-setup.exe`
 
 #### Manual
 

@@ -3,7 +3,7 @@ project: "Nawigator dnia"
 version: 2
 status: draft
 created: 2026-11-20
-updated: 2026-11-20
+updated: 2026-11-21
 prd_version: 2
 main_goal: quality
 top_blocker: decisions
@@ -46,7 +46,7 @@ A single developer on one Windows 11 machine switches during the day between com
 | S-02 | autostart-plan-nudge      | have the app start with Windows and get "Plan your day" on the first workday unlock     | S-01, F-03    | FR-001, FR-002, FR-023        | proposed |
 | S-03 | quick-capture-inbox       | capture a thought via global shortcut and triage the inbox                               | S-01          | FR-005, FR-006, FR-007        | proposed |
 | S-04 | issue-list-to-today       | browse work issues, pull one onto today, open it in the right Obsidian vault             | S-01          | FR-012, FR-014                | proposed |
-| S-05 | work-tasks-from-template  | create a work task from the template and change its status                               | F-01          | FR-013                        | in-progress |
+| S-05 | work-tasks-from-template  | create a work task from the template and change its status                               | F-01          | FR-013                        | done        |
 | S-06 | settings-first-run-wizard | configure vaults, repos, tools, excluded paths and labels via a first-run wizard          | F-01          | FR-022                        | proposed |
 | S-07 | gitlab-issue-sync-notify  | get assigned GitLab issues synced by the app and notified with "add to list"              | S-01, F-02    | US-02, FR-010, FR-011         | proposed |
 | S-08 | time-history-migration    | move the work-time history into daily notes, verified by matching monthly sums            | S-01, F-01    | FR-027                        | proposed |
@@ -185,7 +185,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Status change is a single-line header edit — the first test of F-01's line-scoped write on existing user notes.
-- **Status:** in-progress
+- **Status:** done
 
 ### S-06: Settings and first-run wizard
 
@@ -377,3 +377,4 @@ None open. All eight PRD Open Questions were resolved by the user on 2026-11-20;
 ## Done
 
 - **F-01: (foundation) the app reads and writes only inside vault folders configured per space (Work, Private), never sees excluded paths, changes only the targeted line or section of a note (rest of the file byte-identical), and sends deletions to the vault trash — proven against a small invented test vault.** — Archived 2026-11-20 → `context/archive/2026-11-20-safe-vault-access/`. Lesson: —.
+- **S-05: User can create a task from the template in the work vault and change its status from the app.** — Archived 2026-11-21 → `context/archive/2026-11-20-work-tasks-from-template/`. Lesson: —.

@@ -1,10 +1,10 @@
 ---
 change_id: work-tasks-from-template
 title: Work tasks from template
-status: impl_reviewed
+status: archived
 created: 2026-11-20
 updated: 2026-11-21
-archived_at: null
+archived_at: 2026-11-21T07:00:01Z
 ---
 
 ## Notes

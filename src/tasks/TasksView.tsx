@@ -34,10 +34,7 @@ export default function TasksView() {
   const reload = useCallback(async () => {
     const id = ++latestLoad.current;
     try {
-      const [settings, rows] = await Promise.all([
-        getWorkTaskSettings(),
-        listWorkTasks(),
-      ]);
+      const [settings, rows] = await Promise.all([getWorkTaskSettings(), listWorkTasks()]);
       if (id === latestLoad.current) {
         setLoad({ state: "loaded", settings, rows });
       }
@@ -49,6 +46,8 @@ export default function TasksView() {
   }, []);
 
   useEffect(() => {
+    // reload() sets state only after awaiting the backend, never synchronously.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void reload();
   }, [reload]);
 
@@ -57,12 +56,7 @@ export default function TasksView() {
     setNotice(null);
     setBusy((b) => new Set(b).add(row.path));
     try {
-      const result = await setWorkTaskStatus(
-        row.path,
-        status,
-        row.statusHash,
-        row.doneHash,
-      );
+      const result = await setWorkTaskStatus(row.path, status, row.statusHash, row.doneHash);
       if (result === "Absent") {
         setNotice("Notatka nie ma pola Done — zmieniono tylko status");
       }
@@ -130,9 +124,7 @@ export default function TasksView() {
   }
 
   const { settings, rows } = load;
-  const visible = showDone
-    ? rows
-    : rows.filter((r) => r.status !== settings.doneStatus);
+  const visible = showDone ? rows : rows.filter((r) => r.status !== settings.doneStatus);
 
   return (
     <main className="container">
@@ -201,8 +193,7 @@ export default function TasksView() {
       ) : (
         <ul className="task-list">
           {visible.map((row) => {
-            const known =
-              row.status !== null && settings.statuses.includes(row.status);
+            const known = row.status !== null && settings.statuses.includes(row.status);
             return (
               <li key={row.path} className="task-row">
                 <div className="task-main">
@@ -212,9 +203,7 @@ export default function TasksView() {
                     {row.due && <span>{row.due}</span>}
                   </span>
                   {row.problem && (
-                    <span className="task-error">
-                      {vaultErrorMessage(row.problem)}
-                    </span>
+                    <span className="task-error">{vaultErrorMessage(row.problem)}</span>
                   )}
                   {row.fieldProblems.map((p, i) => (
                     <span key={i} className="task-error">
@@ -224,11 +213,7 @@ export default function TasksView() {
                 </div>
                 <select
                   value={row.status ?? ""}
-                  disabled={
-                    row.problem !== null ||
-                    row.statusHash === null ||
-                    busy.has(row.path)
-                  }
+                  disabled={row.problem !== null || row.statusHash === null || busy.has(row.path)}
                   onChange={(e) => void changeStatus(row, e.currentTarget.value)}
                   aria-label={`Status: ${row.title}`}
                 >

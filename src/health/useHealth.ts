@@ -69,8 +69,7 @@ export function useHealth() {
   }, []);
 
   const source = useCallback(
-    (id: string): SourceStatus | undefined =>
-      snapshot?.sources.find((s) => s.id === id),
+    (id: string): SourceStatus | undefined => snapshot?.sources.find((s) => s.id === id),
     [snapshot],
   );
 

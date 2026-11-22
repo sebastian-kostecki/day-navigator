@@ -24,11 +24,7 @@ export function HealthPanel() {
     return (
       <main className="container">
         <h1>Stan źródeł</h1>
-        <ErrorState
-          title="Nie można odczytać stanu źródeł"
-          message={loadError}
-          onRetry={retry}
-        />
+        <ErrorState title="Nie można odczytać stanu źródeł" message={loadError} onRetry={retry} />
       </main>
     );
   }
@@ -64,9 +60,7 @@ export function HealthPanel() {
             <li key={s.id} className={`source ${s.state}`}>
               <span className="source-label">{s.label}</span>
               <span className="source-state">{stateText(s)}</span>
-              {s.state === "error" && (
-                <span className="source-message">{s.message}</span>
-              )}
+              {s.state === "error" && <span className="source-message">{s.message}</span>}
             </li>
           ))}
         </ul>

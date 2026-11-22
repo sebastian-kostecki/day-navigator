@@ -3,7 +3,7 @@ project: "Nawigator dnia"
 version: 2
 status: draft
 created: 2026-11-20
-updated: 2026-11-20
+updated: 2026-11-22
 prd_version: 2
 main_goal: quality
 top_blocker: decisions
@@ -40,14 +40,14 @@ A single developer on one Windows 11 machine switches during the day between com
 | ID   | Change ID                 | Outcome (user can …)                                                                   | Prerequisites | PRD refs                      | Status   |
 | ---- | ------------------------- | -------------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
 | F-01 | safe-vault-access         | (foundation) guarded vault read/write: configured folders only, section-scoped writes   | —             | NFR-integrity, Access Control | done     |
-| F-02 | source-health-status      | (foundation) every source failure shows in the tray icon and as a Windows notice        | —             | NFR-health, FR-001            | ready    |
+| F-02 | source-health-status      | (foundation) every source failure shows in the tray icon and as a Windows notice        | —             | NFR-health, FR-001            | done     |
 | F-03 | ci-release-pipeline       | (foundation) CI builds and tests every change; merges to main publish an installer      | —             | NFR-no-secrets, NFR-work-data | ready    |
-| S-01 | morning-plan-today        | make the morning plan in "Today" and save it in the work daily note                     | F-01, F-02    | US-01, FR-003, FR-004         | proposed |
+| S-01 | morning-plan-today        | make the morning plan in "Today" and save it in the work daily note                     | F-01, F-02    | US-01, FR-003, FR-004         | ready    |
 | S-02 | autostart-plan-nudge      | have the app start with Windows and get "Plan your day" on the first workday unlock     | S-01, F-03    | FR-001, FR-002, FR-023        | proposed |
 | S-03 | quick-capture-inbox       | capture a thought via global shortcut and triage the inbox                               | S-01          | FR-005, FR-006, FR-007        | proposed |
 | S-04 | issue-list-to-today       | browse work issues, pull one onto today, open it in the right Obsidian vault             | S-01          | FR-012, FR-014                | proposed |
-| S-05 | work-tasks-from-template  | create a work task from the template and change its status                               | F-01          | FR-013                        | proposed |
-| S-06 | settings-first-run-wizard | configure vaults, repos, tools, excluded paths and labels via a first-run wizard          | F-01          | FR-022                        | proposed |
+| S-05 | work-tasks-from-template  | create a work task from the template and change its status                               | F-01          | FR-013                        | ready    |
+| S-06 | settings-first-run-wizard | configure vaults, repos, tools, excluded paths and labels via a first-run wizard          | F-01          | FR-022                        | ready    |
 | S-07 | gitlab-issue-sync-notify  | get assigned GitLab issues synced by the app and notified with "add to list"              | S-01, F-02    | US-02, FR-010, FR-011         | proposed |
 | S-08 | time-history-migration    | move the work-time history into daily notes, verified by matching monthly sums            | S-01, F-01    | FR-027                        | proposed |
 | S-09 | work-time-tracking        | start and stop work time, recorded in the daily note, with day and month sums             | S-08, F-02    | FR-016, FR-024                | proposed |
@@ -58,7 +58,7 @@ A single developer on one Windows 11 machine switches during the day between com
 | S-14 | distraction-blocker       | block listed sites and programs on a schedule and turn it off after a confirmation       | S-02, F-02    | FR-020, FR-021                | proposed |
 | S-15 | end-of-day-close          | close the day: review done items, decide on leftovers, draft tomorrow                     | S-01, S-03    | FR-009, FR-005                | proposed |
 | S-16 | private-issues-in-plan    | see private GitHub issues in "Today" and pull one into the private daily note             | S-01          | FR-015, FR-003                | proposed |
-| S-17 | private-projects-overview | see private vault notes and each project's state from `context/` in the repos             | F-01, F-02    | FR-015                        | proposed |
+| S-17 | private-projects-overview | see private vault notes and each project's state from `context/` in the repos             | F-01, F-02    | FR-015                        | ready    |
 
 ## Streams
 
@@ -110,7 +110,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Placed before user-facing slices because the quality goal does not defer observability, and the PRD forbids showing an empty plan instead of an error; limited to the reporting channel, not to any specific source.
-- **Status:** ready
+- **Status:** done
 
 ### F-03: CI and release pipeline
 
@@ -137,7 +137,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** First real write to a live vault note; it also defines the daily-note format that the time migration (S-08) and the day log build on.
-- **Status:** proposed
+- **Status:** ready
 
 ### S-02: Autostart and "Plan your day" nudge
 
@@ -185,7 +185,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Status change is a single-line header edit — the first test of F-01's line-scoped write on existing user notes.
-- **Status:** proposed
+- **Status:** ready
 
 ### S-06: Settings and first-run wizard
 
@@ -197,7 +197,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Until this lands, configuration comes from F-01's minimal settings; the wizard must never create a missing path silently (Access Control).
-- **Status:** proposed
+- **Status:** ready
 
 ### S-07: GitLab issue sync and notifications
 
@@ -331,21 +331,21 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Repositories live in WSL; `context/` is read-only for the app, and unreadable repos must show as errors, not as empty projects.
-- **Status:** proposed
+- **Status:** ready
 
 ## Backlog Handoff
 
 | Roadmap ID | Change ID                 | Suggested issue title                                      | Ready for `/10x-plan` | Notes |
 | ---------- | ------------------------- | ---------------------------------------------------------- | --------------------- | ----- |
-| F-01       | safe-vault-access         | Guarded vault read/write with section-scoped edits         | yes                   | Run `/10x-plan safe-vault-access`; unlocks the north star S-01 |
-| F-02       | source-health-status      | Tray health status and source-failure notices              | yes                   | Run `/10x-plan source-health-status` |
+| F-01       | safe-vault-access         | Guarded vault read/write with section-scoped edits         | done                  | Archived 2026-11-20 |
+| F-02       | source-health-status      | Tray health status and source-failure notices              | done                  | Archived 2026-11-21 |
 | F-03       | ci-release-pipeline       | Private repo, CI build/test and installer release on merge | yes                   | Run `/10x-plan ci-release-pipeline` |
-| S-01       | morning-plan-today        | Morning plan in "Today" saved to the work daily note       | no                    | Needs F-01, F-02 |
+| S-01       | morning-plan-today        | Morning plan in "Today" saved to the work daily note       | yes                   | Run `/10x-plan morning-plan-today` — the north star |
 | S-02       | autostart-plan-nudge      | Autostart and "Plan your day" notification                 | no                    | Needs S-01, F-03 |
 | S-03       | quick-capture-inbox       | Global-shortcut quick capture and inbox triage             | no                    | Needs S-01 |
 | S-04       | issue-list-to-today       | Work issue list: pull to today, open in Obsidian           | no                    | Needs S-01 |
-| S-05       | work-tasks-from-template  | Create work tasks from template and change status          | no                    | Needs F-01 |
-| S-06       | settings-first-run-wizard | Settings screen and first-run wizard                       | no                    | Needs F-01 |
+| S-05       | work-tasks-from-template  | Create work tasks from template and change status          | yes                   | Run `/10x-plan work-tasks-from-template` |
+| S-06       | settings-first-run-wizard | Settings screen and first-run wizard                       | yes                   | Run `/10x-plan settings-first-run-wizard` |
 | S-07       | gitlab-issue-sync-notify  | App-owned GitLab issue sync with notifications             | no                    | Needs S-01, F-02 |
 | S-08       | time-history-migration    | Migrate work-time history into daily notes                 | no                    | Needs S-01, F-01 |
 | S-09       | work-time-tracking        | Work time in daily notes with generated Timeline.md        | no                    | Needs S-08, F-02 |
@@ -356,7 +356,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | S-14       | distraction-blocker       | Scheduled distraction blocker with confirmed off switch    | no                    | Needs S-02, F-02 |
 | S-15       | end-of-day-close          | End-of-day close                                           | no                    | Needs S-01, S-03 |
 | S-16       | private-issues-in-plan    | Private GitHub issues in the plan                          | no                    | Needs S-01 |
-| S-17       | private-projects-overview | Private vault notes and project state from context/        | no                    | Needs F-01, F-02 |
+| S-17       | private-projects-overview | Private vault notes and project state from context/        | yes                   | Run `/10x-plan private-projects-overview` |
 
 ## Open Roadmap Questions
 
@@ -377,3 +377,4 @@ None open. All eight PRD Open Questions were resolved by the user on 2026-11-20;
 ## Done
 
 - **F-01: (foundation) the app reads and writes only inside vault folders configured per space (Work, Private), never sees excluded paths, changes only the targeted line or section of a note (rest of the file byte-identical), and sends deletions to the vault trash — proven against a small invented test vault.** — Archived 2026-11-20 → `context/archive/2026-11-20-safe-vault-access/`. Lesson: —.
+- **F-02: (foundation) the app lives in the tray with a status icon (OK / source error / not running), and any source failure (missing configured path, failed command, logged-out `glab`/`gh`) is reported there and as a Windows notice within 1 minute; screens show the error instead of an empty list.** — Archived 2026-11-21 → `context/archive/2026-11-20-source-health-status/`. Lesson: —.

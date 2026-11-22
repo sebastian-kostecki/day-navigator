@@ -26,6 +26,69 @@ h2 {
   font-size: 1.1rem;
 }
 
+/* Health panel */
+
+.sources {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.source {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 12px;
+  padding: 8px 12px;
+  margin-bottom: 6px;
+  border-radius: 8px;
+  border-left: 4px solid #2e9e5b;
+  background-color: #ffffff;
+}
+
+.source.notConfigured {
+  border-left-color: #9a9a9a;
+  color: #6b6b6b;
+}
+
+.source.error {
+  border-left-color: #d13438;
+}
+
+.source-state {
+  font-weight: 500;
+}
+
+.source.error .source-state {
+  color: #d13438;
+}
+
+.source-message {
+  grid-column: 1 / -1;
+  font-size: 0.9em;
+  word-break: break-word;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.checked-at,
+.notice {
+  font-size: 0.9em;
+  color: #6b6b6b;
+}
+
+.error-state {
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 4px solid #d13438;
+  background-color: #ffffff;
+}
+
+/* Controls */
+
 input,
 select,
 button {
@@ -34,7 +97,7 @@ button {
   padding: 0.5em 0.8em;
   font-size: 1em;
   font-family: inherit;
-  color: #0f0f0f;
+  color: inherit;
   background-color: #ffffff;
 }
 
@@ -52,6 +115,8 @@ button:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* Tasks view */
 
 fieldset {
   display: flex;
@@ -116,7 +181,7 @@ fieldset {
   color: #666666;
 }
 
-.error,
+.task-error,
 .error-banner {
   color: #b00020;
 }
@@ -128,7 +193,7 @@ fieldset {
   background-color: #fdecee;
 }
 
-.notice {
+.task-notice {
   padding: 8px 12px;
   border-radius: 6px;
   background-color: #fff4d6;
@@ -144,12 +209,27 @@ fieldset {
     background-color: #2f2f2f;
   }
 
+  .source,
+  .error-state {
+    background-color: #1f1f1f;
+  }
+
   input,
   select,
   button {
     color: #ffffff;
     background-color: #1f1f1f;
     border-color: #555555;
+  }
+
+  .source.notConfigured,
+  .checked-at,
+  .notice {
+    color: #a8a8a8;
+  }
+
+  .source.error .source-state {
+    color: #ff6b6e;
   }
 
   .task-row {
@@ -162,7 +242,7 @@ fieldset {
     color: #b0b0b0;
   }
 
-  .error,
+  .task-error,
   .error-banner {
     color: #ff8a9b;
   }
@@ -172,7 +252,7 @@ fieldset {
     border-color: #ff8a9b;
   }
 
-  .notice {
+  .task-notice {
     background-color: #4a4325;
   }
 }

@@ -171,7 +171,7 @@ export default function TasksView() {
           <button type="submit">Dodaj</button>
         </fieldset>
         {formError && (
-          <p className="error" role="alert">
+          <p className="task-error" role="alert">
             {formError}
           </p>
         )}
@@ -187,7 +187,7 @@ export default function TasksView() {
       </label>
 
       {notice && (
-        <p className="notice" role="status">
+        <p className="task-notice" role="status">
           {notice}
         </p>
       )}
@@ -212,12 +212,12 @@ export default function TasksView() {
                     {row.due && <span>{row.due}</span>}
                   </span>
                   {row.problem && (
-                    <span className="error">
+                    <span className="task-error">
                       {vaultErrorMessage(row.problem)}
                     </span>
                   )}
                   {row.fieldProblems.map((p, i) => (
-                    <span key={i} className="error">
+                    <span key={i} className="task-error">
                       {vaultErrorMessage(p)}
                     </span>
                   ))}

@@ -1,0 +1,16 @@
+root = true
+
+[*]
+charset = utf-8
+insert_final_newline = true
+indent_style = space
+indent_size = 2
+
+[*.rs]
+indent_size = 4
+
+# Byte-exact fixtures (CRLF, BOM) are governed by .gitattributes; do not normalise.
+[src-tauri/tests/fixtures/**]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset

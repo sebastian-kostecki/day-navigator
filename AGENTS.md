@@ -49,7 +49,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 ## Coding Style and Versions
 
 - TypeScript runs `strict` with `noUnusedLocals` and `noUnusedParameters` (`@tsconfig.json`); `npm run build` must finish with zero errors.
-- Versions: React 19, TypeScript 6 (stay on 6 until a planned upgrade), Vite 8. Prefer current React 19 APIs over older patterns.
+- Versions: React 19, TypeScript 6 (do not upgrade to 7 until `typescript-eslint` supports it; 8.73 refuses TS 7.0), Vite 8. Prefer current React 19 APIs over older patterns.
 - Rust uses edition 2024 and needs rustc 1.90 or newer (required by tauri 2.12). Code is `rustfmt`-formatted and clippy-clean.
 - Keep the npm `@tauri-apps/*` packages and the Rust `tauri*` crates on the same major.minor; `npm run tauri dev` prints a mismatch error otherwise.
 

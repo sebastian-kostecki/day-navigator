@@ -64,6 +64,8 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -71,7 +73,19 @@ jobs:
 
       - run: npm ci
 
+      - run: npm run lint
+
+      - run: npm run format:check
+
       - run: npm run build
+
+      - name: cargo fmt
+        working-directory: src-tauri
+        run: cargo fmt --check
+
+      - name: cargo clippy
+        working-directory: src-tauri
+        run: cargo clippy --all-targets --locked -- -D warnings
 
       - name: cargo build
         working-directory: src-tauri

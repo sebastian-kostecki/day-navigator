@@ -407,12 +407,12 @@ pub fn create_task(
     now: NaiveDateTime,
 ) -> Result<VaultPath, TaskError> {
     let (title, path) = validate_title(cfg, &new.title)?;
-    if let Some(p) = &new.priority {
-        if !cfg.priorities.contains(p) {
-            return Err(TaskError::UnknownPriority {
-                priority: p.clone(),
-            });
-        }
+    if let Some(p) = &new.priority
+        && !cfg.priorities.contains(p)
+    {
+        return Err(TaskError::UnknownPriority {
+            priority: p.clone(),
+        });
     }
     if let Some(d) = &new.due {
         validate_due(d)?;

@@ -70,14 +70,12 @@ impl VaultRegistry {
             Space::Work => Space::Private,
             Space::Private => Space::Work,
         };
-        if let Some(other_cfg) = self.config(other) {
-            if let Ok(other_root) = canonical_root(other, &other_cfg.vault) {
-                if relative_remainder(&root, &other_root).is_some()
-                    || relative_remainder(&other_root, &root).is_some()
-                {
-                    return Err(VaultError::RootsOverlap);
-                }
-            }
+        if let Some(other_cfg) = self.config(other)
+            && let Ok(other_root) = canonical_root(other, &other_cfg.vault)
+            && (relative_remainder(&root, &other_root).is_some()
+                || relative_remainder(&other_root, &root).is_some())
+        {
+            return Err(VaultError::RootsOverlap);
         }
         Ok(Vault {
             space,
@@ -330,6 +328,9 @@ fn exists_matching(dir: &Path, segs: &[String]) -> bool {
 
 const MAX_WRITE_ATTEMPTS: usize = 3;
 
+/// A pure edit of a note's bytes: old bytes in, new bytes (or an error) out.
+type NoteEdit<'a> = dyn Fn(&[u8]) -> Result<Vec<u8>, VaultError> + 'a;
+
 impl Vault {
     fn ensure_root(&self) -> Result<PathBuf, VaultError> {
         canonical_root(self.space, &self.root)
@@ -339,21 +340,13 @@ impl Vault {
     /// Absent from production builds, where only span-scoped edits exist.
     #[cfg(feature = "test-support")]
     #[doc(hidden)]
-    pub fn apply_for_tests(
-        &self,
-        path: &VaultPath,
-        edit: &dyn Fn(&[u8]) -> Result<Vec<u8>, VaultError>,
-    ) -> Result<(), VaultError> {
+    pub fn apply_for_tests(&self, path: &VaultPath, edit: &NoteEdit) -> Result<(), VaultError> {
         self.apply(path, edit)
     }
 
     /// Guard, read, pure edit, atomic replace. Recomputes from fresh bytes when
     /// the file changed in between, up to 3 attempts, then `Conflict`.
-    fn apply(
-        &self,
-        path: &VaultPath,
-        edit: &dyn Fn(&[u8]) -> Result<Vec<u8>, VaultError>,
-    ) -> Result<(), VaultError> {
+    fn apply(&self, path: &VaultPath, edit: &NoteEdit) -> Result<(), VaultError> {
         self.ensure_root()?;
         let label = path.to_string();
         for _ in 0..MAX_WRITE_ATTEMPTS {

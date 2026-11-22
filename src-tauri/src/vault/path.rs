@@ -24,10 +24,10 @@ impl VaultPath {
             return Err(invalid("leading separator or UNC path"));
         }
         let mut chars = input.chars();
-        if let (Some(first), Some(':')) = (chars.next(), chars.next()) {
-            if first.is_ascii_alphabetic() {
-                return Err(invalid("drive prefix"));
-            }
+        if let (Some(first), Some(':')) = (chars.next(), chars.next())
+            && first.is_ascii_alphabetic()
+        {
+            return Err(invalid("drive prefix"));
         }
         let mut segments = Vec::new();
         for seg in input.split(['/', '\\']) {
@@ -137,10 +137,10 @@ fn is_reserved_device_name(seg: &str) -> bool {
     for prefix in ["COM", "LPT"] {
         if let Some(rest) = upper.strip_prefix(prefix) {
             let mut it = rest.chars();
-            if let (Some(c), None) = (it.next(), it.next()) {
-                if matches!(c, '1'..='9' | '\u{b9}' | '\u{b2}' | '\u{b3}') {
-                    return true;
-                }
+            if let (Some(c), None) = (it.next(), it.next())
+                && matches!(c, '1'..='9' | '\u{b9}' | '\u{b2}' | '\u{b3}')
+            {
+                return true;
             }
         }
     }

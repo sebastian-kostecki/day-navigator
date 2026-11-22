@@ -32,7 +32,7 @@ fn write_settings(
     path
 }
 
-fn find<'a>(sources: &'a [SourceStatus], id: SourceId) -> Option<&'a SourceState> {
+fn find(sources: &[SourceStatus], id: SourceId) -> Option<&SourceState> {
     sources.iter().find(|s| s.id == id).map(|s| &s.state)
 }
 

@@ -390,15 +390,15 @@ pub fn check_section_text(text: &[u8], heading: &Heading) -> Result<(), VaultErr
             fence = Some(open);
             continue;
         }
-        if let Some((level, _)) = parse_heading(t) {
-            if level <= heading.level {
-                return Err(VaultError::InvalidValue {
-                    reason: format!(
-                        "text contains a level-{level} heading, which would end the section {}",
-                        heading.display()
-                    ),
-                });
-            }
+        if let Some((level, _)) = parse_heading(t)
+            && level <= heading.level
+        {
+            return Err(VaultError::InvalidValue {
+                reason: format!(
+                    "text contains a level-{level} heading, which would end the section {}",
+                    heading.display()
+                ),
+            });
         }
     }
     if fence.is_some() {

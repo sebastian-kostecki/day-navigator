@@ -1,230 +1,226 @@
 ---
 project: "Nawigator dnia"
-version: 2
+version: 1
 status: draft
-created: 2026-11-20
-updated: 2026-11-20
-context_type: greenfield
+created: 2026-11-22
+context_type: brownfield
 product_type: desktop
 target_scale:
   users: small
   qps: low
   data_volume: small
 timeline_budget:
-  mvp_weeks: 12
+  delivery_weeks: 6
   hard_deadline: null
   after_hours_only: true
 ---
 
-# Nawigator dnia — PRD
+# Nawigator dnia — PRD (zawężone MVP)
 
-> Nazwa robocza — patrz Open Questions #1.
+Źródło: `context/foundation/shape-notes.md` (sesja 2026-11-22, brownfield). Zastępuje PRD v2 z 2026-11-20 (greenfield, 12 tygodni, 25 FR), które pozostaje w historii git.
 
-## Vision & Problem Statement
+## Current System Overview
 
-**Ból.** Jedyny użytkownik pracuje jednocześnie dla firmy i nad własnymi projektami na jednym komputerze z Windows 11. Plan dnia, zadania, przypisane zgłoszenia, czas pracy i stan projektów prywatnych są rozrzucone po kilku miejscach: dwa vaulty Obsidian (praca i prywatny), GitLab, GitHub, `context/` w repozytoriach w WSL. Najmocniej odczuwa to **rano, przy układaniu planu dnia**, a potem w ciągu dnia przy śledzeniu zadań, zgłoszeń i czasu pracy. Koszt dziś:
-- dzień zaczyna się bez priorytetów;
-- przypisane zgłoszenia są zauważane za późno, bo synchronizację trzeba uruchomić ręcznie (komenda Helper App wywoływana z Obsidiana), a notatki w `Issues/` bywają nieaktualne;
-- nic nie sygnalizuje w Windowsie, że coś się pojawiło albo że pora coś zrobić;
-- rzeczy do zrobienia nie trafiają nigdzie jako zadanie i giną;
-- ewidencja czasu pracy ma dziury (zapomniany start/koniec, suma dnia i miesiąca się nie zgadza);
-- projekty prywatne stoją, bo nie wiadomo, gdzie się skończyło.
+- **Cel systemu:** osobista aplikacja desktopowa na Windows 11, która ma dawać jednemu użytkownikowi jedno miejsce na dzień pracy.
+- **Architektura:** jedna lokalna aplikacja desktopowa w zasobniku (jedna instancja), bez serwera.
+- **Stack:** Tauri 2; Rust (edition 2024) w `src-tauri/`; React 19 + TypeScript (Vite) w `src/`; ustawienia w `settings.json` w katalogu konfiguracji aplikacji; log aplikacji.
+- **Użytkownicy:** jeden — autor, na jednym komputerze.
+- **Co działa dziś:**
+  - **F-01: strzeżony dostęp do vaultu.** Odczyt i zapis tylko w skonfigurowanych folderach, wykluczone ścieżki, zapis zmienia tylko wskazaną linię lub sekcję, usuwanie do kosza vaultu.
+  - **F-02: stan źródeł.** Ikona w zasobniku (OK / błąd źródła / nie działa) i powiadomienie Windows przy awarii źródła; ekrany pokazują błąd zamiast pustej listy.
+  - **F-03: CI i wydania.** Prywatne repozytorium na GitHubie; każdy push uruchamia skan sekretów, audyty, build i testy; pre-push hook blokuje push z terminami z denylisty pracy; podbicie wersji w `src-tauri/Cargo.toml` (jedyne źródło wersji) na `main` publikuje instalator NSIS w GitHub Releases.
+  - **S-05: zadania pracy z szablonu.** Lista zadań z `Tasks/` w vaulcie pracy, tworzenie z szablonu i zmiana statusu (zapisuje do vaultu).
+- **Czego nie ma:** ekranu „Dziś”, integracji z GitLabem i GitHubem, licznika czasu pracy.
+- **Otoczenie:** firmowy GitLab dostępny wyłącznie przez VPN, osiągany przez zalogowane CLI `glab`; GitHub przez zalogowane CLI `gh` (według stanu z 2026-11-20 dostępne tylko w WSL). Helper App (PHP, Symfony Console) prowadzi dotychczasową ewidencję czasu pracy (`Management/Timeline.md`) i synchronizację zgłoszeń do `Issues/`.
+- **Plan w toku przed tą zmianą:** PRD v2 i roadmapa M-1 (17 slice'ów, 12-tygodniowe MVP z zapisem do vaultów, przerwami, blokerem, zamknięciem dnia).
 
-**Wgląd.** Dane już istnieją: vaulty mają notatki i zgłoszenia, Helper App umie synchronizować zgłoszenia i mierzyć czas pracy, GitLab ma przypisania. Brakuje warstwy, która sama pobiera dane, powiadamia w Windowsie i nadaje dniu rytm. Obsidian nie przypomina, Helper App nie ma okna, a synchronizacja jest ręczna. Z własnych danych użytkownika wynika też, że używa on tego, co zasila się samo, a ręczne listy porzuca. Ręczne ma więc zostać tylko to, co jest jego myślą: wpis, decyzja o planie, zamknięcie dnia. Przepływ zgłoszeń w zamierzeniu użytkownika: nowe przypisane zgłoszenie z GitLaba jest pobierane do plików w vaulcie, wywołuje powiadomienie w Windowsie i można je jednym ruchem wciągnąć na listę rzeczy do zrobienia.
+## Problem Statement & Motivation
+
+**Luka.** Dotychczasowy plan (PRD v2, 12 tygodni, 25 FR) okazał się za duży. Użytkownik potrzebuje czegoś używalnego szybko i nie potrzebuje teraz tylu funkcji.
+
+**Zmiana.** MVP zawęża się do czterech rzeczy:
+
+1. przypisane do użytkownika zgłoszenia z firmowego GitLaba — co ma do zrobienia, z ustawieniem, które pokazywać, i powiadomieniem o nowych; tylko wyświetlanie. GitLab z pracy działa wyłącznie przez VPN;
+2. zgłoszenia z prywatnych projektów na GitHubie;
+3. własne zadania, które użytkownik sam sobie określa, dodawane w aplikacji;
+4. licznik czasu pracy z przyciskami start/stop, liczony w całkowicie nowym miejscu, od nowego miesiąca.
+
+**Najpilniejsze** z czterech: przypisane zgłoszenia z GitLaba.
+
+**Granica wobec vaultów.** MVP w ogóle nie dotyka vaultów Obsidian — ani odczytu, ani zapisu. Zapis do vaultów to „później”; jeśli kiedyś pojawi się odczyt, to bez zapisu.
+
+**Budżet czasu.** Acknowledged on 2026-11-22: 6-week MVP requires sustained dedication; user accepted. Użytkownik zobaczył ujawniony koszt zakresu (8 kroków na dwóch źródłach zgłoszeń, ukrywanie z powrotem przy zmianie statusu/komentarza, powiadomienia w tle przy GitLabie dostępnym tylko przez VPN, reguła dni roboczych dla normy) i świadomie wybrał dłuższy termin zamiast zmniejszania zakresu.
 
 ## User & Persona
 
-**Persona główna: autor (jedyny użytkownik).** Programista, który w ciągu jednego dnia przełącza się między pracą dla firmy (GitLab, vault pracy, Helper App, czas pracy rozliczany miesięcznie) a własnymi projektami (GitHub, vault prywatny, `context/` w repozytoriach w WSL). Jeden komputer z Windows 11, telefon nie jest celem. Sięga po produkt rano, żeby ułożyć plan dnia, w ciągu dnia, gdy pojawia się nowe zgłoszenie albo myśl do zapisania, i na koniec dnia przy zamknięciu dnia i czasu pracy.
+**Persona główna: autor (jedyny użytkownik).** Programista na jednym komputerze z Windows 11, który pracuje dla firmy (zgłoszenia w firmowym GitLabie, dostępnym tylko przez VPN, czas pracy rozliczany miesięcznie) i rozwija własne projekty (zgłoszenia na GitHubie). Sięga po aplikację, żeby zobaczyć, co ma do zrobienia, dowiedzieć się o nowym przypisanym zgłoszeniu i włączyć lub wyłączyć licznik czasu pracy.
+
+**Co się zmienia dla niego:** zamiast planu dnia w vaulcie, przerw i blokera dostaje wcześniej jeden ekran z trzema źródłami pozycji, listą „Do zrobienia” i licznikiem czasu z raportem normy.
 
 ## Success Criteria
 
 ### Primary
-- Przez 2 kolejne tygodnie pracy plan dnia (1–3 priorytety) jest układany w aplikacji każdego dnia roboczego.
-- Każde nowe przypisane zgłoszenie użytkownik widzi (powiadomienie) tego samego dnia, bez ręcznego uruchamiania synchronizacji.
-- Cały przepływ dnia 1–9 (patrz `## User Stories` → „Przepływ dnia”) przechodzi w aplikacji, od autostartu do sumy czasu pracy.
+- Cały przepływ 1–8 (patrz `## Scope of Change`) przechodzi w aplikacji.
+- Przez 2 kolejne tygodnie użytkownik każdego dnia roboczego używa aplikacji, żeby wybrać, czym się zajmie, i liczyć czas pracy.
+- Na koniec każdego dnia użytkownik wie, ile brakuje mu do normy (odchylenie miesiąca od 8 h na dzień).
+- Każde nowe przypisane zgłoszenie z GitLaba użytkownik widzi tego samego dnia, dzięki powiadomieniu systemowemu Windows, bez ręcznego sprawdzania.
 
 ### Secondary
-- Większość przypomnianych przerw jest wykonywana, a nie pomijana.
-- Do przeglądu przypisanych zgłoszeń użytkownik nie musi otwierać GitLaba w przeglądarce.
+- Ukryte zgłoszenia nie zaśmiecają listy pracy.
 
 ### Guardrails
-- Dane w vaultach: żadna notatka nie traci treści ani nagłówka przez zapis aplikacji; Obsidian i automatyczne wersjonowanie vaultu działają jak dotąd.
-- Dane firmowe nie wyciekają: nic z pracy nie ląduje w przestrzeni prywatnej, w repozytorium, w testach ani poza maszyną.
-- Bloker nie zamyka pracy: nigdy nie blokuje narzędzi do pracy i da się go wyłączyć w każdej chwili (po krótkim potwierdzeniu, FR-021).
+- **Brak VPN ≠ brak zgłoszeń.** Gdy GitLab jest niedostępny, aplikacja mówi to wprost i nie pokazuje pustej listy.
+- **Czas pracy nie ginie.** Zamknięcie aplikacji, restart czy awaria nie gubią biegnącego licznika ani historii.
+- **Dane pracy nie wyciekają.** Nic z GitLaba nie trafia do repozytorium, testów, logów ani przestrzeni prywatnej.
+- **Vaulty nietknięte.** Aplikacja nie zmienia żadnego pliku w vaultach Obsidian.
+- **Zachowane (brak regresji):** stan źródeł widoczny w zasobniku (F-02) oraz automatyczna kontrola każdej zmiany i wydania (F-03) działają jak dotąd.
 
 ## User Stories
 
-**Przepływ dnia (MVP, kroki 1–9).** Pierwszy dzień z aplikacją, potwierdzony przez użytkownika:
+### US-01: Poranek z nową wersją
 
-1. Użytkownik włącza komputer, aplikacja startuje sama (ikona w zasobniku).
-2. Synchronizacja zgłoszeń rusza sama; nowe przypisane zgłoszenia trafiają do vaultu.
-3. Powiadomienie Windows: „Ułóż plan dnia”.
-4. Użytkownik otwiera „Dziś” i widzi przypisane zgłoszenia, zadania oraz to, co zostało z wczoraj.
-5. Wybiera 1–3 priorytety; plan zapisuje się w vaulcie.
-6. Klika start pracy i czas pracy zaczyna się liczyć. Aplikacja przypomina, gdy jest pora pracy, a czas nie biegnie, i gdy biegnie po godzinach.
-7. W ciągu dnia nowe przypisane zgłoszenie wywołuje powiadomienie z akcją „dodaj do listy”.
-8. W ciągu dnia przypomnienia o przerwach: interwały w tle (mikroprzerwy i dłuższe przerwy) oraz opcjonalny blok skupienia (pomodoro) przy zadaniu. Według harmonogramu z ustawień działa bloker rozpraszaczy (strony WWW i programy z list).
-9. Użytkownik klika koniec pracy i widzi sumę dnia i miesiąca.
-
-### US-01: Poranny plan dnia
-
-- **Given** komputer został właśnie włączony, a w GitLabie są nowe przypisane zgłoszenia
-- **When** użytkownik klika powiadomienie „Ułóż plan dnia”
-- **Then** widzi „Dziś” z przypisanymi zgłoszeniami (już pobranymi do vaultu), zadaniami i niezrobionymi pozycjami z wczoraj, wybiera 1–3 priorytety, a plan zapisuje się w vaulcie pracy
+- **Given** jest rano, użytkownik ma VPN, jest zalogowany do GitLaba i GitHuba na tej maszynie i ma niezrobione pozycje z wczoraj
+- **When** otwiera aplikację i klika START
+- **Then** licznik czasu biegnie u góry okna; widoki pokazują przypisane zgłoszenia GitLab (bez ukrytych), zgłoszenia GitHub z wybranych repozytoriów i jego własne zadania; w „Do zrobienia” są wczorajsze niezrobione pozycje, a on dokłada nowe
 
 #### Acceptance Criteria
-- Zgłoszenia są aktualne bez ręcznego uruchamiania synchronizacji.
-- Nie da się wybrać więcej niż 3 priorytetów.
-- Plan jest widoczny w Obsidianie jako zwykła notatka.
-- Gdy ścieżka vaultu nie istnieje, aplikacja mówi to wprost zamiast pokazywać pusty plan.
+- Przed zmianą: zgłoszenia z GitLaba wymagały ręcznej synchronizacji lub przeglądarki, a czasu pracy aplikacja nie liczyła.
+- Ukryte zgłoszenia, które się nie zmieniły, nie pojawiają się w widoku „Praca (GitLab)”.
+- Gdy GitLab jest niedostępny (brak VPN), widok mówi to wprost zamiast pokazywać pustą listę.
 
-### US-02: Nowe zgłoszenie w ciągu dnia
+### US-02: Ukryte zgłoszenie wraca po zmianie
 
-- **Given** użytkownik ma ułożony plan dnia, a w GitLabie zostaje mu przypisane nowe zgłoszenie
-- **When** pojawia się powiadomienie Windows i użytkownik klika „dodaj do listy”
-- **Then** zgłoszenie trafia na listę „jeśli starczy czasu”; priorytety dnia pozostają nietknięte, a o ewentualnym awansie zgłoszenia na priorytet decyduje użytkownik
+- **Given** użytkownik ukrył zgłoszenie w widoku „Praca (GitLab)”
+- **When** ktoś zmienia status tego zgłoszenia albo dodaje do niego komentarz
+- **Then** zgłoszenie wraca na listę „Praca (GitLab)”, oznaczone jako zmienione
 
 #### Acceptance Criteria
-- Zgłoszenie jest w vaulcie, zanim pojawi się powiadomienie.
-- Kliknięcie „dodaj do listy” nie zmienia 1–3 priorytetów.
+- Zgłoszenie bez zmiany statusu i bez nowego komentarza pozostaje ukryte.
+- Własny komentarz użytkownika nie przywraca zgłoszenia; komentarz kogokolwiek innego (także bota) przywraca.
 
-## Functional Requirements
+## Scope of Change
 
-Aktor: Użytkownik (jedyny). Priorytety i treść po rundzie Sokratesa (2026-11-20).
+**Układ.** Trzy osobne widoki źródeł („Praca (GitLab)”, „Projekty (GitHub)”, „Moje zadania”) i jeden widok „Do zrobienia”, w którym użytkownik wybiera pozycje z tych trzech list. Licznik czasu pracy jest zawsze widoczny u góry okna.
 
-### Rytm dnia
-- FR-001: Użytkownik ma aplikację, która startuje razem z Windows i działa w zasobniku. Priority: must-have
-  > Socrates: Kontrargument: „ciche awarie” — jeśli aplikacja nie wystartuje albo padnie w tle, rano nie będzie powiadomienia i nikt tego nie zauważy. Rozstrzygnięcie: zostaje; ikona zasobnika pokazuje stan (OK / błąd źródła / nie działa), a każda nieudana synchronizacja lub niedostępne źródło daje widoczny komunikat (→ NFR).
-- FR-002: Użytkownik dostaje powiadomienie Windows „Ułóż plan dnia” przy pierwszym włączeniu lub odblokowaniu komputera w dniu roboczym, jeśli plan na ten dzień jeszcze nie istnieje; godzina z ustawień działa jako zapas. Priority: must-have
-  > Socrates: Kontrargument: „stała godzina mija się z dniem” — przy wcześniejszym/późniejszym starcie powiadomienie przychodzi w złym momencie. Rozstrzygnięcie: wyzwalaczem jest pierwsze włączenie/odblokowanie w dniu roboczym; godzina tylko jako zapas.
-- FR-003: Użytkownik widzi na jednym ekranie „Dziś” dwie sekcje — Praca (własne zadania oraz zgłoszenia i MR-y przypisane do niego, z wyróżnieniem etykiet z ustawień, np. `awaiting_verification`) i Prywatne (otwarte zgłoszenia GitHub z jego repozytoriów) — wraz z niezrobionymi pozycjami z poprzedniego dnia, w kolejności rekomendowanej przez aplikację; przy porannym planie każda zaległość wymaga decyzji: dziś / skrzynka / porzuć. Priority: must-have
-  > Socrates: Kontrargument: „zaległości rosną w nieskończoność” — niezrobione przechodzą dzień w dzień i zapychają ekran. Rozstrzygnięcie: rano każda zaległość wymaga decyzji (dziś / skrzynka / porzuć).
-- FR-004: Użytkownik może wybrać 1–3 priorytety dnia i listę „jeśli starczy czasu”; plan zapisuje się w notatce dziennej w vaulcie, z linkami do zgłoszeń i zadań. Priority: must-have
-  > Socrates: Kontrargument: „dwa źródła prawdy” — plan w notatce dziennej i pole `Today` w `Issues/`/`Tasks/` mogą się rozjechać. Rozstrzygnięcie: jedynym źródłem „co dziś” jest notatka dzienna; pole `Today` jest pochodną (aktualizowane razem) albo pomijane.
-  > Decyzja (2026-11-20, pytanie #4): pole `Today` jest pomijane; aplikacja go nie zapisuje.
-- FR-005: Użytkownik ma dziennik dnia w notatce dziennej, który zasila się sam (zamknięte zgłoszenia i zadania, czas pracy, zakończone bloki skupienia); ręcznie dopisuje tylko własne wpisy. Priority: must-have
-  > Socrates: Kontrargument: „kolejna ręczna lista, którą porzucisz”. Rozstrzygnięcie: dziennik zasila się automatycznie; ręcznie tylko myśli.
-- FR-006: Użytkownik może skrótem globalnym z dowolnego miejsca w Windows otworzyć okienko szybkiego wpisu, wybrać przestrzeń (Praca/Prywatne; domyślnie Praca, gdy biegnie czas pracy) i zapisać myśl do dziennika dnia albo skrzynki. Priority: must-have
-  > Socrates: Kontrargument: „wpis bez przestrzeni” — myśl prywatna ląduje w vaulcie pracy. Rozstrzygnięcie: okienko ma przełącznik przestrzeni z domyślną wartością zależną od czasu pracy.
-- FR-007: Użytkownik może przejrzeć skrzynkę i rozdzielić każdą pozycję na dziś, jutro albo do usunięcia; niepusta skrzynka pojawia się w porannym planie. Priority: must-have
-  > Socrates: Kontrargument: „cmentarz myśli” — skrzynka się zapełnia i nikt jej nie czyści. Rozstrzygnięcie: niepusta skrzynka jest częścią porannego planu.
-- FR-008: Użytkownik może zobaczyć tydzień: wykonanie planu dzień po dniu i szkic podsumowania tygodnia. Priority: nice-to-have
-  > Socrates: Kontrargument: „dużo pracy, mało wartości” — widok tygodnia nie wspiera żadnego kryterium Primary. Rozstrzygnięcie: obniżony do nice-to-have.
-- FR-009: Użytkownik może przeprowadzić zamknięcie dnia: co zrobione, los niezrobionych (jutro / skrzynka / porzuć), jedno zdanie o dniu, szkic jutra. Priority: must-have
-  > Socrates: Kontrargument: „bez domknięcia dziennik i plan nigdy się nie domykają”. Rozstrzygnięcie: podniesiony z nice-to-have do must-have.
+**Przepływ docelowy** (pierwszy dzień z nową wersją):
 
-### Zgłoszenia i zadania
-- FR-010: Użytkownik ma przypisane zgłoszenia i MR-y z GitLaba synchronizowane do vaultu pracy automatycznie w interwale z ustawień oraz na żądanie („synchronizuj teraz”), bez ręcznego uruchamiania komendy. Priority: must-have
-  > Socrates: Kontrargument: „częstotliwość” — za rzadko = spóźnione zgłoszenia, za często = obciążenie. Rozstrzygnięcie: interwał w ustawieniach + synchronizacja na żądanie.
-  > Decyzja (2026-11-20, pytanie #2): aplikacja jest jedynym autorem notatek w `Issues/` (synchronizacja przez `glab`, w dotychczasowym formacie notatek); gdy synchronizacja w aplikacji działa, komendy synchronizacji Helper App w Obsidianie zostają wyłączone.
-- FR-011: Użytkownik dostaje powiadomienie Windows o nowym przypisanym zgłoszeniu lub MR z akcją „dodaj do listy”; gdy nowych jest więcej niż kilka naraz, dostaje jedno zbiorcze powiadomienie. Priority: must-have
-  > Socrates: Kontrargument: „burza powiadomień” — po urlopie 20 powiadomień naraz. Rozstrzygnięcie: powyżej kilku nowych jedno zbiorcze powiadomienie.
-- FR-012: Użytkownik może z listy zgłoszeń wciągnąć zgłoszenie na dzisiejszą listę rzeczy do zrobienia. Priority: must-have
-  > Socrates: Kontrargument: „dubluje akcję z FR-011”. Rozstrzygnięcie: zostaje, bo nie każde zgłoszenie przychodzi przez powiadomienie (np. dawniej przypisane).
-- FR-013: Użytkownik może utworzyć zadanie z szablonu w vaulcie pracy i zmieniać jego status. Priority: must-have
-  > Socrates: Kontrargument: „tylko praca?” — zadania prywatne nie mają miejsca. Rozstrzygnięcie: początkowo zadania w obu przestrzeniach; w fazie 5 użytkownik ustalił, że projekty prywatne opierają się na zgłoszeniach GitHub, więc zadania prywatne z szablonu wydzielono do FR-025 (nice-to-have).
-- FR-014: Użytkownik może otworzyć notatkę zgłoszenia lub zadania w Obsidianie jednym kliknięciem, we właściwym vaulcie; gdy to niemożliwe, aplikacja mówi to wprost. Priority: must-have
-  > Socrates: Kontrargument: „zły vault” — Obsidian otwiera notatkę w złym vaulcie albo nic się nie dzieje. Rozstrzygnięcie: otwiera właściwy vault albo jawny komunikat.
-- FR-015: Użytkownik może zobaczyć w przestrzeni Prywatne zgłoszenia i PR-y z GitHuba, notatki z vaultu prywatnego i stan projektów z `context/` w repozytoriach oraz wciągnąć otwarte zgłoszenie GitHub do prywatnej sekcji planu dnia (zapis w notatce dziennej vaultu prywatnego) — bez synchronizacji zgłoszeń do vaultu i bez powiadomień o nowych. Priority: must-have
-  > Socrates: Kontrargument: „podwaja zakres” — drugie źródło zgłoszeń i WSL podwajają pracę. Rozstrzygnięcie: w v1 przestrzeń Prywatne nie synchronizuje i nie powiadamia; w fazie 5 doprecyzowano, że zgłoszenia GitHub są źródłem kandydatów do planu prywatnego.
-- FR-025: Użytkownik może utworzyć zadanie z szablonu w vaulcie prywatnym i zmieniać jego status. Priority: nice-to-have
-  > Socrates: Wydzielone z FR-013 w fazie 5: projekty prywatne opierają się na zgłoszeniach GitHub, nie na zadaniach w Obsidianie.
+1. Rano użytkownik otwiera aplikację i klika START — czas pracy zaczyna się liczyć.
+2. Widok „Praca (GitLab)”: przypisane do niego zgłoszenia. Może ukryć zgłoszenie; ukryte wraca samo, gdy zmieni się jego status albo pojawi się nowy komentarz.
+3. Widok „Projekty (GitHub)”: zgłoszenia z jego prywatnych repozytoriów.
+4. Widok „Moje zadania”: dodaje zadania, które sam sobie określa.
+5. Widok „Do zrobienia”: wybiera spośród trzech list, czym się dziś zajmie.
+6. W ciągu dnia nowe przypisane zgłoszenie z GitLaba daje powiadomienie systemowe Windows.
+7. Na koniec dnia klika STOP.
+8. Raport: ile przepracował dziś i w miesiącu oraz ogólne odchylenie miesiąca od normy 8 h na dzień — żeby wiedzieć, czy pracować dłużej, czy krócej, by wyrobić normę.
 
-### Czas pracy, przerwy, bloker
-- FR-016: Użytkownik może kliknięciem rozpocząć i zakończyć czas pracy oraz zobaczyć sumę dnia i miesiąca; start, koniec i sumy pochodzą z jednej ewidencji czasu; aplikacja nie prowadzi drugiej, równoległej. Priority: must-have
-  > Socrates: Kontrargument: „dwa zapisy czasu” — aplikacja i istniejąca ewidencja liczą czas osobno i się rozjeżdżają. Rozstrzygnięcie: jedna ewidencja, jeden właściciel zapisu.
-  > Decyzja (2026-11-20, pytania #2 i #3): właścicielem ewidencji jest aplikacja. Źródłem są start i koniec pracy w notatce dziennej; aplikacja generuje z nich `Timeline.md` w dotychczasowym formacie, z którego dalej korzysta raport mailowy Helper App. Komendy start/koniec Helper App w Obsidianie zostają wyłączone. Aplikacja przejmuje zapis dopiero po migracji historii (FR-027).
-- FR-017: Użytkownik dostaje przypomnienie, gdy jest pora pracy, a czas nie biegnie, oraz gdy czas biegnie po godzinach pracy — tylko w dni robocze z ustawień, jedno przypomnienie na zdarzenie. Priority: must-have
-  > Socrates: Kontrargument: „fałszywe alarmy” przy elastycznych godzinach. Rozstrzygnięcie: tylko dni robocze, jedno przypomnienie, nie seria.
-- FR-018: Użytkownik dostaje w czasie pracy przypomnienia o mikroprzerwach i dłuższych przerwach w interwałach z ustawień, może je odłożyć albo pominąć, a jednym kliknięciem wstrzymać przerwy na N minut („nie teraz”, np. na spotkanie). Priority: must-have
-  > Socrates: Kontrargument: „spotkania” — przerwa wyskakuje w trakcie rozmowy. Rozstrzygnięcie: wstrzymanie przerw na N minut jednym kliknięciem.
-- FR-019: Użytkownik może uruchomić blok skupienia (pomodoro) przy zadaniu; po jego końcu dostaje powiadomienie o przerwie, a zakończony blok dopisuje się do dziennika dnia z nazwą zadania. Priority: must-have
-  > Socrates: Kontrargument: „bez śladu” — blok nie zostawia informacji, nad czym była praca. Rozstrzygnięcie: blok dopisuje się do dziennika dnia.
-- FR-020: Użytkownik może w interfejsie graficznym zdefiniować listy blokowanych stron WWW i programów oraz harmonogram blokady; w tym czasie są one niedostępne. Priority: must-have
-  > Socrates: Kontrargument: „ingerencja w system” — blokowanie wymaga podwyższonych uprawnień i zmian w systemie. Rozstrzygnięcie: akceptowane; aplikacja prosi o zgodę jawnie i cofa zmiany przy wyłączeniu blokady.
-- FR-021: Użytkownik może wyłączyć blokadę w każdej chwili po krótkim potwierdzeniu. Priority: must-have
-  > Socrates: Kontrargument: „za łatwe” — jeden klik niweczy sens blokera. Rozstrzygnięcie: wyłączenie wymaga krótkiego potwierdzenia, ale zawsze jest możliwe.
-- FR-026: Użytkownik dostaje pytanie, czy zatrzymać czas pracy, gdy czas biegnie, a komputer jest bezczynny od N minut z ustawień, oraz przypomnienie, gdy używa komputera w godzinach pracy, a czas nie biegnie; aplikacja wykrywa wyłącznie aktywność (bez treści okien i nazw programów). Priority: must-have
-  > Dodane 2026-11-20 (pytanie #8): z funkcji „rozważonych, nie wykluczonych” do v1 trafia pomiar aktywności, zawężony do wykrywania bezczynności. Cel: łatanie dziur w ewidencji czasu (Vision).
-- FR-027: Użytkownik może jednorazowo przenieść historię czasu pracy z `Timeline.md` do notatek dziennych; po migracji sumy każdego miesiąca w wygenerowanym `Timeline.md` zgadzają się z dotychczasowymi, a aplikacja przejmuje zapis ewidencji dopiero po tej weryfikacji. Priority: must-have
-  > Dodane 2026-11-20 (decyzja do pytania #3): migracja z próbą na sucho; warunkiem jest zgodność sum miesięcznych, format pojedynczych wpisów może się zmienić.
+Aktor: Użytkownik (jedyny). Wszystkie pozycje są must-have — użytkownik świadomie nie obniżył żadnej do nice-to-have (2026-11-22).
 
-### Ustawienia i zasobnik
-- FR-022: Użytkownik może ustawić w aplikacji ścieżki vaultów, repozytoriów i narzędzi dla każdej przestrzeni, listę wykluczonych ścieżek oraz listę wyróżnianych etykiet zgłoszeń; przy pierwszym uruchomieniu prowadzi go przez to kreator. Priority: must-have
-  > Socrates: Kontrargument: „pusty start” — pierwsze uruchomienie bez konfiguracji daje pustą aplikację. Rozstrzygnięcie: kreator pierwszego uruchomienia.
-- FR-023: Użytkownik może ustawić godziny powiadomień i dni robocze oraz oznaczyć dzień wolny/urlop, który wyłącza powiadomienia, przerwy i bloker pracy. Priority: must-have
-  > Socrates: Kontrargument: „urlop i święta” — aplikacja nie wie o urlopie i nagabuje. Rozstrzygnięcie: tryb dnia wolnego.
-- FR-024: Użytkownik może z menu zasobnika rozpocząć i zakończyć czas pracy oraz wstrzymać powiadomienia aplikacji na określony czas (np. 1 h / do jutra), po którym wracają same. Priority: must-have
-  > Socrates: Kontrargument: „zapomniane wstrzymanie” — nic już nie przypomina. Rozstrzygnięcie: wstrzymanie zawsze na czas określony.
+### Zgłoszenia GitLab (Praca)
+- [new] FR-001: Użytkownik może zobaczyć w widoku „Praca (GitLab)” zgłoszenia i MR-y z firmowego GitLaba przypisane do niego. Priority: must-have
+  > Socrates: Kontrargument: „same zgłoszenia to za mało” — pracą są też MR-y, bez nich lista „co mam do zrobienia” kłamie. Rozstrzygnięcie: dodane MR-y przypisane do użytkownika (assignee); MR-y, w których jest reviewerem, nie wchodzą do v1.
+- [new] FR-002: Użytkownik może w ustawieniach określić, które przypisane zgłoszenia są widoczne — według projektu, etykiet, milestone'u i stanu (otwarte/zamknięte). Priority: must-have
+  > Socrates: Kontrargument: „filtr ukryje coś pilnego” — nowe przypisanie spoza filtra nigdy nie dotrze. Rozstrzygnięcie: filtr dotyczy listy; powiadomienie o nowym przypisaniu (FR-004) omija filtr.
+- [new] FR-003: Użytkownik może ukryć zgłoszenie; ukryte zgłoszenie wraca samo na listę, gdy zmieni się jego status albo pojawi się nowy komentarz od kogoś innego niż użytkownik. Priority: must-have
+  > Socrates: Kontrargument: „szum z własnych i automatycznych komentarzy” przywraca zgłoszenie i ukrywanie traci sens. Rozstrzygnięcie: własne komentarze użytkownika nie przywracają zgłoszenia; komentarze innych, w tym botów i wpisy automatyczne, przywracają.
+- [new] FR-004: Użytkownik dostaje powiadomienie systemowe Windows o nowym zgłoszeniu lub MR przypisanym do niego, niezależnie od filtra z FR-002; gdy nowych jest więcej niż 3 naraz, dostaje jedno zbiorcze powiadomienie. Priority: must-have
+  > Socrates: Kontrargument: „zalew po podłączeniu VPN” — po nocy bez VPN albo po urlopie seria powiadomień naraz. Rozstrzygnięcie: 1–3 nowe — osobne powiadomienia; więcej niż 3 — jedno zbiorcze. Po dodaniu MR-ów do FR-001: nowe przypisane MR-y też powiadamiają, tym samym mechanizmem i progiem.
 
-## Non-Functional Requirements
+### Zgłoszenia GitHub (Prywatne)
+- [new] FR-005: Użytkownik może zobaczyć w widoku „Projekty (GitHub)” otwarte zgłoszenia przypisane do niego z prywatnych repozytoriów wskazanych na liście w ustawieniach. Priority: must-have
+  > Socrates: Kontrargument: „lista urośnie od starych zgłoszeń” — wszystkie otwarte zgłoszenia, także stare pomysły, zalewają widok. Rozstrzygnięcie: tylko otwarte i przypisane do użytkownika; reszta zostaje backlogiem na GitHubie.
 
-- **Widoczny stan zdrowia.** Każda awaria źródła (nieudana synchronizacja, narzędzie wylogowane, brak skonfigurowanej ścieżki) jest widoczna dla użytkownika bez otwierania okna aplikacji w ≤ 1 min od wystąpienia. Aplikacja nigdy nie pokazuje pustego planu ani pustej listy zamiast błędu.
-- **Nienaruszalność notatek.** Zapis aplikacji zmienia wyłącznie wskazaną linię lub sekcję notatki; reszta pliku pozostaje bajt w bajt identyczna. Nic nie jest usuwane trwale: usunięcie trafia do kosza vaultu.
-- **Dane pracy nie opuszczają maszyny.** Żadna treść z vaultu pracy ani ze zgłoszeń firmowych nie jest przez aplikację wysyłana poza komputer ani przenoszona do przestrzeni prywatnej, repozytorium, testów czy logów.
-- **Zero sekretów.** Aplikacja, jej ustawienia i repozytorium nie zawierają żadnych haseł, tokenów ani kluczy.
-- **Lekkość w tle.** W bezczynności w tle aplikacja nie obciąża odczuwalnie komputera (orientacyjnie < 1% CPU, < 150 MB RAM).
+### Moje zadania
+- [new] FR-006: Użytkownik może dodać własne zadanie w przestrzeni Praca albo Prywatne; domyślnie Praca, gdy biegnie licznik czasu pracy, w przeciwnym razie Prywatne. Priority: must-have
+  > Socrates: Kontrargument: „dodatkowy wybór przy każdym dodaniu” — tarcie, a bez wartości domyślnej zadania lądują w złej przestrzeni. Rozstrzygnięcie: domyślna przestrzeń zależy od tego, czy biegnie licznik; zawsze można ją zmienić.
+- [new] FR-007: Użytkownik może edytować tytuł i krótką notatkę (bez formatowania) własnego zadania. Priority: must-have
+  > Socrates: Kontrargument: „edycja rośnie w edytor notatek” — drugi Obsidian. Rozstrzygnięcie: zadanie ma tylko tytuł i krótką notatkę bez formatowania.
+- [new] FR-008: Użytkownik może oznaczyć własne zadanie jako zrobione; odhaczenie zadania w „Do zrobienia” i oznaczenie go jako zrobione w „Moich zadaniach” to jeden i ten sam stan. Priority: must-have
+  > Socrates: Kontrargument: „dwa miejsca «zrobione»” mogą się rozjechać. Rozstrzygnięcie: jeden stan — odhaczenie w „Do zrobienia” oznacza zadanie jako zrobione i odwrotnie.
+- (FR-009 usunięty w rundzie Sokratesa — „usuń zadanie”. Kontrargument: „usuń i zrobione to prawie to samo”. Rozstrzygnięcie: zostaje tylko „zrobione”; zadanie dodane przez pomyłkę użytkownik oznacza jako zrobione albo edytuje. Numer FR-009 nie jest używany ponownie.)
+- [new] FR-010: Użytkownik może ustawić termin i priorytet własnego zadania; oba pola są opcjonalne i nigdy wymagane. Priority: must-have
+  > Socrates: Kontrargument: „pola, których nie będziesz wypełniać” — użytkownik porzuca ręczne listy. Rozstrzygnięcie: zadanie da się dodać samym tytułem; termin i priorytet są opcjonalne.
 
-Rozważone i **nieprzyjęte** jako NFR w v1: czas otwarcia szybkiego wpisu < 300 ms, maksymalne opóźnienie powiadomienia o nowym zgłoszeniu, gwarantowana odwracalność blokera w ≤ 1 min (zachowanie blokera opisują FR-020/FR-021).
+### Do zrobienia
+- [new] FR-011: Użytkownik może w widoku „Do zrobienia” wybrać pozycje spośród trzech list (zgłoszenia i MR-y GitLab, zgłoszenia GitHub, własne zadania), do limitu pozycji ustawianego w ustawieniach (domyślnie 5). Priority: must-have
+  > Socrates: Kontrargument: „bez limitu to kolejna pełna lista”. Rozstrzygnięcie: limit pozycji w ustawieniach, domyślnie 5; żeby dodać ponad limit, trzeba coś zdjąć.
+- [new] FR-012: Użytkownik może odhaczać pozycje w „Do zrobienia”; nieodhaczone zostają na liście następnego dnia, dopóki ich nie zdejmie; zgłoszenie lub MR zamknięte w GitLabie/GitHubie odhacza się samo i nie przechodzi na jutro. Priority: must-have
+  > Socrates: Kontrargument: „zamknięte w źródle dalej wisi” jako niezrobione. Rozstrzygnięcie: zamknięcie w źródle = automatyczne odhaczenie w „Do zrobienia”.
 
-## Business Logic
+### Czas pracy
+- [new] FR-013: Użytkownik może przyciskami START i STOP rozpocząć i zakończyć liczenie czasu pracy; licznik jest zawsze widoczny u góry okna. Priority: must-have
+  > Socrates: Kontrargument: „zapomniany START albo STOP” — dokładnie ten problem miała stara ewidencja (dziury, licznik bijący przez noc), a bez korekty raport utrwala błąd. Rozstrzygnięcie: przyjęte trzy zabezpieczenia, wydzielone do FR-017 (ręczna korekta) i FR-018 (przypomnienia o STOP i START).
+- [new] FR-014: Użytkownik może zobaczyć raport: sumę czasu pracy dnia i miesiąca oraz ogólne odchylenie miesiąca od normy 8 h na dzień roboczy, gdzie dni robocze to poniedziałek–piątek minus dni oznaczone przez użytkownika jako wolne. Priority: must-have
+  > Socrates: Kontrargument: „norma bez dni wolnych kłamie” — święta i urlop dają fałszywe odchylenie i raportowi przestaje się ufać. Rozstrzygnięcie: pn–pt minus dni wolne oznaczane ręcznie (święta, urlop); bez automatycznego kalendarza świąt.
+- [new] FR-017: Użytkownik może ręcznie poprawić godzinę startu lub końca wpisu czasu pracy albo dopisać brakujący wpis. Priority: must-have
+  > Socrates: Wydzielone z FR-013 w rundzie Sokratesa (zapomniany START/STOP).
+- [new] FR-018: Użytkownik dostaje przypomnienie, gdy licznik biegnie długo (próg w ustawieniach, np. ponad 10 h: „czy nadal pracujesz?”), oraz gdy w dzień roboczy licznik nie biegnie po ustalonej godzinie. Priority: must-have
+  > Socrates: Wydzielone z FR-013 w rundzie Sokratesa (zapomniany START/STOP).
 
-Każdego dnia roboczego aplikacja proponuje uporządkowaną listę kandydatów na dziś, wymusza na każdej pozycji decyzję (priorytet, jeśli starczy czasu, skrzynka, porzuć) i zaczepia albo blokuje użytkownika wyłącznie wtedy, gdy wynika to ze stanu jego dnia.
+### Zmienione i zachowane
+- [modified] FR-015: Użytkownik widzi awarię źródła (np. wylogowanie z GitLaba lub GitHuba na tej maszynie) w zasobniku i na ekranie zamiast pustej listy; niedostępny GitLab (brak VPN) jest pokazywany wprost jako spokojny stan „GitLab niedostępny”, bez alarmu i bez powiadomienia o błędzie. Priority: must-have. Było: każda niedostępność źródła, także brak VPN, była alarmem (F-02).
+  > Socrates: Kontrargument: „brak VPN to stan normalny” — wieczorem przy projektach prywatnych ciągły alarm to szum, który użytkownik nauczy się ignorować. Rozstrzygnięcie: brak VPN to spokojny stan widoczny wprost; alarm (czerwona ikona, powiadomienie) tylko przy innych błędach. Zmienia zachowanie F-02, stąd `modified`.
+- [preserved] FR-016: Użytkownik dostaje nową wersję aplikacji wyłącznie wtedy, gdy wersja została świadomie podniesiona; każda zmiana przed wydaniem przechodzi automatyczną kontrolę (sekrety, zależności, testy). Priority: must-have
+  > Socrates: Kontrargument: „narzut dla jednego użytkownika” — lokalny build mógłby wystarczyć. Rozstrzygnięcie: zostaje; pipeline już działa, a bez podbicia wersji nic się nie publikuje.
 
-**Wejścia i rekomendacja.** W przestrzeni Praca kandydatami są własne zadania użytkownika (na nich głównie pracuje) oraz odświeżane zgłoszenia i MR-y przypisane do niego. Zgłoszenia z etykietami wskazanymi w ustawieniach (np. `awaiting_verification`) są wyróżnione i wyżej w rekomendacji. W przestrzeni Prywatne kandydatami są otwarte zgłoszenia GitHub z repozytoriów użytkownika. Do tego dochodzą niezrobione pozycje z poprzedniego dnia i niepusta skrzynka. Kolejność wynika z priorytetu i terminu, milestone'u oraz świeżości przypisania (nowe od ostatniego planu wyżej). Kolejność jest **rekomendacją**: aplikacja podsuwa, użytkownik decyduje.
+### Usunięte
+- [removed] S-05: tworzenie zadań z szablonu w `Tasks/` vaultu pracy i zmiana ich statusu — własne zadania żyją w aplikacji, a MVP nie dotyka vaultów.
 
-**Workflow pozycji.** Jeden ekran „Dziś” ma dwie sekcje, Praca i Prywatne. Limit 1–3 priorytetów jest wspólny dla całego dnia. Każda sekcja zapisuje plan w notatce dziennej swojego vaultu. Notatka dzienna jest jedynym źródłem „co dziś”. Każda pozycja dostaje decyzję: priorytet, jeśli starczy czasu, skrzynka albo porzuć. Zaległość nie przechodzi na kolejny dzień bez decyzji: rano decyduje się „dziś / skrzynka / porzuć”, a zamknięcie dnia rozstrzyga „jutro / skrzynka / porzuć”. Zgłoszenie dodane w ciągu dnia z powiadomienia trafia na „jeśli starczy czasu” i nie rusza priorytetów.
+## Constraints & Compatibility
 
-**Rytm.** Aplikacja zaczepia użytkownika tylko wtedy, gdy wynika to ze stanu dnia:
-- przy pierwszym włączeniu lub odblokowaniu komputera w dniu roboczym, jeśli nie ma planu;
-- gdy w godzinach pracy czas pracy nie biegnie albo biegnie po godzinach (jedno przypomnienie na zdarzenie);
-- gdy czas pracy biegnie, a komputer jest bezczynny, albo komputer jest używany w godzinach pracy, a czas nie biegnie (FR-026);
-- w interwałach przerw, gdy biegnie czas pracy, chyba że użytkownik wstrzymał je („nie teraz”) albo trwa blok skupienia;
-- po zakończonym bloku skupienia;
-- przy nowych przypisanych zgłoszeniach (zbiorczo, gdy jest ich kilka).
+- **Integracje:** firmowy GitLab tylko przy włączonym VPN; do GitLaba i GitHuba aplikacja sięga wyłącznie przez sesje, w których użytkownik jest już zalogowany na tej maszynie. Aplikacja tylko czyta z GitLaba i GitHuba — niczego tam nie zmienia (odhaczenie w „Do zrobienia” nie zamyka zgłoszenia w źródle).
+- **Fakt środowiska (2026-11-20):** narzędzie dostępu do GitHuba jest dziś zainstalowane tylko w WSL, nie w Windows. Wymaga rozstrzygnięcia przed FR-005 (patrz Open Questions #1).
+- **Vaulty Obsidian:** MVP ich nie czyta i nie zapisuje.
+- **Migracja danych:** brak. Nowa ewidencja czasu pracy zaczyna się 2026-12-01; dotychczasowa historia (`Management/Timeline.md`, Helper App) zostaje tam, gdzie jest, i aplikacja jej nie czyta.
+- **Helper App:** działa dalej obok, niezależnie; aplikacja jej nie wywołuje i nie czyta.
+- **Usuwane:** S-05 (zadania z szablonu w `Tasks/`).
+- **Zachowane:** stan źródeł w zasobniku i powiadomienia o awarii źródła (F-02 — ze zmianą dla braku VPN, FR-015); automatyczna kontrola każdej zmiany oraz publikacja nowej wersji wyłącznie po świadomym podniesieniu wersji (F-03).
+- **Zachowane reguły repozytorium:** zero sekretów; dane pracy nie trafiają do repozytorium, testów, danych testowych ani logów; testy na zmyślonych danych.
+- **Ograniczenia istniejącego systemu:** automatyczna kontrola musi przechodzić przy każdej zmianie wysyłanej do repozytorium (sekrety, zależności, build, testy), a blokada wysyłki terminów pracy zostaje. Nowa wersja powstaje tylko przez świadome podniesienie wersji; bez niego nic się nie publikuje. Szczegóły w `## Current System Overview`.
 
-Bloker działa według harmonogramu z ustawień. Dzień wolny wyłącza powiadomienia, przerwy i bloker pracy.
+### Właściwości jakościowe (NFR)
+- **Trwałość czasu pracy.** Biegnący licznik i historia czasu pracy przetrwają zamknięcie aplikacji, restart Windows i awarię aplikacji; strata najwyżej kilku sekund.
+- **Nigdy pusta lista zamiast błędu.** Każdy widok źródła odróżnia „brak pozycji” od „źródło niedostępne” i pokazuje czas ostatniego udanego odświeżenia.
+- **Dane pracy i vaulty.** Treść z firmowego GitLaba nie opuszcza maszyny i nie trafia do repozytorium, testów, logów ani przestrzeni prywatnej; żaden plik w vaultach Obsidian nie jest przez aplikację zmieniany; aplikacja, jej ustawienia i repozytorium nie zawierają haseł, tokenów ani kluczy.
+- **Lekkość w tle.** W bezczynności w tle aplikacja zużywa orientacyjnie < 1% CPU i < 150 MB RAM.
+- **Świeżość.** Przy włączonym VPN powiadomienie o nowym przypisanym zgłoszeniu lub MR przychodzi ≤ 15 minut od przypisania w GitLabie.
 
-## Access Control
+## Business Logic Changes
 
-Jeden użytkownik, jedno konto Windows, jeden komputer. Aplikacja nie ma ekranu logowania ani ról. Nie przechowuje żadnych własnych haseł, tokenów ani kluczy: w aplikacji, w ustawieniach ani w repozytorium. Do GitLaba (praca) i GitHuba (prywatne) sięga wyłącznie przez sesje narzędzi, w których użytkownik jest już zalogowany na tej maszynie. Gdy tam się wyloguje, aplikacja nie ma tych danych i mówi to wprost.
+Aplikacja pokazuje tylko to, co wymaga uwagi użytkownika (ukryte wraca przy zmianie statusu lub cudzym komentarzu, zamknięte w źródle odhacza się samo), i na bieżąco liczy, ile brakuje mu do normy 8 h na dzień roboczy w miesiącu.
 
-Granice danych:
-- **Rozdział Praca/Prywatne.** Dwie przestrzenie, każda z własnymi źródłami. Dane z pracy nigdy nie są kopiowane do przestrzeni prywatnej i odwrotnie.
-- **Wykluczone ścieżki.** Lista w ustawieniach (np. notatki z kluczami i dostępami). Aplikacja ich nie czyta, nie indeksuje i nie pokazuje.
-- **Tylko wskazane miejsca.** Aplikacja czyta i zapisuje wyłącznie w folderach skonfigurowanych w ustawieniach. Gdy skonfigurowana ścieżka nie istnieje, mówi to wprost i prosi o nową; niczego nie tworzy w ciemno.
-- **Jawny wyjątek: bloker rozpraszaczy.** To jedyna funkcja, która działa poza skonfigurowanymi folderami. Blokuje wyłącznie strony i programy z list w ustawieniach, wyłącznie w harmonogramie z ustawień, i zawsze da się ją wyłączyć (po krótkim potwierdzeniu, FR-021). Reszta aplikacji trzyma granicę.
+**Obecna reguła i zmiana.** The system currently (w planie PRD v2) proponuje uporządkowaną listę kandydatów na dziś, wymusza decyzję przy każdej pozycji (priorytet / jeśli starczy czasu / skrzynka / porzuć) i zaczepia użytkownika według stanu dnia. This change modifies it to: aplikacja nie rekomenduje kolejności i nie wymusza decyzji; decyduje o **widoczności** pozycji i **liczy normę czasu pracy**.
 
-Uwaga: zakaz łączenia się aplikacji z siecią (rekomendacja z seeda) **nie** został przyjęty jako wymóg na tym etapie.
+**Widoczność.** Wejściami są przypisane do użytkownika zgłoszenia i MR-y z GitLaba (zawężone filtrem z ustawień: projekt, etykiety, milestone, stan), otwarte przypisane zgłoszenia GitHub z repozytoriów z listy oraz własne zadania. Ukryte zgłoszenie pozostaje ukryte, dopóki nie zmieni się jego status albo nie pojawi się komentarz kogoś innego niż użytkownik (boty się liczą); wtedy wraca, oznaczone jako zmienione. Nowe przypisanie zawsze daje powiadomienie, także spoza filtra; ponad 3 nowe naraz — jedno zbiorcze. W „Do zrobienia” (limit pozycji z ustawień, domyślnie 5) nieodhaczone przechodzą na następny dzień, a pozycja zamknięta w GitLabie/GitHubie odhacza się sama; odhaczenie własnego zadania to to samo co oznaczenie go jako zrobione.
+
+**Norma.** Dni robocze to poniedziałek–piątek minus dni oznaczone przez użytkownika jako wolne. Norma = 8 h × dni robocze. Raport pokazuje sumę dnia i miesiąca, odchylenie „do dziś” (przepracowane vs norma za dni robocze, które już minęły, w jedną lub drugą stronę) oraz ile średnio na dzień trzeba pracować w pozostałych dniach roboczych, żeby wyrobić normę miesiąca. Przypomnienia pilnują ewidencji: gdy licznik biegnie dłużej niż próg z ustawień, i gdy w dzień roboczy nie biegnie po ustalonej godzinie.
+
+## Access Control Changes
+
+No access control changes — current model preserved.
+
+- Jeden użytkownik, jedno konto Windows, jeden komputer. Bez ekranu logowania i bez ról.
+- Zero własnych haseł, tokenów i kluczy w aplikacji, ustawieniach i repozytorium. Do firmowego GitLaba i prywatnego GitHuba aplikacja sięga wyłącznie przez sesje, w których użytkownik jest już zalogowany na tej maszynie; gdy jest wylogowany, aplikacja mówi to wprost.
+- **Rozdział Praca/Prywatne.** Zgłoszenia z GitLaba należą do przestrzeni Praca, zgłoszenia z GitHuba do Prywatne. Każde własne zadanie należy do jednej przestrzeni. Licznik czasu dotyczy tylko pracy. Dane z pracy nie trafiają do przestrzeni prywatnej, repozytorium, testów ani logów.
 
 ## Non-Goals
 
 ### Funkcjonalne
-- **Brak własnego edytora notatek.** Pełna edycja Markdownu, zmiana nazw i przenoszenie notatek zostają w Obsidianie; aplikacja daje „Otwórz w Obsidianie” (FR-014).
-- **Brak telefonu i wielu maszyn.** Jeden komputer z Windows 11; bez wersji mobilnej i bez synchronizacji między komputerami.
-- **Brak wielu użytkowników.** Bez kont, ról i funkcji zespołowych. To narzędzie osobiste i skala nie jest celem (odpowiedź na pytanie o 100x: „nic się nie łamie, bo to narzędzie osobiste”).
-- **Poza MVP (nice-to-have):** widok tygodnia (FR-008) i zadania prywatne z szablonu (FR-025).
+- **Brak zapisu do GitLaba i GitHuba.** Aplikacja nie zamyka zgłoszeń, nie zmienia statusów, nie komentuje i nie przypisuje; tylko odczyt.
+- **Brak dostępu do vaultów Obsidian.** Ani odczytu, ani zapisu (plan dnia, dziennik, `Tasks/`, `Issues/`) — zapis do vaultów to „później”.
+- **Brak automatyki czasu pracy.** Bez automatycznego kalendarza świąt, wykrywania bezczynności i mierzenia aktywności; czas liczy się wyłącznie z przycisków START/STOP i ręcznej korekty (FR-017).
+- **Poza v1 (z rundy Sokratesa):** MR-y, w których użytkownik jest reviewerem; usuwanie zadań (FR-009 usunięty).
+
+### Niezmieniane w istniejącym systemie
+- Typ produktu (desktop, Windows 11) i skala (jeden użytkownik) bez zmian.
+- Model dostępu bez zmian (`## Access Control Changes`).
 
 ### Rozważone i świadomie NIE wykluczone
-Te pozycje nie są non-goals, ale żadne FR ich nie obejmuje, więc w v1 nie są budowane z braku wymagania, a nie z zakazu: zapis do GitLaba/GitHuba (status, komentarze), pomiar aktywności poza wykrywaniem bezczynności (np. dziennik użycia programów; bezczynność obejmuje FR-026), integracje z Domowym Skarbnikiem i Menu Makerem, udostępnianie danych asystentowi AI, bloker odporny na zdeterminowane obejście.
+Reszta planu z PRD v2 — przerwy i pomodoro, bloker rozpraszaczy, szybki wpis i skrzynka, zamknięcie dnia, widok tygodnia, poranne „Ułóż plan dnia”, autostart. Nie są non-goals, ale żadne FR ich nie obejmuje, więc w tym MVP nie są budowane z braku wymagania, a nie z zakazu.
 
 ## Open Questions
 
-Wszystkie pytania rozstrzygnięte przez użytkownika 2026-11-20.
-
-1. **Nazwa produktu** — robocza „Nawigator dnia”; kandydaci: Sternik, Skryba, Kompas, Brulion, Strażnik dnia. Owner: użytkownik. Blokuje: nie.
-   **Rozstrzygnięte:** nazwa „Nawigator dnia”.
-2. **Rola Helper App** — czy pozostaje jedynym właścicielem zapisu zgłoszeń (`Issues/`) i ewidencji czasu (`Timeline.md`), wywoływanym przez aplikację? FR-016 wymaga jednego właściciela ewidencji czasu, ale nie przesądza którego; dla zgłoszeń (FR-010) reguła jednego właściciela nie została przyjęta — ryzyko równoległego zapisu z ręczną komendą w Obsidianie. Owner: użytkownik, przed planem implementacji.
-   **Rozstrzygnięte:** aplikacja przejmuje zapis `Issues/` i ewidencji czasu; komendy synchronizacji i start/koniec Helper App w Obsidianie zostają wyłączone; raport mailowy i sprzątanie skrzynek zostają w Helper App, a raport czyta generowany `Timeline.md` (FR-010, FR-016).
-3. **Ewidencja czasu docelowo** — czy start i koniec pracy zapisywać w notatce dziennej, a `Timeline.md` generować? (seed, pytanie 5). Owner: użytkownik.
-   **Rozstrzygnięte:** tak — notatka dzienna jest źródłem, `Timeline.md` jest generowany; historia jest migrowana do notatek dziennych, a warunkiem przejęcia zapisu jest zgodność sum miesięcznych (FR-027).
-4. **Pole `Today` w zgłoszeniach i zadaniach** — aktualizować razem z notatką dzienną jako pochodną, czy pomijać? (FR-004). Owner: użytkownik.
-   **Rozstrzygnięte:** pomijać.
-5. **Stare listy** — co z `DASHBOARD.md`, `ToDo List.md` i `Notatki bieżące.md` po wdrożeniu „Dziś” i skrzynki? (seed, pytanie 8). Owner: użytkownik.
-   **Rozstrzygnięte:** aplikacja ich nie czyta i nie zapisuje; użytkownik wycofa je ręcznie.
-6. **Skrót globalny i domyślne godziny** — propozycja Ctrl+Alt+Spacja; domyślne godziny pracy, interwały przerw, długość bloku skupienia, próg „kilku” zgłoszeń dla powiadomienia zbiorczego. Owner: użytkownik.
-   **Rozstrzygnięte (wartości domyślne, zmienialne w ustawieniach):** skrót Ctrl+Alt+Spacja; godziny pracy pon–pt 8:00–16:00; mikroprzerwa co 20 min na 20 s, dłuższa przerwa co 60 min na 5 min; blok skupienia 25 min; powiadomienie zbiorcze od 3 nowych zgłoszeń.
-7. **Repozytorium publiczne (portfolio)?** — jeśli tak, w repo nie mogą się pojawić nazwy hostów ani dane z pracy (seed, pytanie 9). Owner: użytkownik.
-   **Rozstrzygnięte:** repozytorium prywatne teraz, możliwe upublicznienie później; reguła „tylko zmyślone dane” obowiązuje od początku.
-8. **Funkcje rozważone, nie wykluczone, bez FR** — zapis do GitLaba/GitHuba, pomiar aktywności, integracje (Domowy Skarbnik, Menu Maker), MCP/AI, odporność blokera. Czy którakolwiek ma trafić do v1? Owner: użytkownik.
-   **Rozstrzygnięte:** do v1 trafia tylko wykrywanie bezczynności (FR-026); reszta pozostaje poza v1.
+1. **`gh` w Windows** — narzędzie dostępu do GitHuba jest tylko w WSL; jak aplikacja na Windows ma sięgać do GitHuba (instalacja w Windows czy wywołanie przez WSL)? Owner: użytkownik. Przed planem FR-005. Blokuje: FR-005.
+2. **Start ewidencji 2026-12-01 a gotowość licznika** — nowa ewidencja zaczyna się 2026-12-01, a licznik powstanie później (MVP 6 tygodni, bez twardego terminu). Czy wpisy z grudnia do czasu wdrożenia dopisać ręcznie (FR-017), czy przesunąć start ewidencji na pierwszy pełny miesiąc po wdrożeniu? Owner: użytkownik. Do: przed planem licznika.
+3. **Wartości domyślne** — godzina, po której przypomina o niebiegnącym liczniku (FR-018); próg „licznik biegnie długo” (propozycja z rozmowy: 10 h); częstotliwość odświeżania (musi spełnić NFR ≤ 15 min). Owner: użytkownik.
+4. **Los PRD v2 i roadmapy M-1** — to PRD zastępuje PRD v2; co z gotowymi do pracy slice'ami S-01, S-06, S-17 i z niewykorzystywanym F-01? Owner: użytkownik, przy aktualizacji roadmapy.
+5. **Nazwa produktu** — robocza „Nawigator dnia”. Owner: użytkownik. Blokuje: nie.

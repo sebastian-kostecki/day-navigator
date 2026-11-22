@@ -58,9 +58,7 @@ pub fn test_tasks_settings() -> TaskSettings {
     TaskSettings {
         folder: VaultPath::parse("Tasks").unwrap(),
         template: VaultPath::parse("Templates/Task.md").unwrap(),
-        statuses: ["Todo", "In progress", "Done"]
-            .map(String::from)
-            .to_vec(),
+        statuses: ["Todo", "In progress", "Done"].map(String::from).to_vec(),
         done_status: "Done".to_string(),
         priorities: ["High", "Medium", "Low"].map(String::from).to_vec(),
     }

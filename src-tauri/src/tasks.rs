@@ -226,7 +226,14 @@ pub fn list_tasks(vault: &Vault, cfg: &TaskSettings) -> Result<Vec<TaskRow>, Tas
             .and_then(|s| cfg.statuses.iter().position(|c| c == s))
             .unwrap_or(cfg.statuses.len())
     };
-    rows.sort_by_cached_key(|r| (rank(r), r.due.is_none(), r.due.clone(), r.title.to_lowercase()));
+    rows.sort_by_cached_key(|r| {
+        (
+            rank(r),
+            r.due.is_none(),
+            r.due.clone(),
+            r.title.to_lowercase(),
+        )
+    });
     Ok(rows)
 }
 
@@ -364,9 +371,13 @@ fn validate_title(cfg: &TaskSettings, title: &str) -> Result<(String, VaultPath)
 fn validate_due(value: &str) -> Result<(), TaskError> {
     let b = value.as_bytes();
     let shaped = b.len() == 10
-        && b.iter()
-            .enumerate()
-            .all(|(i, c)| if i == 4 || i == 7 { *c == b'-' } else { c.is_ascii_digit() });
+        && b.iter().enumerate().all(|(i, c)| {
+            if i == 4 || i == 7 {
+                *c == b'-'
+            } else {
+                c.is_ascii_digit()
+            }
+        });
     if shaped && NaiveDate::parse_from_str(value, "%Y-%m-%d").is_ok() {
         Ok(())
     } else {
@@ -398,7 +409,9 @@ pub fn create_task(
     let (title, path) = validate_title(cfg, &new.title)?;
     if let Some(p) = &new.priority {
         if !cfg.priorities.contains(p) {
-            return Err(TaskError::UnknownPriority { priority: p.clone() });
+            return Err(TaskError::UnknownPriority {
+                priority: p.clone(),
+            });
         }
     }
     if let Some(d) = &new.due {
@@ -478,9 +491,11 @@ pub fn set_status(
         });
     }
     let note = vault.read_note(path)?;
-    let conflict = || TaskError::Vault(VaultError::Conflict {
-        path: path.to_string(),
-    });
+    let conflict = || {
+        TaskError::Vault(VaultError::Conflict {
+            path: path.to_string(),
+        })
+    };
     let status_field = note.field("Status")?;
     let previous = scalar_value(&status_field.raw_block, "Status")?;
     if previous.as_deref() == Some(status) {
@@ -500,7 +515,11 @@ pub fn set_status(
     let is_done = status == cfg.done_status;
     let crosses = was_done != is_done;
 
-    let mut edits = vec![("Status", FieldValue::Scalar(status.to_string()), status_hash)];
+    let mut edits = vec![(
+        "Status",
+        FieldValue::Scalar(status.to_string()),
+        status_hash,
+    )];
     let result = match (crosses, done_hash) {
         (true, Some(hash)) => {
             let value = if is_done {
@@ -509,7 +528,11 @@ pub fn set_status(
                 FieldValue::Empty
             };
             edits.push(("Done", value, hash));
-            if is_done { DoneUpdate::Set } else { DoneUpdate::Cleared }
+            if is_done {
+                DoneUpdate::Set
+            } else {
+                DoneUpdate::Cleared
+            }
         }
         (true, None) => DoneUpdate::Absent,
         (false, _) => DoneUpdate::Unchanged,
@@ -577,9 +600,18 @@ mod tests {
 
     #[test]
     fn scalar_values_are_parsed() {
-        assert_eq!(scalar_value("Due: 2026-01-01\n", "Due").unwrap().as_deref(), Some("2026-01-01"));
-        assert_eq!(scalar_value("Due: \"x y\"\r\n", "Due").unwrap().as_deref(), Some("x y"));
-        assert_eq!(scalar_value("Due: 'x'\n", "Due").unwrap().as_deref(), Some("x"));
+        assert_eq!(
+            scalar_value("Due: 2026-01-01\n", "Due").unwrap().as_deref(),
+            Some("2026-01-01")
+        );
+        assert_eq!(
+            scalar_value("Due: \"x y\"\r\n", "Due").unwrap().as_deref(),
+            Some("x y")
+        );
+        assert_eq!(
+            scalar_value("Due: 'x'\n", "Due").unwrap().as_deref(),
+            Some("x")
+        );
         assert_eq!(scalar_value("Due:\n", "Due").unwrap(), None);
         assert_eq!(scalar_value("Due:   \n", "Due").unwrap(), None);
         assert!(scalar_value("Status:\n  - A\n", "Status").is_err());
@@ -589,7 +621,14 @@ mod tests {
     #[test]
     fn due_must_be_a_real_strict_date() {
         assert!(validate_due("2026-02-28").is_ok());
-        for bad in ["2026-02-30", "2026-2-3", "26-02-03", "2026/02/03", "", "2026-02-03 "] {
+        for bad in [
+            "2026-02-30",
+            "2026-2-3",
+            "26-02-03",
+            "2026/02/03",
+            "",
+            "2026-02-03 ",
+        ] {
             assert!(validate_due(bad).is_err(), "{bad}");
         }
     }
@@ -598,12 +637,16 @@ mod tests {
     fn the_earliest_unsupported_token_is_named() {
         let t = "# {{foo}}\n<% tp.date %>\n";
         match render_template(t, "A", now()) {
-            Err(TaskError::TemplateUnsupported { placeholder }) => assert_eq!(placeholder, "{{foo}}"),
+            Err(TaskError::TemplateUnsupported { placeholder }) => {
+                assert_eq!(placeholder, "{{foo}}")
+            }
             other => panic!("{other:?}"),
         }
         let t = "<% a %>\n{{foo}}\n";
         match render_template(t, "A", now()) {
-            Err(TaskError::TemplateUnsupported { placeholder }) => assert_eq!(placeholder, "<% a %>"),
+            Err(TaskError::TemplateUnsupported { placeholder }) => {
+                assert_eq!(placeholder, "<% a %>")
+            }
             other => panic!("{other:?}"),
         }
     }
@@ -633,7 +676,10 @@ mod tests {
         let t = "---\naliases: [{{title}}]\n---\n# {{title}}\n";
         for bad in ["a, b", "it's"] {
             assert!(
-                matches!(render_template(t, bad, now()), Err(TaskError::InvalidTitle { .. })),
+                matches!(
+                    render_template(t, bad, now()),
+                    Err(TaskError::InvalidTitle { .. })
+                ),
                 "{bad}"
             );
         }
@@ -670,7 +716,9 @@ mod tests {
                 "fieldProblems": [{"kind": "FieldAmbiguous", "detail": {"key": "Due"}}],
             })
         );
-        let conflict = TaskError::Vault(VaultError::Conflict { path: "Tasks/A.md".into() });
+        let conflict = TaskError::Vault(VaultError::Conflict {
+            path: "Tasks/A.md".into(),
+        });
         assert_eq!(
             serde_json::to_value(&conflict).unwrap(),
             json!({"kind": "Vault", "detail": {"kind": "Conflict", "detail": {"path": "Tasks/A.md"}}})
@@ -680,7 +728,10 @@ mod tests {
             json!({"kind": "TasksNotConfigured"})
         );
         assert_eq!(
-            serde_json::to_value(TaskError::NotATask { path: "x.md".into() }).unwrap(),
+            serde_json::to_value(TaskError::NotATask {
+                path: "x.md".into()
+            })
+            .unwrap(),
             json!({"kind": "NotATask", "detail": {"path": "x.md"}})
         );
         for (u, s) in [

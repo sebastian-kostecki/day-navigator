@@ -63,7 +63,9 @@ fn task_cfg(state: &TasksState) -> Result<TaskSettings, TaskError> {
 
 fn work_vault(state: &VaultState) -> Result<Vault, TaskError> {
     let current = state.current();
-    let registry = (*current).as_ref().map_err(|e| TaskError::Vault(e.clone()))?;
+    let registry = (*current)
+        .as_ref()
+        .map_err(|e| TaskError::Vault(e.clone()))?;
     Ok(registry.vault(Space::Work)?)
 }
 
@@ -136,10 +138,8 @@ async fn set_work_task_status(
     let status_hash = SpanHash::from_hex(&status_hash)?;
     let done_hash = done_hash.as_deref().map(SpanHash::from_hex).transpose()?;
     let today = Local::now().date_naive();
-    blocking(move || {
-        tasks::set_status(&vault, &cfg, &path, &status, status_hash, done_hash, today)
-    })
-    .await
+    blocking(move || tasks::set_status(&vault, &cfg, &path, &status, status_hash, done_hash, today))
+        .await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -205,7 +205,10 @@ pub fn run() {
         .run(|_app, event| {
             // Closing the window hides it; only "Zakończ" (`app.exit(0)`, code
             // `Some`) really quits.
-            if let tauri::RunEvent::ExitRequested { code: None, api, .. } = event {
+            if let tauri::RunEvent::ExitRequested {
+                code: None, api, ..
+            } = event
+            {
                 api.prevent_exit();
             }
         });

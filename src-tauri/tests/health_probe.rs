@@ -154,7 +154,10 @@ fn unmatched_exclusion_is_an_exclusions_error() {
         None,
     );
     let (_, sources) = probe(&path);
-    assert_eq!(find(&sources, SourceId::Vault(Space::Work)), Some(&SourceState::Ok));
+    assert_eq!(
+        find(&sources, SourceId::Vault(Space::Work)),
+        Some(&SourceState::Ok)
+    );
     let excl = find(&sources, SourceId::Exclusions(Space::Work)).unwrap();
     assert_eq!(kind_of(excl), Some("UnmatchedExclusions"));
     match excl {

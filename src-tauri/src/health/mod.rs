@@ -294,7 +294,12 @@ pub fn watchdog_step(
         } else {
             WatchdogAction::Nothing
         }
-    } else if is_stale(stall_age(heartbeat_age, since_resume), watchdog_gap, threshold, resume_gap) {
+    } else if is_stale(
+        stall_age(heartbeat_age, since_resume),
+        watchdog_gap,
+        threshold,
+        resume_gap,
+    ) {
         WatchdogAction::Stall
     } else {
         WatchdogAction::Nothing
@@ -350,7 +355,10 @@ mod tests {
     fn source_keys_are_stable() {
         assert_eq!(SourceId::Settings.key(), "settings");
         assert_eq!(W.key(), "vault:work");
-        assert_eq!(SourceId::Exclusions(Space::Private).key(), "exclusions:private");
+        assert_eq!(
+            SourceId::Exclusions(Space::Private).key(),
+            "exclusions:private"
+        );
     }
 
     #[test]
@@ -421,7 +429,12 @@ mod tests {
         let base0 = baseline(&[], &[settings_ok.clone(), broken.clone()]);
 
         // Settings outage: the vault source vanishes from `next`.
-        let outage = vec![err(SourceId::Settings, "Ustawienia", "SettingsInvalid", "r")];
+        let outage = vec![err(
+            SourceId::Settings,
+            "Ustawienia",
+            "SettingsInvalid",
+            "r",
+        )];
         let t = transitions(&base0, &outage);
         assert_eq!(t.len(), 1);
         assert_eq!(t[0].id, SourceId::Settings);
@@ -453,8 +466,11 @@ mod tests {
 
     #[test]
     fn notice_error_title_wins_over_recovery() {
-        let n = notice_for(&[tr("Vault Praca", None), tr("Ustawienia", Some("SettingsInvalid"))])
-            .unwrap();
+        let n = notice_for(&[
+            tr("Vault Praca", None),
+            tr("Ustawienia", Some("SettingsInvalid")),
+        ])
+        .unwrap();
         assert_eq!(n.title, "Nawigator dnia — błąd źródła");
         assert_eq!(
             n.body,
@@ -470,7 +486,9 @@ mod tests {
 
     #[test]
     fn notice_caps_lines_at_three() {
-        let ts: Vec<Transition> = (0..5).map(|i| tr(&format!("Z{i}"), Some("RootMissing"))).collect();
+        let ts: Vec<Transition> = (0..5)
+            .map(|i| tr(&format!("Z{i}"), Some("RootMissing")))
+            .collect();
         let n = notice_for(&ts).unwrap();
         let lines: Vec<&str> = n.body.lines().collect();
         assert_eq!(lines.len(), 4);
@@ -510,7 +528,10 @@ mod tests {
 
     #[test]
     fn overall_rules() {
-        let ok = vec![st(W, "V", SourceState::Ok), st(P, "V", SourceState::NotConfigured)];
+        let ok = vec![
+            st(W, "V", SourceState::Ok),
+            st(P, "V", SourceState::NotConfigured),
+        ];
         let bad = vec![err(W, "V", "RootMissing", "m")];
         assert_eq!(overall(&ok, false, false), Overall::Starting);
         assert_eq!(overall(&ok, false, true), Overall::Ok);
@@ -527,7 +548,10 @@ mod tests {
             err(P, "Vault Prywatne", "RootMissing", "m"),
         ];
         assert_eq!(tooltip(Overall::Ok, &[]), "Nawigator dnia — OK");
-        assert_eq!(tooltip(Overall::Error, &one), "Nawigator dnia — błąd: Vault Praca");
+        assert_eq!(
+            tooltip(Overall::Error, &one),
+            "Nawigator dnia — błąd: Vault Praca"
+        );
         assert_eq!(
             tooltip(Overall::Error, &two),
             "Nawigator dnia — błąd: Vault Praca i 1 więcej"
@@ -536,7 +560,10 @@ mod tests {
             tooltip(Overall::NotRunning, &[]),
             "Nawigator dnia — sprawdzanie nie działa"
         );
-        assert_eq!(tooltip(Overall::Starting, &[]), "Nawigator dnia — uruchamianie…");
+        assert_eq!(
+            tooltip(Overall::Starting, &[]),
+            "Nawigator dnia — uruchamianie…"
+        );
     }
 
     #[test]

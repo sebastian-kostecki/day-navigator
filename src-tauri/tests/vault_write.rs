@@ -342,7 +342,10 @@ fn create_note_in_existing_folder_refuses_a_missing_parent_and_creates_nothing()
     vault
         .create_note_in_existing_folder(&vp("Dziennik/2026/2026-02-01.md"), content)
         .unwrap();
-    assert_eq!(disk(&root, "Dziennik/2026/2026-02-01.md"), content.as_bytes());
+    assert_eq!(
+        disk(&root, "Dziennik/2026/2026-02-01.md"),
+        content.as_bytes()
+    );
     assert!(matches!(
         vault.create_note_in_existing_folder(&vp(TASK_NOTE), "x"),
         Err(VaultError::AlreadyExists { .. })

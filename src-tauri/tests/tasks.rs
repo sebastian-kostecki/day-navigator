@@ -168,7 +168,10 @@ fn unreadable_priority_or_due_is_a_field_problem_not_a_blank() {
     assert_eq!((row.priority.as_deref(), row.due.as_deref()), (None, None));
     assert!(matches!(
         row.field_problems.as_slice(),
-        [VaultError::InvalidValue { .. }, VaultError::FieldAmbiguous { .. }]
+        [
+            VaultError::InvalidValue { .. },
+            VaultError::FieldAmbiguous { .. }
+        ]
     ));
 }
 
@@ -198,7 +201,10 @@ fn create_renders_template_and_sets_app_owned_fields() {
     let path = create_task(&vault, &cfg, &new, now()).unwrap();
     assert_eq!(path.to_string(), "Tasks/Nowe zadanie testowe.md");
     let expected = "---\nStatus: Todo\nPriority: High\nDue: 2026-05-06\nIssue:\nToday:\nDone:\n---\n# Nowe zadanie testowe\n\nUtworzono 2026-03-04 09:05\n";
-    assert_eq!(disk(&root, "Tasks/Nowe zadanie testowe.md"), expected.as_bytes());
+    assert_eq!(
+        disk(&root, "Tasks/Nowe zadanie testowe.md"),
+        expected.as_bytes()
+    );
     assert_no_leftovers(&root);
 }
 
@@ -254,7 +260,12 @@ fn assert_vault_unchanged(tmp: &TempDir) {
             if e.file_type().unwrap().is_dir() {
                 walk(&e.path(), out, base);
             } else {
-                let rel = e.path().strip_prefix(base).unwrap().to_string_lossy().into_owned();
+                let rel = e
+                    .path()
+                    .strip_prefix(base)
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned();
                 out.push((rel, fs::read(e.path()).unwrap()));
             }
         }
@@ -278,7 +289,18 @@ fn create_refusals_write_nothing() {
 
     let too_long = "x".repeat(253);
     for bad in [
-        "", "   ", "a:b", "a/b", "a\\b", "a[b", "a]b", "a#b", "a^b", "a|b", "trailing.", "CON",
+        "",
+        "   ",
+        "a:b",
+        "a/b",
+        "a\\b",
+        "a[b",
+        "a]b",
+        "a#b",
+        "a^b",
+        "a|b",
+        "trailing.",
+        "CON",
         too_long.as_str(),
     ] {
         let r = create_task(&vault, &cfg, &new_task(bad), now());
@@ -372,7 +394,11 @@ fn status_change_outside_the_tasks_folder_is_refused() {
     let (tmp, vault, cfg) = setup();
     let root = vault_root(&tmp);
     fs::create_dir(root.join("Tasks/Sub")).unwrap();
-    fs::write(root.join("Tasks/Sub/Nested.md"), "---\nStatus: Todo\nDone:\n---\n").unwrap();
+    fs::write(
+        root.join("Tasks/Sub/Nested.md"),
+        "---\nStatus: Todo\nDone:\n---\n",
+    )
+    .unwrap();
     let mut in_folder = cfg.clone();
     in_folder.template = vp("Tasks/Invented crlf task.md");
     let cases = [
@@ -387,7 +413,10 @@ fn status_change_outside_the_tasks_folder_is_refused() {
         let r = set_status(&vault, cfg, &vp(rel), "Done", status, None, today());
         assert!(matches!(r, Err(TaskError::NotATask { .. })), "{rel}: {r:?}");
     }
-    assert_eq!(disk(&root, "Templates/Task.md"), fixture("Templates/Task.md"));
+    assert_eq!(
+        disk(&root, "Templates/Task.md"),
+        fixture("Templates/Task.md")
+    );
     assert_eq!(disk(&root, CRLF), fixture(CRLF));
 }
 
@@ -517,6 +546,7 @@ fn przykladowe_zadanie_fixture_is_untouched() {
     // Guards the byte-identity the other vault tests rely on.
     assert_eq!(
         fixture(NO_DONE),
-        "---\nStatus: Todo\n---\n# Przykładowe zadanie\n\nInvented task used only for tests.\n".as_bytes()
+        "---\nStatus: Todo\n---\n# Przykładowe zadanie\n\nInvented task used only for tests.\n"
+            .as_bytes()
     );
 }

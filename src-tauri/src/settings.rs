@@ -133,10 +133,7 @@ fn convert(name: &str, raw: RawSpace) -> Result<SpaceSettings, VaultError> {
                 .map_err(|err| invalid(format!("{name}: invalid excluded entry: {err}")))
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let tasks = raw
-        .tasks
-        .map(|t| convert_tasks(name, t))
-        .transpose()?;
+    let tasks = raw.tasks.map(|t| convert_tasks(name, t)).transpose()?;
     Ok(SpaceSettings {
         vault: raw.vault,
         excluded,
@@ -174,7 +171,9 @@ fn convert_tasks(name: &str, raw: RawTasks) -> Result<TaskSettings, VaultError> 
     }
     for v in raw.statuses.iter().chain(raw.priorities.iter()) {
         check_plain(v).map_err(|err| {
-            invalid(format!("{name}: task status or priority {v:?} is not usable: {err}"))
+            invalid(format!(
+                "{name}: task status or priority {v:?} is not usable: {err}"
+            ))
         })?;
     }
     Ok(TaskSettings {
@@ -283,10 +282,16 @@ mod tests {
     fn settings_absent_tasks_block_is_none_and_priorities_may_be_empty() {
         let dir = tempfile::tempdir().unwrap();
         let root = json_path(&dir);
-        let text = format!(
-            r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":[]}}}}}}"#
+        let text =
+            format!(r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":[]}}}}}}"#);
+        assert!(
+            load_settings(&write(&dir, &text))
+                .unwrap()
+                .work
+                .unwrap()
+                .tasks
+                .is_none()
         );
-        assert!(load_settings(&write(&dir, &text)).unwrap().work.unwrap().tasks.is_none());
         let no_prio = r#"{"folder":"Tasks","template":"T.md","statuses":["Todo","Done"],"done_status":"Done"}"#;
         let s = load_settings(&write(&dir, &tasks_text(&dir, no_prio))).unwrap();
         assert!(s.work.unwrap().tasks.unwrap().priorities.is_empty());

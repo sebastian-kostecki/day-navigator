@@ -7,6 +7,7 @@
 //! live entries ticked before D (`roll_over_in`), in the same transaction.
 //! Own entries take their ticked state from `own_tasks.done_at`.
 
+pub mod commands;
 pub mod error;
 
 #[cfg(test)]

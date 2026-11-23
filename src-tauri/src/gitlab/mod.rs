@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::cli::{CliError, GitlabConfig, GitlabHost, Tool};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ItemKind {
     Issue,

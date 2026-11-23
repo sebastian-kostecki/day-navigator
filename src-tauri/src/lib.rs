@@ -107,7 +107,15 @@ async fn set_own_task_done(
     id: i64,
     done: bool,
 ) -> Result<OwnTask, OwnTaskError> {
-    on_store(app, move |s, now| own_tasks::set_done(s, id, done, now)).await
+    // One write: roll over first, so a task ticked on an earlier day and
+    // reopened before today's list was read stays closed in "To do".
+    on_store(app, move |s, now| {
+        s.write(|tx| {
+            todo::roll_over_in(tx, now.date())?;
+            own_tasks::set_done_in(tx, id, done, now)
+        })
+    })
+    .await
 }
 
 /// The add form's space: Work while the work-time counter runs, else Private.
@@ -195,6 +203,11 @@ pub fn run() {
             edit_own_task,
             set_own_task_done,
             own_task_default_space,
+            todo::commands::list_todo,
+            todo::commands::add_todo_own_task,
+            todo::commands::add_todo_gitlab_item,
+            todo::commands::set_todo_ticked,
+            todo::commands::remove_todo,
             work_time::commands::work_timer_status,
             work_time::commands::list_work_entries,
             work_time::commands::start_work,

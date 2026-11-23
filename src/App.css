@@ -600,3 +600,75 @@ fieldset {
     color: #ff8a9b;
   }
 }
+
+/* To do view */
+
+.todo-counter {
+  font-weight: 600;
+}
+
+.todo-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.todo-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background-color: #ffffff;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+}
+
+.todo-row > input[type="checkbox"] {
+  margin-top: 6px;
+}
+
+.todo-row > button {
+  margin-left: auto;
+  flex: none;
+}
+
+.todo-row.is-done .todo-title {
+  text-decoration: line-through;
+  color: #666666;
+}
+
+.todo-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.todo-title {
+  display: block;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.todo-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 0.85em;
+  color: #666666;
+}
+
+.todo-meta .badge {
+  margin-left: 0;
+}
+
+.todo-closed {
+  background-color: #e8effc;
+  color: #2a4f9e;
+}
+
+.todo-picker h3 {
+  margin: 12px 0 8px;
+  font-size: 1em;
+}

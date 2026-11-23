@@ -380,8 +380,8 @@ Migration v3 only adds a table, so existing data is untouched. A store opened by
 
 #### Automated
 
-- [x] 2.1 `cargo test` passes, including the reconcile unit and integration tests and the `reconcile_input` state tests
-- [x] 2.2 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass
+- [x] 2.1 `cargo test` passes, including the reconcile unit and integration tests and the `reconcile_input` state tests — d88dd4d
+- [x] 2.2 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass — d88dd4d
 
 #### Manual
 
@@ -392,9 +392,9 @@ Migration v3 only adds a table, so existing data is untouched. A store opened by
 
 #### Automated
 
-- [ ] 3.1 `npm run lint`, `npm run format:check` and `npm run build` pass (zero TS errors)
-- [ ] 3.2 `cargo test`, `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass in `src-tauri/`
-- [ ] 3.3 A command-serialization unit test pins the `TodoList` JSON shape that the TS mirror relies on
+- [x] 3.1 `npm run lint`, `npm run format:check` and `npm run build` pass (zero TS errors)
+- [x] 3.2 `cargo test`, `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass in `src-tauri/`
+- [x] 3.3 A command-serialization unit test pins the `TodoList` JSON shape that the TS mirror relies on
 
 #### Manual
 

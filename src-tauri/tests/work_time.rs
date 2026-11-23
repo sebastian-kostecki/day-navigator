@@ -84,11 +84,7 @@ fn days_off_survive_dropping_and_reopening_the_store() {
     .unwrap();
     assert_eq!(dec.days_off, vec!["2026-12-24".to_string()]);
     assert!(!report::is_workday(&store, NaiveDate::from_ymd_opt(2026, 11, 11).unwrap()).unwrap());
-    assert!(report::is_workday(&store, unmarked_day()).unwrap());
-}
-
-fn unmarked_day() -> NaiveDate {
-    NaiveDate::from_ymd_opt(2026, 11, 24).unwrap()
+    assert!(report::is_workday(&store, NaiveDate::from_ymd_opt(2026, 11, 24).unwrap()).unwrap());
 }
 
 #[test]

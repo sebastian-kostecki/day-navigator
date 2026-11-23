@@ -103,11 +103,24 @@ fn crash_keeps_days_off_consistent() {
             "round {round} ({kill:?}): lost commit, {} < reported {last}",
             all.len()
         );
-        for d in &all {
-            assert!(
-                !matches!(parse(d).weekday(), Weekday::Sat | Weekday::Sun),
-                "round {round} ({kill:?}): weekend row {d}"
-            );
-        }
+        // The writer marks weekdays in order from `first_day()`, so the rows must
+        // be exactly the first N weekdays: no gap, no weekend, nothing torn.
+        assert_eq!(
+            all,
+            first_weekdays(all.len()),
+            "round {round} ({kill:?}): rows are not the contiguous weekday run"
+        );
     }
+}
+
+fn first_weekdays(n: usize) -> Vec<String> {
+    let mut out = Vec::with_capacity(n);
+    let mut day = first_day();
+    while out.len() < n {
+        if !matches!(day.weekday(), Weekday::Sat | Weekday::Sun) {
+            out.push(day.format("%Y-%m-%d").to_string());
+        }
+        day = day.succ_opt().unwrap();
+    }
+    out
 }

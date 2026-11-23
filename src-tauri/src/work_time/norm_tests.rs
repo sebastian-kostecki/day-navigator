@@ -356,6 +356,33 @@ fn set_day_off_is_idempotent_and_refuses_a_weekend_without_a_row() {
 }
 
 #[test]
+fn parse_day_accepts_only_the_canonical_form() {
+    assert_eq!(report::parse_day("2026-11-11").unwrap(), d("2026-11-11"));
+    for bad in [
+        "+10000-01-03",
+        "10000-01-03",
+        "2026-1-05",
+        "2026-02-30",
+        "2026-11-11 ",
+        "",
+    ] {
+        let r = report::parse_day(bad);
+        assert!(matches!(r, Err(WorkTimeError::InvalidLocalTime)), "{bad:?}");
+    }
+}
+
+#[test]
+fn a_day_off_key_the_check_refuses_fails_instead_of_being_ignored() {
+    let (_tmp, mut store) = open();
+    // Monday 10000-01-03 formats as `+10000-01-03`, which the GLOB CHECK refuses.
+    let far = NaiveDate::from_ymd_opt(10000, 1, 3).unwrap();
+    assert!(!norm::is_weekend(far));
+    let r = report::set_day_off(&mut store, far, true, now());
+    assert!(matches!(r, Err(WorkTimeError::Store(_))), "{r:?}");
+    assert_eq!(day_off_rows(&store), 0);
+}
+
+#[test]
 fn day_entries_report_all_three_day_kinds() {
     let (_tmp, mut store) = open();
     report::set_day_off(&mut store, d("2026-11-11"), true, now()).unwrap();

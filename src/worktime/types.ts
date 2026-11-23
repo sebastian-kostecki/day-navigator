@@ -60,19 +60,44 @@ export type DayKind = "workday" | "dayOff" | "weekend";
 
 export type MonthPhase = "past" | "current" | "future";
 
-export interface MonthReport {
+interface MonthReportBase {
   /** `YYYY-MM`. */
   month: string;
-  phase: MonthPhase;
   asOfMs: number;
   workedMs: number;
   normMs: number;
   workdays: number;
-  normToDateMs: number | null;
-  deviationMs: number | null;
-  workdaysAfterToday: number | null;
-  neededPerDayMs: number | null;
-  remainingMs: number | null;
   /** `YYYY-MM-DD`, sorted, this month only. */
   daysOff: string[];
 }
+
+/**
+ * Mirrors the flattened Rust `MonthReport` + `NormFigures`: which figures are
+ * set depends on `phase` (`norm::figures`), so the union is discriminated on it.
+ */
+export type MonthReport =
+  | (MonthReportBase & {
+      phase: "past";
+      normToDateMs: number;
+      deviationMs: number;
+      workdaysAfterToday: null;
+      neededPerDayMs: null;
+      remainingMs: null;
+    })
+  | (MonthReportBase & {
+      phase: "current";
+      normToDateMs: number;
+      deviationMs: number;
+      workdaysAfterToday: number;
+      /** `null` when no workday is left after today. */
+      neededPerDayMs: number | null;
+      remainingMs: number;
+    })
+  | (MonthReportBase & {
+      phase: "future";
+      normToDateMs: null;
+      deviationMs: null;
+      workdaysAfterToday: null;
+      neededPerDayMs: null;
+      remainingMs: null;
+    });

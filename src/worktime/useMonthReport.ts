@@ -25,7 +25,12 @@ export function useMonthReport(day: string) {
   // Latest request wins, as in useWorkTimer.
   const issued = useRef(0);
   const applied = useRef(0);
-  const lastOkAt = useRef<number | null>(null);
+  // The last successful load per month, so an error never shows another month's time.
+  const lastOk = useRef<{ month: string; at: number } | null>(null);
+  const lastOkAt = useCallback(
+    () => (lastOk.current?.month === month ? lastOk.current.at : null),
+    [month],
+  );
 
   const refresh = useCallback(async () => {
     const id = ++issued.current;
@@ -33,13 +38,13 @@ export function useMonthReport(day: string) {
     try {
       value = { state: "loaded", report: await workMonthReport(`${month}-01`) };
     } catch (e) {
-      value = { state: "error", message: workTimeErrorMessage(e), lastOkAt: lastOkAt.current };
+      value = { state: "error", message: workTimeErrorMessage(e), lastOkAt: lastOkAt() };
     }
     if (id < applied.current) return;
     applied.current = id;
-    if (value.state === "loaded") lastOkAt.current = Date.now();
+    if (value.state === "loaded") lastOk.current = { month, at: Date.now() };
     setResult({ month, value });
-  }, [month]);
+  }, [month, lastOkAt]);
 
   // Subscribe first and load only once the listener is registered. The webview
   // may be hidden for days, so also refetch when it becomes visible or focused.
@@ -71,7 +76,7 @@ export function useMonthReport(day: string) {
         applied.current = id;
         setResult({
           month,
-          value: { state: "error", message: workTimeErrorMessage(e), lastOkAt: lastOkAt.current },
+          value: { state: "error", message: workTimeErrorMessage(e), lastOkAt: lastOkAt() },
         });
       });
 
@@ -81,20 +86,30 @@ export function useMonthReport(day: string) {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onFocus);
     };
-  }, [month, refresh, attempt]);
+  }, [month, refresh, lastOkAt, attempt]);
 
-  const current =
-    result !== null &&
-    result.month === month &&
-    result.value.state === "loaded" &&
-    result.value.report.phase === "current";
+  // Poll every month except a loaded past one, which cannot change on its own:
+  // the current month moves with the counter and at midnight, a future month
+  // becomes current at midnight on the 1st, and a failed load must recover.
+  // An error redoes the subscribe and the load together (as retry does).
+  const shown = result !== null && result.month === month ? result.value : null;
+  const poll: "refresh" | "resubscribe" | null =
+    shown?.state === "error"
+      ? "resubscribe"
+      : shown?.state === "loaded" && shown.report.phase === "past"
+        ? null
+        : "refresh";
 
-  // The current month moves with the running counter and at midnight.
   useEffect(() => {
-    if (!current) return;
-    const handle = setInterval(() => void refresh(), REFRESH_MS);
+    if (poll === null) return;
+    const handle = setInterval(() => {
+      // Hidden: the visibilitychange/focus listeners refetch on return.
+      if (document.visibilityState !== "visible") return;
+      if (poll === "resubscribe") setAttempt((n) => n + 1);
+      else void refresh();
+    }, REFRESH_MS);
     return () => clearInterval(handle);
-  }, [current, refresh]);
+  }, [poll, refresh]);
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 

@@ -6,7 +6,7 @@
 
 use std::collections::BTreeSet;
 
-use chrono::{NaiveDate, TimeZone};
+use chrono::{Datelike, NaiveDate, TimeZone};
 use rusqlite::Connection;
 use serde::Serialize;
 
@@ -124,6 +124,18 @@ pub fn month_report<Tz: TimeZone>(
     store.read(|c| compute(c, day, now, tz))
 }
 
+/// Parses a `YYYY-MM-DD` day from the UI. Only a four-digit year in the
+/// canonical form is accepted (it must format back to the same string), so a
+/// parsed day always yields a key the `days_off` CHECK allows: no signed or
+/// five-digit years, no `2026-1-5`.
+pub fn parse_day(day: &str) -> Result<NaiveDate, WorkTimeError> {
+    NaiveDate::parse_from_str(day, DAY_FORMAT)
+        .ok()
+        .filter(|d| (1..=9999).contains(&d.year()))
+        .filter(|d| d.format(DAY_FORMAT).to_string() == day)
+        .ok_or(WorkTimeError::InvalidLocalTime)
+}
+
 /// Marks or unmarks a day off. Idempotent; a weekend is refused.
 pub fn set_day_off(
     store: &mut Store,
@@ -137,8 +149,10 @@ pub fn set_day_off(
     let key = day.format(DAY_FORMAT).to_string();
     store.write(|tx| {
         if off {
+            // Only the duplicate is ignored; a CHECK violation still fails the write.
             tx.execute(
-                "INSERT OR IGNORE INTO days_off(day, created_at_ms) VALUES (?1, ?2)",
+                "INSERT INTO days_off(day, created_at_ms) VALUES (?1, ?2) \
+                 ON CONFLICT(day) DO NOTHING",
                 (&key, now),
             )?;
         } else {

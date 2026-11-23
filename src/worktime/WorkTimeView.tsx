@@ -190,7 +190,7 @@ function EntryItem(props: {
 
 export default function WorkTimeView() {
   const [day, setDay] = useState(localToday);
-  const { entries, add, update, remove, setDayOff, dayOffBusy, busyIds, retry } =
+  const { entries, add, update, remove, setDayOff, dayOffChecked, dayOffBusy, busyIds, retry } =
     useWorkEntries(day);
   const { report, retry: retryReport } = useMonthReport(day);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -304,7 +304,7 @@ export default function WorkTimeView() {
         <label>
           <input
             type="checkbox"
-            checked={entries.data.dayKind === "dayOff"}
+            checked={dayOffChecked}
             disabled={dayOffBusy}
             onChange={(e) => void toggleDayOff(e.currentTarget.checked)}
           />{" "}

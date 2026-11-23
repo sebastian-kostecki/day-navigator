@@ -1,45 +1,47 @@
 import { ErrorState } from "../components/ErrorState";
-import { formatClock, formatHm, formatMonth, formatSigned } from "./format";
+import { formatClock, formatHm, formatMonth, formatSigned, formatWorkdays } from "./format";
 import type { MonthReport as Report } from "./types";
 import type { MonthReportState } from "./useMonthReport";
+
+type CurrentReport = Extract<Report, { phase: "current" }>;
 
 function shortDay(day: string): string {
   return `${day.slice(8, 10)}.${day.slice(5, 7)}`;
 }
 
 function workedLine(report: Report): string {
-  return `Przepracowano ${formatHm(report.workedMs)} z ${formatHm(report.normMs)} (${report.workdays} dni roboczych)`;
+  return `Przepracowano ${formatHm(report.workedMs)} z ${formatHm(report.normMs)} (${formatWorkdays(report.workdays)})`;
 }
 
-function neededLine(report: Report): string {
+function neededLine(report: CurrentReport): string {
   if (report.remainingMs === 0) return "Norma miesiąca wyrobiona";
-  if (report.workdaysAfterToday === 0) {
-    return `Do wyrobienia normy brakuje ${formatHm(report.remainingMs ?? 0)}`;
+  // `neededPerDayMs` is null exactly when no workday is left after today.
+  if (report.workdaysAfterToday === 0 || report.neededPerDayMs === null) {
+    return `Do wyrobienia normy brakuje ${formatHm(report.remainingMs)}`;
   }
-  return `Średnio ${formatHm(report.neededPerDayMs ?? 0)} dziennie przez ${report.workdaysAfterToday ?? 0} dni roboczych`;
+  return `Średnio ${formatHm(report.neededPerDayMs)} dziennie przez ${formatWorkdays(report.workdaysAfterToday)}`;
 }
 
 function Lines({ report, onPickDay }: { report: Report; onPickDay: (day: string) => void }) {
-  const deviation = formatSigned(report.deviationMs ?? 0);
   let lines: React.ReactNode;
   if (report.phase === "future") {
     lines = (
       <p>
-        Norma {formatHm(report.normMs)} ({report.workdays} dni robocze)
+        Norma {formatHm(report.normMs)} ({formatWorkdays(report.workdays)})
       </p>
     );
   } else if (report.phase === "past") {
     lines = (
       <>
         <p>{workedLine(report)}</p>
-        <p>Odchylenie {deviation} (miesiąc zamknięty)</p>
+        <p>Odchylenie {formatSigned(report.deviationMs)} (miesiąc zamknięty)</p>
       </>
     );
   } else {
     lines = (
       <>
         <p>{workedLine(report)}</p>
-        <p>Odchylenie do dziś {deviation}</p>
+        <p>Odchylenie do dziś {formatSigned(report.deviationMs)}</p>
         <p>{neededLine(report)}</p>
       </>
     );

@@ -28,6 +28,15 @@ export function formatSigned(ms: number): string {
   return `${minutes < 0 ? "−" : "+"}${hm(Math.abs(minutes))}`;
 }
 
+/** `N dzień roboczy` / `N dni robocze` / `N dni roboczych` (Polish plural). */
+export function formatWorkdays(n: number): string {
+  if (n === 1) return "1 dzień roboczy";
+  const units = n % 10;
+  const tens = n % 100;
+  if (units >= 2 && units <= 4 && (tens < 12 || tens > 14)) return `${n} dni robocze`;
+  return `${n} dni roboczych`;
+}
+
 /** Polish month name and year for `YYYY-MM`. */
 export function formatMonth(month: string): string {
   const [y, m] = month.split("-").map(Number);

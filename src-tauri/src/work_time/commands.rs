@@ -6,7 +6,7 @@
 //! successful write, emits `work-time-changed` (no payload). Errors are logged
 //! by kind only.
 
-use chrono::{Local, NaiveDate, Utc};
+use chrono::{Local, Utc};
 use tauri::{AppHandle, Emitter, Manager};
 
 use super::report::{self, MonthReport};
@@ -74,8 +74,7 @@ pub async fn work_timer_status(app: AppHandle) -> Result<WorkTimerStatus, WorkTi
 
 #[tauri::command]
 pub async fn list_work_entries(app: AppHandle, day: String) -> Result<DayEntries, WorkTimeError> {
-    let day =
-        NaiveDate::parse_from_str(&day, "%Y-%m-%d").map_err(|_| WorkTimeError::InvalidLocalTime)?;
+    let day = report::parse_day(&day)?;
     run(&app, "list", move |store, now| {
         super::entries_for_day(store, day, now, &Local)
     })
@@ -140,13 +139,9 @@ pub async fn remove_work_entry(app: AppHandle, id: i64) -> Result<(), WorkTimeEr
     Ok(())
 }
 
-fn parse_day(day: &str) -> Result<NaiveDate, WorkTimeError> {
-    NaiveDate::parse_from_str(day, "%Y-%m-%d").map_err(|_| WorkTimeError::InvalidLocalTime)
-}
-
 #[tauri::command]
 pub async fn work_month_report(app: AppHandle, day: String) -> Result<MonthReport, WorkTimeError> {
-    let day = parse_day(&day)?;
+    let day = report::parse_day(&day)?;
     run(&app, "month_report", move |store, now| {
         report::month_report(store, day, now, &Local)
     })
@@ -155,7 +150,7 @@ pub async fn work_month_report(app: AppHandle, day: String) -> Result<MonthRepor
 
 #[tauri::command]
 pub async fn set_day_off(app: AppHandle, day: String, off: bool) -> Result<(), WorkTimeError> {
-    let day = parse_day(&day)?;
+    let day = report::parse_day(&day)?;
     run(&app, "set_day_off", move |store, now| {
         report::set_day_off(store, day, off, now)
     })

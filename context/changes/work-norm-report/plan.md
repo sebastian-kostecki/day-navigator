@@ -22,7 +22,7 @@ All rules live in the Rust `work_time` module and are unit-tested on invented mo
 
 ## Desired End State
 
-- "Czas pracy" starts with a month report for the month of the chosen day.
+- "Czas pracy" shows a month report for the month of the chosen day, between the day picker (with its "Dzień wolny" checkbox) and the entry list.
   - **Current month:** the month's worked total, the norm (workdays and hours), the deviation to date, the month's days off, and how much is needed per remaining workday. The deviation is signed, e.g. "−4:00", with today's 8 h included when today is a workday. The needed figure is the average over the workdays after today. On the last workday it shows the remaining shortfall instead, and once the norm is met it says so.
   - **Past month:** the final worked total and final deviation, with no needed figure.
   - **Future month:** only the norm and the days off.

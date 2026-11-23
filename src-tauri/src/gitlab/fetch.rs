@@ -8,7 +8,7 @@ use chrono::{DateTime, Duration, FixedOffset, Local, NaiveDate, TimeZone};
 
 use super::notes::{IssueNote, parse_notes};
 use super::{
-    AssignedItems, GitlabError, GitlabItem, ItemKind, parse_issues, parse_merge_requests,
+    AssignedItems, ClosedItem, GitlabError, ItemKind, parse_issues, parse_merge_requests,
     parse_recently_closed,
 };
 use crate::cli::{CliCall, CliRunner, GitlabConfig, GitlabHost, IssueRef, UpdatedAfter};
@@ -57,13 +57,14 @@ pub fn closed_window(today: NaiveDate, days: u32) -> Option<(UpdatedAfter, DateT
 /// The assigned items closed (issues) or closed and merged (MRs) since
 /// `cutoff`: merge requests first, then issues, the first failure ends it (no
 /// partial list). Newest closing first, ties by kind (MRs first), then reference.
-/// `after` only narrows the server-side query; the closing time decides.
+/// `after` only narrows the server-side query; the closing time decides and is
+/// kept on each item for the row.
 pub fn fetch_recently_closed(
     runner: &CliRunner,
     config: &GitlabConfig,
     after: UpdatedAfter,
     cutoff: DateTime<FixedOffset>,
-) -> Result<Vec<GitlabItem>, GitlabError> {
+) -> Result<Vec<ClosedItem>, GitlabError> {
     let host = &config.host;
     let mrs_out = runner.run(&CliCall::GlabRecentlyClosedMergeRequests(
         host.clone(),
@@ -89,7 +90,13 @@ pub fn fetch_recently_closed(
             &b.1.reference,
         ))
     });
-    Ok(closed.into_iter().map(|(_, item)| item).collect())
+    Ok(closed
+        .into_iter()
+        .map(|(at, item)| ClosedItem {
+            item,
+            closed_at: at.to_rfc3339(),
+        })
+        .collect())
 }
 
 fn kind_rank(kind: ItemKind) -> u8 {

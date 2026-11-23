@@ -48,10 +48,16 @@ export type FilteredOut = {
   hiddenIssues: number;
 };
 
+/** A recently closed item. Mirrors `gitlab::ClosedItem` (the item is flattened). */
+export type ClosedItem = GitlabItem & {
+  /** When it was closed or merged (RFC 3339); orders the section. */
+  closedAt: string;
+};
+
 /** Recently closed items. Mirrors `gitlab::ClosedSection`. */
 export type ClosedSection = {
   days: number;
-  items: GitlabItem[];
+  items: ClosedItem[];
   filteredOut: number;
   /** Fixed Polish text when the closed fetch failed; `items` is then empty. */
   error: string | null;

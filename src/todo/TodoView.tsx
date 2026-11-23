@@ -466,7 +466,7 @@ function Picker({
         ) : (
           gitlabOk && (
             <p className="empty">
-              {gitlabFilteredOut !== null
+              {gitlabFilteredOut !== null && gitlabFilteredOut > 0
                 ? `Brak pasujących do filtra (ukryte filtrem: ${gitlabFilteredOut})`
                 : "Brak przypisanych w GitLabie."}
             </p>

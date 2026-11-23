@@ -362,6 +362,16 @@ pub struct FilteredOut {
     pub hidden_issues: u32,
 }
 
+/// A recently closed item with the instant it was closed or merged (RFC 3339),
+/// which orders the section and is what its row shows.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosedItem {
+    #[serde(flatten)]
+    pub item: GitlabItem,
+    pub closed_at: String,
+}
+
 /// The optional "recently closed" section (`closedDays`): its own items, its own
 /// filter count and its own error, so a failed closed fetch never touches the
 /// open list. Never part of `AssignedItems`.
@@ -369,7 +379,7 @@ pub struct FilteredOut {
 #[serde(rename_all = "camelCase")]
 pub struct ClosedSection {
     pub days: u32,
-    pub items: Vec<GitlabItem>,
+    pub items: Vec<ClosedItem>,
     pub filtered_out: u32,
     /// Fixed Polish text when the closed fetch failed; `items` is then empty.
     pub error: Option<String>,
@@ -1013,7 +1023,10 @@ mod tests {
             items: if error.is_some() {
                 vec![]
             } else {
-                vec![item("g/p#9")]
+                vec![ClosedItem {
+                    item: item("g/p#9"),
+                    closed_at: "2026-03-02T10:00:00+00:00".into(),
+                }]
             },
             filtered_out: 1,
             error: error.map(str::to_string),
@@ -1066,7 +1079,13 @@ mod tests {
         assert_eq!(v["closed"]["days"], 7);
         assert_eq!(v["closed"]["filteredOut"], 1);
         assert_eq!(v["closed"]["error"], serde_json::Value::Null);
+        // The item is flattened next to its closing time.
         assert_eq!(v["closed"]["items"][0]["reference"], "g/p#9");
+        assert_eq!(
+            v["closed"]["items"][0]["closedAt"],
+            "2026-03-02T10:00:00+00:00"
+        );
+        assert!(v["closed"]["items"][0].get("item").is_none());
         let failed = GitlabSnapshot {
             closed: Some(closed_section(Some("fixed text"))),
             ..GitlabSnapshot::starting()

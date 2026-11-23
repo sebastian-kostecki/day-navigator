@@ -10,8 +10,8 @@
 //! store and every hide/unhide/dismiss command run under it, so a late round can
 //! never publish a partition older than a command's. It is never held across a
 //! `glab` call or an `emit`. Lock order: gate, then `kept_config`, then
-//! `kept_full`, then `kept_filter`, then the snapshot lock (and the store lock
-//! inside the gate).
+//! `kept_full`, then `kept_filter`, then the snapshot lock. The store lock is
+//! taken inside the gate, but never while a `kept_*` lock is held.
 //!
 //! Logging: state kinds and elapsed time only. Never the host, a title, a
 //! reference, a URL, a count tied to names or a serde error.
@@ -29,8 +29,8 @@ use crate::cli::{CliRunner, GitlabConfig, GitlabHost};
 use crate::gitlab::fetch::{closed_window, fetch_assigned, fetch_recently_closed};
 use crate::gitlab::filter::GitlabFilter;
 use crate::gitlab::{
-    self, AssignedItems, ClosedSection, FilteredOut, GitlabError, GitlabItem, GitlabSnapshot,
-    ItemKind,
+    self, AssignedItems, ClosedItem, ClosedSection, FilteredOut, GitlabError, GitlabItem,
+    GitlabSnapshot, ItemKind,
 };
 use crate::health;
 use crate::hidden_issues::{
@@ -137,17 +137,9 @@ impl GitlabRefreshState {
             .find(|i| i.id == id && i.kind == ItemKind::Issue)
             .ok_or(HiddenIssueError::NotInList)?;
         let records = act(&config.host, item)?;
-        let (visible, hidden) = partition(&full.issues, &records);
+        let (shown, filtered_out) = shape_items(&full, &records, &filter);
         // The checks ran on every hidden issue, so the cap ignores the filter.
-        let hidden_total = hidden.len() as u32;
-        let (shown, filtered_out) = filter_shown(
-            AssignedItems {
-                merge_requests: full.merge_requests.clone(),
-                issues: visible,
-                hidden_issues: hidden,
-            },
-            &filter,
-        );
+        let hidden_total = shown.hidden_issues.len() as u32 + filtered_out.hidden_issues;
         // One write: a concurrent "refreshing" flag flip must not be lost.
         let mut snap = self.write();
         // Failed checks are only counted per round; never more than are hidden.
@@ -190,7 +182,8 @@ fn filter_shown(shown: AssignedItems, filter: &GitlabFilter) -> (AssignedItems, 
 }
 
 /// The shown list for a kept full list: partition by the stored hidden records,
-/// then filter. Used when a failed round re-shapes the kept list.
+/// then filter. Shared by the hide commands and a failed round that re-shapes
+/// the kept list.
 fn shape_items(
     full: &AssignedItems,
     records: &[HiddenRecord],
@@ -205,6 +198,38 @@ fn shape_items(
         },
         filter,
     )
+}
+
+/// A failed round that keeps the items shapes them again with this round's
+/// filter, so an offline filter edit takes effect and an invalid-block notice
+/// never sits over a list still filtered by the old rule. Returns whether the
+/// list was re-shaped; the caller then stores `filter` as the kept filter.
+///
+/// `records` is `None` when the hidden records could not be read: the list then
+/// stays as it was shown. The closed section cannot be re-fetched offline, so it
+/// is dropped when this round's filter is invalid or has `closedDays` off, and
+/// kept as it was otherwise.
+fn reshape_kept(
+    next: &mut GitlabSnapshot,
+    full: Option<&AssignedItems>,
+    records: Option<&[HiddenRecord]>,
+    filter: &GitlabFilter,
+    filter_invalid: bool,
+) -> bool {
+    if next.items.is_none() {
+        return false;
+    }
+    if filter_invalid || filter.closed_days.is_none() {
+        next.closed = None;
+    }
+    let (Some(full), Some(records)) = (full, records) else {
+        return false;
+    };
+    let (shown, out) = shape_items(full, records, filter);
+    next.items = Some(shown);
+    next.filter_active = filter.is_active();
+    next.filtered_out = out;
+    true
 }
 
 /// Reads the `gitlabFilter` block for a round: the filter and whether the block
@@ -234,7 +259,12 @@ fn fetch_closed_section(
         .and_then(|(after, cutoff)| fetch_recently_closed(runner, config, after, cutoff));
     match fetched {
         Ok(items) => {
-            let (items, filtered_out) = filter.apply(&items);
+            let total = items.len();
+            let items: Vec<ClosedItem> = items
+                .into_iter()
+                .filter(|c| filter.keeps(&c.item))
+                .collect();
+            let filtered_out = (total - items.len()) as u32;
             ClosedSection {
                 days,
                 items,
@@ -470,6 +500,15 @@ fn refresh_round(
     }
     next.refresh_setting_invalid = refresh_invalid;
     next.filter_invalid = filter_invalid;
+    // A failed round that keeps the items re-shapes them below. The hidden
+    // records are read here, under the gate but before any `kept_*` lock.
+    let kept_records = match (&full_list, &next_kept) {
+        (None, Some(cfg)) if next.items.is_some() => {
+            let today = Local::now().naive_local().date();
+            store.with_store(today, |s| list_hidden(s, &cfg.host)).ok()
+        }
+        _ => None,
+    };
     {
         let mut kept_full = state.kept_full.lock().unwrap_or_else(|p| p.into_inner());
         let mut kept_filter = state.kept_filter.lock().unwrap_or_else(|p| p.into_inner());
@@ -483,23 +522,16 @@ fn refresh_round(
                 *kept_full = None;
                 *kept_filter = GitlabFilter::default();
             }
-            // A kept list is shaped again with this round's filter, so an
-            // offline filter edit takes effect and an invalid-block notice never
-            // sits over a list still filtered by the old rule. If the hidden
-            // records cannot be read, the list stays as it was shown.
+            // A kept list is shaped again with this round's filter.
             None => {
-                if let (Some(full), Some(cfg), true) =
-                    (kept_full.as_ref(), next_kept.as_ref(), next.items.is_some())
-                {
-                    let today = Local::now().naive_local().date();
-                    let records = store.with_store(today, |s| list_hidden(s, &cfg.host));
-                    if let Ok(records) = records {
-                        let (shown, out) = shape_items(full, &records, &filter);
-                        next.items = Some(shown);
-                        next.filter_active = filter.is_active();
-                        next.filtered_out = out;
-                        *kept_filter = filter.clone();
-                    }
+                if reshape_kept(
+                    &mut next,
+                    kept_full.as_ref(),
+                    kept_records.as_deref(),
+                    &filter,
+                    filter_invalid,
+                ) {
+                    *kept_filter = filter.clone();
                 }
             }
         }
@@ -822,6 +854,149 @@ mod tests {
         assert_eq!(none, FilteredOut::default());
     }
 
+    fn closed_item(id: u64) -> ClosedItem {
+        ClosedItem {
+            item: entry(id, ItemKind::Issue),
+            closed_at: "2026-03-02T10:00:00+00:00".into(),
+        }
+    }
+
+    /// The state of a failed round that kept the items: last shown with an
+    /// `acme/a` project filter, closed section on.
+    fn kept_round() -> (GitlabSnapshot, AssignedItems) {
+        let full = AssignedItems {
+            merge_requests: vec![entry_in(3, ItemKind::MergeRequest, "acme/b")],
+            issues: vec![
+                entry_in(1, ItemKind::Issue, "acme/a"),
+                entry_in(2, ItemKind::Issue, "acme/a"),
+                entry_in(4, ItemKind::Issue, "acme/b"),
+            ],
+            hidden_issues: vec![],
+        };
+        let (shown, out) = shape_items(&full, &[], &project_filter("acme/a"));
+        let next = GitlabSnapshot {
+            state: State::Unavailable {
+                message: String::new(),
+            },
+            items: Some(shown),
+            filter_active: true,
+            filtered_out: out,
+            closed: Some(ClosedSection {
+                days: 7,
+                items: vec![closed_item(9)],
+                filtered_out: 0,
+                error: None,
+            }),
+            ..GitlabSnapshot::starting()
+        };
+        (next, full)
+    }
+
+    fn closed_on(mut filter: GitlabFilter) -> GitlabFilter {
+        filter.closed_days = Some(7);
+        filter
+    }
+
+    #[test]
+    fn reshape_kept_applies_this_rounds_filter_and_hidden_records() {
+        let (mut next, full) = kept_round();
+        let closed = next.closed.clone();
+        let records = [record(2, None)];
+        let filter = closed_on(project_filter("acme/b"));
+        assert!(reshape_kept(
+            &mut next,
+            Some(&full),
+            Some(&records),
+            &filter,
+            false
+        ));
+        let items = next.items.as_ref().unwrap();
+        assert_eq!(items.issues.iter().map(|i| i.id).collect::<Vec<_>>(), [4]);
+        assert_eq!(items.merge_requests.len(), 1);
+        assert!(items.hidden_issues.is_empty());
+        assert!(next.filter_active);
+        assert_eq!(
+            next.filtered_out,
+            FilteredOut {
+                merge_requests: 0,
+                issues: 1,
+                hidden_issues: 1
+            }
+        );
+        // A valid rule with the closed section on keeps the section as it was.
+        assert_eq!(next.closed, closed);
+    }
+
+    #[test]
+    fn reshape_kept_after_an_invalid_block_shows_everything_and_drops_closed() {
+        let (mut next, full) = kept_round();
+        assert!(reshape_kept(
+            &mut next,
+            Some(&full),
+            Some(&[]),
+            &GitlabFilter::default(),
+            true
+        ));
+        let items = next.items.as_ref().unwrap();
+        assert_eq!(items.issues.len(), 3);
+        assert_eq!(items.merge_requests.len(), 1);
+        assert!(!next.filter_active);
+        assert_eq!(next.filtered_out, FilteredOut::default());
+        assert_eq!(next.closed, None);
+    }
+
+    #[test]
+    fn reshape_kept_drops_closed_when_closed_days_is_switched_off() {
+        let (mut next, full) = kept_round();
+        assert!(reshape_kept(
+            &mut next,
+            Some(&full),
+            Some(&[]),
+            &project_filter("acme/a"),
+            false
+        ));
+        assert_eq!(next.closed, None);
+    }
+
+    #[test]
+    fn reshape_kept_without_records_keeps_the_shown_list() {
+        let (mut next, full) = kept_round();
+        let before = next.clone();
+        // The store read failed: the list stays as it was shown and the kept
+        // filter is not replaced, but an invalid block still drops `closed`.
+        assert!(!reshape_kept(
+            &mut next,
+            Some(&full),
+            None,
+            &GitlabFilter::default(),
+            true
+        ));
+        assert_eq!(next.items, before.items);
+        assert_eq!(next.filtered_out, before.filtered_out);
+        assert!(next.filter_active);
+        assert_eq!(next.closed, None);
+    }
+
+    #[test]
+    fn reshape_kept_without_kept_items_changes_nothing() {
+        let (mut next, full) = kept_round();
+        next.items = None;
+        let before = next.clone();
+        assert!(!reshape_kept(
+            &mut next,
+            Some(&full),
+            Some(&[]),
+            &GitlabFilter::default(),
+            true
+        ));
+        assert_eq!(next, before);
+        // No kept full list: nothing to re-shape.
+        let (mut next, _) = kept_round();
+        let filter = closed_on(GitlabFilter::default());
+        assert!(!reshape_kept(&mut next, None, Some(&[]), &filter, false));
+        assert!(next.closed.is_some());
+    }
+
     #[test]
     fn load_filter_falls_back_to_the_default_and_flags_an_invalid_block() {
         assert_eq!(load_filter(&None), (GitlabFilter::default(), false));
@@ -1055,7 +1230,7 @@ mod tests {
         let state = kept_state();
         let closed = ClosedSection {
             days: 7,
-            items: vec![entry(50, ItemKind::Issue)],
+            items: vec![closed_item(50)],
             filtered_out: 2,
             error: None,
         };

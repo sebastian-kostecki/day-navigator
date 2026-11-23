@@ -179,13 +179,21 @@ fn after() -> UpdatedAfter {
 fn closed(
     scenario: &str,
     config: &GitlabConfig,
-) -> Result<Vec<day_navigator_lib::gitlab::GitlabItem>, GitlabError> {
+) -> Result<Vec<day_navigator_lib::gitlab::ClosedItem>, GitlabError> {
     fetch_recently_closed(&runner(scenario), config, after(), closed_cutoff())
 }
 
 #[test]
 fn recently_closed_returns_the_expected_items_newest_closing_first() {
-    let got = closed("gitlab-assigned", &host()).expect("data");
+    let closed_items = closed("gitlab-assigned", &host()).expect("data");
+    // Each item carries the closing instant that ordered it.
+    let times: Vec<DateTime<FixedOffset>> = closed_items
+        .iter()
+        .map(|c| DateTime::parse_from_rfc3339(&c.closed_at).unwrap())
+        .collect();
+    assert!(times.windows(2).all(|w| w[0] >= w[1]));
+    assert!(times.iter().all(|t| *t >= closed_cutoff()));
+    let got: Vec<_> = closed_items.into_iter().map(|c| c.item).collect();
     // The open MR and the issue closed before the cutoff are dropped.
     assert_eq!(
         refs(&got),

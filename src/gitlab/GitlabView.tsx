@@ -35,11 +35,14 @@ function ItemRow({
   item,
   actions,
   hidden = false,
+  at,
 }: {
   item: GitlabItem;
   /** Only issue rows get actions; merge request rows stay as they are. */
   actions?: RowActions;
   hidden?: boolean;
+  /** The time the row shows; the last update when not given. */
+  at?: string;
 }) {
   const url = item.webUrl;
   const working = actions?.busy.has(item.id) ?? false;
@@ -68,7 +71,7 @@ function ItemRow({
           ))}
         </span>
       )}
-      <span className="gitlab-updated">{formatUpdated(item.updatedAt)}</span>
+      <span className="gitlab-updated">{formatUpdated(at ?? item.updatedAt)}</span>
       {actions && (
         <span className="gitlab-actions">
           {item.changed && (
@@ -167,21 +170,27 @@ function HiddenSection({
 }
 
 function ClosedBlock({ closed }: { closed: ClosedSection }) {
+  const oneDay = closed.days === 1;
   return (
     <section className="gitlab-section">
       <h2>
-        Zamknięte (ostatnie {closed.days} dni) ({closed.items.length})
+        {oneDay ? "Zamknięte (ostatni dzień)" : `Zamknięte (ostatnie ${closed.days} dni)`}
+        {!closed.error && ` (${closed.items.length})`}
       </h2>
       {closed.error ? (
         <p className="gitlab-notice" role="status">
           {closed.error}
         </p>
       ) : closed.items.length === 0 ? (
-        <p className="empty">Brak zamkniętych w ostatnich {closed.days} dniach.</p>
+        <p className="empty">
+          {oneDay
+            ? "Brak zamkniętych w ostatnim dniu."
+            : `Brak zamkniętych w ostatnich ${closed.days} dniach.`}
+        </p>
       ) : (
         <ul className="gitlab-list">
           {closed.items.map((item) => (
-            <ItemRow key={`${item.kind}:${item.reference}`} item={item} />
+            <ItemRow key={`${item.kind}:${item.reference}`} item={item} at={item.closedAt} />
           ))}
         </ul>
       )}
@@ -271,7 +280,8 @@ export function GitlabView() {
 
   const { state, items, lastSuccessMs, refreshing, hiddenCheckFailed, ownCommentsKnown } = snapshot;
   const actions: RowActions = { busy, hide, unhide, dismiss };
-  const hasHidden = (items?.hiddenIssues.length ?? 0) > 0;
+  // Filtered-out hidden issues are still checked for comments, so they count.
+  const hasHidden = (items?.hiddenIssues.length ?? 0) + snapshot.filteredOut.hiddenIssues > 0;
   const lastSuccess =
     lastSuccessMs != null
       ? `Ostatnie udane odświeżenie: ${formatClock(lastSuccessMs)}`

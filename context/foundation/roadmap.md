@@ -53,7 +53,7 @@ One developer on one Windows 11 machine works for a company (issues in a work Gi
 | S-07 | todo-list               | pick today's items from the lists into "To do", tick them, carry the rest to tomorrow  | S-01, S-06    | FR-011, FR-012, US-01                     | done |
 | S-08 | work-timer              | start and stop work time from an always-visible counter and correct entries            | F-01          | FR-013, FR-017, NFR Trwałość czasu pracy  | done |
 | S-09 | work-norm-report        | see day and month sums and how far the month is from the norm                          | S-08          | FR-014                                    | done |
-| S-10 | timer-reminders         | get reminded when the counter runs too long or is not running on a workday             | S-08          | FR-018                                    | in-progress |
+| S-10 | timer-reminders         | get reminded when the counter runs too long or is not running on a workday             | S-08          | FR-018                                    | done |
 
 ## Streams
 
@@ -229,7 +229,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - Resolved 2026-11-23: defaults are "running too long" after 10 h and "not running" after 9:00 on a workday. Open Roadmap Question #3.
 - **Risk:** Reminders depend on the workday rule shared with S-09; if S-09 lands first, they reuse its days-off list.
-- **Status:** in-progress
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -282,4 +282,5 @@ Entries below come from this milestone's previous decomposition (archived at `co
 - **S-06: user can add a task in the Work or Private space (default Work while the counter runs, otherwise Private), edit its title and short plain note, set an optional due date and priority, and mark it done. The vault-based task screen from the previous decomposition is removed.** — Archived 2026-11-23 → `context/archive/2026-11-23-own-tasks/`. Lesson: —.
 - **S-07: user can pick today's items from the GitLab list and their own tasks (and from GitHub once S-05 lands) into "To do", up to the limit from settings (default 5). They tick items off; unticked items carry over to the next day; items closed in GitLab or GitHub tick themselves; ticking an own task marks it done.** — Archived 2026-11-23 → `context/archive/2026-11-23-todo-list/`. Lesson: —.
 - **S-09: user can see the day and month sums, how far the month is from the norm so far (8 h × workdays that have passed, Monday–Friday minus days they mark as off), and the average needed per remaining workday to meet the month's norm.** — Archived 2026-11-23 → `context/archive/2026-11-23-work-norm-report/`. Lesson: —.
+- **S-10: user gets a reminder when the counter has been running longer than the threshold from settings ("are you still working?") and when it is not running after the set hour on a workday.** — Archived 2026-11-23 → `context/archive/2026-11-23-timer-reminders/`. Lesson: —.
 - **S-03: user can hide an issue. It comes back, marked as changed, when its status changes or someone other than the user (bots included) comments on it.** — Archived 2026-11-23 → `context/archive/2026-11-23-hide-and-resurface/`. Lesson: —.

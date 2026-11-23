@@ -5,9 +5,21 @@
 use super::Migration;
 use super::error::StoreError;
 
-/// Production migrations, oldest first. Empty in F-01; each data slice appends
-/// its own.
-pub const MIGRATIONS: &[Migration] = &[];
+/// Production migrations, oldest first. Each data slice appends its own.
+pub const MIGRATIONS: &[Migration] = &[Migration {
+    version: 1,
+    sql: "CREATE TABLE own_tasks (
+  id         INTEGER PRIMARY KEY,
+  space      TEXT NOT NULL CHECK (space IN ('work','private')),
+  title      TEXT NOT NULL CHECK (length(title) BETWEEN 1 AND 200),
+  note       TEXT NOT NULL DEFAULT '' CHECK (length(note) <= 2000),
+  due        TEXT,
+  priority   TEXT CHECK (priority IN ('high','medium','low')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  done_at    TEXT
+);",
+}];
 
 /// Versions must start at 1 and rise by exactly 1.
 pub fn validate(migrations: &[Migration]) -> Result<(), StoreError> {

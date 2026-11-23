@@ -12,7 +12,13 @@ Roadmap slice S-06 (FR-006, FR-007, FR-008, FR-010, PRD `[removed] S-05`). The u
 - **Dates.** `chrono` 0.4 (`clock`, `serde`) is available; `rusqlite` 0.43 has no `chrono` feature, so dates go in as text. The old screen validated due dates as strict `YYYY-MM-DD` (`src-tauri/src/tasks.rs:371-387`).
 - **Old vault task screen (to remove).** `src/tasks/{TasksView.tsx,api.ts}`, mounted at `src/App.tsx:2,9`; `src-tauri/src/tasks.rs` (756 lines); in `lib.rs`: `pub mod tasks` (:6), imports (:15-17), `TasksState` (:43), `TaskSettingsView` (:45-52), `task_cfg`/`work_vault`/`blocking` (:54-87), four commands (:89-145), `app.manage(TasksState…)` (:184), handler entries (:205-208); task CSS block in `src/App.css` (`/* Tasks view */`, ~:119-205, plus dark-mode rules near the end); `src-tauri/tests/tasks.rs`; `test_tasks_settings()` and the `tasks: None` field in `src-tauri/tests/common/mod.rs:54-68`.
 - **Settings trap.** `SpaceSettings.tasks` / `TaskSettings` / `RawTasks` / `convert_tasks` in `src-tauri/src/settings.rs:23-69,144-186` (+ tests :260-333). `RawSpace` has `#[serde(deny_unknown_fields)]` (`settings.rs:51`): dropping the `tasks` field naively would make an existing `settings.json` with a `tasks` block fail as `SettingsInvalid`, turning the Settings source red and skipping the vault probes.
-- **Navigation and counter are not designed yet.** S-01 (navigation + header) and S-08 (work-time counter) each have only a `change.md`; no plan, no "counter running" API. `App.tsx` stacks views with the comment "No navigation yet (S-01)".
+- **Navigation and counter: S-08 is planned in parallel.** S-01 (navigation) has only a `change.md`. S-08 (`work-timer` worktree, plan at status `plan_reviewed`) is planned and overlaps with this slice. It:
+  - appends its own migration **version 1** (`work_entries`);
+  - rebuilds `App.tsx` into an app shell with `type View = "tasks" | "work-time" | "health"`, where `"tasks"` is today's `TasksView`, labelled "Zadania" and the default view;
+  - mirrors the `TasksView.tsx:82-170` form, so its "Czas pracy" form may reuse `.new-task` / `.task-*` CSS;
+  - exposes `work_time::is_running(&Store) -> bool` "for S-06".
+
+  On `main` today, `App.tsx` stacks the views with the comment "No navigation yet (S-01)". See "Merge order with S-08" below.
 - **Error rendering.** `src/components/ErrorState.tsx` (`{title, message, onRetry?}`) is the documented error surface; the old `TasksView` bypassed it.
 
 ## Desired End State
@@ -42,8 +48,8 @@ Roadmap slice S-06 (FR-006, FR-007, FR-008, FR-010, PRD `[removed] S-05`). The u
 
 - No deleting tasks (FR-009 was removed); a mistaken task is edited or marked done.
 - No "Do zrobienia" list, carry-over or ticking from it (S-07). This slice only makes `done_at` the single done state S-07 will reuse.
-- No reading of the work-time counter: `own_task_default_space` passes `counter_running = false` until S-08 wires it.
-- No navigation or fixed header (S-01); the new view is swapped in place of `TasksView` in the stacked `App.tsx`.
+- No reading of the work-time counter: `own_task_default_space` passes `counter_running = false` until S-08 wires it. Exception: if S-08 merged first, this slice reads `work_time::is_running`.
+- No navigation or fixed header (S-01/S-08); the new view takes `TasksView`'s place, either in the stacked `App.tsx` or in S-08's `"tasks"` view entry.
 - No overdue highlighting, reminders, search, manual reordering, tags, Markdown rendering or rich text.
 - No configurable priority list: the scale is fixed at three levels.
 - No changes to the generic vault layer (`src-tauri/src/vault/`) or its fixtures, apart from moving `Space` behind a re-export and narrowing visibility of helpers the removal orphans. Roadmap Open Question #4 (keep or remove the vault layer) stays open.
@@ -62,9 +68,29 @@ Ordering is a domain rule, so it lives in Rust and the UI only filters what it r
 
 ## Critical Implementation Details
 
-- **Migration numbering with S-08.** This slice appends migration **version 1**. S-08 (work-timer, in a parallel worktree) will also add a migration. Whichever merges second renumbers its own migration to the next version before merging. That is safe because nothing has shipped. Once a version is released, its migration is frozen (`schema.rs:3`).
+- **Merge order with S-08.** Both slices append migration **version 1**. Whichever merges second rebases on `main` and adapts before merging; that is safe for releases because nothing has shipped. Once a version is released, its migration is frozen (`schema.rs:3`). Tests never hard-code the own-tasks version (see Phase 1 §4).
+  - **If this slice merges first:** S-08 renumbers its migration, and the steps below are as written.
+  - **If S-08 merges first:** rebase, then
+    - renumber this migration to the next free version (v2);
+    - mount `OwnTasksView` as the `"tasks"` entry of S-08's view switch, labelled "Moje zadania", instead of the stacked-layout swap in Phase 2 §3;
+    - in `own_task_default_space`, read `work_time::is_running(store)` through `on_store` instead of passing `false`;
+    - before deleting the `/* Tasks view */` CSS in Phase 3 §1, grep `src/` outside `src/tasks/` for `new-task` / `task-` classes and keep (or rename into a shared block) any rule S-08 uses.
+- **Dev runs share the real database.** Every worktree and the installed release use the identifier `com.sebas.day-navigator`, so `npm run tauri dev` migrates the same `%APPDATA%\com.sebas.day-navigator\day-navigator.db` the daily app uses. Effects:
+  - After a dev run, the installed release (no migrations, supported 0) refuses the file as `NewerSchema`, and "Dane aplikacji" is red there until a release with migrations ships.
+  - If a `work-timer` dev build ran first, `user_version` is already 1: this build skips its v1, `own_tasks` never exists, and every command fails as `Sql`.
+  - After renumbering, a database that already holds `own_tasks` at v1 fails v2 (`MigrationFailed`) and is refused, never reset.
+
+  Procedure:
+  - Before the first manual pass, quit the installed app and copy its data dir aside.
+  - After testing, after running another worktree's dev build, and after any renumbering: quit the app and clear `day-navigator.db*` and `backups/`, as in AGENTS.md "Starting over on purpose".
+  - Data entered during manual tests is invented and may be lost.
 - **No user content in errors or logs.** Validation errors name the rule and the limit, never the title, note or due value. `StoreError` already strips row values. Never `log::` a task field.
-- **Orphaned `pub(crate)` helpers.** Removing `tasks.rs` and `convert_tasks` leaves some vault helpers without a caller: `check_plain`, `BOM`, `frontmatter_span`, `SpanHash::from_hex`, `replace_fields`, `create_note_in_existing_folder`. `pub` items in the lib crate don't warn, but `pub(crate)` ones do, and clippy runs with `-D warnings`. Narrow such items back to private when they are still used inside their module. Otherwise keep them with their existing tests (vault contract). Do not delete vault tests.
+- **Orphaned vault helpers.** Removing `tasks.rs` and `convert_tasks` orphans some vault helpers. `pub` items in the lib crate don't warn, but `pub(crate)` items without a caller do, and clippy runs with `-D warnings`. Exact actions:
+  - `vault::edit::check_plain` (`edit.rs:36`): make it private; it is still used at `edit.rs:91,99`.
+  - `vault::markdown::BOM` (`markdown.rs:11`): make it private; it is still used inside `markdown.rs`.
+  - `vault::markdown::frontmatter_span` (`markdown.rs:200`): delete it. It has no other caller and no tests, and it is a thin wrapper over the private `frontmatter`.
+  - `SpanHash::from_hex`, `edit::replace_fields`, `Vault::create_note_in_existing_folder`: unchanged (`pub`, with tests).
+  - Do not delete vault tests.
 
 ## Phase 1: Own-task domain and store records
 
@@ -164,7 +190,7 @@ S-07 will reference `own_tasks(id)`; `done_at` is the single "done" state (FR-00
   - `edit` / `set_done` on an unknown id → `NotFound`.
   - A failed validation leaves the table unchanged.
   - Marking done twice keeps the first `done_at`.
-  - Migration v1 applies on a fresh store, which reports `user_version = 1`.
+  - The production migrations apply on a fresh store, which reports `user_version == schema::MIGRATIONS.last().unwrap().version` (never a hard-coded `1`, so renumbering after S-08 needs no test change).
 - Crash test reusing `tests/common/crash.rs`:
   - A writer test adds numbered invented tasks and prints `committed <n>`.
   - The parent kills it at several points, reopens, and asserts `quick_check` is ok, every task `1..=n` is present with its exact title and fields, and no row is partial.
@@ -209,7 +235,7 @@ Expose own tasks through async store commands and build the view that replaces t
   - `add_own_task(input: OwnTaskInput) -> OwnTask`
   - `edit_own_task(id: i64, input: OwnTaskInput) -> OwnTask`
   - `set_own_task_done(id: i64, done: bool) -> OwnTask`
-  - `own_task_default_space() -> Space`, which returns `own_tasks::default_space(false)`. The S-08 seam: replace `false` with the counter's running state.
+  - `own_task_default_space() -> Space`, which returns `own_tasks::default_space(false)`. The S-08 seam: replace `false` with the counter's running state, i.e. `work_time::is_running(store)` through `on_store`. Do that in this slice if S-08 merged first (see "Merge order with S-08").
 
 #### 2. Frontend feature folder
 
@@ -231,7 +257,7 @@ Expose own tasks through async store commands and build the view that replaces t
   - each mutation reloads the list on success;
   - a mutation error is returned to the caller, which shows it inline. It never replaces a loaded list with an error screen.
 - `OwnTaskForm.tsx` (shared by add and edit):
-  - title `<input>` with `maxLength=200`, note `<textarea>` with `maxLength=2000`;
+  - title `<input>` and note `<textarea>` **without** `maxLength`: the browser would silently cut pasted text and counts UTF-16 units, not chars, so Rust is the only limit. Optionally show a live "n/200" / "n/2000" counter (`[...value].length`);
   - space `<select>` Praca / Prywatne, due `<input type="date">` (empty → `null`), priority `<select>` "—" / Wysoki / Średni / Niski;
   - submit is disabled while pending;
   - on a validation error, the input is kept and the Polish message shown.
@@ -247,7 +273,10 @@ Expose own tasks through async store commands and build the view that replaces t
   - States:
     - loading "Ładowanie…";
     - error via `ErrorState` with the message and "Ostatnie udane odświeżenie: <time>" (or "brak" before the first success) and a retry;
-    - empty "Nie masz jeszcze żadnych zadań." vs a filtered empty "Brak otwartych zadań w tej przestrzeni.".
+    - empty states, never a blank area:
+      - no tasks at all (open or done) → "Nie masz jeszcze żadnych zadań.";
+      - tasks exist but none are open after the filter → "Brak otwartych zadań." under Wszystkie, "Brak otwartych zadań w tej przestrzeni." under Praca / Prywatne;
+      - "Pokaż zrobione" on, but no done tasks after the filter → "Brak zrobionych zadań.".
 
 #### 3. Mount and styles
 
@@ -255,7 +284,7 @@ Expose own tasks through async store commands and build the view that replaces t
 
 **Intent**: Swap the old view for the new one without inventing navigation (S-01 owns that), and add the view's styles.
 
-**Contract**: `App.tsx` renders `<OwnTasksView />` where `<TasksView />` was, above `<HealthPanel />`; the stacked layout and the "No navigation yet (S-01)" comment stay. `App.css` gets a `/* Own tasks view */` block with light and dark rules that reuses the shared `/* Controls */` styles.
+**Contract**: `App.tsx` renders `<OwnTasksView />` where `<TasksView />` was, above `<HealthPanel />`; the stacked layout and the "No navigation yet (S-01)" comment stay. If S-08's app shell is already on `main`, render `<OwnTasksView />` for its `"tasks"` view entry instead and label the entry "Moje zadania" (see "Merge order with S-08"). `App.css` gets a `/* Own tasks view */` block with light and dark rules that reuses the shared `/* Controls */` styles.
 
 ### Success Criteria:
 
@@ -275,7 +304,7 @@ Expose own tasks through async store commands and build the view that replaces t
 - A 201-character title or a 2001-character note (pasted) is refused with the Polish message, and the typed text is kept.
 - The "Zadania" vault screen is no longer shown. HealthPanel still works and "Dane aplikacji" stays green.
 
-**Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation from the human that the manual testing was successful before proceeding to the next phase.
+**Implementation Note**: Before the manual pass, follow "Dev runs share the real database" (Critical Implementation Details): quit the installed app and copy its data dir aside. After completing this phase and all automated verification passes, pause here for manual confirmation from the human that the manual testing was successful before proceeding to the next phase.
 
 ---
 
@@ -291,7 +320,7 @@ Delete the now-unmounted vault task screen and its backend, keep old settings fi
 
 **Files**: `src/tasks/` (delete folder), `src/App.css`
 
-**Intent**: Remove the old view and its CSS (the `/* Tasks view */` block and its dark-mode rules). Keep shared controls and anything the new view reuses.
+**Intent**: Remove the old view and its CSS (the `/* Tasks view */` block and its dark-mode rules). Keep shared controls and anything the new view reuses. First grep `src/` outside `src/tasks/` for `new-task` / `task-` class names: if S-08's view uses any, keep those rules, or move them into a shared block.
 
 **Contract**: No file imports from `src/tasks/`; `npm run build` passes.
 
@@ -308,7 +337,7 @@ Delete the now-unmounted vault task screen and its backend, keep old settings fi
   - the four `*_work_task*` commands and their handler entries;
   - `app.manage(TasksState…)`.
 - In `tests/common/mod.rs`, drop `test_tasks_settings()` and the `tasks` field.
-- Narrow any `pub(crate)` vault helper this orphans (see Critical Implementation Details).
+- Apply the per-helper actions in "Orphaned vault helpers" (Critical Implementation Details).
 - The vault fixtures stay byte-identical.
 
 #### 3. Settings compatibility
@@ -362,7 +391,7 @@ Delete the now-unmounted vault task screen and its backend, keep old settings fi
 
 ### Integration Tests:
 
-- Store round trip: add, list, edit, done, reopen. Data survives a reopen. `NotFound` for an unknown id. A rejected write leaves the table unchanged. Migration v1 on a fresh store.
+- Store round trip: add, list, edit, done, reopen. Data survives a reopen. `NotFound` for an unknown id. A rejected write leaves the table unchanged. The production migrations on a fresh store (version taken from `schema::MIGRATIONS`).
 - Crash durability via `tests/common/crash.rs`: committed tasks are never lost or partial.
 
 ### Manual Testing Steps:
@@ -381,7 +410,8 @@ Single user, tens to hundreds of rows: list reads the whole table and sorts in R
 ## Migration Notes
 
 - First domain migration (v1). After it ships, an older app build refuses the newer database (`NewerSchema`). That is the intended F-01 behaviour.
-- If S-08 merges first with its own v1, renumber this migration to v2 before merging. The same applies in reverse.
+- If S-08 merges first with its own v1, renumber this migration to v2 before merging. The same applies in reverse. The full checklist is in "Merge order with S-08".
+- Dev builds migrate the real, shared `day-navigator.db`. Follow the "Dev runs share the real database" procedure around every manual pass and after any renumbering.
 - Users with a `tasks` block in `settings.json` need no action; it is ignored. Their vault `Tasks/` notes stay untouched and are not imported.
 
 ## References
@@ -400,9 +430,9 @@ Single user, tens to hundreds of rows: list reads the whole table and sorts in R
 
 #### Automated
 
-- [ ] 1.1 `cargo test` passes in `src-tauri/`, including the new unit, integration and crash tests
-- [ ] 1.2 `cargo clippy --all-targets -- -D warnings` passes
-- [ ] 1.3 `cargo fmt --check` passes
+- [x] 1.1 `cargo test` passes in `src-tauri/`, including the new unit, integration and crash tests
+- [x] 1.2 `cargo clippy --all-targets -- -D warnings` passes
+- [x] 1.3 `cargo fmt --check` passes
 
 #### Manual
 

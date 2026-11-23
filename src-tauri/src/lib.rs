@@ -1,7 +1,9 @@
 pub mod cli;
 pub mod health;
+pub mod own_tasks;
 pub mod runtime;
 pub mod settings;
+pub mod space;
 pub mod store;
 pub mod tasks;
 pub mod vault;

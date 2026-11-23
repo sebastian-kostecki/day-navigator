@@ -14,7 +14,7 @@ The PRD drops the vault-based task screen (`[removed] S-05`), because the MVP no
 
 ## Starting Point
 
-The SQLite app store (F-01) is done but holds no records yet: the migration list is empty and no command uses it. The app still shows the old "Zadania" screen, which reads and writes `Tasks/` in the work vault through `tasks.rs` and four commands. Navigation (S-01) and the work-time counter (S-08) are not planned yet.
+The SQLite app store (F-01) is done but holds no records yet: the migration list is empty and no command uses it. The app still shows the old "Zadania" screen, which reads and writes `Tasks/` in the work vault through `tasks.rs` and four commands. Navigation (S-01) is not planned yet. The work-time counter (S-08) is planned in a parallel worktree. It also takes migration v1, rebuilds `App.tsx` into a view switch whose "tasks" entry is the old screen, and exposes `work_time::is_running` for this slice.
 
 ## Desired End State
 
@@ -72,10 +72,11 @@ Ordering and the default-space rule live in Rust; the UI only filters by space a
 
 ## Open Risks & Assumptions
 
-- S-08 also adds a migration. Whichever merges second renumbers its own migration (safe before any release).
+- S-08 also adds migration v1. Whichever merges second renumbers its own migration (safe before any release). If S-08 lands first, this slice also mounts its view in S-08's "tasks" entry, reads `work_time::is_running`, and keeps any task CSS S-08 reuses (plan: "Merge order with S-08").
+- `tauri dev` in any worktree migrates the real, shared `day-navigator.db` (same identifier as the installed app). Manual passes follow the plan's back-up-and-clear procedure.
 - S-01 and S-08 will reshape `App.tsx`. This slice keeps its `App.tsx` change to a one-line swap to limit conflicts.
-- The default space is always Private until S-08 replaces `false` in `own_task_default_space`.
-- Browser `maxLength` counts UTF-16 units while Rust counts chars. Rust is authoritative and returns a Polish message.
+- The default space is always Private until S-08's `is_running` replaces `false` in `own_task_default_space`.
+- Title and note inputs have no `maxLength` (the browser would silently truncate pastes and counts UTF-16 units). Rust is the only limit and returns a Polish message.
 
 ## Success Criteria (Summary)
 

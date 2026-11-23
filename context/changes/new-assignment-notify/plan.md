@@ -431,10 +431,10 @@ S-02, S-05 and S-10 can run in parallel and may also append a migration (v5 and 
 
 #### Automated
 
-- [x] 3.1 Settings and snapshot tests pass: `cd src-tauri && cargo test settings` and `cargo test gitlab::`
-- [x] 3.2 Full Rust suite passes: `cd src-tauri && cargo test`
-- [x] 3.3 `cd src-tauri && cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
-- [x] 3.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 3.1 Settings and snapshot tests pass: `cd src-tauri && cargo test settings` and `cargo test gitlab::` — a999bd7
+- [x] 3.2 Full Rust suite passes: `cd src-tauri && cargo test` — a999bd7
+- [x] 3.3 `cd src-tauri && cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean — a999bd7
+- [x] 3.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — a999bd7
 
 #### Manual
 

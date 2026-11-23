@@ -3,8 +3,11 @@
 
 use std::path::Path;
 
+use chrono::NaiveDate;
+
 use super::{SourceId, SourceState, SourceStatus};
 use crate::settings::load_settings;
+use crate::store::{StoreError, StoreHandle};
 use crate::vault::{Space, VaultError, VaultRegistry};
 
 /// One check: reads `settings.json`, builds the registry and probes every
@@ -50,6 +53,53 @@ pub fn unresolved_config_dir() -> (Result<VaultRegistry, VaultError>, Vec<Source
     };
     let status = error_status(SourceId::Settings, "Ustawienia", &e);
     (Err(e), vec![status])
+}
+
+/// Status of the app data store ("Dane aplikacji"): opens it if needed, checks
+/// it and runs the daily backup. The panel message names the data folder (the
+/// user's own path, like vault messages); `StoreError` itself stays path-free.
+pub fn store_status(handle: &StoreHandle, today: NaiveDate) -> SourceStatus {
+    let state = match handle.status(today) {
+        Ok(()) => SourceState::Ok,
+        Err(e) => SourceState::Error {
+            kind: e.kind().to_string(),
+            message: store_message_pl(&e, handle.dir()),
+        },
+    };
+    SourceStatus {
+        id: SourceId::AppData,
+        label: "Dane aplikacji".to_string(),
+        state,
+    }
+}
+
+/// Polish panel text for a store error. `dir` is the data folder, if known.
+pub fn store_message_pl(e: &StoreError, dir: Option<&Path>) -> String {
+    let backups = dir.map_or_else(
+        || "backups w folderze danych aplikacji".to_string(),
+        |d| d.join("backups").display().to_string(),
+    );
+    match e {
+        StoreError::Damaged { .. } => format!(
+            "Plik danych aplikacji jest uszkodzony. Zamknij aplikację i przywróć kopię z folderu {backups}."
+        ),
+        StoreError::Missing => format!(
+            "Brak pliku danych aplikacji, choć istnieją kopie. Przywróć kopię z folderu {backups}."
+        ),
+        StoreError::NewerSchema { .. } => {
+            "Dane aplikacji pochodzą z nowszej wersji aplikacji. Zaktualizuj aplikację.".to_string()
+        }
+        StoreError::MigrationFailed { version, .. } => {
+            format!("Aktualizacja danych aplikacji do wersji {version} nie powiodła się.")
+        }
+        StoreError::DirUnavailable { .. } => match dir {
+            Some(d) => format!("Folder danych aplikacji jest niedostępny: {}", d.display()),
+            None => "Nie można ustalić folderu danych aplikacji.".to_string(),
+        },
+        StoreError::Busy => "Plik danych aplikacji jest chwilowo zajęty.".to_string(),
+        StoreError::Io { kind } => format!("Błąd odczytu danych aplikacji: {kind}"),
+        StoreError::Sql { .. } => "Błąd bazy danych aplikacji.".to_string(),
+    }
 }
 
 fn space_name(space: Space) -> &'static str {

@@ -28,6 +28,22 @@ pub enum StoreError {
     Sql { reason: String },
 }
 
+impl StoreError {
+    /// The variant name, for logs and health statuses (carries no content).
+    pub fn kind(&self) -> &'static str {
+        match self {
+            StoreError::DirUnavailable { .. } => "DirUnavailable",
+            StoreError::Damaged { .. } => "Damaged",
+            StoreError::Missing => "Missing",
+            StoreError::NewerSchema { .. } => "NewerSchema",
+            StoreError::MigrationFailed { .. } => "MigrationFailed",
+            StoreError::Busy => "Busy",
+            StoreError::Io { .. } => "Io",
+            StoreError::Sql { .. } => "Sql",
+        }
+    }
+}
+
 /// Reason text from the SQLite error code and message only.
 pub(crate) fn reason_of(e: &rusqlite::Error) -> String {
     match e {

@@ -9,7 +9,7 @@ use serde::{Serialize, Serializer};
 
 use crate::vault::Space;
 
-pub use probe::{probe, unresolved_config_dir};
+pub use probe::{probe, store_status, unresolved_config_dir};
 
 /// Longest tooltip the Windows tray accepts, in UTF-16 units (`szTip` holds 128
 /// including the terminator).
@@ -23,6 +23,8 @@ pub enum SourceId {
     Settings,
     Vault(Space),
     Exclusions(Space),
+    /// The app-owned data store ("Dane aplikacji").
+    AppData,
 }
 
 impl SourceId {
@@ -31,6 +33,7 @@ impl SourceId {
             SourceId::Settings => "settings".to_string(),
             SourceId::Vault(s) => format!("vault:{s}"),
             SourceId::Exclusions(s) => format!("exclusions:{s}"),
+            SourceId::AppData => "app-data".to_string(),
         }
     }
 }
@@ -162,6 +165,12 @@ fn short_reason(kind: &str) -> &'static str {
         "NoSpaceConfigured" => "nie skonfigurowano vaultu",
         "UnmatchedExclusions" => "wykluczenia nic nie chronią",
         "Io" => "błąd odczytu",
+        "Damaged" => "plik danych uszkodzony",
+        "Missing" => "brak pliku danych",
+        "NewerSchema" => "dane z nowszej wersji aplikacji",
+        "MigrationFailed" => "aktualizacja danych nie powiodła się",
+        "DirUnavailable" => "folder danych niedostępny",
+        "Busy" => "plik danych zajęty",
         _ => "błąd źródła",
     }
 }
@@ -359,6 +368,32 @@ mod tests {
             SourceId::Exclusions(Space::Private).key(),
             "exclusions:private"
         );
+    }
+
+    #[test]
+    fn app_data_source_key_and_serialisation() {
+        assert_eq!(SourceId::AppData.key(), "app-data");
+        assert_eq!(
+            serde_json::to_string(&SourceId::AppData).unwrap(),
+            "\"app-data\""
+        );
+    }
+
+    #[test]
+    fn short_reason_covers_store_kinds() {
+        assert_eq!(short_reason("Damaged"), "plik danych uszkodzony");
+        assert_eq!(short_reason("Missing"), "brak pliku danych");
+        assert_eq!(
+            short_reason("NewerSchema"),
+            "dane z nowszej wersji aplikacji"
+        );
+        assert_eq!(
+            short_reason("MigrationFailed"),
+            "aktualizacja danych nie powiodła się"
+        );
+        assert_eq!(short_reason("DirUnavailable"), "folder danych niedostępny");
+        assert_eq!(short_reason("Busy"), "plik danych zajęty");
+        assert_eq!(short_reason("Io"), "błąd odczytu");
     }
 
     #[test]

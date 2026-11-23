@@ -14,6 +14,7 @@ use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use chrono::{Local, NaiveDate};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
@@ -22,6 +23,7 @@ use tauri_plugin_notification::NotificationExt;
 
 use crate::VaultState;
 use crate::health::{self, HealthSnapshot, Overall, SourceStatus};
+use crate::store::StoreHandle;
 use crate::vault::{VaultError, VaultRegistry};
 
 const TRAY_ID: &str = "health";
@@ -232,11 +234,19 @@ fn toast(app: &AppHandle, title: &str, body: &str) {
 
 type ProbeResult = (Result<VaultRegistry, VaultError>, Vec<SourceStatus>);
 
-fn probe_round(settings_path: &Option<PathBuf>) -> ProbeResult {
-    match settings_path {
+/// Settings and vault sources first, then the app data store, which is
+/// reported even when `settings.json` is broken.
+fn probe_round(
+    settings_path: &Option<PathBuf>,
+    store: &StoreHandle,
+    today: NaiveDate,
+) -> ProbeResult {
+    let (registry, mut sources) = match settings_path {
         Some(p) => health::probe(p),
         None => health::unresolved_config_dir(),
-    }
+    };
+    sources.push(health::store_status(store, today));
+    (registry, sources)
 }
 
 fn check_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Receiver<()>) {
@@ -262,7 +272,11 @@ fn check_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Rec
 
 fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut Vec<SourceStatus>) {
     let state = app.state::<HealthState>();
-    let (registry, sources) = probe_round(settings_path);
+    let (registry, sources) = probe_round(
+        settings_path,
+        &app.state::<StoreHandle>(),
+        Local::now().date_naive(),
+    );
     // Stamp as soon as the probe returns. The probe is the part that can hang;
     // stamping after the blocking tray calls below let the watchdog flag a
     // finished round as stalled.

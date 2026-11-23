@@ -324,9 +324,9 @@ No existing data to migrate. The first start after this change creates an empty 
 
 #### Automated
 
-- [x] 3.1 Crash test passes locally and is not ignored in the default run: `cargo test --test store_crash` in `src-tauri/`
-- [x] 3.2 The writer helper alone is skipped in a normal run (reported as ignored, not failed): `cargo test --test store_crash`
-- [x] 3.3 Full suite, clippy and fmt pass: `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`
+- [x] 3.1 Crash test passes locally and is not ignored in the default run: `cargo test --test store_crash` in `src-tauri/` — 43ce13c
+- [x] 3.2 The writer helper alone is skipped in a normal run (reported as ignored, not failed): `cargo test --test store_crash` — 43ce13c
+- [x] 3.3 Full suite, clippy and fmt pass: `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` — 43ce13c
 
 #### Manual
 
@@ -336,9 +336,9 @@ No existing data to migrate. The first start after this change creates an empty 
 
 #### Automated
 
-- [ ] 4.1 Health and store tests pass: `cargo test` in `src-tauri/`
-- [ ] 4.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo audit`
-- [ ] 4.3 UI gates still pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 4.1 Health and store tests pass: `cargo test` in `src-tauri/`
+- [x] 4.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo audit`
+- [x] 4.3 UI gates still pass: `npm run lint`, `npm run format:check`, `npm run build`
 
 #### Manual
 

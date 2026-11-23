@@ -32,6 +32,15 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 - `#[tauri::command]` input/output types are serde structs with `#[serde(rename_all = "camelCase")]`; error enums derive `thiserror::Error` + `Serialize` with `#[serde(tag = "kind", content = "detail")]` (see `src-tauri/src/vault/error.rs`).
 - The TS mirror is a tagged union on `kind`. Change the Rust type and its TS mirror in the same commit.
 
+## App Data Store
+
+- App-owned records go only through `store::StoreHandle` (`src-tauri/src/store/`: SQLite, WAL, daily backup in `backups/`, 7 kept). No ad-hoc files for app data.
+- A schema change = append a `Migration` to `store/schema.rs`; never edit a shipped one. Changes spanning records happen in one `write`. Store errors never carry row values or paths.
+- Store commands are `async` and call `with_store` inside `spawn_blocking` (the `blocking` helper in `lib.rs`), never from a sync command: the health round holds the store lock during reopen and backup.
+- The tray reports the store as "Dane aplikacji" (`app-data`). A damaged, newer or lost database is refused, never reset.
+- Restoring: quit the app, copy a file from `backups/` over `day-navigator.db`, delete `day-navigator.db-wal` and `-shm`. Starting over on purpose: quit the app and clear both `day-navigator.db*` and `backups/` (a missing database next to existing backups is refused as `Missing`).
+- Data slices reuse the crash harness in `src-tauri/tests/common/crash.rs`.
+
 ## Tauri 2 Only
 
 - No v1 idioms: no `allowlist` in `tauri.conf.json`, no `tauri::api::*`, no `@tauri-apps/api/tauri` (use `@tauri-apps/api/core`).

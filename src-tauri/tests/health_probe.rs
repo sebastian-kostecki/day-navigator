@@ -3,8 +3,13 @@ mod common;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use chrono::NaiveDate;
+
 use common::{test_vault, vault_root};
-use day_navigator_lib::health::{Overall, SourceId, SourceState, SourceStatus, overall, probe};
+use day_navigator_lib::health::{
+    Overall, SourceId, SourceState, SourceStatus, overall, probe, store_status,
+};
+use day_navigator_lib::store::{DB_FILE, StoreError, StoreHandle};
 use day_navigator_lib::vault::{Space, VaultError};
 
 /// Writes a `settings.json` in `dir`. `work` and `private` are
@@ -165,4 +170,99 @@ fn unmatched_exclusion_is_an_exclusions_error() {
         _ => unreachable!(),
     }
     assert_eq!(overall(&sources, false, true), Overall::Error);
+}
+
+fn day() -> NaiveDate {
+    NaiveDate::from_ymd_opt(2026, 3, 4).unwrap()
+}
+
+#[test]
+fn open_store_is_ok_as_app_data() {
+    let tmp = tempfile::tempdir().unwrap();
+    let handle = StoreHandle::new(Some(tmp.path().join("data")));
+    let status = store_status(&handle, day());
+    assert_eq!(status.id, SourceId::AppData);
+    assert_eq!(status.label, "Dane aplikacji");
+    assert_eq!(status.state, SourceState::Ok);
+    assert_eq!(overall(&[status], false, true), Overall::Ok);
+}
+
+#[test]
+fn damaged_file_is_an_error_naming_the_data_dir_and_recovers_from_backup() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    // A valid database to restore from, made by a first run elsewhere.
+    let good_dir = tmp.path().join("good");
+    assert!(
+        StoreHandle::new(Some(good_dir.clone()))
+            .status(day())
+            .is_ok()
+    );
+    let good = good_dir.join(DB_FILE);
+
+    let data = tmp.path().join("data");
+    fs::create_dir_all(&data).unwrap();
+    let db = data.join(DB_FILE);
+    fs::write(&db, "invented text, not a database at all").unwrap();
+    let before = fs::read(&db).unwrap();
+
+    let handle = StoreHandle::new(Some(data.clone()));
+    let status = store_status(&handle, day());
+    match &status.state {
+        SourceState::Error { kind, message } => {
+            assert_eq!(kind, "Damaged");
+            assert!(message.starts_with("Plik danych aplikacji jest uszkodzony."));
+            assert!(message.contains(&data.join("backups").display().to_string()));
+        }
+        other => panic!("expected Error, got {other:?}"),
+    }
+    assert_eq!(
+        fs::read(&db).unwrap(),
+        before,
+        "refusal must not touch the file"
+    );
+
+    // The serialised error is path-free.
+    let err = handle.status(day()).unwrap_err();
+    assert!(matches!(err, StoreError::Damaged { .. }));
+    let json = serde_json::to_string(&err).unwrap();
+    assert!(!json.contains(&*data.to_string_lossy()), "{json}");
+
+    // Replace the file with a valid one: the next status recovers.
+    fs::copy(&good, &db).unwrap();
+    assert_eq!(store_status(&handle, day()).state, SourceState::Ok);
+}
+
+#[test]
+fn missing_file_with_backups_names_the_backup_folder() {
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("data");
+    let handle = StoreHandle::new(Some(data.clone()));
+    assert!(handle.status(day()).is_ok()); // creates db and today's backup
+    drop(handle);
+    for ext in ["", "-wal", "-shm"] {
+        let _ = fs::remove_file(data.join(format!("{DB_FILE}{ext}")));
+    }
+    let handle = StoreHandle::new(Some(data.clone()));
+    match store_status(&handle, day()).state {
+        SourceState::Error { kind, message } => {
+            assert_eq!(kind, "Missing");
+            assert!(message.contains(&data.join("backups").display().to_string()));
+        }
+        other => panic!("expected Error, got {other:?}"),
+    }
+    assert!(!data.join(DB_FILE).exists());
+}
+
+#[test]
+fn handle_without_a_dir_is_dir_unavailable() {
+    let handle = StoreHandle::new(None);
+    assert!(matches!(
+        handle.status(day()),
+        Err(StoreError::DirUnavailable { .. })
+    ));
+    match store_status(&handle, day()).state {
+        SourceState::Error { kind, .. } => assert_eq!(kind, "DirUnavailable"),
+        other => panic!("expected Error, got {other:?}"),
+    }
 }

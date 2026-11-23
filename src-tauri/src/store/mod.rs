@@ -9,6 +9,7 @@ pub mod schema;
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
 use chrono::NaiveDate;
@@ -158,10 +159,146 @@ impl Store {
         Ok(value)
     }
 
-    /// Cheap liveness query for the health round.
+    /// Cheap liveness query for the health round. It reads the schema table, so
+    /// a file that was replaced or damaged under an open store fails it.
     pub fn check(&self) -> Result<(), StoreError> {
         self.conn
-            .query_row("SELECT 1", [], |r| r.get::<_, i64>(0))?;
+            .query_row("SELECT count(*) FROM sqlite_master", [], |r| {
+                r.get::<_, i64>(0)
+            })?;
         Ok(())
+    }
+}
+
+/// The store shared by the commands of later slices and the health round.
+/// Holds the open store (opened lazily) and keeps no error: a failed open is
+/// logged (kind only) and the status recomputed on each call.
+///
+/// The health round holds the lock during reopen and backup, so store commands
+/// must be `async` and call `with_store` inside `spawn_blocking`.
+pub struct StoreHandle {
+    dir: Option<PathBuf>,
+    inner: Mutex<Option<Store>>,
+}
+
+impl StoreHandle {
+    /// `dir` is the app data dir, `None` if it could not be resolved.
+    pub fn new(dir: Option<PathBuf>) -> Self {
+        StoreHandle {
+            dir,
+            inner: Mutex::new(None),
+        }
+    }
+
+    /// The data dir, for panel messages only (never for logs or errors).
+    pub fn dir(&self) -> Option<&Path> {
+        self.dir.as_deref()
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Option<Store>> {
+        self.inner.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    fn ensure<'a>(
+        &self,
+        slot: &'a mut Option<Store>,
+        today: NaiveDate,
+    ) -> Result<&'a mut Store, StoreError> {
+        match slot {
+            Some(store) => Ok(store),
+            None => {
+                let opened = match &self.dir {
+                    Some(dir) => Store::open(dir, schema::MIGRATIONS, today),
+                    None => Err(StoreError::DirUnavailable {
+                        kind: "unresolved".into(),
+                    }),
+                };
+                match opened {
+                    Ok(store) => Ok(slot.insert(store)),
+                    Err(e) => {
+                        log::warn!("store: open failed: {}", e.kind());
+                        Err(e)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Runs `f` on the open store, opening it first when needed.
+    pub fn with_store<T, E: From<StoreError>>(
+        &self,
+        today: NaiveDate,
+        f: impl FnOnce(&mut Store) -> Result<T, E>,
+    ) -> Result<T, E> {
+        let mut guard = self.lock();
+        let store = self.ensure(&mut guard, today)?;
+        f(store)
+    }
+
+    /// Open if needed, liveness check, daily backup. A failing check (other
+    /// than `Busy`) drops the store, so the next call runs the full open
+    /// sequence again.
+    pub fn status(&self, today: NaiveDate) -> Result<(), StoreError> {
+        let mut guard = self.lock();
+        let store = self.ensure(&mut guard, today)?;
+        if let Err(e) = store.check() {
+            if !matches!(e, StoreError::Busy) {
+                log::warn!("store: check failed, reopening next time: {}", e.kind());
+                *guard = None;
+            }
+            return Err(e);
+        }
+        store.backup_if_due(today);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn day() -> NaiveDate {
+        NaiveDate::from_ymd_opt(2026, 3, 4).unwrap()
+    }
+
+    #[test]
+    fn no_dir_is_dir_unavailable() {
+        let h = StoreHandle::new(None);
+        assert!(matches!(
+            h.status(day()),
+            Err(StoreError::DirUnavailable { .. })
+        ));
+        assert!(h.dir().is_none());
+    }
+
+    #[test]
+    fn failing_check_drops_the_store_and_next_status_reopens() {
+        let tmp = tempfile::tempdir().unwrap();
+        let h = StoreHandle::new(Some(tmp.path().join("data")));
+        assert!(h.status(day()).is_ok());
+
+        // Swap the open connection for one on a non-database file, so
+        // `check()` fails the way a file replaced under the store would.
+        let junk = tmp.path().join("junk.db");
+        fs::write(&junk, "this is not a database, just invented text").unwrap();
+        h.lock().as_mut().unwrap().conn = Connection::open(&junk).unwrap();
+
+        assert!(matches!(h.status(day()), Err(StoreError::Damaged { .. })));
+        assert!(
+            h.lock().is_none(),
+            "store must be dropped after the failure"
+        );
+        assert!(h.status(day()).is_ok(), "next status reopens the real file");
+        assert!(h.lock().is_some());
+    }
+
+    #[test]
+    fn with_store_opens_lazily_and_converts_errors() {
+        let tmp = tempfile::tempdir().unwrap();
+        let h = StoreHandle::new(Some(tmp.path().join("data")));
+        let n: Result<i64, StoreError> = h.with_store(day(), |s| {
+            s.read(|c| Ok(c.query_row("SELECT 7", [], |r| r.get::<_, i64>(0))?))
+        });
+        assert_eq!(n.unwrap(), 7);
     }
 }

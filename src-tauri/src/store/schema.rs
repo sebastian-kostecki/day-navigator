@@ -39,6 +39,45 @@ CREATE INDEX work_entries_start ON work_entries (start_ms);",
   done_at    TEXT
 );",
     },
+    // S-07: "To do" picks. One row per pick; own entries take their ticked
+    // state from `own_tasks.done_at`, GitLab entries keep their own tick and a
+    // reference/title snapshot. `closed_at` is the day roll-over, `removed_at`
+    // the user's removal; at most one live row per item.
+    Migration {
+        version: 3,
+        sql: "CREATE TABLE todo_items (
+  id           INTEGER PRIMARY KEY,
+  source       TEXT NOT NULL CHECK (source IN ('own','gitlab')),
+  own_task_id  INTEGER REFERENCES own_tasks(id),
+  gitlab_kind  TEXT CHECK (gitlab_kind IN ('issue','mergeRequest')),
+  gitlab_ref   TEXT,
+  gitlab_title TEXT,
+  gitlab_url   TEXT,
+  picked_on    TEXT NOT NULL,
+  picked_at    TEXT NOT NULL,
+  ticked_at    TEXT,
+  ticked_by    TEXT CHECK (ticked_by IN ('user','source')),
+  removed_at   TEXT,
+  closed_at    TEXT,
+  CHECK (
+    (source = 'own' AND own_task_id IS NOT NULL
+      AND gitlab_kind IS NULL AND gitlab_ref IS NULL
+      AND gitlab_title IS NULL AND gitlab_url IS NULL
+      AND ticked_at IS NULL AND ticked_by IS NULL)
+    OR
+    (source = 'gitlab' AND own_task_id IS NULL
+      AND gitlab_kind IS NOT NULL AND gitlab_ref IS NOT NULL
+      AND gitlab_title IS NOT NULL
+      AND ((ticked_at IS NULL) = (ticked_by IS NULL)))
+  )
+);
+CREATE UNIQUE INDEX todo_items_live_own
+  ON todo_items (own_task_id)
+  WHERE own_task_id IS NOT NULL AND removed_at IS NULL AND closed_at IS NULL;
+CREATE UNIQUE INDEX todo_items_live_gitlab
+  ON todo_items (gitlab_kind, gitlab_ref)
+  WHERE gitlab_ref IS NOT NULL AND removed_at IS NULL AND closed_at IS NULL;",
+    },
 ];
 
 /// Versions must start at 1 and rise by exactly 1.

@@ -7,6 +7,7 @@ pub mod runtime;
 pub mod settings;
 pub mod space;
 pub mod store;
+pub mod todo;
 pub mod vault;
 pub mod work_time;
 

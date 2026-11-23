@@ -404,10 +404,10 @@ None. The block is optional and absent means today's behaviour. No store schema 
 
 #### Automated
 
-- [ ] 1.1 Filter unit tests pass (include/exclude, AND, group prefix, case, missing milestone/path, MR vs issue, apply order and count)
-- [ ] 1.2 Loader tests pass (fail-open, invalid shapes value-free, closedDays bounds, limits, independence from other blocks)
-- [ ] 1.3 Milestone parsing test: present, null, absent, wrong type
-- [ ] 1.4 cargo fmt --check and cargo clippy --all-targets -- -D warnings pass
+- [x] 1.1 Filter unit tests pass (include/exclude, AND, group prefix, case, missing milestone/path, MR vs issue, apply order and count) — fd449e1
+- [x] 1.2 Loader tests pass (fail-open, invalid shapes value-free, closedDays bounds, limits, independence from other blocks) — fd449e1
+- [x] 1.3 Milestone parsing test: present, null, absent, wrong type — fd449e1
+- [x] 1.4 cargo fmt --check and cargo clippy --all-targets -- -D warnings pass — fd449e1
 
 ### Phase 2: Apply the filter in the round
 

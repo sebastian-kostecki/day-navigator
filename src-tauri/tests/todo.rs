@@ -163,6 +163,56 @@ fn reconcile_flow_against_a_real_store() {
 }
 
 #[test]
+fn an_item_filtered_out_of_the_view_stays_unticked_when_reconciled_on_the_full_list() {
+    use day_navigator_lib::gitlab::filter::GitlabFilter;
+
+    let (_tmp, dir) = test_store_dir();
+    let mut store = open(&dir);
+    let d1 = "2026-11-23";
+    let mut shown_item = item(1);
+    shown_item.kind = ItemKind::Issue;
+    shown_item.reference = "invented/shown#1".into();
+    let mut hidden_by_filter = item(2);
+    hidden_by_filter.kind = ItemKind::Issue;
+    hidden_by_filter.reference = "invented/other#2".into();
+    todo::add_gitlab(&mut store, ACC, &shown_item, day(d1), at(d1, 8), Ok(5)).unwrap();
+    todo::add_gitlab(
+        &mut store,
+        ACC,
+        &hidden_by_filter,
+        day(d1),
+        at(d1, 9),
+        Ok(5),
+    )
+    .unwrap();
+
+    let full = AssignedItems {
+        merge_requests: vec![],
+        issues: vec![shown_item, hidden_by_filter],
+        hidden_issues: vec![],
+    };
+    let mut filter = GitlabFilter::default();
+    filter.projects.include = vec!["invented/shown".into()];
+    let (issues, removed) = filter.apply(&full.issues);
+    assert_eq!((issues.len(), removed), (1, 1));
+    let view = AssignedItems {
+        issues,
+        ..AssignedItems::default()
+    };
+
+    // The round reconciles on the full list: nothing ticks.
+    let n = todo::reconcile_gitlab(&mut store, ACC, &full, day(d1), at(d1, 10)).unwrap();
+    assert_eq!(n, 0);
+    let l = todo::list(&mut store, day(d1), at(d1, 11), Ok(5)).unwrap();
+    assert_eq!(l.open_count, 2);
+    assert!(l.items.iter().all(|i| !i.ticked));
+
+    // The filtered view alone would have ticked the filtered-out entry.
+    let n = todo::reconcile_gitlab(&mut store, ACC, &view, day(d1), at(d1, 12)).unwrap();
+    assert_eq!(n, 1);
+}
+
+#[test]
 fn limit_and_duplicates_against_a_real_store() {
     let (_tmp, dir) = test_store_dir();
     let mut store = open(&dir);

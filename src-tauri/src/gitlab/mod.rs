@@ -301,6 +301,15 @@ pub enum GitlabState {
     Error { kind: String, message: String },
 }
 
+/// How many items the visibility filter removed from each section.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FilteredOut {
+    pub merge_requests: u32,
+    pub issues: u32,
+    pub hidden_issues: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitlabSnapshot {
@@ -321,6 +330,13 @@ pub struct GitlabSnapshot {
     /// True when `gitlabRefresh.minutes` is invalid and the default interval is
     /// used. Set on every round, whatever the fetch outcome.
     pub refresh_setting_invalid: bool,
+    /// True when the visibility filter narrows `items`. Belongs to the items.
+    pub filter_active: bool,
+    /// True when the `gitlabFilter` block is invalid and everything is shown.
+    /// A round flag like `refresh_setting_invalid`: set on every round.
+    pub filter_invalid: bool,
+    /// What the filter removed from each section of `items`. Belongs to the items.
+    pub filtered_out: FilteredOut,
     /// `account_key` of the config `items` came from; set iff `items` is. Kept
     /// next to the items so a reader never pairs them with another account.
     /// Not sent to the webview.
@@ -342,6 +358,9 @@ impl GitlabSnapshot {
             own_comments_known: false,
             hidden_error: None,
             refresh_setting_invalid: false,
+            filter_active: false,
+            filter_invalid: false,
+            filtered_out: FilteredOut::default(),
             account: None,
         }
     }
@@ -374,14 +393,17 @@ pub fn next_snapshot(
         hidden_error: None,
         // A round flag, not tied to the list: carried over, the round sets it.
         refresh_setting_invalid: prev.refresh_setting_invalid,
+        filter_active: false,
+        filter_invalid: prev.filter_invalid,
+        filtered_out: FilteredOut::default(),
         account: None,
     };
     let items = match outcome {
         Ok(items) => {
             next.items = Some(items);
             next.last_success_ms = Some(now_ms);
-            // The round sets `hidden_check_failed` and `hidden_error` after
-            // reconciling; they describe this round only.
+            // The round sets `hidden_check_failed`, `hidden_error` and the
+            // filter fields after reconciling; they describe this round only.
             next.own_comments_known = config.is_some_and(|c| c.user.is_some());
             next.account = config.map(account_key);
             return (next, config.cloned());
@@ -411,6 +433,9 @@ pub fn next_snapshot(
         next.hidden_check_failed = prev.hidden_check_failed;
         next.own_comments_known = prev.own_comments_known;
         next.hidden_error = prev.hidden_error.clone();
+        // The filter state belongs to the kept list too.
+        next.filter_active = prev.filter_active;
+        next.filtered_out = prev.filtered_out;
         next.account = prev.account.clone();
         (next, kept.cloned())
     } else {
@@ -1247,6 +1272,71 @@ mod tests {
     }
 
     #[test]
+    fn snapshot_keeps_filter_state_with_the_items_and_resets_it_when_they_drop() {
+        let counts = FilteredOut {
+            merge_requests: 1,
+            issues: 2,
+            hidden_issues: 3,
+        };
+        let prev = GitlabSnapshot {
+            items: Some(items("g/p#1")),
+            last_success_ms: Some(1000),
+            filter_active: true,
+            filtered_out: counts,
+            ..GitlabSnapshot::starting()
+        };
+        let (s, _) = next_snapshot(
+            &prev,
+            Some(&config()),
+            Some(&config()),
+            Err(GitlabError::Unavailable),
+            2000,
+        );
+        assert!(s.filter_active);
+        assert_eq!(s.filtered_out, counts);
+        for (cfg, err) in [
+            (Some(other_user_config()), GitlabError::Unavailable),
+            (None, GitlabError::NotConfigured),
+        ] {
+            let (s, _) = next_snapshot(&prev, Some(&config()), cfg.as_ref(), Err(err), 2000);
+            assert_eq!(s.items, None);
+            assert!(!s.filter_active);
+            assert_eq!(s.filtered_out, FilteredOut::default());
+        }
+        // A successful round starts clean: the round fills the filter fields.
+        let (s, _) = next_snapshot(&prev, None, Some(&config()), Ok(items("g/p#1")), 3000);
+        assert!(!s.filter_active);
+        assert_eq!(s.filtered_out, FilteredOut::default());
+    }
+
+    #[test]
+    fn snapshot_carries_filter_invalid_as_a_round_flag() {
+        let prev = GitlabSnapshot {
+            filter_invalid: true,
+            ..GitlabSnapshot::starting()
+        };
+        for err in [
+            GitlabError::Unavailable,
+            GitlabError::LoggedOut,
+            GitlabError::NotConfigured,
+            GitlabError::SettingsInvalid,
+        ] {
+            let (s, _) = next_snapshot(&prev, Some(&config()), Some(&config()), Err(err), 2);
+            assert!(s.filter_invalid);
+        }
+        let (s, _) = next_snapshot(&prev, None, Some(&config()), Ok(items("g/p#1")), 2);
+        assert!(s.filter_invalid);
+        let (s, _) = next_snapshot(
+            &GitlabSnapshot::starting(),
+            None,
+            None,
+            Err(GitlabError::Unavailable),
+            2,
+        );
+        assert!(!s.filter_invalid);
+    }
+
+    #[test]
     fn snapshot_success_reports_whether_own_comments_are_known() {
         let prev = GitlabSnapshot::starting();
         let (s, _) = next_snapshot(&prev, None, Some(&config()), Ok(items("g/p#1")), 1);
@@ -1260,7 +1350,7 @@ mod tests {
         let mut s = GitlabSnapshot::starting();
         assert_eq!(
             serde_json::to_string(&s).unwrap(),
-            r#"{"state":{"state":"starting"},"items":null,"lastSuccessMs":null,"checkedAtMs":null,"refreshing":false,"seq":0,"hiddenCheckFailed":0,"ownCommentsKnown":false,"hiddenError":null,"refreshSettingInvalid":false}"#
+            r#"{"state":{"state":"starting"},"items":null,"lastSuccessMs":null,"checkedAtMs":null,"refreshing":false,"seq":0,"hiddenCheckFailed":0,"ownCommentsKnown":false,"hiddenError":null,"refreshSettingInvalid":false,"filterActive":false,"filterInvalid":false,"filteredOut":{"mergeRequests":0,"issues":0,"hiddenIssues":0}}"#
         );
         s.state = GitlabState::Unavailable {
             message: "m".into(),

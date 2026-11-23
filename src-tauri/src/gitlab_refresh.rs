@@ -10,7 +10,8 @@
 //! store and every hide/unhide/dismiss command run under it, so a late round can
 //! never publish a partition older than a command's. It is never held across a
 //! `glab` call or an `emit`. Lock order: gate, then `kept_config`, then
-//! `kept_full`, then the snapshot lock (and the store lock inside the gate).
+//! `kept_full`, then `kept_filter`, then the snapshot lock (and the store lock
+//! inside the gate).
 //!
 //! Logging: state kinds and elapsed time only. Never the host, a title, a
 //! reference, a URL, a count tied to names or a serde error.
@@ -26,14 +27,21 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::cli::{CliRunner, GitlabConfig, GitlabHost};
 use crate::gitlab::fetch::fetch_assigned;
-use crate::gitlab::{self, AssignedItems, GitlabError, GitlabItem, GitlabSnapshot, ItemKind};
+use crate::gitlab::filter::GitlabFilter;
+use crate::gitlab::{
+    self, AssignedItems, FilteredOut, GitlabError, GitlabItem, GitlabSnapshot, ItemKind,
+};
 use crate::health;
-use crate::hidden_issues::{HiddenIssueError, HiddenRecord, check_round, commit_round, partition};
+use crate::hidden_issues::{
+    HiddenIssueError, HiddenRecord, check_round, commit_round, list as list_hidden, partition,
+};
 use crate::new_assignments::{
     NewAssignmentError, SessionSeen, items_for, keys_of, notices_for, record_round,
 };
 use crate::runtime::{HealthState, now_ms, toast};
-use crate::settings::{DEFAULT_REFRESH_MINUTES, load_gitlab_refresh_minutes, load_gitlab_settings};
+use crate::settings::{
+    DEFAULT_REFRESH_MINUTES, load_gitlab_filter, load_gitlab_refresh_minutes, load_gitlab_settings,
+};
 use crate::store::{StoreError, StoreHandle};
 use crate::todo;
 
@@ -53,6 +61,9 @@ pub struct GitlabRefreshState {
     /// The last full (unpartitioned) list, kept with `kept_config`. Never
     /// serialized: the commands re-partition it, the UI never sends issue data.
     kept_full: Mutex<Option<AssignedItems>>,
+    /// The visibility filter the snapshot's items were last shaped with, written
+    /// with `kept_full` so the commands re-apply the round's rule.
+    kept_filter: Mutex<GitlabFilter>,
     /// Serializes a round's commit-and-store step with the hidden-issue commands.
     hidden_gate: Mutex<()>,
     /// Wakes the refresh thread for an immediate round.
@@ -68,6 +79,7 @@ impl GitlabRefreshState {
             snapshot: RwLock::new(GitlabSnapshot::starting()),
             kept_config: Mutex::new(None),
             kept_full: Mutex::new(None),
+            kept_filter: Mutex::new(GitlabFilter::default()),
             hidden_gate: Mutex::new(()),
             wake,
             published: Mutex::new(0),
@@ -110,6 +122,11 @@ impl GitlabRefreshState {
             .lock()
             .unwrap_or_else(|p| p.into_inner())
             .clone();
+        let filter = self
+            .kept_filter
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
         let (Some(config), Some(full)) = (config, full) else {
             return Err(HiddenIssueError::ListUnavailable);
         };
@@ -120,15 +137,23 @@ impl GitlabRefreshState {
             .ok_or(HiddenIssueError::NotInList)?;
         let records = act(&config.host, item)?;
         let (visible, hidden) = partition(&full.issues, &records);
+        // The checks ran on every hidden issue, so the cap ignores the filter.
+        let hidden_total = hidden.len() as u32;
+        let (shown, filtered_out) = filter_shown(
+            AssignedItems {
+                merge_requests: full.merge_requests.clone(),
+                issues: visible,
+                hidden_issues: hidden,
+            },
+            &filter,
+        );
         // One write: a concurrent "refreshing" flag flip must not be lost.
         let mut snap = self.write();
         // Failed checks are only counted per round; never more than are hidden.
-        snap.hidden_check_failed = snap.hidden_check_failed.min(hidden.len() as u32);
-        snap.items = Some(AssignedItems {
-            merge_requests: full.merge_requests.clone(),
-            issues: visible,
-            hidden_issues: hidden,
-        });
+        snap.hidden_check_failed = snap.hidden_check_failed.min(hidden_total);
+        snap.items = Some(shown);
+        snap.filter_active = filter.is_active();
+        snap.filtered_out = filtered_out;
         snap.hidden_error = None;
         snap.seq += 1;
         Ok(())
@@ -140,6 +165,56 @@ impl GitlabRefreshState {
 
     fn write(&self) -> RwLockWriteGuard<'_, GitlabSnapshot> {
         self.snapshot.write().unwrap_or_else(|p| p.into_inner())
+    }
+}
+
+/// Applies the visibility filter to an already partitioned list and counts what
+/// each section lost. Never touches the unfiltered list other consumers use.
+fn filter_shown(shown: AssignedItems, filter: &GitlabFilter) -> (AssignedItems, FilteredOut) {
+    let (merge_requests, mrs_out) = filter.apply(&shown.merge_requests);
+    let (issues, issues_out) = filter.apply(&shown.issues);
+    let (hidden_issues, hidden_out) = filter.apply(&shown.hidden_issues);
+    (
+        AssignedItems {
+            merge_requests,
+            issues,
+            hidden_issues,
+        },
+        FilteredOut {
+            merge_requests: mrs_out,
+            issues: issues_out,
+            hidden_issues: hidden_out,
+        },
+    )
+}
+
+/// The shown list for a kept full list: partition by the stored hidden records,
+/// then filter. Used when a failed round re-shapes the kept list.
+fn shape_items(
+    full: &AssignedItems,
+    records: &[HiddenRecord],
+    filter: &GitlabFilter,
+) -> (AssignedItems, FilteredOut) {
+    let (visible, hidden) = partition(&full.issues, records);
+    filter_shown(
+        AssignedItems {
+            merge_requests: full.merge_requests.clone(),
+            issues: visible,
+            hidden_issues: hidden,
+        },
+        filter,
+    )
+}
+
+/// Reads the `gitlabFilter` block for a round: the filter and whether the block
+/// was invalid (then the default filter, which shows everything).
+fn load_filter(settings_path: &Option<PathBuf>) -> (GitlabFilter, bool) {
+    match settings_path {
+        Some(path) => match load_gitlab_filter(path) {
+            Ok(filter) => (filter, false),
+            Err(_) => (GitlabFilter::default(), true),
+        },
+        None => (GitlabFilter::default(), false),
     }
 }
 
@@ -269,6 +344,7 @@ fn refresh_round(
     session_seen: &mut SessionSeen,
 ) -> Duration {
     let (wait, refresh_invalid) = refresh_interval(settings_path);
+    let (filter, filter_invalid) = load_filter(settings_path);
     let state = app.state::<GitlabRefreshState>();
     let started = Instant::now();
     let before = state.snapshot();
@@ -301,23 +377,31 @@ fn refresh_round(
     let mut check_failed = 0;
     let mut hidden_error = None;
     let mut full_list = None;
+    let mut filtered_out = FilteredOut::default();
     let outcome = match (&config, fetched, checks) {
         (Some(cfg), Ok(full), Some(checks)) => {
             let round = commit_round(&store, &cfg.host, &full, checks, now_ms() as i64);
             check_failed = round.check_failed;
             hidden_error = round.store_error.as_ref().map(HiddenIssueError::message_pl);
-            let shown = AssignedItems {
-                merge_requests: full.merge_requests.clone(),
-                issues: round.visible_issues,
-                hidden_issues: round.hidden_issues,
-            };
+            // The filter applies after the partition; `full` stays unfiltered.
+            let (shown, out) = filter_shown(
+                AssignedItems {
+                    merge_requests: full.merge_requests.clone(),
+                    issues: round.visible_issues,
+                    hidden_issues: round.hidden_issues,
+                },
+                &filter,
+            );
+            filtered_out = out;
             full_list = Some(full);
             Ok(shown)
         }
         // A list without a config does not occur; show it as fetched.
         (_, Ok(full), _) => {
             full_list = Some(full.clone());
-            Ok(full)
+            let (shown, out) = filter_shown(full, &filter);
+            filtered_out = out;
+            Ok(shown)
         }
         (_, Err(e), _) => Err(e),
     };
@@ -338,15 +422,43 @@ fn refresh_round(
     if succeeded {
         next.hidden_check_failed = check_failed;
         next.hidden_error = hidden_error;
+        next.filter_active = filter.is_active();
+        next.filtered_out = filtered_out;
     }
     next.refresh_setting_invalid = refresh_invalid;
+    next.filter_invalid = filter_invalid;
     {
         let mut kept_full = state.kept_full.lock().unwrap_or_else(|p| p.into_inner());
+        let mut kept_filter = state.kept_filter.lock().unwrap_or_else(|p| p.into_inner());
         match full_list {
-            Some(full) => *kept_full = Some(full),
+            Some(full) => {
+                *kept_full = Some(full);
+                *kept_filter = filter.clone();
+            }
             // A failed round keeps the list only while `next_snapshot` keeps it.
-            None if next_kept.is_none() => *kept_full = None,
-            None => {}
+            None if next_kept.is_none() => {
+                *kept_full = None;
+                *kept_filter = GitlabFilter::default();
+            }
+            // A kept list is shaped again with this round's filter, so an
+            // offline filter edit takes effect and an invalid-block notice never
+            // sits over a list still filtered by the old rule. If the hidden
+            // records cannot be read, the list stays as it was shown.
+            None => {
+                if let (Some(full), Some(cfg), true) =
+                    (kept_full.as_ref(), next_kept.as_ref(), next.items.is_some())
+                {
+                    let today = Local::now().naive_local().date();
+                    let records = store.with_store(today, |s| list_hidden(s, &cfg.host));
+                    if let Ok(records) = records {
+                        let (shown, out) = shape_items(full, &records, &filter);
+                        next.items = Some(shown);
+                        next.filter_active = filter.is_active();
+                        next.filtered_out = out;
+                        *kept_filter = filter.clone();
+                    }
+                }
+            }
         }
     }
     *state.kept_config.lock().unwrap_or_else(|p| p.into_inner()) = next_kept;
@@ -354,7 +466,8 @@ fn refresh_round(
     let from = state_label(&before);
     let to = state_label(&next);
     let notify_account = notify_input(&next).map(str::to_string);
-    let todo_changed = reconcile_todo(app, &next);
+    // "To do" reconciles on the full list, never the filtered one.
+    let todo_changed = reconcile_todo(app, &next, round_full.as_ref());
     *state.write() = next;
     drop(gate);
     publish(app, &state);
@@ -380,11 +493,15 @@ fn refresh_round(
 }
 
 /// The list a "To do" reconcile may use, with the account it came from: only
-/// a successful round's items. A stale list kept after a failed round must
-/// never tick anything.
-fn reconcile_input(snap: &GitlabSnapshot) -> Option<(&AssignedItems, &str)> {
+/// this round's full (unfiltered) list after a successful round. A stale list
+/// kept after a failed round must never tick anything, and neither may the
+/// filtered list the snapshot shows, which lacks the items the filter removed.
+fn reconcile_input<'a>(
+    snap: &'a GitlabSnapshot,
+    full: Option<&'a AssignedItems>,
+) -> Option<(&'a AssignedItems, &'a str)> {
     match snap.state {
-        gitlab::GitlabState::Ok => Some((snap.items.as_ref()?, snap.account.as_deref()?)),
+        gitlab::GitlabState::Ok => Some((full?, snap.account.as_deref()?)),
         _ => None,
     }
 }
@@ -437,10 +554,11 @@ fn notify_new_assignments(
     }
 }
 
-/// Reconciles "To do" entries with a successful list. Returns whether at least
-/// one row changed. A store error is logged by kind and changes nothing else.
-fn reconcile_todo(app: &AppHandle, next: &GitlabSnapshot) -> bool {
-    let Some((items, account)) = reconcile_input(next) else {
+/// Reconciles "To do" entries with a successful round's full list. Returns
+/// whether at least one row changed. A store error is logged by kind and changes
+/// nothing else.
+fn reconcile_todo(app: &AppHandle, next: &GitlabSnapshot, full: Option<&AssignedItems>) -> bool {
+    let Some((items, account)) = reconcile_input(next, full) else {
         return false;
     };
     let now = Local::now().naive_local();
@@ -516,42 +634,165 @@ mod tests {
     }
 
     #[test]
-    fn reconcile_input_only_for_ok_with_items() {
-        let items = AssignedItems::default();
+    fn reconcile_input_only_for_ok_with_a_full_list_and_account() {
+        // The shown (filtered) list differs from the round's full list.
+        let full = AssignedItems {
+            merge_requests: vec![],
+            issues: vec![entry(1, ItemKind::Issue)],
+            hidden_issues: vec![],
+        };
         let with = |state| GitlabSnapshot {
             state,
-            items: Some(items.clone()),
+            items: Some(AssignedItems::default()),
             account: Some("account-a".into()),
             ..GitlabSnapshot::starting()
         };
+        // The full list is what comes back, never the snapshot's items.
         assert_eq!(
-            reconcile_input(&with(State::Ok)),
-            Some((&items, "account-a"))
+            reconcile_input(&with(State::Ok), Some(&full)),
+            Some((&full, "account-a"))
         );
+        // No full list from this round: nothing, even with shown items.
+        assert!(reconcile_input(&with(State::Ok), None).is_none());
         // Items without the account they came from are never reconciled.
         let no_account = GitlabSnapshot {
             account: None,
             ..with(State::Ok)
         };
-        assert!(reconcile_input(&no_account).is_none());
+        assert!(reconcile_input(&no_account, Some(&full)).is_none());
         // A failed round keeps the last items; they must not be used.
-        assert!(
-            reconcile_input(&with(State::Unavailable {
-                message: String::new()
-            }))
-            .is_none()
-        );
-        assert!(
-            reconcile_input(&with(State::Error {
+        for state in [
+            State::Unavailable {
+                message: String::new(),
+            },
+            State::Error {
                 kind: "LoggedOut".into(),
-                message: String::new()
-            }))
-            .is_none()
+                message: String::new(),
+            },
+            State::NotConfigured,
+            State::Starting,
+        ] {
+            assert!(reconcile_input(&with(state), Some(&full)).is_none());
+        }
+        // Ok without an account (not reachable in practice) gives nothing.
+        assert!(reconcile_input(&snap(State::Ok), Some(&full)).is_none());
+    }
+
+    fn project_filter(include: &str) -> GitlabFilter {
+        let mut filter = GitlabFilter::default();
+        filter.projects.include = vec![include.to_string()];
+        filter
+    }
+
+    fn entry_in(id: u64, kind: ItemKind, project: &str) -> GitlabItem {
+        let sep = if kind == ItemKind::Issue { '#' } else { '!' };
+        GitlabItem {
+            reference: format!("{project}{sep}{id}"),
+            ..entry(id, kind)
+        }
+    }
+
+    #[test]
+    fn filter_shown_filters_each_section_and_counts() {
+        let shown = AssignedItems {
+            merge_requests: vec![
+                entry_in(1, ItemKind::MergeRequest, "acme/a"),
+                entry_in(2, ItemKind::MergeRequest, "acme/b"),
+            ],
+            issues: vec![
+                entry_in(3, ItemKind::Issue, "acme/b"),
+                entry_in(4, ItemKind::Issue, "acme/b"),
+            ],
+            hidden_issues: vec![entry_in(5, ItemKind::Issue, "acme/b")],
+        };
+        let (out, counts) = filter_shown(shown.clone(), &project_filter("acme/a"));
+        assert_eq!(out.merge_requests, vec![shown.merge_requests[0].clone()]);
+        assert!(out.issues.is_empty() && out.hidden_issues.is_empty());
+        assert_eq!(
+            counts,
+            FilteredOut {
+                merge_requests: 1,
+                issues: 2,
+                hidden_issues: 1
+            }
         );
-        assert!(reconcile_input(&with(State::NotConfigured)).is_none());
-        assert!(reconcile_input(&with(State::Starting)).is_none());
-        // Ok without items (not reachable in practice) gives nothing.
-        assert!(reconcile_input(&snap(State::Ok)).is_none());
+        // The default filter changes nothing.
+        let (same, none) = filter_shown(shown.clone(), &GitlabFilter::default());
+        assert_eq!(same, shown);
+        assert_eq!(none, FilteredOut::default());
+    }
+
+    #[test]
+    fn a_filtered_out_issue_does_not_leave_the_full_list_the_round_reconciles() {
+        // The round hands the full list to the reconcile and only the filtered
+        // list to the snapshot.
+        let full = AssignedItems {
+            merge_requests: vec![],
+            issues: vec![
+                entry_in(1, ItemKind::Issue, "acme/a"),
+                entry_in(2, ItemKind::Issue, "acme/b"),
+            ],
+            hidden_issues: vec![],
+        };
+        let (shown, _) = filter_shown(full.clone(), &project_filter("acme/a"));
+        let snapshot = GitlabSnapshot {
+            state: State::Ok,
+            items: Some(shown),
+            account: Some("account-a".into()),
+            ..GitlabSnapshot::starting()
+        };
+        let (input, _) = reconcile_input(&snapshot, Some(&full)).unwrap();
+        assert_eq!(input.issues.len(), 2);
+        assert_eq!(snapshot.items.as_ref().unwrap().issues.len(), 1);
+    }
+
+    #[test]
+    fn shape_items_partitions_then_filters_a_kept_list() {
+        let full = AssignedItems {
+            merge_requests: vec![entry_in(3, ItemKind::MergeRequest, "acme/b")],
+            issues: vec![
+                entry_in(1, ItemKind::Issue, "acme/a"),
+                entry_in(2, ItemKind::Issue, "acme/a"),
+                entry_in(4, ItemKind::Issue, "acme/b"),
+            ],
+            hidden_issues: vec![],
+        };
+        let records = [record(2, None)];
+        let (shown, out) = shape_items(&full, &records, &project_filter("acme/a"));
+        assert_eq!(shown.issues.len(), 1);
+        assert_eq!(shown.issues[0].id, 1);
+        assert_eq!(shown.hidden_issues.len(), 1);
+        assert_eq!(shown.hidden_issues[0].id, 2);
+        assert!(shown.merge_requests.is_empty());
+        assert_eq!(
+            out,
+            FilteredOut {
+                merge_requests: 1,
+                issues: 1,
+                hidden_issues: 0
+            }
+        );
+        // After an invalid block the default filter shows every item again.
+        let (all, none) = shape_items(&full, &records, &GitlabFilter::default());
+        assert_eq!(all.issues.len(), 2);
+        assert_eq!(all.merge_requests.len(), 1);
+        assert_eq!(none, FilteredOut::default());
+    }
+
+    #[test]
+    fn load_filter_falls_back_to_the_default_and_flags_an_invalid_block() {
+        assert_eq!(load_filter(&None), (GitlabFilter::default(), false));
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(
+            &path,
+            r#"{"version":1,"gitlabFilter":{"projects":{"include":["acme/a"]}}}"#,
+        )
+        .unwrap();
+        let (filter, invalid) = load_filter(&Some(path.clone()));
+        assert!(filter.is_active() && !invalid);
+        std::fs::write(&path, r#"{"version":1,"gitlabFilter":{"projcts":{}}}"#).unwrap();
+        assert_eq!(load_filter(&Some(path)), (GitlabFilter::default(), true));
     }
 
     #[test]
@@ -696,6 +937,74 @@ mod tests {
         assert_eq!(items.issues.len(), 1);
         assert_eq!(items.issues[0].id, 2);
         assert_eq!(items.issues[0].changed, Some(gitlab::ChangeReason::Comment));
+    }
+
+    #[test]
+    fn act_on_issue_reapplies_the_kept_filter_and_stores_the_counts() {
+        let (state, _rx) = GitlabRefreshState::new();
+        *state.kept_config.lock().unwrap() = Some(GitlabConfig {
+            host: host(),
+            user: None,
+        });
+        *state.kept_full.lock().unwrap() = Some(AssignedItems {
+            merge_requests: vec![
+                entry_in(10, ItemKind::MergeRequest, "acme/a"),
+                entry_in(11, ItemKind::MergeRequest, "acme/b"),
+            ],
+            issues: vec![
+                entry_in(1, ItemKind::Issue, "acme/a"),
+                entry_in(2, ItemKind::Issue, "acme/a"),
+                entry_in(3, ItemKind::Issue, "acme/b"),
+                entry_in(4, ItemKind::Issue, "acme/b"),
+            ],
+            hidden_issues: vec![],
+        });
+        *state.kept_filter.lock().unwrap() = project_filter("acme/a");
+        {
+            let mut snap = state.write();
+            snap.filter_invalid = true;
+            snap.hidden_check_failed = 3;
+        }
+
+        // Hide issues 1 (kept by the filter) and 3 (removed by it).
+        state
+            .act_on_issue(1, |_, _| Ok(vec![record(1, None), record(3, None)]))
+            .unwrap();
+
+        let snap = state.snapshot();
+        let items = snap.items.unwrap();
+        assert_eq!(items.merge_requests.len(), 1);
+        assert_eq!(items.merge_requests[0].id, 10);
+        assert_eq!(items.issues.iter().map(|i| i.id).collect::<Vec<_>>(), [2]);
+        assert_eq!(
+            items.hidden_issues.iter().map(|i| i.id).collect::<Vec<_>>(),
+            [1]
+        );
+        assert!(snap.filter_active);
+        assert_eq!(
+            snap.filtered_out,
+            FilteredOut {
+                merge_requests: 1,
+                issues: 1,
+                hidden_issues: 1
+            }
+        );
+        // The round flag is left as the last round set it; the cap uses the
+        // hidden count before filtering (2).
+        assert!(snap.filter_invalid);
+        assert_eq!(snap.hidden_check_failed, 2);
+    }
+
+    #[test]
+    fn act_on_issue_with_the_default_filter_reports_no_filter() {
+        let state = kept_state();
+        state
+            .act_on_issue(1, |_, _| Ok(vec![record(1, None)]))
+            .unwrap();
+        let snap = state.snapshot();
+        assert!(!snap.filter_active);
+        assert_eq!(snap.filtered_out, FilteredOut::default());
+        assert_eq!(snap.items.unwrap().merge_requests.len(), 1);
     }
 
     #[test]

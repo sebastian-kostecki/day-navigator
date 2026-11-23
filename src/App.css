@@ -246,7 +246,84 @@ fieldset {
   font-weight: 600;
 }
 
+/* Work-time view */
+
+.day-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.entry-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.entry-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background-color: #ffffff;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+}
+
+.entry-main {
+  display: flex;
+  gap: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.entry-range {
+  font-weight: 600;
+}
+
+.entry-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.entry-error {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.entry-form {
+  flex: 1 1 100%;
+}
+
+.entry-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.85em;
+}
+
+.entry-form fieldset {
+  align-items: flex-end;
+}
+
+.entry-total {
+  font-variant-numeric: tabular-nums;
+}
+
+.new-entry {
+  margin-top: 16px;
+}
+
 @media (prefers-color-scheme: dark) {
+  .entry-row {
+    background-color: #3a3a3a;
+    border-color: #4a4a4a;
+  }
+
   .app-header {
     background-color: #1f1f1f;
     border-color: #4a4a4a;

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { HealthPanel } from "./health/HealthPanel";
 import TasksView from "./tasks/TasksView";
+import WorkTimeView from "./worktime/WorkTimeView";
 import { WorkTimerHeader } from "./worktime/WorkTimerHeader";
 import "./App.css";
 
@@ -33,11 +34,7 @@ function App() {
         </nav>
       </header>
       {view === "tasks" && <TasksView />}
-      {view === "work-time" && (
-        <main className="container">
-          <p className="empty">Widok „Czas pracy” pojawi się wkrótce.</p>
-        </main>
-      )}
+      {view === "work-time" && <WorkTimeView />}
       {view === "health" && <HealthPanel />}
     </>
   );

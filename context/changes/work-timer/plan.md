@@ -401,8 +401,8 @@ At most a few thousand rows a year. The day query is a range scan on `work_entri
 
 #### Automated
 
-- [x] 3.1 `npm run build`, `npm run lint`, `npm run format:check` pass
-- [x] 3.2 `cargo test` still passes
+- [x] 3.1 `npm run build`, `npm run lint`, `npm run format:check` pass — 5227d69
+- [x] 3.2 `cargo test` still passes — 5227d69
 
 #### Manual
 
@@ -419,8 +419,8 @@ At most a few thousand rows a year. The day query is a range scan on `work_entri
 
 #### Automated
 
-- [ ] 4.1 `npm run build`, `npm run lint`, `npm run format:check` pass
-- [ ] 4.2 `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` pass
+- [x] 4.1 `npm run build`, `npm run lint`, `npm run format:check` pass
+- [x] 4.2 `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` pass
 
 #### Manual
 

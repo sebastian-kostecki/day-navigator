@@ -44,7 +44,7 @@ One developer on one Windows 11 machine works for a company (issues in a work Gi
 | ---- | ----------------------- | ------------------------------------------------------------------------------------- | ------------- | ----------------------------------------- | -------- |
 | F-01 | app-data-store          | (foundation) app-owned data survives close, restart and crash                          | —             | NFR Trwałość czasu pracy, Constraints      | done |
 | F-02 | read-only-cli-runner    | (foundation) logged-in `glab`/`gh` run read-only, with classified result states        | —             | Access Control Changes, NFR Nigdy pusta lista | done |
-| S-01 | gitlab-assigned-list    | see assigned GitLab issues and MRs, or a calm "unavailable" state without VPN          | F-02          | FR-001, FR-015, FR-016, US-01              | in-progress |
+| S-01 | gitlab-assigned-list    | see assigned GitLab issues and MRs, or a calm "unavailable" state without VPN          | F-02          | FR-001, FR-015, FR-016, US-01              | done |
 | S-02 | gitlab-visibility-filter| choose which assigned GitLab items the list shows                                      | S-01          | FR-002                                    | proposed |
 | S-03 | hide-and-resurface      | hide an issue and get it back when its status changes or someone else comments         | S-01, F-01    | FR-003, US-02                             | proposed |
 | S-04 | new-assignment-notify   | get a Windows notification for every new assigned issue or MR                          | S-01, F-01    | FR-004, NFR Świeżość, NFR Lekkość w tle    | proposed |
@@ -117,7 +117,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** The north star; it is the first time real work data passes through the app, so the guardrail that no work data reaches logs or tests is exercised here first.
-- **Status:** in-progress
+- **Status:** done
 
 ### S-02: Visibility filter for GitLab items
 
@@ -276,3 +276,4 @@ Entries below come from this milestone's previous decomposition (archived at `co
 - **S-05: User can create a task from the template in the work vault and change its status from the app.** — Archived 2026-11-21 → `context/archive/2026-11-20-work-tasks-from-template/`. Lesson: —.
 - **F-01: (foundation) the app keeps its own data (own tasks, the "To do" list, hidden-issue snapshots, work-time entries) in its app data dir. A write is never half-applied, and the data survives closing the app, restarting Windows and a crash — proven by tests on invented data.** — Archived 2026-11-23 → `context/archive/2026-11-23-app-data-store/`. Lesson: —.
 - **F-02: (foundation) the app runs the logged-in `glab`/`gh` with a fixed program and fixed arguments, read-only, and reports each call as one of: data, unavailable (no VPN/network), logged out, tool missing, error. A fake CLI makes these states testable without any work data.** — Archived 2026-11-23 → `context/archive/2026-11-23-read-only-cli-runner/`. Lesson: —.
+- **S-01: User can open the "Work (GitLab)" view and see the issues and MRs assigned to them. Without VPN the view says "GitLab unavailable" calmly, with the time of the last successful refresh, and raises no alarm. A logged-out `glab` shows as an error in the tray. The app gets its navigation between views and the fixed header area.** — Archived 2026-11-23 → `context/archive/2026-11-23-gitlab-assigned-list/`. Lesson: —.

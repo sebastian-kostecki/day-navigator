@@ -6,10 +6,12 @@
 //! `serde_json` error or any other response content.
 
 pub mod fetch;
+pub mod notes;
 
 use std::cmp::Reverse;
 
 use chrono::{DateTime, FixedOffset};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use crate::cli::{CliError, GitlabConfig, GitlabHost, Tool};
@@ -25,6 +27,15 @@ pub enum ItemKind {
 #[serde(rename_all = "camelCase")]
 pub struct GitlabItem {
     pub kind: ItemKind,
+    /// GitLab's global id: the stable key of a hide record (a reference changes
+    /// when a project moves).
+    pub id: u64,
+    /// Rust-only: builds the notes call. Not sent to the UI.
+    #[serde(skip)]
+    pub project_id: u64,
+    /// Rust-only: builds the notes call. Not sent to the UI.
+    #[serde(skip)]
+    pub iid: u64,
     /// `references.full`: `group/project#12` or `group/project!34`.
     pub reference: String,
     pub title: String,
@@ -142,6 +153,9 @@ struct RawRefs {
 
 #[derive(Deserialize)]
 struct RawItem {
+    id: u64,
+    iid: u64,
+    project_id: u64,
     title: String,
     web_url: String,
     updated_at: String,
@@ -165,19 +179,38 @@ fn checked_url(url: &str, host: &GitlabHost) -> Option<String> {
     Some(url.to_string())
 }
 
+/// Reads the output of `glab api --paginate`: with piped stdout glab writes each
+/// page's array in turn (`[...][...]`), never one merged array. Empty output and
+/// any serde error are `ResponseInvalid` with no content.
+pub(crate) fn parse_pages<T: DeserializeOwned>(json: &str) -> Result<Vec<T>, GitlabError> {
+    let mut all = Vec::new();
+    let mut pages = 0usize;
+    // The serde error is dropped on purpose: it can quote the response.
+    for page in serde_json::Deserializer::from_str(json).into_iter::<Vec<T>>() {
+        all.extend(page.map_err(|_| GitlabError::ResponseInvalid)?);
+        pages += 1;
+    }
+    if pages == 0 {
+        return Err(GitlabError::ResponseInvalid);
+    }
+    Ok(all)
+}
+
 fn parse_items(
     json: &str,
     host: &GitlabHost,
     kind: ItemKind,
 ) -> Result<Vec<GitlabItem>, GitlabError> {
-    // The serde error is dropped on purpose: it can quote the response.
-    let raw: Vec<RawItem> = serde_json::from_str(json).map_err(|_| GitlabError::ResponseInvalid)?;
+    let raw: Vec<RawItem> = parse_pages(json)?;
     let mut keyed: Vec<(DateTime<FixedOffset>, GitlabItem)> = Vec::with_capacity(raw.len());
     for r in raw {
         let stamp = DateTime::parse_from_rfc3339(&r.updated_at)
             .map_err(|_| GitlabError::ResponseInvalid)?;
         let item = GitlabItem {
             kind,
+            id: r.id,
+            project_id: r.project_id,
+            iid: r.iid,
             reference: r.references.full,
             title: r.title,
             web_url: checked_url(&r.web_url, host),
@@ -311,7 +344,7 @@ mod tests {
 
     fn mr_json(title: &str, url: &str, updated: &str, reference: &str, extra: &str) -> String {
         format!(
-            r#"{{"id":1,"iid":1,"title":"{title}","web_url":"{url}","updated_at":"{updated}","references":{{"short":"!1","relative":"!1","full":"{reference}"}},"state":"opened","author":{{"name":"Invented"}}{extra}}}"#
+            r#"{{"id":1,"iid":1,"project_id":1,"title":"{title}","web_url":"{url}","updated_at":"{updated}","references":{{"short":"!1","relative":"!1","full":"{reference}"}},"state":"opened","author":{{"name":"Invented"}}{extra}}}"#
         )
     }
 
@@ -375,6 +408,75 @@ mod tests {
             )
         );
         assert!(!parse_merge_requests(&json, &host()).unwrap()[0].draft);
+    }
+
+    fn raw_json(id: u64, iid: u64, project_id: u64, reference: &str) -> String {
+        format!(
+            r#"{{"id":{id},"iid":{iid},"project_id":{project_id},"title":"T","web_url":"https://gitlab.example.invalid/a","updated_at":"2026-03-02T10:00:00Z","references":{{"full":"{reference}"}}}}"#
+        )
+    }
+
+    #[test]
+    fn identity_fields_are_kept_and_not_all_are_serialized() {
+        let json = format!("[{}]", raw_json(901, 12, 77, "g/p#12"));
+        let i = &parse_issues(&json, &host()).unwrap()[0];
+        assert_eq!((i.id, i.iid, i.project_id), (901, 12, 77));
+        let v = serde_json::to_value(i).unwrap();
+        assert_eq!(v["id"], 901);
+        assert!(v.get("iid").is_none() && v.get("projectId").is_none());
+        let mr = &parse_merge_requests(&json, &host()).unwrap()[0];
+        assert_eq!((mr.id, mr.iid, mr.project_id), (901, 12, 77));
+    }
+
+    #[test]
+    fn a_missing_identity_field_is_response_invalid() {
+        for field in ["id", "iid", "project_id"] {
+            let mut v: serde_json::Value =
+                serde_json::from_str(&raw_json(1, 2, 3, "g/p#1")).unwrap();
+            v.as_object_mut().unwrap().remove(field);
+            let json = format!("[{v}]");
+            assert_eq!(
+                parse_issues(&json, &host()),
+                Err(GitlabError::ResponseInvalid),
+                "{field}"
+            );
+        }
+    }
+
+    #[test]
+    fn concatenated_pages_are_read_in_full_and_sorted_together() {
+        let a = raw_json(1, 1, 1, "g/p#1");
+        let b = raw_json(2, 2, 1, "g/p#2");
+        let c = raw_json(3, 3, 1, "g/p#3");
+        let json = format!("[{a},{b}]\n[{c}]");
+        let ids: Vec<u64> = parse_issues(&json, &host())
+            .unwrap()
+            .iter()
+            .map(|i| i.id)
+            .collect();
+        assert_eq!(ids, [1, 2, 3]);
+        // An empty page between full ones is fine.
+        let json = format!("[{a}][][{b}]");
+        assert_eq!(parse_issues(&json, &host()).unwrap().len(), 2);
+    }
+
+    #[test]
+    fn parse_pages_rejects_empty_trailing_garbage_and_truncated_pages() {
+        let a = raw_json(1, 1, 1, "g/p#1");
+        for bad in [
+            String::new(),
+            "  \n\t".to_string(),
+            format!("[{a}] garbage"),
+            format!("[{a}][{a}"),
+            format!("[{a}]{{}}"),
+        ] {
+            assert_eq!(
+                parse_pages::<serde_json::Value>(&bad),
+                Err(GitlabError::ResponseInvalid),
+                "{bad}"
+            );
+        }
+        assert_eq!(parse_pages::<serde_json::Value>("[]").unwrap().len(), 0);
     }
 
     #[test]
@@ -596,6 +698,9 @@ mod tests {
     fn item(reference: &str) -> GitlabItem {
         GitlabItem {
             kind: ItemKind::Issue,
+            id: 1,
+            project_id: 1,
+            iid: 1,
             reference: reference.to_string(),
             title: "T".into(),
             web_url: None,

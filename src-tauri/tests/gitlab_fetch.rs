@@ -3,8 +3,9 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use day_navigator_lib::cli::{CliRunner, GitlabConfig, GitlabHost, GitlabUser};
-use day_navigator_lib::gitlab::fetch::fetch_assigned;
+use day_navigator_lib::cli::{CliRunner, GitlabConfig, GitlabHost, GitlabUser, IssueRef};
+use day_navigator_lib::gitlab::fetch::{fetch_assigned, fetch_issue_notes};
+use day_navigator_lib::gitlab::notes::IssueNote;
 use day_navigator_lib::gitlab::{GitlabError, ItemKind};
 
 const MARKER: &str = "LEAK-MARKER-TITLE-7c1e";
@@ -160,4 +161,132 @@ fn with_a_user_failures_never_show_the_user_or_host() {
             assert!(!text.contains("example.invalid"), "{scenario}: {text}");
         }
     }
+}
+
+// ------------------------------------------------------------------ notes
+
+fn gitlab_host() -> GitlabHost {
+    GitlabHost::parse("gitlab.example.invalid").unwrap()
+}
+
+/// The issue that has notes in the fake GitLab (project 102, iid 12).
+const WITH_NOTES: IssueRef = IssueRef {
+    project_id: 102,
+    iid: 12,
+};
+
+fn notes(scenario: &str, issue: IssueRef) -> Result<Vec<IssueNote>, GitlabError> {
+    fetch_issue_notes(&runner(scenario), &gitlab_host(), issue)
+}
+
+fn authors(notes: &[IssueNote]) -> Vec<&str> {
+    notes.iter().map(|n| n.author.as_str()).collect()
+}
+
+#[test]
+fn assigned_items_carry_their_ids() {
+    let got = fetch_assigned(&runner("gitlab-assigned"), &host()).expect("data");
+    let widget = got
+        .issues
+        .iter()
+        .find(|i| i.reference == "acme/widgets#12")
+        .unwrap();
+    assert_eq!((widget.id, widget.project_id, widget.iid), (5002, 102, 12));
+    let mr = got
+        .merge_requests
+        .iter()
+        .find(|i| i.reference == "acme/widgets!34")
+        .unwrap();
+    assert_eq!((mr.id, mr.project_id, mr.iid), (6002, 102, 34));
+}
+
+#[test]
+fn notes_by_another_user_are_parsed_newest_first() {
+    let got = notes("gitlab-notes-other", WITH_NOTES).expect("notes");
+    assert_eq!(authors(&got), ["other.invented", "invented.user"]);
+    assert!(got.iter().all(|n| !n.system));
+    assert!(got[0].created_at > got[1].created_at);
+}
+
+#[test]
+fn own_comments_system_notes_and_no_notes_are_all_readable() {
+    let own = notes("gitlab-notes-own", WITH_NOTES).expect("notes");
+    assert_eq!(authors(&own), ["Invented.User", "invented.user"]);
+    let system = notes("gitlab-notes-system", WITH_NOTES).expect("notes");
+    assert_eq!(system.len(), 1);
+    assert!(system[0].system);
+    assert!(notes("gitlab-notes-none", WITH_NOTES).unwrap().is_empty());
+}
+
+#[test]
+fn any_other_issue_gets_an_empty_array() {
+    let other = IssueRef {
+        project_id: 101,
+        iid: 5,
+    };
+    for scenario in ["gitlab-notes-other", "gitlab-notes-own", "gitlab-two-pages"] {
+        assert!(notes(scenario, other).unwrap().is_empty(), "{scenario}");
+    }
+}
+
+#[test]
+fn two_concatenated_notes_pages_are_read_in_full() {
+    let got = notes("gitlab-two-pages", WITH_NOTES).expect("notes");
+    assert_eq!(authors(&got), ["invented.user", "other.invented"]);
+}
+
+#[test]
+fn two_concatenated_issue_pages_are_read_in_full() {
+    let got = fetch_assigned(&runner("gitlab-two-pages"), &host()).expect("data");
+    assert_eq!(refs(&got.issues), ["acme/widgets#12", "acme/gizmo#5"]);
+    assert_eq!(got.merge_requests.len(), 3);
+}
+
+#[test]
+fn the_list_succeeds_while_notes_are_unavailable() {
+    let r = runner("gitlab-notes-unavailable");
+    assert!(fetch_assigned(&r, &host()).is_ok());
+    assert_eq!(
+        fetch_issue_notes(&r, &gitlab_host(), WITH_NOTES),
+        Err(GitlabError::Unavailable)
+    );
+}
+
+#[test]
+fn bad_notes_json_is_response_invalid_and_leaks_nothing() {
+    let err = notes("gitlab-notes-bad-json", WITH_NOTES).unwrap_err();
+    assert_eq!(err, GitlabError::ResponseInvalid);
+    let shown = [
+        format!("{err:?}"),
+        err.to_string(),
+        serde_json::to_string(&err).unwrap(),
+        err.message_pl(),
+    ];
+    for text in shown {
+        assert!(!text.contains("LEAK-MARKER-NOTE-4b2d"), "{text}");
+        assert!(!text.contains("example.invalid"), "{text}");
+    }
+}
+
+#[test]
+fn notes_failures_map_to_their_gitlab_errors() {
+    let cases = [
+        ("glab-no-network", GitlabError::Unavailable),
+        ("glab-logged-out", GitlabError::LoggedOut),
+        ("unknown-error", GitlabError::Failed { exit_code: Some(2) }),
+    ];
+    for (scenario, expected) in cases {
+        assert_eq!(notes(scenario, WITH_NOTES), Err(expected), "{scenario}");
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let r = CliRunner::with_programs(
+        dir.path().join("no-glab"),
+        dir.path().join("no-gh"),
+        Duration::from_secs(5),
+        Vec::new(),
+    );
+    assert_eq!(
+        fetch_issue_notes(&r, &gitlab_host(), WITH_NOTES),
+        Err(GitlabError::ToolMissing)
+    );
 }

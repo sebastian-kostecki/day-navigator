@@ -20,12 +20,36 @@ fn echo_argv() -> String {
 /// shows up in an error.
 const BAD_JSON_MARKER: &str = "LEAK-MARKER-TITLE-7c1e";
 
-/// Which assigned-items endpoint was asked for, from the `glab api` arguments.
+/// Marker inside the `gitlab-notes-bad-json` body; tests assert it never shows
+/// up in an error.
+const BAD_NOTES_MARKER: &str = "LEAK-MARKER-NOTE-4b2d";
+
+/// The one issue that has notes in the notes scenarios: project and in-project
+/// number of "Widget crashes on start". Any other issue gets an empty array.
+const NOTES_PROJECT_ID: u64 = 102;
+const NOTES_IID: u64 = 12;
+
+/// Which endpoint was asked for, from the `glab api` arguments.
 #[derive(PartialEq)]
 enum Endpoint {
     MergeRequests,
     Issues,
+    /// `projects/<project_id>/issues/<iid>/notes?...`
+    Notes {
+        project_id: u64,
+        iid: u64,
+    },
     Other,
+}
+
+fn parse_notes_endpoint(arg: &str) -> Option<Endpoint> {
+    let rest = arg.strip_prefix("projects/")?;
+    let (ids, _query) = rest.split_once("/notes?")?;
+    let (project, iid) = ids.split_once("/issues/")?;
+    Some(Endpoint::Notes {
+        project_id: project.parse().ok()?,
+        iid: iid.parse().ok()?,
+    })
 }
 
 fn endpoint() -> Endpoint {
@@ -36,16 +60,50 @@ fn endpoint() -> Endpoint {
         if arg.starts_with("issues?") {
             return Endpoint::Issues;
         }
+        if let Some(notes) = parse_notes_endpoint(&arg) {
+            return notes;
+        }
     }
     Endpoint::Other
 }
 
+/// The assigned issues of the fake GitLab, in list order.
+fn issue_values() -> Vec<serde_json::Value> {
+    vec![
+        serde_json::json!({
+            "id": 5001,
+            "iid": 5,
+            "project_id": 101,
+            "title": "Gizmo jitters",
+            "web_url": "https://gitlab.example.invalid/acme/gizmo/-/issues/5",
+            "updated_at": "2026-02-20T08:00:00.000Z",
+            "labels": ["bug"],
+            "references": { "full": "acme/gizmo#5" }
+        }),
+        serde_json::json!({
+            "id": 5002,
+            "iid": NOTES_IID,
+            "project_id": NOTES_PROJECT_ID,
+            "title": "Widget crashes on start",
+            "web_url": "https://gitlab.example.invalid/acme/widgets/-/issues/12",
+            "updated_at": "2026-03-03T08:00:00.000Z",
+            "labels": [],
+            "references": { "full": "acme/widgets#12" }
+        }),
+    ]
+}
+
 /// Invented assigned items on `gitlab.example.invalid`: a draft MR with labels,
-/// a tie on `updated_at`, an MR with a link on a foreign host.
-fn gitlab_assigned_body(endpoint: &Endpoint) -> Option<String> {
+/// a tie on `updated_at`, an MR with a link on a foreign host. With `paged`,
+/// the issues come as two concatenated arrays (`[...][...]`), as `glab api
+/// --paginate` prints them.
+fn gitlab_assigned_body(endpoint: &Endpoint, paged: bool) -> Option<String> {
     let body = match endpoint {
         Endpoint::MergeRequests => serde_json::json!([
             {
+                "id": 6001,
+                "iid": 7,
+                "project_id": 103,
                 "title": "Fix gizmo rotation",
                 "web_url": "https://other.example.invalid/acme/gizmo/-/merge_requests/7",
                 "updated_at": "2026-03-01T09:00:00.000Z",
@@ -54,6 +112,9 @@ fn gitlab_assigned_body(endpoint: &Endpoint) -> Option<String> {
                 "references": { "full": "acme/gizmo!7" }
             },
             {
+                "id": 6002,
+                "iid": 34,
+                "project_id": 102,
                 "title": "Add widget parser",
                 "web_url": "https://gitlab.example.invalid/acme/widgets/-/merge_requests/34",
                 "updated_at": "2026-03-02T10:00:00.000Z",
@@ -62,31 +123,115 @@ fn gitlab_assigned_body(endpoint: &Endpoint) -> Option<String> {
                 "references": { "full": "acme/widgets!34" }
             },
             {
+                "id": 6003,
+                "iid": 12,
+                "project_id": 102,
                 "title": "Rename widget module",
                 "web_url": "https://gitlab.example.invalid/acme/widgets/-/merge_requests/12",
                 "updated_at": "2026-03-02T10:00:00.000Z",
                 "references": { "full": "acme/widgets!12" }
             }
         ]),
-        Endpoint::Issues => serde_json::json!([
-            {
-                "title": "Gizmo jitters",
-                "web_url": "https://gitlab.example.invalid/acme/gizmo/-/issues/5",
-                "updated_at": "2026-02-20T08:00:00.000Z",
-                "labels": ["bug"],
-                "references": { "full": "acme/gizmo#5" }
-            },
-            {
-                "title": "Widget crashes on start",
-                "web_url": "https://gitlab.example.invalid/acme/widgets/-/issues/12",
-                "updated_at": "2026-03-03T08:00:00.000Z",
-                "labels": [],
-                "references": { "full": "acme/widgets#12" }
+        Endpoint::Issues => {
+            let issues = issue_values();
+            if paged {
+                let pages: Vec<String> = issues
+                    .into_iter()
+                    .map(|i| serde_json::Value::Array(vec![i]).to_string())
+                    .collect();
+                return Some(pages.concat());
             }
-        ]),
-        Endpoint::Other => return None,
+            serde_json::Value::Array(issues)
+        }
+        Endpoint::Notes { .. } | Endpoint::Other => return None,
     };
     Some(body.to_string())
+}
+
+fn note_value(author: &str, system: bool, created_at: &str) -> serde_json::Value {
+    serde_json::json!({
+        "id": 9000,
+        "body": "Invented comment text",
+        "author": { "id": 1, "username": author, "name": "Invented Person" },
+        "system": system,
+        "created_at": created_at,
+        "updated_at": created_at
+    })
+}
+
+/// Notes for the notes scenarios, newest first. `None` when the scenario is not
+/// a notes scenario or the endpoint is not a notes call. Only the fixed
+/// project/iid has notes; any other issue gets `[]`.
+fn gitlab_notes_body(scenario: &str, endpoint: &Endpoint) -> Option<String> {
+    let Endpoint::Notes { project_id, iid } = endpoint else {
+        return None;
+    };
+    let mine = *project_id == NOTES_PROJECT_ID && *iid == NOTES_IID;
+    let notes: Vec<serde_json::Value> = match (scenario, mine) {
+        (_, false) => vec![],
+        // A comment by someone else, older ones by the configured user.
+        ("gitlab-notes-other", true) => vec![
+            note_value("other.invented", false, "2026-03-04T10:00:00.000Z"),
+            note_value("invented.user", false, "2026-03-03T09:00:00.000Z"),
+        ],
+        // Only the configured user (one with different case) and nothing else.
+        ("gitlab-notes-own", true) => vec![
+            note_value("Invented.User", false, "2026-03-04T10:00:00.000Z"),
+            note_value("invented.user", false, "2026-03-03T09:00:00.000Z"),
+        ],
+        // A system note by someone else only.
+        ("gitlab-notes-system", true) => {
+            vec![note_value(
+                "other.invented",
+                true,
+                "2026-03-04T10:00:00.000Z",
+            )]
+        }
+        ("gitlab-notes-none", true) => vec![],
+        // Two pages: the qualifying comment is on the second page.
+        ("gitlab-two-pages", true) => {
+            let page1 = serde_json::Value::Array(vec![note_value(
+                "invented.user",
+                false,
+                "2026-03-05T10:00:00.000Z",
+            )]);
+            let page2 = serde_json::Value::Array(vec![note_value(
+                "other.invented",
+                false,
+                "2026-03-04T10:00:00.000Z",
+            )]);
+            return Some(format!("{page1}{page2}"));
+        }
+        _ => return None,
+    };
+    Some(serde_json::Value::Array(notes).to_string())
+}
+
+/// The GitLab scenarios that serve the assigned lists and the notes call:
+/// `gitlab-notes-*` and `gitlab-two-pages` (lists and notes both paged).
+fn gitlab_notes_scenario(scenario: &str) -> i32 {
+    let endpoint = endpoint();
+    let paged = scenario == "gitlab-two-pages";
+    let body = match &endpoint {
+        Endpoint::Notes { .. } => match scenario {
+            "gitlab-notes-unavailable" => {
+                eprint!("{GLAB_NO_NETWORK}");
+                return 1;
+            }
+            "gitlab-notes-bad-json" => Some(format!(
+                "[{{\"body\":\"{BAD_NOTES_MARKER}\",\"author\":{{\"username\":\"a\"}},\"system\":false,\"created_at\":\"2026-03"
+            )),
+            _ => gitlab_notes_body(scenario, &endpoint),
+        },
+        _ => gitlab_assigned_body(&endpoint, paged),
+    };
+    match body {
+        Some(body) => {
+            println!("{body}");
+            0
+        }
+        None => 98,
+    }
 }
 
 /// Starts a copy of this program that sleeps a few seconds while holding the
@@ -128,13 +273,20 @@ fn main() {
             eprintln!("A new release is available: 9.9.9 (update notice)");
             0
         }
-        "gitlab-assigned" => match gitlab_assigned_body(&endpoint()) {
+        "gitlab-assigned" => match gitlab_assigned_body(&endpoint(), false) {
             Some(body) => {
                 println!("{body}");
                 0
             }
             None => 98,
         },
+        "gitlab-notes-other"
+        | "gitlab-notes-own"
+        | "gitlab-notes-system"
+        | "gitlab-notes-none"
+        | "gitlab-notes-unavailable"
+        | "gitlab-notes-bad-json"
+        | "gitlab-two-pages" => gitlab_notes_scenario(&scenario),
         "gitlab-empty" => {
             println!("[]");
             0

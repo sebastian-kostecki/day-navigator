@@ -153,6 +153,41 @@ fn assigned_args(
     ]
 }
 
+/// One issue, by the numbers GitLab sent (project id and in-project number).
+/// Built only from parsed JSON numbers, so it can only render as digits in a
+/// path. Debug is opaque so ids never reach a log.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct IssueRef {
+    pub project_id: u64,
+    pub iid: u64,
+}
+
+impl std::fmt::Debug for IssueRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("IssueRef(..)")
+    }
+}
+
+/// Endpoint of an issue's notes, newest first: `projects/<id>/issues/<iid>` +
+/// this suffix. Numeric segments only (`glab api` expands `:id` placeholders
+/// from the working directory's repo).
+pub const ISSUE_NOTES_PREFIX: &str = "projects/";
+pub const ISSUE_NOTES_MIDDLE: &str = "/issues/";
+pub const ISSUE_NOTES_SUFFIX: &str = "/notes?sort=desc&order_by=created_at&per_page=100";
+
+fn issue_notes_args(host: &GitlabHost, issue: &IssueRef) -> Vec<String> {
+    vec![
+        "api".to_string(),
+        format!(
+            "{ISSUE_NOTES_PREFIX}{}{ISSUE_NOTES_MIDDLE}{}{ISSUE_NOTES_SUFFIX}",
+            issue.project_id, issue.iid
+        ),
+        "--paginate".to_string(),
+        "--hostname".to_string(),
+        host.as_str().to_string(),
+    ]
+}
+
 /// Closed list of allowed calls. Adding one is a reviewed change in this file;
 /// the tests below guard that every argument list is read-only.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -163,6 +198,8 @@ pub enum CliCall {
     GhAuthStatus,
     GlabAssignedIssues(GitlabHost, Option<GitlabUser>),
     GlabAssignedMergeRequests(GitlabHost, Option<GitlabUser>),
+    /// GET of one issue's notes, newest first (read-only).
+    GlabIssueNotes(GitlabHost, IssueRef),
 }
 
 impl CliCall {
@@ -188,7 +225,14 @@ impl CliCall {
             host.clone(),
             Some(user.clone()),
         ));
-        all.push(CliCall::GlabAssignedMergeRequests(host, Some(user)));
+        all.push(CliCall::GlabAssignedMergeRequests(host.clone(), Some(user)));
+        all.push(CliCall::GlabIssueNotes(
+            host,
+            IssueRef {
+                project_id: 77,
+                iid: 12,
+            },
+        ));
         all
     }
 
@@ -197,7 +241,8 @@ impl CliCall {
             CliCall::GlabVersion
             | CliCall::GlabAuthStatus
             | CliCall::GlabAssignedIssues(..)
-            | CliCall::GlabAssignedMergeRequests(..) => Tool::Glab,
+            | CliCall::GlabAssignedMergeRequests(..)
+            | CliCall::GlabIssueNotes(..) => Tool::Glab,
             CliCall::GhVersion | CliCall::GhAuthStatus => Tool::Gh,
         }
     }
@@ -215,6 +260,7 @@ impl CliCall {
             CliCall::GlabAssignedMergeRequests(host, user) => {
                 assigned_args(ASSIGNED_MRS_ENDPOINT, MRS_USER_PREFIX, host, user)
             }
+            CliCall::GlabIssueNotes(host, issue) => issue_notes_args(host, issue),
         }
     }
 
@@ -227,6 +273,7 @@ impl CliCall {
             CliCall::GhAuthStatus => "gh:auth-status",
             CliCall::GlabAssignedIssues(..) => "glab:assigned-issues",
             CliCall::GlabAssignedMergeRequests(..) => "glab:assigned-mrs",
+            CliCall::GlabIssueNotes(..) => "glab:issue-notes",
         }
     }
 }
@@ -292,9 +339,9 @@ impl CliError {
 mod tests {
     use super::*;
 
-    const VARIANT_COUNT: usize = 6;
+    const VARIANT_COUNT: usize = 7;
 
-    const EXAMPLE_COUNT: usize = 8;
+    const EXAMPLE_COUNT: usize = 9;
 
     fn example_host() -> GitlabHost {
         GitlabHost::parse("gitlab.example.invalid").unwrap()
@@ -314,6 +361,7 @@ mod tests {
             CliCall::GhAuthStatus => 3,
             CliCall::GlabAssignedIssues(..) => 4,
             CliCall::GlabAssignedMergeRequests(..) => 5,
+            CliCall::GlabIssueNotes(..) => 6,
         }
     }
 
@@ -327,7 +375,7 @@ mod tests {
             assert!(o < VARIANT_COUNT, "ordinal out of range for {c:?}");
             seen[o] += 1;
         }
-        assert_eq!(seen, [1, 1, 1, 1, 2, 2]);
+        assert_eq!(seen, [1, 1, 1, 1, 2, 2, 1]);
         let with_user = examples
             .iter()
             .filter(|c| {
@@ -343,7 +391,9 @@ mod tests {
             assert!(
                 !matches!(
                     c,
-                    CliCall::GlabAssignedIssues(..) | CliCall::GlabAssignedMergeRequests(..)
+                    CliCall::GlabAssignedIssues(..)
+                        | CliCall::GlabAssignedMergeRequests(..)
+                        | CliCall::GlabIssueNotes(..)
                 ),
                 "ALL must stay parameterless"
             );
@@ -374,10 +424,26 @@ mod tests {
                 .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
     }
 
-    /// A fixed endpoint, or `<prefix><valid login><suffix>` with one query and
-    /// exactly its three fixed parameters.
+    /// Decimal id for the notes path, written out here on purpose (the guard
+    /// must not trust `IssueRef`): 1-20 ASCII digits, no leading zero.
+    fn guard_number_ok(s: &str) -> bool {
+        (1..=20).contains(&s.len()) && !s.starts_with('0') && s.bytes().all(|b| b.is_ascii_digit())
+    }
+
+    /// Exactly `projects/<D>/issues/<D>/notes?sort=desc&order_by=created_at&per_page=100`.
+    fn notes_endpoint_allowed(endpoint: &str) -> bool {
+        const SUFFIX: &str = "/notes?sort=desc&order_by=created_at&per_page=100";
+        endpoint
+            .strip_prefix("projects/")
+            .and_then(|rest| rest.strip_suffix(SUFFIX))
+            .and_then(|ids| ids.split_once("/issues/"))
+            .is_some_and(|(project, iid)| guard_number_ok(project) && guard_number_ok(iid))
+    }
+
+    /// A fixed endpoint, the notes shape, or `<prefix><valid login><suffix>`
+    /// with one query and exactly its three fixed parameters.
     fn endpoint_allowed(endpoint: &str) -> bool {
-        if ALLOWED_ENDPOINTS.contains(&endpoint) {
+        if ALLOWED_ENDPOINTS.contains(&endpoint) || notes_endpoint_allowed(endpoint) {
             return true;
         }
         let shape_ok = endpoint.matches('?').count() == 1
@@ -591,6 +657,149 @@ mod tests {
         ) {
             if let Some(passes) = user_calls_pass_the_guard(&s) {
                 proptest::prop_assert!(passes, "{:?}", s);
+            }
+        }
+    }
+
+    const NOTES_SUFFIX: &str = "/notes?sort=desc&order_by=created_at&per_page=100";
+
+    fn notes_passes_the_guard(project_id: u64, iid: u64) -> bool {
+        let call = CliCall::GlabIssueNotes(example_host(), IssueRef { project_id, iid });
+        let args = call.args();
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        check_read_only(&args).is_ok()
+    }
+
+    fn guard_accepts_endpoint(endpoint: &str) -> bool {
+        check_read_only(&[
+            "api",
+            endpoint,
+            "--paginate",
+            "--hostname",
+            "gitlab.example.invalid",
+        ])
+        .is_ok()
+    }
+
+    #[test]
+    fn notes_call_has_exact_arguments_name_and_tool() {
+        let call = CliCall::GlabIssueNotes(
+            example_host(),
+            IssueRef {
+                project_id: 77,
+                iid: 12,
+            },
+        );
+        assert_eq!(
+            call.args(),
+            [
+                "api",
+                "projects/77/issues/12/notes?sort=desc&order_by=created_at&per_page=100",
+                "--paginate",
+                "--hostname",
+                "gitlab.example.invalid"
+            ]
+        );
+        assert_eq!(call.name(), "glab:issue-notes");
+        assert_eq!(call.tool(), Tool::Glab);
+        assert!(!format!("{call:?}").contains("77"));
+        assert!(!format!("{call:?}").contains("example.invalid"));
+    }
+
+    #[test]
+    fn guard_accepts_the_notes_shape_and_rejects_near_misses() {
+        let ok = format!("projects/77/issues/12{NOTES_SUFFIX}");
+        assert!(guard_accepts_endpoint(&ok));
+        let bad = [
+            // extra segment
+            format!("projects/77/issues/12/extra{NOTES_SUFFIX}"),
+            format!("projects/77/foo/issues/12{NOTES_SUFFIX}"),
+            format!("projects/77/issues/12/{NOTES_SUFFIX}"),
+            // placeholders and non-numbers
+            format!("projects/:id/issues/12{NOTES_SUFFIX}"),
+            format!("projects/77/issues/:iid{NOTES_SUFFIX}"),
+            format!("projects/a/issues/12{NOTES_SUFFIX}"),
+            format!("projects//issues/12{NOTES_SUFFIX}"),
+            format!("projects/77/issues/{NOTES_SUFFIX}"),
+            format!("projects/-1/issues/12{NOTES_SUFFIX}"),
+            format!("projects/077/issues/12{NOTES_SUFFIX}"),
+            format!("projects/77/issues/012{NOTES_SUFFIX}"),
+            format!("projects/{}/issues/12{NOTES_SUFFIX}", "1".repeat(21)),
+            // other resources
+            format!("projects/77/merge_requests/12{NOTES_SUFFIX}"),
+            "projects/77/issues/12/discussions?per_page=100".to_string(),
+            format!("groups/77/issues/12{NOTES_SUFFIX}"),
+            format!("/projects/77/issues/12{NOTES_SUFFIX}"),
+            // other queries
+            "projects/77/issues/12/notes".to_string(),
+            "projects/77/issues/12/notes?sort=asc&order_by=created_at&per_page=100".to_string(),
+            "projects/77/issues/12/notes?sort=desc&order_by=updated_at&per_page=100".to_string(),
+            "projects/77/issues/12/notes?sort=desc&order_by=created_at&per_page=50".to_string(),
+            format!("projects/77/issues/12{NOTES_SUFFIX}&extra=1"),
+            format!("projects/77/issues/12{NOTES_SUFFIX} "),
+        ];
+        for ep in &bad {
+            assert!(!guard_accepts_endpoint(ep), "{ep:?}");
+        }
+        assert!(check_read_only(&["api", &ok, "--hostname", "gitlab.example.invalid"]).is_err());
+        for flag in WRITE_FLAGS {
+            assert!(
+                check_read_only(&[
+                    "api",
+                    &ok,
+                    "--paginate",
+                    "--hostname",
+                    "gitlab.example.invalid",
+                    flag
+                ])
+                .is_err(),
+                "{flag}"
+            );
+        }
+    }
+
+    /// Every character, in either id position, passes the guard only when it
+    /// is an ASCII digit (and not a leading zero).
+    #[test]
+    fn notes_guard_accepts_only_digits_in_the_ids() {
+        for c in (0u8..=127).map(char::from).chain(['ä', 'ł', '\u{2028}']) {
+            let in_project = format!("projects/1{c}2/issues/3{NOTES_SUFFIX}");
+            let in_iid = format!("projects/1/issues/2{c}3{NOTES_SUFFIX}");
+            let alone = format!("projects/{c}/issues/{c}{NOTES_SUFFIX}");
+            let digit = c.is_ascii_digit();
+            assert_eq!(guard_accepts_endpoint(&in_project), digit, "{c:?}");
+            assert_eq!(guard_accepts_endpoint(&in_iid), digit, "{c:?}");
+            assert_eq!(
+                guard_accepts_endpoint(&alone),
+                c.is_ascii_digit() && c != '0',
+                "{c:?}"
+            );
+        }
+    }
+
+    proptest::proptest! {
+        /// Every `IssueRef` the code can build passes the independent guard.
+        #[test]
+        fn every_issue_ref_passes_the_guard(project_id in 1u64.., iid in 1u64..) {
+            proptest::prop_assert!(notes_passes_the_guard(project_id, iid));
+        }
+
+        /// A near miss built from real numbers never passes.
+        #[test]
+        fn near_misses_of_a_valid_notes_endpoint_fail(
+            project_id in 1u64..,
+            iid in 1u64..,
+            junk in "[a-z:/?&=.-]{1,5}",
+        ) {
+            let cases = [
+                format!("projects/{project_id}/issues/{iid}/{junk}{NOTES_SUFFIX}"),
+                format!("projects/{project_id}{junk}/issues/{iid}{NOTES_SUFFIX}"),
+                format!("projects/{project_id}/issues/{iid}{junk}{NOTES_SUFFIX}"),
+                format!("projects/{project_id}/merge_requests/{iid}{NOTES_SUFFIX}"),
+                format!("projects/{project_id}/issues/{iid}/notes?{junk}"),
+            ];
+            for ep in &cases {
+                proptest::prop_assert!(!guard_accepts_endpoint(ep), "{:?}", ep);
             }
         }
     }

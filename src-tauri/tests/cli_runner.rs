@@ -199,7 +199,7 @@ fn errors_never_leak_stderr_or_hostnames() {
 
 #[test]
 fn gitlab_calls_with_a_user_pass_exactly_these_arguments() {
-    use day_navigator_lib::cli::{GitlabHost, GitlabUser};
+    use day_navigator_lib::cli::{GitlabHost, GitlabUser, IssueRef};
     let host = GitlabHost::parse("gitlab.example.invalid").unwrap();
     let user = GitlabUser::parse("invented.user").unwrap();
     let r = runner("data");
@@ -217,8 +217,18 @@ fn gitlab_calls_with_a_user_pass_exactly_these_arguments() {
             "issues?scope=assigned_to_me&state=opened&per_page=100",
         ),
         (
-            CliCall::GlabAssignedMergeRequests(host, None),
+            CliCall::GlabAssignedMergeRequests(host.clone(), None),
             "merge_requests?scope=assigned_to_me&state=opened&per_page=100",
+        ),
+        (
+            CliCall::GlabIssueNotes(
+                host,
+                IssueRef {
+                    project_id: 102,
+                    iid: 12,
+                },
+            ),
+            "projects/102/issues/12/notes?sort=desc&order_by=created_at&per_page=100",
         ),
     ];
     for (call, endpoint) in cases {

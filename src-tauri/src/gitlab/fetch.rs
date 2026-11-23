@@ -2,8 +2,9 @@
 //! code that touches processes; blocking like the runner, so callers keep it
 //! off the main thread.
 
+use super::notes::{IssueNote, parse_notes};
 use super::{AssignedItems, GitlabError, parse_issues, parse_merge_requests};
-use crate::cli::{CliCall, CliRunner, GitlabConfig};
+use crate::cli::{CliCall, CliRunner, GitlabConfig, GitlabHost, IssueRef};
 
 /// Merge requests first, then issues. The first failure ends the round and the
 /// second call is not started: no partial list. With a configured user the
@@ -27,4 +28,15 @@ pub fn fetch_assigned(
         merge_requests,
         issues,
     })
+}
+
+/// One issue's notes, newest first, read in full across pages. Read-only; the
+/// caller decides what a failure means (the list round does not depend on it).
+pub fn fetch_issue_notes(
+    runner: &CliRunner,
+    host: &GitlabHost,
+    issue: IssueRef,
+) -> Result<Vec<IssueNote>, GitlabError> {
+    let out = runner.run(&CliCall::GlabIssueNotes(host.clone(), issue))?;
+    parse_notes(&out)
 }

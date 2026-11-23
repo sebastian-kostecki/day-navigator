@@ -459,10 +459,10 @@ Opening the store applies v3 automatically. An older app build refuses the v3 da
 
 #### Automated
 
-- [ ] 1.1 CLI guard and argument tests pass, including the new shape, per-character and proptest cases
-- [ ] 1.2 Fetch and runner integration tests pass, including notes scenarios and argv echo
-- [ ] 1.3 Notes parsing rejects bad JSON without leaking content
-- [ ] 1.4 Lint and format are clean
+- [x] 1.1 CLI guard and argument tests pass, including the new shape, per-character and proptest cases
+- [x] 1.2 Fetch and runner integration tests pass, including notes scenarios and argv echo
+- [x] 1.3 Notes parsing rejects bad JSON without leaking content
+- [x] 1.4 Lint and format are clean
 
 ### Phase 2: Hidden-issue store and resurfacing rules
 

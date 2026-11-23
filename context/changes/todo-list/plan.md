@@ -370,18 +370,18 @@ Migration v3 only adds a table, so existing data is untouched. A store opened by
 
 #### Automated
 
-- [x] 1.1 `cargo test` passes in `src-tauri/`, including the new `todo` unit tests, `tests/todo.rs` and `tests/todo_crash.rs`
-- [x] 1.2 Unit tests cover visibility, roll-over (including inside every write), reopen-after-close, the open-count limit (5 picked, 2 ticked → 2 more; 3rd refused), lowered limit, untick above limit, duplicates, re-pick, done-task refusal, error JSON and no leaks
-- [x] 1.3 Settings tests cover default, range edges 1 and 20, invalid 0/21/"5"/5.5/unknown keys → `SettingsInvalid`, vault and GitLab loaders unaffected
-- [x] 1.4 Existing `own_tasks` unit, integration and crash tests still pass after the `set_done_in` refactor
-- [x] 1.5 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass
+- [x] 1.1 `cargo test` passes in `src-tauri/`, including the new `todo` unit tests, `tests/todo.rs` and `tests/todo_crash.rs` — 802eeba
+- [x] 1.2 Unit tests cover visibility, roll-over (including inside every write), reopen-after-close, the open-count limit (5 picked, 2 ticked → 2 more; 3rd refused), lowered limit, untick above limit, duplicates, re-pick, done-task refusal, error JSON and no leaks — 802eeba
+- [x] 1.3 Settings tests cover default, range edges 1 and 20, invalid 0/21/"5"/5.5/unknown keys → `SettingsInvalid`, vault and GitLab loaders unaffected — 802eeba
+- [x] 1.4 Existing `own_tasks` unit, integration and crash tests still pass after the `set_done_in` refactor — 802eeba
+- [x] 1.5 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass — 802eeba
 
 ### Phase 2: GitLab reconciliation
 
 #### Automated
 
-- [ ] 2.1 `cargo test` passes, including the reconcile unit and integration tests and the `reconcile_input` state tests
-- [ ] 2.2 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass
+- [x] 2.1 `cargo test` passes, including the reconcile unit and integration tests and the `reconcile_input` state tests
+- [x] 2.2 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass
 
 #### Manual
 

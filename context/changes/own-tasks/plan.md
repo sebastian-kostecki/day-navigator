@@ -436,7 +436,7 @@ Single user, tens to hundreds of rows: list reads the whole table and sorts in R
 
 #### Manual
 
-- [ ] 1.4 Review: no own-task field value appears in any error variant, `Display` string or log call
+- [x] 1.4 Review: no own-task field value appears in any error variant, `Display` string or log call
 
 ### Phase 2: Commands and "Moje zadania" view
 
@@ -448,13 +448,13 @@ Single user, tens to hundreds of rows: list reads the whole table and sorts in R
 
 #### Manual
 
-- [ ] 2.4 In `npm run tauri dev`, add a task with only a title: it appears under Prywatne (counter not wired yet). Add one in Praca with a due date and priority.
-- [ ] 2.5 Edit the title, note (multi-line), space, due date and priority; changes persist after quitting from the tray and restarting the app.
-- [ ] 2.6 Ordering: a task due earlier appears above one due later. Among tasks with the same due date, Wysoki comes before Niski. Tasks without a due date come last.
-- [ ] 2.7 Tick a task: it disappears from the list and shows under "Pokaż zrobione". Untick it there: it is open again in its old place.
-- [ ] 2.8 The filter Praca / Prywatne / Wszystkie narrows the list. An empty filter shows the filtered empty message, never a blank area.
-- [ ] 2.9 A 201-character title or a 2001-character note (pasted) is refused with the Polish message, and the typed text is kept.
-- [ ] 2.10 The "Zadania" vault screen is no longer shown. HealthPanel still works and "Dane aplikacji" stays green.
+- [x] 2.4 In `npm run tauri dev`, add a task with only a title: it appears under Prywatne (counter not wired yet). Add one in Praca with a due date and priority.
+- [x] 2.5 Edit the title, note (multi-line), space, due date and priority; changes persist after quitting from the tray and restarting the app.
+- [x] 2.6 Ordering: a task due earlier appears above one due later. Among tasks with the same due date, Wysoki comes before Niski. Tasks without a due date come last.
+- [x] 2.7 Tick a task: it disappears from the list and shows under "Pokaż zrobione". Untick it there: it is open again in its old place.
+- [x] 2.8 The filter Praca / Prywatne / Wszystkie narrows the list. An empty filter shows the filtered empty message, never a blank area.
+- [x] 2.9 A 201-character title or a 2001-character note (pasted) is refused with the Polish message, and the typed text is kept.
+- [x] 2.10 The "Zadania" vault screen is no longer shown. HealthPanel still works and "Dane aplikacji" stays green.
 
 ### Phase 3: Remove the vault task screen
 
@@ -466,5 +466,5 @@ Single user, tens to hundreds of rows: list reads the whole table and sorts in R
 
 #### Manual
 
-- [ ] 3.4 With a `settings.json` that still contains a `spaces.work.tasks` block, `npm run tauri dev` starts with the Settings source green, and the vault probes run as before
-- [ ] 3.5 The "Moje zadania" view works as in Phase 2 after the removal
+- [x] 3.4 With a `settings.json` that still contains a `spaces.work.tasks` block, `npm run tauri dev` starts with the Settings source green, and the vault probes run as before
+- [x] 3.5 The "Moje zadania" view works as in Phase 2 after the removal

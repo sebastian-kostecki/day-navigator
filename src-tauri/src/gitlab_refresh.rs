@@ -216,11 +216,12 @@ fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliR
     }
 }
 
-/// The list a "To do" reconcile may use: only a successful round's items. A
-/// stale list kept after a failed round must never tick anything.
-fn reconcile_input(snap: &GitlabSnapshot) -> Option<&AssignedItems> {
+/// The list a "To do" reconcile may use, with the account it came from: only
+/// a successful round's items. A stale list kept after a failed round must
+/// never tick anything.
+fn reconcile_input(snap: &GitlabSnapshot) -> Option<(&AssignedItems, &str)> {
     match snap.state {
-        gitlab::GitlabState::Ok => snap.items.as_ref(),
+        gitlab::GitlabState::Ok => Some((snap.items.as_ref()?, snap.account.as_deref()?)),
         _ => None,
     }
 }
@@ -228,12 +229,12 @@ fn reconcile_input(snap: &GitlabSnapshot) -> Option<&AssignedItems> {
 /// Reconciles "To do" entries with a successful list. Returns whether at least
 /// one row changed. A store error is logged by kind and changes nothing else.
 fn reconcile_todo(app: &AppHandle, next: &GitlabSnapshot) -> bool {
-    let Some(items) = reconcile_input(next) else {
+    let Some((items, account)) = reconcile_input(next) else {
         return false;
     };
     let now = Local::now().naive_local();
     let result = app.state::<StoreHandle>().with_store(now.date(), |s| {
-        todo::reconcile_gitlab(s, items, now.date(), now)
+        todo::reconcile_gitlab(s, account, items, now.date(), now)
     });
     match result {
         Ok(changed) => {
@@ -241,6 +242,12 @@ fn reconcile_todo(app: &AppHandle, next: &GitlabSnapshot) -> bool {
                 log::debug!("todo: reconcile changed {changed} rows");
             }
             changed > 0
+        }
+        // An unopenable store is reported by the health round; a warning every
+        // GitLab round would only repeat it.
+        Err(e @ todo::TodoError::Store(_)) => {
+            log::debug!("todo: reconcile failed: {}", e.kind());
+            false
         }
         Err(e) => {
             log::warn!("todo: reconcile failed: {}", e.kind());
@@ -304,9 +311,19 @@ mod tests {
         let with = |state| GitlabSnapshot {
             state,
             items: Some(items.clone()),
+            account: Some("account-a".into()),
             ..GitlabSnapshot::starting()
         };
-        assert_eq!(reconcile_input(&with(State::Ok)), Some(&items));
+        assert_eq!(
+            reconcile_input(&with(State::Ok)),
+            Some((&items, "account-a"))
+        );
+        // Items without the account they came from are never reconciled.
+        let no_account = GitlabSnapshot {
+            account: None,
+            ..with(State::Ok)
+        };
+        assert!(reconcile_input(&no_account).is_none());
         // A failed round keeps the last items; they must not be used.
         assert!(
             reconcile_input(&with(State::Unavailable {

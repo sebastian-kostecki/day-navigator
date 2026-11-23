@@ -105,11 +105,14 @@ pub async fn add_todo_gitlab_item(
     item_kind: ItemKind,
     reference: String,
 ) -> Result<TodoList, TodoError> {
+    // Items and account come from one snapshot, so a pick is never stamped
+    // with an account its item did not come from.
     let snapshot = app.state::<GitlabRefreshState>().snapshot();
     let item = find_gitlab_item(snapshot.items.as_ref(), item_kind, &reference);
+    let account = snapshot.account;
     run(&app, "add gitlab", move |store, today, now, limit| {
-        let item = item.ok_or(TodoError::NotInGitlabList)?;
-        super::add_gitlab(store, &item, today, now, limit.clone()).map(|_| ())
+        let (item, account) = item.zip(account).ok_or(TodoError::NotInGitlabList)?;
+        super::add_gitlab(store, &account, &item, today, now, limit.clone()).map(|_| ())
     })
     .await
 }

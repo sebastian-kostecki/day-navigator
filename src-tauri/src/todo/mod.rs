@@ -4,7 +4,8 @@
 //! calendar date. Visibility and roll-over are computed on every call, so no
 //! scheduler is needed: an entry is on day D's list if it is live (not removed,
 //! not closed) and either open or ticked on D. Every write first closes the
-//! live entries ticked before D (`roll_over_in`), in the same transaction.
+//! live entries ticked on any other day (`roll_over_in`), in the same
+//! transaction.
 //! Own entries take their ticked state from `own_tasks.done_at`.
 
 pub mod commands;
@@ -102,8 +103,10 @@ fn corrupt() -> rusqlite::Error {
     rusqlite::Error::InvalidQuery
 }
 
-/// Gives `closed_at` to every live entry ticked before `today`. Idempotent;
-/// returns the number of entries closed.
+/// Gives `closed_at` to every live entry ticked on a day other than `today`:
+/// normally an earlier day, but also a later one after the clock moved back,
+/// so no live entry is ever hidden from today's list while still blocking a
+/// re-pick. Idempotent; returns the number of entries closed.
 pub fn roll_over_in(tx: &Transaction<'_>, today: NaiveDate) -> Result<usize, StoreError> {
     let day = day_text(today);
     let closed_at = stamp(today.and_hms_opt(0, 0, 0).unwrap_or_default());
@@ -112,8 +115,8 @@ pub fn roll_over_in(tx: &Transaction<'_>, today: NaiveDate) -> Result<usize, Sto
          WHERE removed_at IS NULL AND closed_at IS NULL AND ( \
            (source = 'own' AND EXISTS ( \
               SELECT 1 FROM own_tasks o WHERE o.id = todo_items.own_task_id \
-                AND o.done_at IS NOT NULL AND substr(o.done_at, 1, 10) < ?2)) \
-           OR (source = 'gitlab' AND ticked_at IS NOT NULL AND substr(ticked_at, 1, 10) < ?2))",
+                AND o.done_at IS NOT NULL AND substr(o.done_at, 1, 10) <> ?2)) \
+           OR (source = 'gitlab' AND ticked_at IS NOT NULL AND substr(ticked_at, 1, 10) <> ?2))",
         (&closed_at, &day),
     )?;
     Ok(changed)
@@ -310,10 +313,11 @@ pub fn add_own(
     })
 }
 
-/// Picks a GitLab item (the caller took it from the live snapshot). Returns
-/// the new entry's id.
+/// Picks a GitLab item (the caller took it from the live snapshot) under the
+/// snapshot's `account` (`gitlab::account_key`). Returns the new entry's id.
 pub fn add_gitlab(
     store: &mut Store,
+    account: &str,
     item: &GitlabItem,
     today: NaiveDate,
     now: NaiveDateTime,
@@ -335,13 +339,15 @@ pub fn add_gitlab(
         check_limit(tx, today, limit)?;
         tx.execute(
             "INSERT INTO todo_items \
-               (source, gitlab_kind, gitlab_ref, gitlab_title, gitlab_url, picked_on, picked_at) \
-             VALUES ('gitlab', ?1, ?2, ?3, ?4, ?5, ?6)",
+               (source, gitlab_kind, gitlab_ref, gitlab_title, gitlab_url, gitlab_account, \
+                picked_on, picked_at) \
+             VALUES ('gitlab', ?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             (
                 kind,
                 &item.reference,
                 &item.title,
                 &item.web_url,
+                account,
                 day_text(today),
                 stamp(now),
             ),
@@ -412,12 +418,16 @@ pub fn remove(
     })
 }
 
-/// Call only after a successful GitLab round. Ticks (`ticked_by = 'source'`)
-/// every open live GitLab entry missing from `items`, and refreshes the stored
-/// title and URL of the ones still present. Own entries are never touched.
+/// Call only after a successful GitLab round; `account` is the key of the
+/// config `items` came from. Ticks (`ticked_by = 'source'`) every open live
+/// GitLab entry of that account (or picked before accounts were recorded)
+/// missing from `items`, and refreshes the stored title and URL of the ones
+/// still present. Entries of another account are left alone: a missing item
+/// there says nothing about its state. Own entries are never touched.
 /// Returns the number of entries changed (roll-over closings not counted).
 pub fn reconcile_gitlab(
     store: &mut Store,
+    account: &str,
     items: &AssignedItems,
     today: NaiveDate,
     now: NaiveDateTime,
@@ -434,10 +444,11 @@ pub fn reconcile_gitlab(
         let mut stmt = tx.prepare(
             "SELECT id, gitlab_kind, gitlab_ref, gitlab_title, gitlab_url FROM todo_items \
              WHERE source = 'gitlab' AND removed_at IS NULL AND closed_at IS NULL \
-               AND ticked_at IS NULL",
+               AND ticked_at IS NULL \
+               AND (gitlab_account IS NULL OR gitlab_account = ?1)",
         )?;
         let open = stmt
-            .query_map([], |r| {
+            .query_map([account], |r| {
                 Ok((
                     r.get::<_, i64>(0)?,
                     r.get::<_, String>(1)?,

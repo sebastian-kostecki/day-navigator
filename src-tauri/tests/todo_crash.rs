@@ -17,6 +17,8 @@ use day_navigator_lib::store::{Store, StoreError, schema};
 use day_navigator_lib::todo;
 
 const WRITER: &str = "writer_process";
+/// Invented `gitlab::account_key` of the account the writer's lists come from.
+const ACC: &str = "account-a";
 
 fn today() -> NaiveDate {
     NaiveDate::from_ymd_opt(2026, 11, 23).unwrap()
@@ -61,8 +63,16 @@ fn writer_process() {
         let task = own_tasks::add(&mut store, &input, now()).unwrap().id;
         let entry = todo::add_own(&mut store, task, today(), now(), Ok(u32::MAX)).unwrap();
         todo::set_ticked(&mut store, entry, true, today(), now()).unwrap();
-        todo::add_gitlab(&mut store, &gitlab_item(n), today(), now(), Ok(u32::MAX)).unwrap();
-        todo::reconcile_gitlab(&mut store, &AssignedItems::default(), today(), now()).unwrap();
+        todo::add_gitlab(
+            &mut store,
+            ACC,
+            &gitlab_item(n),
+            today(),
+            now(),
+            Ok(u32::MAX),
+        )
+        .unwrap();
+        todo::reconcile_gitlab(&mut store, ACC, &AssignedItems::default(), today(), now()).unwrap();
         let mut out = std::io::stdout().lock();
         writeln!(out, "committed {n}").unwrap();
         out.flush().unwrap();

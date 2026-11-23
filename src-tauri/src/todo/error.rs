@@ -31,10 +31,12 @@ pub enum TodoError {
 }
 
 impl TodoError {
-    /// Variant name, for logs (carries no content).
+    /// Variant name, or the store error's kind for `Store`, for logs (carries
+    /// no content).
     pub fn kind(&self) -> &'static str {
         match self {
-            TodoError::Store(_) => "Store",
+            // The store's own kind (`Busy`, `Damaged`, …) tells failures apart.
+            TodoError::Store(s) => s.kind(),
             TodoError::LimitReached { .. } => "LimitReached",
             TodoError::AlreadyOnList => "AlreadyOnList",
             TodoError::TaskDone => "TaskDone",

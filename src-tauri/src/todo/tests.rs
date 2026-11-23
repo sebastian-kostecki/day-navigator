@@ -18,6 +18,8 @@ fn at(d: &str, h: u32, m: u32) -> NaiveDateTime {
 const D1: &str = "2026-11-23";
 const D2: &str = "2026-11-24";
 const D3: &str = "2026-11-25";
+/// Invented `gitlab::account_key` of the account the test lists come from.
+const ACC: &str = "account-a";
 
 fn open() -> (TempDir, Store) {
     let tmp = tempfile::tempdir().unwrap();
@@ -86,7 +88,7 @@ fn pick_gl(
     h: u32,
     limit: u32,
 ) -> Result<i64, TodoError> {
-    add_gitlab(store, item, day(d), at(d, h, 0), Ok(limit))
+    add_gitlab(store, ACC, item, day(d), at(d, h, 0), Ok(limit))
 }
 
 fn tick(store: &mut Store, id: i64, ticked: bool, d: &str, h: u32) -> Result<(), TodoError> {
@@ -221,7 +223,7 @@ fn roll_over_runs_inside_every_write_without_a_prior_list() {
 
     // reconcile: the closed entry is not ticked again, an open one is.
     let open_id = pick_gl(&mut s2, &other, D2, 9, 5).unwrap();
-    let n = reconcile_gitlab(&mut s2, &assigned(&[]), day(D2), at(D2, 10, 0)).unwrap();
+    let n = reconcile_gitlab(&mut s2, ACC, &assigned(&[]), day(D2), at(D2, 10, 0)).unwrap();
     assert_eq!(n, 1);
     let l = list_on(&mut s2, D2, 5);
     assert_eq!(l.items.len(), 1);
@@ -320,6 +322,7 @@ fn settings_error_is_returned_by_adds_and_shown_by_list() {
     assert!(matches!(r, Err(TodoError::SettingsInvalid)));
     let r = add_gitlab(
         &mut s,
+        ACC,
         &item,
         day(D1),
         at(D1, 8, 0),
@@ -449,7 +452,7 @@ fn reconcile_ticks_missing_and_refreshes_present() {
     let mut renamed = kept.clone();
     renamed.title = "Nowy tytul testowy".into();
     renamed.web_url = Some("https://gitlab.example.invalid/invented/project/new".into());
-    let n = reconcile_gitlab(&mut s, &assigned(&[&renamed]), day(D1), at(D1, 10, 0)).unwrap();
+    let n = reconcile_gitlab(&mut s, ACC, &assigned(&[&renamed]), day(D1), at(D1, 10, 0)).unwrap();
     assert_eq!(n, 2);
 
     let l = list_on(&mut s, D1, 5);
@@ -474,9 +477,9 @@ fn reconcile_count_is_zero_when_nothing_changes() {
     let (_t, mut s) = open();
     let item = gl(ItemKind::Issue, 1);
     pick_gl(&mut s, &item, D1, 8, 5).unwrap();
-    let n = reconcile_gitlab(&mut s, &assigned(&[&item]), day(D1), at(D1, 9, 0)).unwrap();
+    let n = reconcile_gitlab(&mut s, ACC, &assigned(&[&item]), day(D1), at(D1, 9, 0)).unwrap();
     assert_eq!(n, 0);
-    let n = reconcile_gitlab(&mut s, &assigned(&[&item]), day(D1), at(D1, 9, 5)).unwrap();
+    let n = reconcile_gitlab(&mut s, ACC, &assigned(&[&item]), day(D1), at(D1, 9, 5)).unwrap();
     assert_eq!(n, 0);
 }
 
@@ -492,7 +495,7 @@ fn reconcile_leaves_ticked_removed_closed_and_own_alone() {
     tick(&mut s, it, true, D1, 9).unwrap();
     remove(&mut s, ir, day(D1), at(D1, 9, 0)).unwrap();
 
-    let n = reconcile_gitlab(&mut s, &assigned(&[]), day(D1), at(D1, 10, 0)).unwrap();
+    let n = reconcile_gitlab(&mut s, ACC, &assigned(&[]), day(D1), at(D1, 10, 0)).unwrap();
     assert_eq!(n, 0);
     let l = list_on(&mut s, D1, 5);
     assert_eq!(l.items.len(), 2);
@@ -515,7 +518,7 @@ fn empty_successful_list_ticks_every_open_gitlab_entry() {
     for n in 1..=3 {
         pick_gl(&mut s, &gl(ItemKind::MergeRequest, n), D1, 8, 5).unwrap();
     }
-    let n = reconcile_gitlab(&mut s, &assigned(&[]), day(D1), at(D1, 10, 0)).unwrap();
+    let n = reconcile_gitlab(&mut s, ACC, &assigned(&[]), day(D1), at(D1, 10, 0)).unwrap();
     assert_eq!(n, 3);
     assert_eq!(list_on(&mut s, D1, 5).open_count, 0);
 }
@@ -528,8 +531,57 @@ fn same_reference_with_other_kind_is_a_different_item() {
     issue.reference = mr.reference.clone();
     pick_gl(&mut s, &mr, D1, 8, 5).unwrap();
     pick_gl(&mut s, &issue, D1, 9, 5).unwrap();
-    let n = reconcile_gitlab(&mut s, &assigned(&[&mr]), day(D1), at(D1, 10, 0)).unwrap();
+    let n = reconcile_gitlab(&mut s, ACC, &assigned(&[&mr]), day(D1), at(D1, 10, 0)).unwrap();
     assert_eq!(n, 1);
+}
+
+#[test]
+fn reconcile_leaves_entries_of_another_account_alone() {
+    let (_t, mut s) = open();
+    let item = gl(ItemKind::Issue, 1);
+    pick_gl(&mut s, &item, D1, 8, 5).unwrap();
+    // A successful list of another account (a changed host or user, or a typo
+    // in the user) says nothing about this entry.
+    let n = reconcile_gitlab(&mut s, "account-b", &assigned(&[]), day(D1), at(D1, 9, 0)).unwrap();
+    assert_eq!(n, 0);
+    assert_eq!(list_on(&mut s, D1, 5).open_count, 1);
+    // Its own account's list still closes it.
+    let n = reconcile_gitlab(&mut s, ACC, &assigned(&[]), day(D1), at(D1, 10, 0)).unwrap();
+    assert_eq!(n, 1);
+    assert_eq!(list_on(&mut s, D1, 5).open_count, 0);
+}
+
+#[test]
+fn entry_picked_before_accounts_were_recorded_is_reconciled_by_any_account() {
+    let (_t, mut s) = open();
+    let id = pick_gl(&mut s, &gl(ItemKind::Issue, 1), D1, 8, 5).unwrap();
+    s.write::<_, StoreError>(|tx| {
+        tx.execute(
+            "UPDATE todo_items SET gitlab_account = NULL WHERE id = ?1",
+            [id],
+        )?;
+        Ok(())
+    })
+    .unwrap();
+    let n = reconcile_gitlab(&mut s, "account-b", &assigned(&[]), day(D1), at(D1, 9, 0)).unwrap();
+    assert_eq!(n, 1);
+}
+
+#[test]
+fn tick_on_a_later_day_is_closed_when_the_clock_moves_back() {
+    let (_t, mut s) = open();
+    let item = gl(ItemKind::Issue, 1);
+    let a = own(&mut s, "Zadanie A");
+    let ig = pick_gl(&mut s, &item, D1, 8, 5).unwrap();
+    let io = pick_own(&mut s, a, D1, 8, 5).unwrap();
+    // Ticked while the clock said D2, then the clock is back on D1.
+    tick(&mut s, ig, true, D2, 9).unwrap();
+    tick(&mut s, io, true, D2, 9).unwrap();
+    let l = list_on(&mut s, D1, 5);
+    assert!(l.items.is_empty());
+    // Closed, so nothing hidden blocks a re-pick.
+    pick_gl(&mut s, &item, D1, 10, 5).unwrap();
+    assert_eq!(titles(&list_on(&mut s, D1, 5)), ["Pozycja testowa 1"]);
 }
 
 #[test]
@@ -561,16 +613,24 @@ fn list_json_shape() {
     assert_eq!(v["limitError"]["kind"], "SettingsInvalid");
     assert_eq!(v["openCount"], 2);
     let first = &v["items"][0];
+    assert!(first["id"].is_i64());
+    assert_eq!(first["ticked"], false);
     assert_eq!(first["carriedOver"], false);
     assert_eq!(first["pickedOn"], D1);
+    assert_eq!(first["pickedAt"], "2026-11-23T08:00:00");
     assert_eq!(first["entry"]["kind"], "own");
     assert_eq!(first["entry"]["taskId"], a);
     assert_eq!(first["entry"]["space"], "work");
+    assert_eq!(first["entry"]["title"], "Zadanie A");
     let second = &v["items"][1]["entry"];
     assert_eq!(second["kind"], "gitlab");
     assert_eq!(second["itemKind"], "issue");
+    assert_eq!(second["reference"], "invented/project#4");
+    assert_eq!(second["title"], "Pozycja testowa 4");
     assert_eq!(second["closedInSource"], false);
     assert!(second["webUrl"].is_string());
+    // The stored account never reaches the webview.
+    assert!(v["items"][1].get("account").is_none() && second.get("account").is_none());
 }
 
 #[test]

@@ -4,7 +4,6 @@ import type { ItemKind } from "../gitlab/types";
 import {
   addTodoGitlabItem,
   addTodoOwnTask,
-  isTodoStale,
   listTodo,
   removeTodo,
   setTodoTicked,
@@ -125,10 +124,15 @@ export function useTodo() {
     async (call: () => Promise<TodoList>): MutationResult => {
       const id = ++latest.current;
       try {
-        apply(id, { ok: true, list: await call() });
+        const list = await call();
+        // A reload started meanwhile may have read the store before this
+        // change landed, so its answer must not be the last word: read again.
+        if (id === latest.current) apply(id, { ok: true, list });
+        else void reload();
       } catch (e) {
-        // The shown list no longer matches the store: refresh it.
-        if (isTodoStale(e)) void reload();
+        // A refusal means the shown list was stale, and a change can commit
+        // before the follow-up read fails: either way, read the store again.
+        void reload();
         return todoErrorMessage(e);
       }
       return null;

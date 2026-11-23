@@ -10,6 +10,9 @@ use day_navigator_lib::space::Space;
 use day_navigator_lib::store::{Store, StoreError, schema};
 use day_navigator_lib::todo::{self, TodoEntry, TodoError};
 
+/// Invented `gitlab::account_key` of the account the test lists come from.
+const ACC: &str = "account-a";
+
 fn day(s: &str) -> NaiveDate {
     NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap()
 }
@@ -98,7 +101,7 @@ fn full_day_flow_survives_reopen() {
     let own_id = task(&mut store, "Zadanie testowe");
     let d1 = "2026-11-23";
     let e_own = todo::add_own(&mut store, own_id, day(d1), at(d1, 8), Ok(5)).unwrap();
-    let e_gl = todo::add_gitlab(&mut store, &item(1), day(d1), at(d1, 9), Ok(5)).unwrap();
+    let e_gl = todo::add_gitlab(&mut store, ACC, &item(1), day(d1), at(d1, 9), Ok(5)).unwrap();
     todo::set_ticked(&mut store, e_own, true, day(d1), at(d1, 10)).unwrap();
     drop(store);
 
@@ -133,17 +136,17 @@ fn reconcile_flow_against_a_real_store() {
     let (_tmp, dir) = test_store_dir();
     let mut store = open(&dir);
     let d1 = "2026-11-23";
-    todo::add_gitlab(&mut store, &item(1), day(d1), at(d1, 8), Ok(5)).unwrap();
-    todo::add_gitlab(&mut store, &item(2), day(d1), at(d1, 9), Ok(5)).unwrap();
+    todo::add_gitlab(&mut store, ACC, &item(1), day(d1), at(d1, 8), Ok(5)).unwrap();
+    todo::add_gitlab(&mut store, ACC, &item(2), day(d1), at(d1, 9), Ok(5)).unwrap();
     let mut still = item(1);
     still.title = "Zmiana testowa 1 po zmianie".into();
     let list = AssignedItems {
         merge_requests: vec![still],
         issues: vec![],
     };
-    let n = todo::reconcile_gitlab(&mut store, &list, day(d1), at(d1, 10)).unwrap();
+    let n = todo::reconcile_gitlab(&mut store, ACC, &list, day(d1), at(d1, 10)).unwrap();
     assert_eq!(n, 2);
-    let n = todo::reconcile_gitlab(&mut store, &list, day(d1), at(d1, 11)).unwrap();
+    let n = todo::reconcile_gitlab(&mut store, ACC, &list, day(d1), at(d1, 11)).unwrap();
     assert_eq!(n, 0);
     let l = todo::list(&mut store, day(d1), at(d1, 12), Ok(5)).unwrap();
     assert_eq!(l.open_count, 1);
@@ -162,7 +165,7 @@ fn limit_and_duplicates_against_a_real_store() {
         Err(TodoError::AlreadyOnList)
     ));
     assert!(matches!(
-        todo::add_gitlab(&mut store, &item(1), day(d1), at(d1, 9), Ok(1)),
+        todo::add_gitlab(&mut store, ACC, &item(1), day(d1), at(d1, 9), Ok(1)),
         Err(TodoError::LimitReached { limit: 1 })
     ));
 }

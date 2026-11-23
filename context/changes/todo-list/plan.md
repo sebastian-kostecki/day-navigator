@@ -362,6 +362,20 @@ Migration v3 only adds a table, so existing data is untouched. A store opened by
 - Frontend pattern: `src/own-tasks/useOwnTasks.ts`, `src/gitlab/useGitlab.ts`, `src/components/ErrorState.tsx`
 - Prior plans: `context/archive/2026-11-23-own-tasks/plan.md`, `context/archive/2026-11-23-gitlab-assigned-list/plan.md`
 
+## Addendum: implementation review fixes (2026-11-23)
+
+These are recorded after `reviews/impl-review.md`. They change or clarify the contract above.
+
+- **GitLab account per entry (F1).** Migration v4 adds `todo_items.gitlab_account`. It holds `gitlab::account_key(config)`, a SHA-256 hex of host and user, never the readable values.
+  - `GitlabSnapshot` carries the key of the config its items came from as `account`, which is not serialized.
+  - `add_gitlab(store, account, …)` stamps it. `add_todo_gitlab_item` takes items and account from one snapshot.
+  - `reconcile_gitlab(store, account, …)` touches only entries of that account, or entries with NULL (picked before v4). A successful list from a changed host or user, a typo in `user`, or a bot login no longer marks other entries "zamknięte w GitLabie". Those entries stay open until the user removes them or the original account's list reconciles them.
+  - Known gap: with no `user` configured, switching the `glab` login itself (same host) keeps the same key.
+- **"Niezweryfikowany" line (F2).** The line shows only when the snapshot failed to load or the state is `unavailable`, `error` or `notConfigured`. It no longer shows while the first round is still running (`null` / `starting`), as "not `ok`" would.
+- **`"limit": null` (F6).** It means the default 5, like a `null` block or an absent `limit`.
+- **Add vs reconcile window (F8).** It is accepted. An add that reads the old snapshot while a round is between reconcile and the snapshot swap stays open until the next successful round (at most 5 minutes, or one "Odśwież").
+- **Roll-over on any other day (F9).** `roll_over_in` closes live entries ticked on any day other than today, not only earlier days. After the clock moves back, no hidden live entry blocks a re-pick.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.

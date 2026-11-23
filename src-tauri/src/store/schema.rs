@@ -78,6 +78,15 @@ CREATE UNIQUE INDEX todo_items_live_gitlab
   ON todo_items (gitlab_kind, gitlab_ref)
   WHERE gitlab_ref IS NOT NULL AND removed_at IS NULL AND closed_at IS NULL;",
     },
+    // S-07 review fix: the GitLab account a GitLab entry was picked under, as
+    // the opaque key from `gitlab::account_key` (a hash, never a hostname or a
+    // login). Reconcile touches only entries of the account its list came
+    // from. NULL on own entries and on GitLab entries picked before v4, which
+    // any account's list reconciles.
+    Migration {
+        version: 4,
+        sql: "ALTER TABLE todo_items ADD COLUMN gitlab_account TEXT;",
+    },
 ];
 
 /// Versions must start at 1 and rise by exactly 1.

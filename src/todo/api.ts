@@ -30,17 +30,6 @@ function asTodoError(e: unknown): TodoError | null {
   return null;
 }
 
-/** True when the shown list no longer matches the stored one, so it must be reloaded. */
-export function isTodoStale(e: unknown): boolean {
-  const kind = asTodoError(e)?.kind;
-  return (
-    kind === "NotFound" ||
-    kind === "AlreadyOnList" ||
-    kind === "TaskDone" ||
-    kind === "NotInGitlabList"
-  );
-}
-
 /** Polish message for anything thrown by a "To do" invoke call or carried as `limitError`. */
 export function todoErrorMessage(e: unknown): string {
   const err = asTodoError(e);

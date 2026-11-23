@@ -39,8 +39,15 @@ export default function TodoView() {
     useTodo();
   // The picker only reads the stored GitLab snapshot: a visit to the default
   // tab must not start a `glab` round.
-  const { snapshot, loadError: gitlabLoadError } = useGitlab({ refreshOnMount: false });
+  const {
+    snapshot,
+    loadError: gitlabLoadError,
+    retry: retryGitlab,
+  } = useGitlab({ refreshOnMount: false });
   const [ownLoad, setOwnLoad] = useState<OwnLoad>({ state: "loading" });
+  const [ownLoadedAt, setOwnLoadedAt] = useState<Date | null>(null);
+  // Bumped by the own-task error's retry button.
+  const [ownAttempt, setOwnAttempt] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -50,7 +57,9 @@ export default function TodoView() {
     let cancelled = false;
     listOwnTasks().then(
       (tasks) => {
-        if (!cancelled) setOwnLoad({ state: "loaded", tasks });
+        if (cancelled) return;
+        setOwnLoad({ state: "loaded", tasks });
+        setOwnLoadedAt(new Date());
       },
       (e: unknown) => {
         if (!cancelled) setOwnLoad({ state: "error", message: ownTaskErrorMessage(e) });
@@ -59,7 +68,7 @@ export default function TodoView() {
     return () => {
       cancelled = true;
     };
-  }, [lastSuccessAt]);
+  }, [lastSuccessAt, ownAttempt]);
 
   async function act(run: () => Promise<string | null>) {
     setNotice(null);
@@ -107,8 +116,15 @@ export default function TodoView() {
   }
 
   const gitlabState = snapshot?.state.state ?? null;
-  const unverified =
-    gitlabState !== "ok" && list.items.some((i) => !i.ticked && i.entry.kind === "gitlab");
+  // Only a round that ended without a list makes the stored GitLab entries
+  // unverified. While the first round is still running (no snapshot yet, or
+  // "starting") nothing is known, so nothing is claimed.
+  const gitlabDown =
+    gitlabLoadError !== null ||
+    gitlabState === "unavailable" ||
+    gitlabState === "error" ||
+    gitlabState === "notConfigured";
+  const unverified = gitlabDown && list.items.some((i) => !i.ticked && i.entry.kind === "gitlab");
 
   function renderRow(item: TodoItem) {
     const { entry } = item;
@@ -221,9 +237,19 @@ export default function TodoView() {
         gitlabItems={
           snapshot?.items ? [...snapshot.items.mergeRequests, ...snapshot.items.issues] : []
         }
+        gitlabOk={gitlabState === "ok"}
+        gitlabLoadError={gitlabLoadError}
+        gitlabLastSuccess={
+          snapshot?.lastSuccessMs != null
+            ? `Ostatnie udane odświeżenie: ${formatClock(snapshot.lastSuccessMs)}`
+            : lastRefreshLabel(null)
+        }
+        onRetryGitlab={retryGitlab}
+        ownLastSuccess={lastRefreshLabel(ownLoadedAt)}
+        onRetryOwn={() => setOwnAttempt((n) => n + 1)}
         gitlabStatus={
           gitlabLoadError
-            ? gitlabLoadError
+            ? null
             : !snapshot || gitlabState === "starting"
               ? "Pobieram przypisane z GitLaba…"
               : gitlabState === "notConfigured"
@@ -248,6 +274,12 @@ function Picker({
   busy,
   ownLoad,
   gitlabItems,
+  gitlabOk,
+  gitlabLoadError,
+  gitlabLastSuccess,
+  onRetryGitlab,
+  ownLastSuccess,
+  onRetryOwn,
   gitlabStatus,
   onAddOwn,
   onAddGitlab,
@@ -258,6 +290,12 @@ function Picker({
   busy: boolean;
   ownLoad: OwnLoad;
   gitlabItems: GitlabItem[];
+  gitlabOk: boolean;
+  gitlabLoadError: string | null;
+  gitlabLastSuccess: string;
+  onRetryGitlab: () => void;
+  ownLastSuccess: string;
+  onRetryOwn: () => void;
   gitlabStatus: string | null;
   onAddOwn: (taskId: number) => void;
   onAddGitlab: (item: GitlabItem) => void;
@@ -276,13 +314,25 @@ function Picker({
       <h2>Dodaj z list</h2>
 
       <h3>GitLab</h3>
+      {gitlabLoadError && (
+        <ErrorState
+          title="Nie udało się wczytać listy z GitLaba"
+          message={gitlabLoadError}
+          onRetry={onRetryGitlab}
+          lastSuccess={gitlabLastSuccess}
+        />
+      )}
       {gitlabStatus && (
         <p className="gitlab-notice" role="status">
           {gitlabStatus}
         </p>
       )}
       {gitlabCandidates.length === 0 ? (
-        gitlabItems.length > 0 && <p className="empty">Wszystko z GitLaba jest już na liście.</p>
+        gitlabItems.length > 0 ? (
+          <p className="empty">Wszystko z GitLaba jest już na liście.</p>
+        ) : (
+          gitlabOk && <p className="empty">Brak przypisanych w GitLabie.</p>
+        )
       ) : (
         <ul className="todo-list">
           {gitlabCandidates.map((item) => (
@@ -312,7 +362,12 @@ function Picker({
       <h3>Moje zadania</h3>
       {ownLoad.state === "loading" && <p>Ładowanie…</p>}
       {ownLoad.state === "error" && (
-        <ErrorState title="Nie udało się wczytać zadań" message={ownLoad.message} />
+        <ErrorState
+          title="Nie udało się wczytać zadań"
+          message={ownLoad.message}
+          onRetry={onRetryOwn}
+          lastSuccess={ownLastSuccess}
+        />
       )}
       {ownLoad.state === "loaded" &&
         (ownCandidates.length === 0 ? (

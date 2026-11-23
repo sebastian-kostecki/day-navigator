@@ -389,9 +389,9 @@ At most a few thousand rows a year. The day query is a range scan on `work_entri
 
 #### Automated
 
-- [x] 2.1 `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` pass
-- [x] 2.2 Existing vault task tests still pass with the generic `blocking`
-- [x] 2.3 `npm run build`, `npm run lint` and `npm run format:check` pass
+- [x] 2.1 `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` pass — 301c475
+- [x] 2.2 Existing vault task tests still pass with the generic `blocking` — 301c475
+- [x] 2.3 `npm run build`, `npm run lint` and `npm run format:check` pass — 301c475
 
 #### Manual
 
@@ -401,8 +401,8 @@ At most a few thousand rows a year. The day query is a range scan on `work_entri
 
 #### Automated
 
-- [ ] 3.1 `npm run build`, `npm run lint`, `npm run format:check` pass
-- [ ] 3.2 `cargo test` still passes
+- [x] 3.1 `npm run build`, `npm run lint`, `npm run format:check` pass
+- [x] 3.2 `cargo test` still passes
 
 #### Manual
 

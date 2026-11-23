@@ -203,7 +203,63 @@ fieldset {
   color: #666666;
 }
 
+/* App shell */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #e2e2e2;
+  background-color: #ffffff;
+}
+
+.work-timer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.work-timer-total {
+  font-size: 1.2rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.work-timer-error {
+  color: #b00020;
+}
+
+.view-switch {
+  display: flex;
+  gap: 8px;
+}
+
+.view-switch button[aria-current="page"] {
+  border-color: #396cd8;
+  font-weight: 600;
+}
+
 @media (prefers-color-scheme: dark) {
+  .app-header {
+    background-color: #1f1f1f;
+    border-color: #4a4a4a;
+  }
+
+  .work-timer-error {
+    color: #ff8a9b;
+  }
+
+  .view-switch button[aria-current="page"] {
+    border-color: #6b95f0;
+  }
+
   :root {
     color: #f6f6f6;
     background-color: #2f2f2f;

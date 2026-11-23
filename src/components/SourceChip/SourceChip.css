@@ -1,0 +1,29 @@
+.dn-chip {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  padding: 2px var(--space-1h);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-control);
+  min-width: 24px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.dn-chip-gl,
+.dn-chip-iss {
+  color: var(--src-gitlab);
+}
+
+.dn-chip-gh {
+  color: var(--src-github);
+}
+
+.dn-chip-my {
+  color: var(--src-own);
+}
+
+.dn-chip-mr {
+  color: var(--kind-mr);
+}

@@ -1,0 +1,80 @@
+.dn-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: center;
+  padding: var(--space-10) var(--space-6);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.dn-state-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dn-state-icon {
+  color: var(--ink-faint);
+}
+
+.dn-state-empty .dn-state-icon {
+  color: var(--info);
+}
+
+.dn-state-title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.dn-state-text {
+  margin: 0;
+  max-width: 460px;
+  color: var(--ink-muted);
+  overflow-wrap: anywhere;
+}
+
+.dn-state-last {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.dn-state-error {
+  flex-direction: row;
+  align-items: flex-start;
+  text-align: left;
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  background: var(--danger-bg);
+  border-color: var(--danger-line);
+}
+
+.dn-state-error .dn-state-body {
+  align-items: flex-start;
+  gap: var(--space-1h);
+}
+
+.dn-state-error .dn-state-icon {
+  color: var(--danger);
+}
+
+.dn-state-error .dn-state-title {
+  font-size: 15px;
+  color: var(--danger-ink);
+}
+
+.dn-state-error .dn-state-text {
+  color: var(--ink);
+  max-width: none;
+}
+
+.dn-state-error .dn-state-last {
+  color: var(--ink-muted);
+}

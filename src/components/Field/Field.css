@@ -1,0 +1,44 @@
+.dn-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.dn-field.is-grow {
+  flex: 999 1 320px;
+}
+
+.dn-field-label {
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.dn-input {
+  font: inherit;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--size-field);
+  padding: var(--space-2) var(--space-2h);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-control);
+  background: var(--bg);
+  color: var(--ink);
+  color-scheme: dark;
+}
+
+textarea.dn-input {
+  resize: vertical;
+}
+
+.dn-input::placeholder {
+  color: var(--ink-faint);
+}
+
+.dn-input:disabled {
+  color: var(--ink-disabled);
+  border-color: var(--line);
+}

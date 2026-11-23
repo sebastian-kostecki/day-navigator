@@ -1,0 +1,15 @@
+.dn-flag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  padding: 2px var(--space-1h);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  border: 1px solid var(--flag-line);
+  color: var(--flag);
+}
+
+.dn-flag-info {
+  border-color: var(--info-line);
+  color: var(--info);
+}

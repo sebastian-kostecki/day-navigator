@@ -1,0 +1,26 @@
+.dn-seg {
+  display: inline-flex;
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.dn-seg-btn {
+  font: inherit;
+  min-height: var(--size-control);
+  padding: 0 var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.dn-seg-btn.is-on {
+  background: var(--surface-active);
+  color: var(--ink-strong);
+  font-weight: 600;
+}
+
+.dn-seg-btn:focus-visible {
+  outline-offset: -2px;
+}

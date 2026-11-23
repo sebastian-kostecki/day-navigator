@@ -1,0 +1,73 @@
+import type { ReactNode } from "react";
+import { Flag, type FlagProps } from "../Flag/Flag";
+import { SourceChip, type SourceKind } from "../SourceChip/SourceChip";
+import "./ItemRow.css";
+
+type RowBase = {
+  title: ReactNode;
+  source?: SourceKind;
+  /** Issue / MR number: "!418", "#27". */
+  refId?: string;
+  flag?: ReactNode;
+  flagTone?: FlagProps["tone"];
+  /** Right-aligned mono meta: due date, "2 godz.". */
+  meta?: ReactNode;
+  selected?: boolean;
+  /** Row actions: quiet icon Buttons. */
+  children?: ReactNode;
+};
+
+type WithCheckbox = RowBase & {
+  /** Required with a checkbox: links the label to it. */
+  id: string;
+  done: boolean;
+  onToggle: () => void;
+  /** Accessible name of the checkbox. */
+  checkboxLabel?: string;
+  checkboxDisabled?: boolean;
+};
+
+type WithoutCheckbox = RowBase & {
+  id?: string;
+  done?: undefined;
+  onToggle?: undefined;
+  checkboxLabel?: undefined;
+  checkboxDisabled?: undefined;
+};
+
+export type ItemRowProps = WithCheckbox | WithoutCheckbox;
+
+export function ItemRow(props: ItemRowProps) {
+  const { title, source, refId, flag, flagTone, meta, selected, children } = props;
+  const done = props.done === true;
+  const classes = ["dn-row", selected && "is-selected", done && "is-done"]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <div className={classes}>
+      {props.onToggle ? (
+        <input
+          type="checkbox"
+          id={props.id}
+          className="dn-check"
+          checked={done}
+          disabled={props.checkboxDisabled}
+          aria-label={props.checkboxLabel}
+          onChange={props.onToggle}
+        />
+      ) : null}
+      {source ? <SourceChip source={source} /> : null}
+      {refId ? <span className="dn-row-ref">{refId}</span> : null}
+      {props.onToggle ? (
+        <label htmlFor={props.id} className="dn-row-title">
+          {title}
+        </label>
+      ) : (
+        <span className="dn-row-title">{title}</span>
+      )}
+      {flag ? <Flag tone={flagTone}>{flag}</Flag> : null}
+      {meta ? <span className="dn-row-meta">{meta}</span> : null}
+      {children ? <div className="dn-row-actions">{children}</div> : null}
+    </div>
+  );
+}

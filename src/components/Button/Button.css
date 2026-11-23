@@ -1,0 +1,81 @@
+.dn-btn {
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-control);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dn-btn-sm {
+  min-height: var(--size-control);
+  padding: 0 var(--space-3);
+}
+
+.dn-btn-md {
+  min-height: var(--size-field);
+  padding: 0 var(--space-4);
+}
+
+.dn-btn-lg {
+  min-height: var(--size-touch);
+  padding: 0 var(--space-4);
+}
+
+.dn-btn-icon {
+  width: 40px;
+  min-height: var(--size-control);
+  height: var(--size-control);
+  padding: 0;
+}
+
+.dn-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.dn-btn-primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.dn-btn-secondary {
+  border-color: var(--line-strong);
+}
+
+.dn-btn-quiet {
+  border-color: var(--line-control);
+}
+
+.dn-btn-dashed {
+  border: 1px dashed var(--line-strong);
+}
+
+.dn-btn.is-pressed {
+  background: var(--surface-active);
+  color: var(--ink-strong);
+}
+
+.dn-btn:disabled {
+  color: var(--ink-disabled);
+  border-color: var(--line);
+  cursor: default;
+}
+
+.dn-btn-primary:disabled {
+  background: transparent;
+}
+
+.dn-btn-mono {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  min-width: 88px;
+}

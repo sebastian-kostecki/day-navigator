@@ -513,9 +513,9 @@ One `gh issue list` per configured repo every 10 minutes, sequential, each cappe
 
 #### Automated
 
-- [x] 2.1 `cargo test` passes in `src-tauri/`, including the `next_snapshot`, health mapping and transition tests
-- [x] 2.2 `cargo clippy --all-targets -- -D warnings` passes in `src-tauri/`
-- [x] 2.3 `cargo fmt --check` passes in `src-tauri/`
+- [x] 2.1 `cargo test` passes in `src-tauri/`, including the `next_snapshot`, health mapping and transition tests — fa3a507
+- [x] 2.2 `cargo clippy --all-targets -- -D warnings` passes in `src-tauri/` — fa3a507
+- [x] 2.3 `cargo fmt --check` passes in `src-tauri/` — fa3a507
 
 #### Manual
 
@@ -526,9 +526,9 @@ One `gh issue list` per configured repo every 10 minutes, sequential, each cappe
 
 #### Automated
 
-- [ ] 3.1 `npm run build` finishes with zero errors
-- [ ] 3.2 `npm run lint` passes
-- [ ] 3.3 `npm run format:check` passes
+- [x] 3.1 `npm run build` finishes with zero errors
+- [x] 3.2 `npm run lint` passes
+- [x] 3.3 `npm run format:check` passes
 
 #### Manual
 

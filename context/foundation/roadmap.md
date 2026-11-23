@@ -51,7 +51,7 @@ One developer on one Windows 11 machine works for a company (issues in a work Gi
 | S-05 | github-assigned-issues  | see open GitHub issues assigned to them from the repositories listed in settings       | F-02          | FR-005, FR-015                            | blocked  |
 | S-06 | own-tasks               | add, edit and complete their own tasks in the Work or Private space                    | F-01          | FR-006, FR-007, FR-008, FR-010            | proposed |
 | S-07 | todo-list               | pick today's items from the lists into "To do", tick them, carry the rest to tomorrow  | S-01, S-06    | FR-011, FR-012, US-01                     | proposed |
-| S-08 | work-timer              | start and stop work time from an always-visible counter and correct entries            | F-01          | FR-013, FR-017, NFR Trwałość czasu pracy  | planning |
+| S-08 | work-timer              | start and stop work time from an always-visible counter and correct entries            | F-01          | FR-013, FR-017, NFR Trwałość czasu pracy  | in-progress |
 | S-09 | work-norm-report        | see day and month sums and how far the month is from the norm                          | S-08          | FR-014                                    | proposed |
 | S-10 | timer-reminders         | get reminded when the counter runs too long or is not running on a workday             | S-08          | FR-018                                    | proposed |
 
@@ -204,7 +204,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - Record from 2026-12-01 with December entries added by hand until this ships, or start at the first full month after it ships? (PRD Open Question #2) — Owner: user. Block: no.
 - **Risk:** Can start in parallel with the north star; the 2026-12-01 start date is the reason not to push it late.
-- **Status:** planning
+- **Status:** in-progress
 
 ### S-09: Work-norm report
 

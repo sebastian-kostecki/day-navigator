@@ -5,6 +5,7 @@ pub mod settings;
 pub mod store;
 pub mod tasks;
 pub mod vault;
+pub mod work_time;
 
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};

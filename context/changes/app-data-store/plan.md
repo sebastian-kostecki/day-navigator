@@ -308,17 +308,17 @@ No existing data to migrate. The first start after this change creates an empty 
 
 #### Automated
 
-- [x] 1.1 Store unit and integration tests pass: `cargo test` in `src-tauri/`
-- [x] 1.2 Clippy is clean: `cargo clippy --all-targets -- -D warnings`
-- [x] 1.3 Formatting is clean: `cargo fmt --check`
-- [x] 1.4 No advisories for the new dependency: `cargo audit`
+- [x] 1.1 Store unit and integration tests pass: `cargo test` in `src-tauri/` — b1f773c
+- [x] 1.2 Clippy is clean: `cargo clippy --all-targets -- -D warnings` — b1f773c
+- [x] 1.3 Formatting is clean: `cargo fmt --check` — b1f773c
+- [x] 1.4 No advisories for the new dependency: `cargo audit` — b1f773c
 
 ### Phase 2: Daily backups
 
 #### Automated
 
-- [ ] 2.1 Backup tests pass: `cargo test --test store_backup` in `src-tauri/`
-- [ ] 2.2 Full suite, clippy and fmt pass: `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`
+- [x] 2.1 Backup tests pass: `cargo test --test store_backup` in `src-tauri/`
+- [x] 2.2 Full suite, clippy and fmt pass: `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`
 
 ### Phase 3: Crash-proof tests
 

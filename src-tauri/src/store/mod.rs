@@ -3,11 +3,12 @@
 //! No `tauri` import; time is passed in. Opening follows a fixed order (see
 //! `Store::open`) so every refusal happens before anything writes to the file.
 
+mod backup;
 pub mod error;
 pub mod schema;
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use chrono::NaiveDate;
@@ -25,6 +26,8 @@ pub struct Migration {
 
 pub struct Store {
     conn: Connection,
+    dir: PathBuf,
+    last_backup_attempt: Option<NaiveDate>,
 }
 
 /// `backups/` holds at least one file named `day-navigator-YYYY-MM-DD.db`.
@@ -49,7 +52,7 @@ impl Store {
     pub fn open(
         dir: &Path,
         migrations: &[Migration],
-        _today: NaiveDate,
+        today: NaiveDate,
     ) -> Result<Store, StoreError> {
         schema::validate(migrations)?;
         fs::create_dir_all(dir).map_err(|e| StoreError::DirUnavailable {
@@ -103,9 +106,14 @@ impl Store {
         }
         conn.execute_batch("PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;")?;
 
-        // The daily backup is added here (after the checks, before migrations).
-
-        let mut store = Store { conn };
+        let mut store = Store {
+            conn,
+            dir: dir.to_path_buf(),
+            last_backup_attempt: None,
+        };
+        // After the checks, before migrations: a failing migration always has
+        // a same-day copy from before it. Never fails the open.
+        store.backup_if_due(today);
         store.migrate(migrations, found as u32)?;
         Ok(store)
     }

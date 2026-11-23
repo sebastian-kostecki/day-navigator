@@ -9,7 +9,7 @@ main_goal: quality
 top_blocker: decisions
 milestone_id: full-day-flow
 milestone_seq: 1
-milestone_status: open
+milestone_status: done
 ---
 
 # Roadmap: Nawigator dnia
@@ -21,7 +21,7 @@ milestone_status: open
 
 ## Milestone
 
-**M-1: The narrowed day flow runs in the app** — Status: open
+**M-1: The narrowed day flow runs in the app** — Status: done
 
 - **Intent:** The PRD's day flow 1–8 runs in the app: assigned GitLab issues and MRs with hiding and notifications, assigned GitHub issues, own tasks, a "To do" list picked from the three lists, and a work-time counter with a monthly-norm report. It holds the guardrails throughout: time is never lost, no VPN is not an empty list, work data never leaks, vaults stay untouched.
 - **Source materials:** `context/foundation/prd.md` (v1, brownfield, 2026-11-22)
@@ -45,7 +45,7 @@ One developer on one Windows 11 machine works for a company (issues in a work Gi
 | F-01 | app-data-store          | (foundation) app-owned data survives close, restart and crash                          | —             | NFR Trwałość czasu pracy, Constraints      | done |
 | F-02 | read-only-cli-runner    | (foundation) logged-in `glab`/`gh` run read-only, with classified result states        | —             | Access Control Changes, NFR Nigdy pusta lista | done |
 | S-01 | gitlab-assigned-list    | see assigned GitLab issues and MRs, or a calm "unavailable" state without VPN          | F-02          | FR-001, FR-015, FR-016, US-01              | done |
-| S-02 | gitlab-visibility-filter| choose which assigned GitLab items the list shows                                      | S-01          | FR-002                                    | ready |
+| S-02 | gitlab-visibility-filter| choose which assigned GitLab items the list shows                                      | S-01          | FR-002                                    | done |
 | S-03 | hide-and-resurface      | hide an issue and get it back when its status changes or someone else comments         | S-01, F-01    | FR-003, US-02                             | done        |
 | S-04 | new-assignment-notify   | get a Windows notification for every new assigned issue or MR                          | S-01, F-01    | FR-004, NFR Świeżość, NFR Lekkość w tle    | done        |
 | S-05 | github-assigned-issues  | see open GitHub issues assigned to them from the repositories listed in settings       | F-02          | FR-005, FR-015                            | done        |
@@ -129,7 +129,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** The filter applies to the list only; notifications deliberately bypass it (FR-004), so S-04 must not reuse the filtered set.
-- **Status:** ready
+- **Status:** done
 
 ### S-03: Hide an issue and resurface it on change
 
@@ -267,6 +267,8 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 ## Milestone History
 
+- **M-1: The narrowed day flow runs in the app** (`full-day-flow`) — closed 2026-11-23. The day flow from PRD v1 runs in the app: GitLab issues and MRs (filter, hiding, notifications), GitHub issues, own tasks, the "To do" list, and the work-time counter with its norm report and reminders. FR-001–FR-008 and FR-010–FR-018 are covered.
+
 ## Done
 
 Entries below come from this milestone's previous decomposition (archived at `context/foundation/archive/2026-11-23-roadmap-full-day-flow.md`); their IDs refer to that decomposition, not to the F-NN/S-NN above.
@@ -286,3 +288,4 @@ Entries below come from this milestone's previous decomposition (archived at `co
 - **S-03: user can hide an issue. It comes back, marked as changed, when its status changes or someone other than the user (bots included) comments on it.** — Archived 2026-11-23 → `context/archive/2026-11-23-hide-and-resurface/`. Lesson: —.
 - **S-04: user gets a Windows notification for every new issue or MR assigned to them, whatever the filter says, within 15 minutes while on VPN; more than 3 at once arrive as one combined notification.** — Archived 2026-11-23 → `context/archive/2026-11-23-new-assignment-notify/`. Lesson: —.
 - **S-05: user can open the "Projects (GitHub)" view and see the open issues assigned to them from the repositories listed in settings; a logged-out or missing `gh` shows as an error, not an empty list.** — Archived 2026-11-23 → `context/archive/2026-11-23-github-assigned-issues/`. Lesson: —.
+- **S-02: user can set in settings which assigned items the list shows — by project, labels, milestone and state.** — Archived 2026-11-23 → `context/archive/2026-11-23-gitlab-visibility-filter/`. Lesson: —.

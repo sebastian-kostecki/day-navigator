@@ -213,16 +213,16 @@ fn exec(store: &mut Store, sql: &str) -> Result<(), StoreError> {
     })
 }
 
-/// `todo_items` was rebuilt for GitHub rows (v7): a v6 store with own and
-/// GitLab rows in every state opens at v7 with each row and column unchanged,
+/// `todo_items` was rebuilt for GitHub rows (v8): a v7 store with own and
+/// GitLab rows in every state opens at v8 with each row and column unchanged,
 /// and the old unique indexes still refuse duplicates.
 #[test]
-fn v7_rebuild_keeps_every_row_and_index_of_a_v6_store() {
+fn v8_rebuild_keeps_every_row_and_index_of_a_v7_store() {
     let (_tmp, dir) = test_store_dir();
     {
-        let mut v6 = Store::open(&dir, &schema::MIGRATIONS[..6], day("2026-11-23")).unwrap();
+        let mut v7 = Store::open(&dir, &schema::MIGRATIONS[..7], day("2026-11-23")).unwrap();
         exec(
-            &mut v6,
+            &mut v7,
             "INSERT INTO own_tasks(space, title, created_at, updated_at) VALUES \
                ('work','Zadanie testowe 1','2026-11-23T07:00:00','2026-11-23T07:00:00'), \
                ('private','Zadanie testowe 2','2026-11-23T07:00:00','2026-11-23T07:00:00'); \
@@ -254,8 +254,8 @@ fn v7_rebuild_keeps_every_row_and_index_of_a_v6_store() {
         .unwrap();
     }
     let before = {
-        let v6 = Store::open(&dir, &schema::MIGRATIONS[..6], day("2026-11-23")).unwrap();
-        todo_rows(&v6)
+        let v7 = Store::open(&dir, &schema::MIGRATIONS[..7], day("2026-11-23")).unwrap();
+        todo_rows(&v7)
     };
     assert_eq!(before.len(), 7);
 

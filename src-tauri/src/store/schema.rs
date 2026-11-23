@@ -121,15 +121,36 @@ CREATE UNIQUE INDEX todo_items_live_gitlab
   PRIMARY KEY (host, issue_id)
 );",
     },
+    // S-04: seen GitLab assignments, for new-assignment notifications. The
+    // account is the opaque key from `gitlab::account_key` (a hash, never a
+    // hostname or a login). A row holds kind, GitLab's numeric id and two
+    // instants: no title, reference or URL. `assignment_accounts` is a per-
+    // account seeding marker that is never pruned, so an account whose list
+    // was empty for a long time still notifies its next item. (Shipped as v7.)
+    Migration {
+        version: 7,
+        sql: "CREATE TABLE assignment_accounts (
+  account      TEXT PRIMARY KEY,
+  seeded_at_ms INTEGER NOT NULL
+) WITHOUT ROWID;
+CREATE TABLE seen_assignments (
+  account       TEXT    NOT NULL REFERENCES assignment_accounts(account),
+  kind          TEXT    NOT NULL CHECK (kind IN ('issue','mergeRequest')),
+  item_id       INTEGER NOT NULL CHECK (item_id > 0),
+  first_seen_ms INTEGER NOT NULL,
+  last_seen_ms  INTEGER NOT NULL,
+  PRIMARY KEY (account, kind, item_id)
+) WITHOUT ROWID;",
+    },
     // S-05: GitHub entries in "To do". SQLite cannot alter a CHECK, so the
     // table is rebuilt: same columns (copied by name, `gitlab_account`
     // included) plus `github_ref` (lowercase `owner/name#N`), `github_title`
     // and `github_url`, with `source` and the row-shape CHECK widened. Runs in
-    // the migration's single transaction. If another slice merges a migration
-    // first, renumber this one to the next free version.
+    // the migration's single transaction. Planned as v7, renumbered to v8 on
+    // merge after S-04 shipped v7.
     Migration {
-        version: 7,
-        sql: "CREATE TABLE todo_items_v7 (
+        version: 8,
+        sql: "CREATE TABLE todo_items_v8 (
   id             INTEGER PRIMARY KEY,
   source         TEXT NOT NULL CHECK (source IN ('own','gitlab','github')),
   own_task_id    INTEGER REFERENCES own_tasks(id),
@@ -167,14 +188,14 @@ CREATE UNIQUE INDEX todo_items_live_gitlab
       AND ((ticked_at IS NULL) = (ticked_by IS NULL)))
   )
 );
-INSERT INTO todo_items_v7
+INSERT INTO todo_items_v8
   (id, source, own_task_id, gitlab_kind, gitlab_ref, gitlab_title, gitlab_url,
    gitlab_account, picked_on, picked_at, ticked_at, ticked_by, removed_at, closed_at)
 SELECT id, source, own_task_id, gitlab_kind, gitlab_ref, gitlab_title, gitlab_url,
    gitlab_account, picked_on, picked_at, ticked_at, ticked_by, removed_at, closed_at
 FROM todo_items;
 DROP TABLE todo_items;
-ALTER TABLE todo_items_v7 RENAME TO todo_items;
+ALTER TABLE todo_items_v8 RENAME TO todo_items;
 CREATE UNIQUE INDEX todo_items_live_own
   ON todo_items (own_task_id)
   WHERE own_task_id IS NOT NULL AND removed_at IS NULL AND closed_at IS NULL;

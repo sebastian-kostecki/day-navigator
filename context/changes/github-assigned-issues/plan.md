@@ -494,6 +494,7 @@ Recorded after the implementation review (`reviews/impl-review.md`). These are d
 - `GithubRepo::parse` returns a value-free `RepoError`, not `()`.
 - `Truncated` triggers on `>= GH_ISSUE_LIMIT`.
 - Migration v7's github row branch also requires `gitlab_account IS NULL` (review F1).
+- Renumbered on merge: S-04 (`new-assignment-notify`) shipped v7 first, so the `todo_items` rebuild is **v8** (`todo_items_v8`). The migration test opens the store at v7 and upgrades it to v8.
 - `reconcile_github` keeps a stored URL when the fresh one was dropped (review F6). Its doc comment states the single-account assumption (review F3).
 
 ## References

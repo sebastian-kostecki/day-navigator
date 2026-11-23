@@ -9,13 +9,15 @@ use serde::{Serialize, Serializer};
 
 use crate::vault::Space;
 
-pub use probe::{github_status, gitlab_status, probe, store_status, unresolved_config_dir};
+pub use probe::{
+    github_status, gitlab_status, probe, reminders_status, store_status, unresolved_config_dir,
+};
 
 /// Longest tooltip the Windows tray accepts, in UTF-16 units (`szTip` holds 128
 /// including the terminator).
 const TOOLTIP_MAX_UTF16: usize = 127;
-const MAX_NOTICE_LINES: usize = 3;
-const APP_NAME: &str = "Nawigator dnia";
+pub(crate) const MAX_NOTICE_LINES: usize = 3;
+pub(crate) const APP_NAME: &str = "Nawigator dnia";
 
 /// A checked source. Serialised as its stable key (`settings`, `vault:work`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -29,6 +31,8 @@ pub enum SourceId {
     Gitlab,
     /// Assigned GitHub issues ("GitHub").
     Github,
+    /// The `reminders` block of `settings.json` ("Przypomnienia").
+    Reminders,
 }
 
 impl SourceId {
@@ -40,6 +44,7 @@ impl SourceId {
             SourceId::Vault(s) => format!("vault:{s}"),
             SourceId::Exclusions(s) => format!("exclusions:{s}"),
             SourceId::AppData => "app-data".to_string(),
+            SourceId::Reminders => "reminders".to_string(),
         }
     }
 }
@@ -415,6 +420,20 @@ mod tests {
             serde_json::to_string(&SourceId::AppData).unwrap(),
             "\"app-data\""
         );
+    }
+
+    #[test]
+    fn reminders_source_key_and_notice_line() {
+        assert_eq!(SourceId::Reminders.key(), "reminders");
+        let ok = vec![st(SourceId::Reminders, "Przypomnienia", SourceState::Ok)];
+        let bad = vec![err(
+            SourceId::Reminders,
+            "Przypomnienia",
+            "SettingsInvalid",
+            "m",
+        )];
+        let n = notice_for(&transitions(&ok, &bad)).unwrap();
+        assert_eq!(n.body, "Przypomnienia: nieprawidłowe ustawienia");
     }
 
     #[test]

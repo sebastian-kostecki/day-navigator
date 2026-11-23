@@ -305,6 +305,9 @@ pub struct GitlabSnapshot {
     /// Fixed Polish text when the hidden state could not be read or written;
     /// the list then shows every issue.
     pub hidden_error: Option<String>,
+    /// True when `gitlabRefresh.minutes` is invalid and the default interval is
+    /// used. Set on every round, whatever the fetch outcome.
+    pub refresh_setting_invalid: bool,
     /// `account_key` of the config `items` came from; set iff `items` is. Kept
     /// next to the items so a reader never pairs them with another account.
     /// Not sent to the webview.
@@ -325,6 +328,7 @@ impl GitlabSnapshot {
             hidden_check_failed: 0,
             own_comments_known: false,
             hidden_error: None,
+            refresh_setting_invalid: false,
             account: None,
         }
     }
@@ -355,6 +359,8 @@ pub fn next_snapshot(
         hidden_check_failed: 0,
         own_comments_known: false,
         hidden_error: None,
+        // A round flag, not tied to the list: carried over, the round sets it.
+        refresh_setting_invalid: prev.refresh_setting_invalid,
         account: None,
     };
     let items = match outcome {
@@ -1140,6 +1146,43 @@ mod tests {
     }
 
     #[test]
+    fn snapshot_keeps_refresh_setting_invalid_across_every_round_outcome() {
+        let prev = GitlabSnapshot {
+            refresh_setting_invalid: true,
+            ..GitlabSnapshot::starting()
+        };
+        for err in [
+            GitlabError::Unavailable,
+            GitlabError::LoggedOut,
+            GitlabError::NotConfigured,
+            GitlabError::SettingsInvalid,
+        ] {
+            let (s, _) = next_snapshot(&prev, Some(&config()), Some(&config()), Err(err), 2);
+            assert!(s.refresh_setting_invalid);
+        }
+        let (s, _) = next_snapshot(&prev, None, Some(&config()), Ok(items("g/p#1")), 2);
+        assert!(s.refresh_setting_invalid);
+        let (s, _) = next_snapshot(
+            &GitlabSnapshot::starting(),
+            None,
+            None,
+            Err(GitlabError::Unavailable),
+            2,
+        );
+        assert!(!s.refresh_setting_invalid);
+    }
+
+    #[test]
+    fn snapshot_serializes_refresh_setting_invalid() {
+        let s = GitlabSnapshot {
+            refresh_setting_invalid: true,
+            ..GitlabSnapshot::starting()
+        };
+        let v = serde_json::to_value(&s).unwrap();
+        assert_eq!(v["refreshSettingInvalid"], true);
+    }
+
+    #[test]
     fn snapshot_success_reports_whether_own_comments_are_known() {
         let prev = GitlabSnapshot::starting();
         let (s, _) = next_snapshot(&prev, None, Some(&config()), Ok(items("g/p#1")), 1);
@@ -1153,7 +1196,7 @@ mod tests {
         let mut s = GitlabSnapshot::starting();
         assert_eq!(
             serde_json::to_string(&s).unwrap(),
-            r#"{"state":{"state":"starting"},"items":null,"lastSuccessMs":null,"checkedAtMs":null,"refreshing":false,"seq":0,"hiddenCheckFailed":0,"ownCommentsKnown":false,"hiddenError":null}"#
+            r#"{"state":{"state":"starting"},"items":null,"lastSuccessMs":null,"checkedAtMs":null,"refreshing":false,"seq":0,"hiddenCheckFailed":0,"ownCommentsKnown":false,"hiddenError":null,"refreshSettingInvalid":false}"#
         );
         s.state = GitlabState::Unavailable {
             message: "m".into(),

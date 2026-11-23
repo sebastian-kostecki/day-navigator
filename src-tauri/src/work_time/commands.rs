@@ -16,22 +16,6 @@ use crate::store::{Store, StoreHandle};
 
 pub const EVENT: &str = "work-time-changed";
 
-fn kind(e: &WorkTimeError) -> &'static str {
-    match e {
-        WorkTimeError::Store(s) => s.kind(),
-        WorkTimeError::AlreadyRunning => "AlreadyRunning",
-        WorkTimeError::NotRunning => "NotRunning",
-        WorkTimeError::NotFound => "NotFound",
-        WorkTimeError::EndNotAfterStart => "EndNotAfterStart",
-        WorkTimeError::InFuture => "InFuture",
-        WorkTimeError::Overlap { .. } => "Overlap",
-        WorkTimeError::InvalidLocalTime => "InvalidLocalTime",
-        WorkTimeError::RunningEndEdit => "RunningEndEdit",
-        WorkTimeError::NotAWorkday => "NotAWorkday",
-        WorkTimeError::Background => "Background",
-    }
-}
-
 /// Runs `f(store, now_ms)` on the store, off the main thread.
 async fn run<T: Send + 'static>(
     app: &AppHandle,
@@ -50,9 +34,9 @@ async fn run<T: Send + 'static>(
         // A store or background failure is worth a warning; a refusal of a
         // user action (overlap, future time…) is routine.
         Err(e @ (WorkTimeError::Store(_) | WorkTimeError::Background)) => {
-            log::warn!("work_time: {name} failed: {}", kind(e));
+            log::warn!("work_time: {name} failed: {}", e.kind());
         }
-        Err(e) => log::debug!("work_time: {name} refused: {}", kind(e)),
+        Err(e) => log::debug!("work_time: {name} refused: {}", e.kind()),
         Ok(_) => {}
     }
     result

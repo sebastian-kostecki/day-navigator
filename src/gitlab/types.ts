@@ -56,6 +56,8 @@ export type GitlabSnapshot = {
   ownCommentsKnown: boolean;
   /** Fixed Polish text when hidden state could not be read; the list shows every issue. */
   hiddenError: string | null;
+  /** True when `gitlabRefresh.minutes` is invalid and the default interval is used. */
+  refreshSettingInvalid: boolean;
 };
 
 /** Mirrors `hidden_issues::HiddenIssueError`. */

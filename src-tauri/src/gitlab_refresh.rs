@@ -16,6 +16,7 @@
 //! reference, a URL, a count tied to names or a serde error.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Duration, Instant};
@@ -28,14 +29,19 @@ use crate::gitlab::fetch::fetch_assigned;
 use crate::gitlab::{self, AssignedItems, GitlabError, GitlabItem, GitlabSnapshot, ItemKind};
 use crate::health;
 use crate::hidden_issues::{HiddenIssueError, HiddenRecord, check_round, commit_round, partition};
-use crate::runtime::{HealthState, now_ms};
-use crate::settings::load_gitlab_settings;
-use crate::store::StoreHandle;
+use crate::new_assignments::{
+    NewAssignmentError, SessionSeen, items_for, keys_of, notices_for, record_round,
+};
+use crate::runtime::{HealthState, now_ms, toast};
+use crate::settings::{DEFAULT_REFRESH_MINUTES, load_gitlab_refresh_minutes, load_gitlab_settings};
+use crate::store::{StoreError, StoreHandle};
 use crate::todo;
 
 const EVENT: &str = "gitlab-changed";
+/// Set after the first seen-set write failure of a session was logged as a
+/// warning; later failures log at debug level.
+static SEEN_SET_WARNED: AtomicBool = AtomicBool::new(false);
 const TODO_EVENT: &str = "todo-changed";
-const REFRESH_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
 /// Managed state of the GitLab list, shared by the refresh thread, the health
 /// round and the commands.
@@ -189,9 +195,17 @@ fn refresh_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::R
     let runner = CliRunner::system();
     // The issue whose notes call stopped the last round; checks resume after it.
     let mut resume_after = None;
+    // Session memory for new-assignment toasts while the store fails.
+    let mut session_seen = SessionSeen::new();
     loop {
-        refresh_round(&app, &settings_path, &runner, &mut resume_after);
-        match wake_rx.recv_timeout(REFRESH_INTERVAL) {
+        let wait = refresh_round(
+            &app,
+            &settings_path,
+            &runner,
+            &mut resume_after,
+            &mut session_seen,
+        );
+        match wake_rx.recv_timeout(wait) {
             Ok(()) => while wake_rx.try_recv().is_ok() {},
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return,
@@ -232,12 +246,29 @@ fn run_fetch(
     }
 }
 
+/// The wait before the next round and whether the setting was invalid. Read
+/// every round, so a change needs no restart. No settings path or an invalid
+/// block gives the default.
+fn refresh_interval(settings_path: &Option<PathBuf>) -> (Duration, bool) {
+    let (minutes, invalid) = match settings_path {
+        Some(path) => match load_gitlab_refresh_minutes(path) {
+            Ok(m) => (m, false),
+            Err(_) => (DEFAULT_REFRESH_MINUTES, true),
+        },
+        None => (DEFAULT_REFRESH_MINUTES, false),
+    };
+    (Duration::from_secs(u64::from(minutes) * 60), invalid)
+}
+
+/// Runs one round and returns how long to wait before the next one.
 fn refresh_round(
     app: &AppHandle,
     settings_path: &Option<PathBuf>,
     runner: &CliRunner,
     resume_after: &mut Option<u64>,
-) {
+    session_seen: &mut SessionSeen,
+) -> Duration {
+    let (wait, refresh_invalid) = refresh_interval(settings_path);
     let state = app.state::<GitlabRefreshState>();
     let started = Instant::now();
     let before = state.snapshot();
@@ -291,6 +322,9 @@ fn refresh_round(
         (_, Err(e), _) => Err(e),
     };
     let succeeded = outcome.is_ok();
+    // The full list (hidden issues included) is the notification input, kept
+    // before it moves into `kept_full`.
+    let round_full = full_list.clone();
 
     let kept = state
         .kept_config
@@ -305,6 +339,7 @@ fn refresh_round(
         next.hidden_check_failed = check_failed;
         next.hidden_error = hidden_error;
     }
+    next.refresh_setting_invalid = refresh_invalid;
     {
         let mut kept_full = state.kept_full.lock().unwrap_or_else(|p| p.into_inner());
         match full_list {
@@ -318,12 +353,17 @@ fn refresh_round(
     let after_status = health::gitlab_status(&next);
     let from = state_label(&before);
     let to = state_label(&next);
+    let notify_account = notify_input(&next).map(str::to_string);
     let todo_changed = reconcile_todo(app, &next);
     *state.write() = next;
     drop(gate);
     publish(app, &state);
     if todo_changed && let Err(e) = app.emit(TODO_EVENT, ()) {
         log::warn!("todo: emit failed: {e}");
+    }
+    // After the gate and the publish: no lock is held while a toast shows.
+    if let (Some(full), Some(account)) = (&round_full, &notify_account) {
+        notify_new_assignments(app, account, full, session_seen);
     }
 
     if from != to {
@@ -336,6 +376,7 @@ fn refresh_round(
         // waiting up to 30 s for the tray to catch up.
         let _ = app.state::<HealthState>().wake.send(());
     }
+    wait
 }
 
 /// The list a "To do" reconcile may use, with the account it came from: only
@@ -345,6 +386,54 @@ fn reconcile_input(snap: &GitlabSnapshot) -> Option<(&AssignedItems, &str)> {
     match snap.state {
         gitlab::GitlabState::Ok => Some((snap.items.as_ref()?, snap.account.as_deref()?)),
         _ => None,
+    }
+}
+
+/// The account a new-assignment step may act on: only a successful round with
+/// an account. A stale list kept after a failed round must never notify.
+fn notify_input(snap: &GitlabSnapshot) -> Option<&str> {
+    match snap.state {
+        gitlab::GitlabState::Ok => snap.account.as_deref(),
+        _ => None,
+    }
+}
+
+/// Records the round's full list in the seen set and shows a toast for every
+/// new item. Runs outside every lock. A store error falls back to the session
+/// memory and is logged by kind only; nothing logs a reference, title or URL.
+fn notify_new_assignments(
+    app: &AppHandle,
+    account: &str,
+    full: &AssignedItems,
+    session_seen: &mut SessionSeen,
+) {
+    let current = keys_of(full);
+    let now = Local::now().naive_local();
+    let stored = app.state::<StoreHandle>().with_store(now.date(), |s| {
+        record_round(s, account, &current, now_ms() as i64)
+    });
+    if let Err(e) = &stored {
+        // The health round reports an unopenable store, not a failing write,
+        // so the first non-busy failure of a session is a warning: until it
+        // clears, toasts run on session memory and repeat after a restart.
+        let busy = matches!(e, NewAssignmentError::Store(StoreError::Busy));
+        if !busy && !SEEN_SET_WARNED.swap(true, Ordering::Relaxed) {
+            log::warn!(
+                "gitlab: seen set failed: {}; using session memory",
+                e.kind()
+            );
+        } else {
+            log::debug!("gitlab: seen set failed: {}", e.kind());
+        }
+    }
+    let new_keys = session_seen.resolve(account, &current, stored);
+    if new_keys.is_empty() {
+        return;
+    }
+    let items = items_for(full, &new_keys);
+    log::info!("gitlab: {} new assignments", items.len());
+    for notice in notices_for(&items) {
+        toast(app, "gitlab", &notice.title, &notice.body);
     }
 }
 
@@ -466,6 +555,34 @@ mod tests {
     }
 
     #[test]
+    fn notify_input_only_for_ok_with_an_account() {
+        let with = |state, account: Option<&str>| GitlabSnapshot {
+            state,
+            account: account.map(str::to_string),
+            ..GitlabSnapshot::starting()
+        };
+        assert_eq!(
+            notify_input(&with(State::Ok, Some("account-a"))),
+            Some("account-a")
+        );
+        assert!(notify_input(&with(State::Ok, None)).is_none());
+        // A failed round keeps the last account; it must not notify.
+        for state in [
+            State::Starting,
+            State::NotConfigured,
+            State::Unavailable {
+                message: String::new(),
+            },
+            State::Error {
+                kind: "LoggedOut".into(),
+                message: String::new(),
+            },
+        ] {
+            assert!(notify_input(&with(state, Some("account-a"))).is_none());
+        }
+    }
+
+    #[test]
     fn state_holds_a_starting_snapshot_and_wakes_coalesce() {
         let (state, rx) = GitlabRefreshState::new();
         assert_eq!(state.snapshot(), GitlabSnapshot::starting());
@@ -578,6 +695,31 @@ mod tests {
         assert_eq!(items.issues.len(), 1);
         assert_eq!(items.issues[0].id, 2);
         assert_eq!(items.issues[0].changed, Some(gitlab::ChangeReason::Comment));
+    }
+
+    #[test]
+    fn act_on_issue_keeps_the_refresh_setting_flag() {
+        let state = kept_state();
+        state.write().refresh_setting_invalid = true;
+        state
+            .act_on_issue(1, |_, _| Ok(vec![record(1, None)]))
+            .unwrap();
+        assert!(state.snapshot().refresh_setting_invalid);
+    }
+
+    #[test]
+    fn refresh_interval_reads_the_setting_and_falls_back_to_ten_minutes() {
+        assert_eq!(
+            refresh_interval(&None),
+            (Duration::from_secs(10 * 60), false)
+        );
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, r#"{"version":1,"gitlabRefresh":{"minutes":3}}"#).unwrap();
+        let p = Some(path.clone());
+        assert_eq!(refresh_interval(&p), (Duration::from_secs(3 * 60), false));
+        std::fs::write(&path, r#"{"version":1,"gitlabRefresh":{"minutes":15}}"#).unwrap();
+        assert_eq!(refresh_interval(&p), (Duration::from_secs(10 * 60), true));
     }
 
     #[test]

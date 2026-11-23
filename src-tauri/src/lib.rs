@@ -5,6 +5,7 @@ pub mod gitlab;
 pub mod gitlab_refresh;
 pub mod health;
 pub mod hidden_issues;
+pub mod new_assignments;
 pub mod own_tasks;
 pub mod runtime;
 pub mod settings;
@@ -12,6 +13,7 @@ pub mod space;
 pub mod store;
 pub mod todo;
 pub mod vault;
+pub mod work_reminders;
 pub mod work_time;
 
 use std::sync::{Arc, RwLock};
@@ -176,15 +178,16 @@ pub fn run() {
             };
             app.manage(VaultState::new(state));
             let data_dir = app.path().app_data_dir().ok();
-            // Not opened here: the first health round opens it on the check
-            // thread, so `quick_check`, backup and migrations never delay the
-            // main thread.
+            // Not opened here: the first health or reminder round opens it on
+            // its own thread, so `quick_check`, backup and migrations never
+            // delay the main thread.
             app.manage(store::StoreHandle::new(data_dir));
             // Managed before the health thread starts: its first round reads it.
             let gitlab_rx = gitlab_refresh::manage(app);
             let github_rx = github_refresh::manage(app);
             let wake_rx = runtime::build_tray(app)?;
             runtime::start(app.handle(), settings_path.clone(), wake_rx);
+            work_reminders::start(app.handle(), settings_path.clone());
             // After `runtime::start`: the refresh threads wake `HealthState`.
             gitlab_refresh::start(app.handle(), settings_path.clone(), gitlab_rx);
             github_refresh::start(app.handle(), settings_path, github_rx);

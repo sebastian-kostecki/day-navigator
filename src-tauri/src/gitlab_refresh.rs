@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::cli::{CliRunner, GitlabHost};
+use crate::cli::{CliRunner, GitlabConfig};
 use crate::gitlab::fetch::fetch_assigned;
 use crate::gitlab::{self, GitlabError, GitlabSnapshot};
 use crate::health;
@@ -30,8 +30,8 @@ const REFRESH_INTERVAL: Duration = Duration::from_secs(5 * 60);
 /// round and the commands.
 pub struct GitlabState {
     snapshot: RwLock<GitlabSnapshot>,
-    /// The host the kept items came from. Only the refresh thread touches it.
-    kept_host: Mutex<Option<GitlabHost>>,
+    /// The host and user the kept items came from. Only the refresh thread touches it.
+    kept_host: Mutex<Option<GitlabConfig>>,
     /// Wakes the refresh thread for an immediate round.
     wake: mpsc::Sender<()>,
     /// `seq` of the last snapshot pushed to the webview.
@@ -132,22 +132,22 @@ fn state_label(snap: &GitlabSnapshot) -> String {
     }
 }
 
-/// Re-reads the host (so a change needs no restart) and runs the fetch when one
-/// is configured. Returns this round's host (if any) and its outcome.
+/// Re-reads the host and user (so a change needs no restart) and runs the fetch when one
+/// is configured. Returns this round's config (if any) and its outcome.
 fn run_fetch(
     settings_path: &Option<PathBuf>,
     runner: &CliRunner,
 ) -> (
-    Option<GitlabHost>,
+    Option<GitlabConfig>,
     Result<gitlab::AssignedItems, GitlabError>,
 ) {
     let Some(path) = settings_path else {
         return (None, Err(GitlabError::SettingsInvalid));
     };
     match load_gitlab_settings(path) {
-        Ok(Some(host)) => {
-            let outcome = fetch_assigned(runner, &host);
-            (Some(host), outcome)
+        Ok(Some(config)) => {
+            let outcome = fetch_assigned(runner, &config);
+            (Some(config), outcome)
         }
         Ok(None) => (None, Err(GitlabError::NotConfigured)),
         Err(e) => (None, Err(e)),
@@ -168,7 +168,7 @@ fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliR
     }
     publish(app, &state);
 
-    let (host, outcome) = run_fetch(settings_path, runner);
+    let (config, outcome) = run_fetch(settings_path, runner);
 
     let kept = state
         .kept_host
@@ -177,7 +177,7 @@ fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliR
         .clone();
     let (next, next_kept) = {
         let prev = state.snapshot();
-        gitlab::next_snapshot(&prev, kept.as_ref(), host.as_ref(), outcome, now_ms())
+        gitlab::next_snapshot(&prev, kept.as_ref(), config.as_ref(), outcome, now_ms())
     };
     *state.kept_host.lock().unwrap_or_else(|p| p.into_inner()) = next_kept;
     let after_status = health::gitlab_status(&next);

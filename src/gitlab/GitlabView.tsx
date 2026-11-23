@@ -121,7 +121,8 @@ export function GitlabView() {
           <code>
             &quot;gitlab&quot;: {"{"} &quot;host&quot;: &quot;…&quot; {"}"}
           </code>{" "}
-          do settings.json.
+          do settings.json (opcjonalnie <code>&quot;user&quot;</code>: login, gdy glab jest
+          zalogowany na konto serwisowe).
         </p>
       )}
       {state.state === "unavailable" && (

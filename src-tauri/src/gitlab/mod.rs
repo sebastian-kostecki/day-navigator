@@ -12,7 +12,7 @@ use std::cmp::Reverse;
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 
-use crate::cli::{CliError, GitlabHost, Tool};
+use crate::cli::{CliError, GitlabConfig, GitlabHost, Tool};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -100,11 +100,11 @@ impl GitlabError {
         let tool = Tool::Glab;
         match self {
             GitlabError::NotConfigured => {
-                "GitLab nie jest skonfigurowany — dodaj \"gitlab\": { \"host\": \"…\" } do settings.json"
+                "GitLab nie jest skonfigurowany — dodaj \"gitlab\": { \"host\": \"…\" } do settings.json (opcjonalnie \"user\": login, gdy glab jest zalogowany na konto serwisowe)"
                     .to_string()
             }
             GitlabError::SettingsInvalid => {
-                "Nieprawidłowy blok \"gitlab\" w settings.json — \"host\" musi być samą nazwą hosta, np. gitlab.example.com"
+                "Nieprawidłowy blok \"gitlab\" w settings.json — \"host\" musi być samą nazwą hosta, np. gitlab.example.com, a opcjonalny \"user\" samym loginem"
                     .to_string()
             }
             GitlabError::Unavailable => CliError::Unavailable { tool }.message_pl(),
@@ -233,20 +233,20 @@ impl GitlabSnapshot {
     }
 }
 
-/// The next snapshot after one round, and the host the kept items now belong to.
+/// The next snapshot after one round, and the (host, user) the kept items now belong to.
 ///
-/// `kept_host` is the host the previous snapshot's items came from; `host` is
-/// this round's host (`None` when not configured or invalid). Success replaces
+/// `kept` is the config the previous snapshot's items came from; `config` is
+/// this round's config (`None` when not configured or invalid). Success replaces
 /// the items. `Unavailable` and the error kinds keep the items and
-/// `last_success_ms` only while the host is unchanged; `NotConfigured`,
-/// `SettingsInvalid` and a changed host drop them. `seq` always increases.
+/// `last_success_ms` only while host and user are unchanged; `NotConfigured`,
+/// `SettingsInvalid` and a changed host or user drop them. `seq` always increases.
 pub fn next_snapshot(
     prev: &GitlabSnapshot,
-    kept_host: Option<&GitlabHost>,
-    host: Option<&GitlabHost>,
+    kept: Option<&GitlabConfig>,
+    config: Option<&GitlabConfig>,
     outcome: Result<AssignedItems, GitlabError>,
     now_ms: u64,
-) -> (GitlabSnapshot, Option<GitlabHost>) {
+) -> (GitlabSnapshot, Option<GitlabConfig>) {
     let seq = prev.seq + 1;
     let mut next = GitlabSnapshot {
         state: GitlabState::Ok,
@@ -260,12 +260,12 @@ pub fn next_snapshot(
         Ok(items) => {
             next.items = Some(items);
             next.last_success_ms = Some(now_ms);
-            return (next, host.cloned());
+            return (next, config.cloned());
         }
         Err(e) => e,
     };
-    let same_host = host.is_some() && host == kept_host;
-    let keeps = same_host
+    let same_config = config.is_some() && config == kept;
+    let keeps = same_config
         && !matches!(
             items,
             GitlabError::NotConfigured | GitlabError::SettingsInvalid
@@ -283,7 +283,7 @@ pub fn next_snapshot(
     if keeps {
         next.items = prev.items.clone();
         next.last_success_ms = prev.last_success_ms;
-        (next, kept_host.cloned())
+        (next, kept.cloned())
     } else {
         (next, None)
     }
@@ -292,6 +292,7 @@ pub fn next_snapshot(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cli::GitlabUser;
 
     fn host() -> GitlabHost {
         GitlabHost::parse("gitlab.example.invalid").unwrap()
@@ -578,17 +579,45 @@ mod tests {
         GitlabHost::parse("other.example.invalid").unwrap()
     }
 
+    fn config() -> GitlabConfig {
+        GitlabConfig {
+            host: host(),
+            user: Some(GitlabUser::parse("invented.user").unwrap()),
+        }
+    }
+
+    fn other_config() -> GitlabConfig {
+        GitlabConfig {
+            host: other_host(),
+            user: Some(GitlabUser::parse("invented.user").unwrap()),
+        }
+    }
+
+    fn other_user_config() -> GitlabConfig {
+        GitlabConfig {
+            user: Some(GitlabUser::parse("other.invented").unwrap()),
+            ..config()
+        }
+    }
+
+    fn no_user_config() -> GitlabConfig {
+        GitlabConfig {
+            user: None,
+            ..config()
+        }
+    }
+
     #[test]
     fn snapshot_first_success_sets_items_and_time() {
         let prev = GitlabSnapshot::starting();
-        let (s, kept) = next_snapshot(&prev, None, Some(&host()), Ok(items("g/p#1")), 1000);
+        let (s, kept) = next_snapshot(&prev, None, Some(&config()), Ok(items("g/p#1")), 1000);
         assert_eq!(s.state, GitlabState::Ok);
         assert_eq!(s.items, Some(items("g/p#1")));
         assert_eq!(s.last_success_ms, Some(1000));
         assert_eq!(s.checked_at_ms, Some(1000));
         assert!(!s.refreshing);
         assert_eq!(s.seq, 1);
-        assert_eq!(kept, Some(host()));
+        assert_eq!(kept, Some(config()));
     }
 
     #[test]
@@ -596,7 +625,7 @@ mod tests {
         let (ok, kept) = next_snapshot(
             &GitlabSnapshot::starting(),
             None,
-            Some(&host()),
+            Some(&config()),
             Ok(items("g/p#1")),
             1000,
         );
@@ -606,7 +635,7 @@ mod tests {
             (GitlabError::Failed { exit_code: Some(1) }, "Failed"),
             (GitlabError::ResponseInvalid, "ResponseInvalid"),
         ] {
-            let (s, k) = next_snapshot(&ok, kept.as_ref(), Some(&host()), Err(err.clone()), 2000);
+            let (s, k) = next_snapshot(&ok, kept.as_ref(), Some(&config()), Err(err.clone()), 2000);
             assert_eq!(
                 s.state,
                 GitlabState::Error {
@@ -617,7 +646,7 @@ mod tests {
             assert_eq!(s.items, Some(items("g/p#1")), "{label}");
             assert_eq!(s.last_success_ms, Some(1000), "{label}");
             assert_eq!(s.checked_at_ms, Some(2000));
-            assert_eq!(k, Some(host()));
+            assert_eq!(k, Some(config()));
         }
     }
 
@@ -626,14 +655,14 @@ mod tests {
         let (ok, kept) = next_snapshot(
             &GitlabSnapshot::starting(),
             None,
-            Some(&host()),
+            Some(&config()),
             Ok(items("g/p#1")),
             1000,
         );
         let (s, k) = next_snapshot(
             &ok,
             kept.as_ref(),
-            Some(&host()),
+            Some(&config()),
             Err(GitlabError::Unavailable),
             2000,
         );
@@ -645,7 +674,7 @@ mod tests {
         );
         assert_eq!(s.items, Some(items("g/p#1")));
         assert_eq!(s.last_success_ms, Some(1000));
-        assert_eq!(k, Some(host()));
+        assert_eq!(k, Some(config()));
     }
 
     #[test]
@@ -653,7 +682,7 @@ mod tests {
         let (s, k) = next_snapshot(
             &GitlabSnapshot::starting(),
             None,
-            Some(&host()),
+            Some(&config()),
             Err(GitlabError::Unavailable),
             500,
         );
@@ -667,7 +696,7 @@ mod tests {
         let (ok, kept) = next_snapshot(
             &GitlabSnapshot::starting(),
             None,
-            Some(&host()),
+            Some(&config()),
             Ok(items("g/p#1")),
             1000,
         );
@@ -702,14 +731,14 @@ mod tests {
         let (ok, kept) = next_snapshot(
             &GitlabSnapshot::starting(),
             None,
-            Some(&host()),
+            Some(&config()),
             Ok(items("g/p#1")),
             1000,
         );
         let (s, k) = next_snapshot(
             &ok,
             kept.as_ref(),
-            Some(&other_host()),
+            Some(&other_config()),
             Err(GitlabError::Unavailable),
             2000,
         );
@@ -720,13 +749,61 @@ mod tests {
         let (s, k) = next_snapshot(
             &ok,
             kept.as_ref(),
-            Some(&other_host()),
+            Some(&other_config()),
             Ok(items("g/p#2")),
             3000,
         );
         assert_eq!(s.items, Some(items("g/p#2")));
         assert_eq!(s.last_success_ms, Some(3000));
-        assert_eq!(k, Some(other_host()));
+        assert_eq!(k, Some(other_config()));
+    }
+
+    #[test]
+    fn snapshot_user_change_drops_items_on_failure_and_replaces_on_success() {
+        let (ok, kept) = next_snapshot(
+            &GitlabSnapshot::starting(),
+            None,
+            Some(&config()),
+            Ok(items("g/p#1")),
+            1000,
+        );
+        for changed in [other_user_config(), no_user_config()] {
+            let (s, k) = next_snapshot(
+                &ok,
+                kept.as_ref(),
+                Some(&changed),
+                Err(GitlabError::Unavailable),
+                2000,
+            );
+            assert!(matches!(s.state, GitlabState::Unavailable { .. }));
+            assert!(s.items.is_none() && s.last_success_ms.is_none());
+            assert!(k.is_none());
+
+            let (s, k) =
+                next_snapshot(&ok, kept.as_ref(), Some(&changed), Ok(items("g/p#2")), 3000);
+            assert_eq!(s.items, Some(items("g/p#2")));
+            assert_eq!(k, Some(changed));
+        }
+        // Same host and user: still kept.
+        let (s, k) = next_snapshot(
+            &ok,
+            kept.as_ref(),
+            Some(&config()),
+            Err(GitlabError::Unavailable),
+            2000,
+        );
+        assert_eq!(s.items, Some(items("g/p#1")));
+        assert_eq!(k, Some(config()));
+    }
+
+    #[test]
+    fn settings_messages_mention_the_optional_user() {
+        for msg in [
+            GitlabError::NotConfigured.message_pl(),
+            GitlabError::SettingsInvalid.message_pl(),
+        ] {
+            assert!(msg.contains("\"user\""), "{msg}");
+        }
     }
 
     #[test]
@@ -741,7 +818,7 @@ mod tests {
         ];
         let mut last = prev.seq;
         for (n, outcome) in outcomes.into_iter().enumerate() {
-            let (s, k) = next_snapshot(&prev, kept.as_ref(), Some(&host()), outcome, n as u64);
+            let (s, k) = next_snapshot(&prev, kept.as_ref(), Some(&config()), outcome, n as u64);
             assert!(s.seq > last);
             last = s.seq;
             prev = s;

@@ -196,3 +196,77 @@ fn errors_never_leak_stderr_or_hostnames() {
         }
     }
 }
+
+#[test]
+fn gitlab_calls_with_a_user_pass_exactly_these_arguments() {
+    use day_navigator_lib::cli::{GitlabHost, GitlabUser};
+    let host = GitlabHost::parse("gitlab.example.invalid").unwrap();
+    let user = GitlabUser::parse("invented.user").unwrap();
+    let r = runner("data");
+    let cases = [
+        (
+            CliCall::GlabAssignedIssues(host.clone(), Some(user.clone())),
+            "issues?scope=all&state=opened&assignee_username=invented.user&per_page=100",
+        ),
+        (
+            CliCall::GlabAssignedMergeRequests(host.clone(), Some(user.clone())),
+            "merge_requests?scope=all&state=opened&assignee_username=invented.user&per_page=100",
+        ),
+        (
+            CliCall::GlabAssignedIssues(host.clone(), None),
+            "issues?scope=assigned_to_me&state=opened&per_page=100",
+        ),
+        (
+            CliCall::GlabAssignedMergeRequests(host, None),
+            "merge_requests?scope=assigned_to_me&state=opened&per_page=100",
+        ),
+    ];
+    for (call, endpoint) in cases {
+        let out = r.run(&call).expect("data");
+        let v: serde_json::Value = serde_json::from_str(out.trim()).expect("json");
+        let argv: Vec<&str> = v["argv"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a.as_str().unwrap())
+            .collect();
+        assert_eq!(
+            argv,
+            [
+                "api",
+                endpoint,
+                "--paginate",
+                "--hostname",
+                "gitlab.example.invalid"
+            ]
+        );
+    }
+}
+
+#[test]
+fn the_user_never_appears_in_any_cli_error() {
+    use day_navigator_lib::cli::{GitlabHost, GitlabUser};
+    let host = GitlabHost::parse("gitlab.example.invalid").unwrap();
+    let user = GitlabUser::parse("invented.user").unwrap();
+    let call = CliCall::GlabAssignedIssues(host, Some(user));
+    for scenario in [
+        "glab-no-network",
+        "glab-logged-out",
+        "http-503",
+        "unknown-error",
+        "non-utf8",
+        "big-output",
+    ] {
+        let err = runner(scenario).run(&call).unwrap_err();
+        let shown = [
+            format!("{err:?}"),
+            err.to_string(),
+            serde_json::to_string(&err).unwrap(),
+            err.message_pl(),
+        ];
+        for text in shown {
+            assert!(!text.contains("invented"), "{scenario}: {text}");
+            assert!(!text.contains("example.invalid"), "{scenario}: {text}");
+        }
+    }
+}

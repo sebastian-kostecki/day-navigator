@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use day_navigator_lib::cli::{CliRunner, GitlabHost};
+use day_navigator_lib::cli::{CliRunner, GitlabConfig, GitlabHost, GitlabUser};
 use day_navigator_lib::gitlab::fetch::fetch_assigned;
 use day_navigator_lib::gitlab::{GitlabError, ItemKind};
 
@@ -22,8 +22,11 @@ fn runner(scenario: &str) -> CliRunner {
     )
 }
 
-fn host() -> GitlabHost {
-    GitlabHost::parse("gitlab.example.invalid").unwrap()
+fn host() -> GitlabConfig {
+    GitlabConfig {
+        host: GitlabHost::parse("gitlab.example.invalid").unwrap(),
+        user: None,
+    }
 }
 
 fn refs(items: &[day_navigator_lib::gitlab::GitlabItem]) -> Vec<&str> {
@@ -118,4 +121,43 @@ fn missing_program_is_tool_missing() {
         Vec::new(),
     );
     assert_eq!(fetch_assigned(&r, &host()), Err(GitlabError::ToolMissing));
+}
+
+fn host_with_user() -> GitlabConfig {
+    GitlabConfig {
+        user: Some(GitlabUser::parse("invented.user").unwrap()),
+        ..host()
+    }
+}
+
+#[test]
+fn with_a_user_both_endpoint_forms_are_served_and_parsed() {
+    let with = fetch_assigned(&runner("gitlab-assigned"), &host_with_user()).expect("data");
+    let without = fetch_assigned(&runner("gitlab-assigned"), &host()).expect("data");
+    assert_eq!(with, without);
+    assert_eq!(refs(&with.issues), ["acme/widgets#12", "acme/gizmo#5"]);
+}
+
+#[test]
+fn with_a_user_failures_never_show_the_user_or_host() {
+    let cases = [
+        "gitlab-bad-json",
+        "glab-no-network",
+        "glab-logged-out",
+        "unknown-error",
+        "gitlab-mrs-ok-issues-no-network",
+    ];
+    for scenario in cases {
+        let err = fetch_assigned(&runner(scenario), &host_with_user()).unwrap_err();
+        let shown = [
+            format!("{err:?}"),
+            err.to_string(),
+            serde_json::to_string(&err).unwrap(),
+            err.message_pl(),
+        ];
+        for text in shown {
+            assert!(!text.contains("invented"), "{scenario}: {text}");
+            assert!(!text.contains("example.invalid"), "{scenario}: {text}");
+        }
+    }
 }

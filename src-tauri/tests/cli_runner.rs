@@ -254,6 +254,37 @@ fn gitlab_calls_with_a_user_pass_exactly_these_arguments() {
 }
 
 #[test]
+fn gh_assigned_issues_passes_exactly_these_arguments() {
+    use day_navigator_lib::cli::GithubRepo;
+    let call = CliCall::GhAssignedIssues(GithubRepo::parse("octo-test/alpha").unwrap());
+    let out = runner("data").run(&call).expect("data");
+    let v: serde_json::Value = serde_json::from_str(out.trim()).expect("json");
+    let argv: Vec<&str> = v["argv"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|a| a.as_str().unwrap())
+        .collect();
+    assert_eq!(
+        argv,
+        [
+            "issue",
+            "list",
+            "-R",
+            "octo-test/alpha",
+            "--assignee",
+            "@me",
+            "--state",
+            "open",
+            "--limit",
+            "500",
+            "--json",
+            "number,title,url,updatedAt"
+        ]
+    );
+}
+
+#[test]
 fn the_user_never_appears_in_any_cli_error() {
     use day_navigator_lib::cli::{GitlabHost, GitlabUser};
     let host = GitlabHost::parse("gitlab.example.invalid").unwrap();

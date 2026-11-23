@@ -264,6 +264,111 @@ fn gitlab_notes_scenario(scenario: &str) -> i32 {
     }
 }
 
+/// When `FAKE_CLI_CALL_LOG` names a file, appends the argv of every call (glab
+/// and gh) as one line, so a test can see which calls were made, across
+/// processes.
+fn record_call() {
+    let Ok(path) = std::env::var("FAKE_CLI_CALL_LOG") else {
+        return;
+    };
+    let line = std::env::args().skip(1).collect::<Vec<_>>().join(" ");
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(file, "{line}");
+    }
+}
+
+/// The value after `-R` in the received arguments.
+fn gh_repo_arg() -> Option<String> {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let at = args.iter().position(|a| a == "-R")?;
+    args.get(at + 1).cloned()
+}
+
+fn gh_issue_value(repo: &str, number: u64, title: &str, updated: &str) -> serde_json::Value {
+    serde_json::json!({
+        "number": number,
+        "title": title,
+        "url": format!("https://github.com/{repo}/issues/{number}"),
+        "updatedAt": updated
+    })
+}
+
+/// The `gh-issues` scenario: `gh issue list` routed on the `-R` value. Every
+/// repo is invented (`octo-test/*`).
+fn gh_issues_scenario() -> i32 {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) != Some("issue")
+        || args.get(1).map(String::as_str) != Some("list")
+    {
+        return 98;
+    }
+    match gh_repo_arg().as_deref() {
+        Some("octo-test/alpha") => {
+            let issues = vec![
+                gh_issue_value(
+                    "octo-test/alpha",
+                    3,
+                    "Gizmo jitters",
+                    "2026-02-20T08:00:00Z",
+                ),
+                gh_issue_value(
+                    "octo-test/alpha",
+                    11,
+                    "Widget crashes on start",
+                    "2026-03-03T08:00:00Z",
+                ),
+            ];
+            println!("{}", serde_json::Value::Array(issues));
+            0
+        }
+        Some("octo-test/beta") => {
+            println!("[]");
+            0
+        }
+        Some("octo-test/missing") => {
+            eprintln!(
+                "GraphQL: Could not resolve to a Repository with the name 'octo-test/missing'. (repository)"
+            );
+            1
+        }
+        Some("octo-test/garbled") => {
+            println!(
+                "[{{\"number\":1,\"title\":\"{BAD_JSON_MARKER}\",\"url\":\"https://github.com/octo-test/garbled/issues/1\",\"updatedAt\":\"2026-03"
+            );
+            0
+        }
+        Some("octo-test/huge") => {
+            let issues: Vec<serde_json::Value> = (1..=500)
+                .map(|n| {
+                    gh_issue_value(
+                        "octo-test/huge",
+                        n,
+                        "Invented issue",
+                        "2026-01-01T00:00:00Z",
+                    )
+                })
+                .collect();
+            println!("{}", serde_json::Value::Array(issues));
+            0
+        }
+        Some("octo-test/offline") => {
+            eprintln!(
+                "error connecting to api.github.com: Post \"https://api.github.com/graphql\": dial tcp: lookup api.github.com: no such host"
+            );
+            1
+        }
+        Some("octo-test/logged-out") => {
+            eprintln!("To get started with GitHub CLI, please run:  gh auth login");
+            4
+        }
+        _ => 98,
+    }
+}
+
 /// Starts a copy of this program that sleeps a few seconds while holding the
 /// inherited stdout open (stderr is not shared), like a helper process that
 /// outlives the CLI.
@@ -293,7 +398,9 @@ fn spawn_lingering_child() {
 
 fn main() {
     let scenario = std::env::var("FAKE_CLI_SCENARIO").unwrap_or_default();
+    record_call();
     let code = match scenario.as_str() {
+        "gh-issues" => gh_issues_scenario(),
         "data" => {
             println!("{}", echo_argv());
             0

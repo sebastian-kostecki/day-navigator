@@ -1,4 +1,5 @@
 pub mod cli;
+pub mod github;
 pub mod gitlab;
 pub mod gitlab_refresh;
 pub mod health;

@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
-use crate::cli::{GitlabConfig, GitlabHost, GitlabUser};
+use crate::cli::{GithubConfig, GithubRepo, GitlabConfig, GitlabHost, GitlabUser};
+use crate::github::GithubError;
 use crate::gitlab::GitlabError;
 use crate::todo::{DEFAULT_TODO_LIMIT, TodoError};
 use crate::vault::{VaultError, VaultPath};
@@ -132,6 +133,67 @@ fn parse_gitlab_settings(text: &str) -> Result<Option<GitlabConfig>, GitlabError
         Ok(GitlabConfig { host, user })
     })
     .transpose()
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawGithub {
+    #[serde(default)]
+    repos: Vec<String>,
+}
+
+const GITHUB_REPOS_MAX: usize = 50;
+
+/// Reads only the top-level `github` block, on its own, like the GitLab block.
+/// A missing file, an absent or `null` block or an empty `repos` list is
+/// `Ok(None)` (not configured). Every failure, including more than 50 repos,
+/// is `SettingsInvalid` with no detail: serde errors can quote the value.
+pub fn load_github_settings(path: &Path) -> Result<Option<GithubConfig>, GithubError> {
+    let bytes = match fs::read(path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err(GithubError::SettingsInvalid),
+    };
+    let bytes = bytes
+        .strip_prefix(&[0xEF, 0xBB, 0xBF][..])
+        .unwrap_or(&bytes);
+    let text = std::str::from_utf8(bytes).map_err(|_| GithubError::SettingsInvalid)?;
+    parse_github_settings(text)
+}
+
+fn parse_github_settings(text: &str) -> Result<Option<GithubConfig>, GithubError> {
+    let value: serde_json::Value =
+        serde_json::from_str(text).map_err(|_| GithubError::SettingsInvalid)?;
+    if value.get("version").and_then(|v| v.as_u64()) != Some(SUPPORTED_VERSION) {
+        return Err(GithubError::SettingsInvalid);
+    }
+    let Some(block) = value.get("github") else {
+        return Ok(None);
+    };
+    if block.is_null() {
+        return Ok(None);
+    }
+    // serde would also accept a bare array for a struct; only an object is valid.
+    if !block.is_object() {
+        return Err(GithubError::SettingsInvalid);
+    }
+    let raw: RawGithub =
+        serde_json::from_value(block.clone()).map_err(|_| GithubError::SettingsInvalid)?;
+    let mut repos: Vec<GithubRepo> = Vec::with_capacity(raw.repos.len());
+    let mut seen = std::collections::HashSet::new();
+    for entry in &raw.repos {
+        let repo = GithubRepo::parse(entry).map_err(|_| GithubError::SettingsInvalid)?;
+        if seen.insert(repo.key()) {
+            repos.push(repo);
+        }
+    }
+    if repos.len() > GITHUB_REPOS_MAX {
+        return Err(GithubError::SettingsInvalid);
+    }
+    if repos.is_empty() {
+        return Ok(None);
+    }
+    Ok(Some(GithubConfig { repos }))
 }
 
 #[derive(Deserialize)]
@@ -445,6 +507,144 @@ mod tests {
             assert_eq!(work.excluded.len(), 1);
             assert!(s.private.is_none());
         }
+    }
+
+    fn github_text(block: &str) -> String {
+        format!(r#"{{"version":1,"spaces":{{}},"github":{block}}}"#)
+    }
+
+    fn repo_names(cfg: &GithubConfig) -> Vec<&str> {
+        cfg.repos.iter().map(|r| r.as_str()).collect()
+    }
+
+    #[test]
+    fn github_valid_block_parses_in_order_and_drops_case_insensitive_duplicates() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = github_text(
+            r#"{"repos":["octo-test/alpha","Octo-Test/Beta","OCTO-TEST/ALPHA","octo-test/beta","octo-test/gamma"]}"#,
+        );
+        let cfg = load_github_settings(&write(&dir, &text)).unwrap().unwrap();
+        assert_eq!(
+            repo_names(&cfg),
+            ["octo-test/alpha", "Octo-Test/Beta", "octo-test/gamma"]
+        );
+    }
+
+    #[test]
+    fn github_missing_file_absent_null_and_empty_are_not_configured() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            load_github_settings(&dir.path().join("settings.json")),
+            Ok(None)
+        );
+        let text = r#"{"version":1,"spaces":{}}"#;
+        assert_eq!(load_github_settings(&write(&dir, text)), Ok(None));
+        for block in ["null", "{}", r#"{"repos":[]}"#] {
+            let text = github_text(block);
+            assert_eq!(
+                load_github_settings(&write(&dir, &text)),
+                Ok(None),
+                "{block}"
+            );
+        }
+    }
+
+    #[test]
+    fn github_fifty_repos_are_accepted_and_fifty_one_are_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let list = |n: usize| {
+            let repos: Vec<String> = (0..n).map(|i| format!("\"octo-test/r{i}\"")).collect();
+            github_text(&format!(r#"{{"repos":[{}]}}"#, repos.join(",")))
+        };
+        let cfg = load_github_settings(&write(&dir, &list(50)))
+            .unwrap()
+            .unwrap();
+        assert_eq!(cfg.repos.len(), 50);
+        assert_eq!(
+            load_github_settings(&write(&dir, &list(51))),
+            Err(GithubError::SettingsInvalid)
+        );
+    }
+
+    #[test]
+    fn github_invalid_blocks_are_refused_without_leaking_the_value() {
+        const SECRET: &str = "secret-owner";
+        let dir = tempfile::tempdir().unwrap();
+        let cases = [
+            format!(r#"{{"repos":["{SECRET}"]}}"#),
+            format!(r#"{{"repos":["-{SECRET}/x"]}}"#),
+            format!(r#"{{"repos":["{SECRET}/x y"]}}"#),
+            format!(r#"{{"repos":["{SECRET}/a/b"]}}"#),
+            format!(r#"{{"repos":["{SECRET}/.."]}}"#),
+            format!(r#"{{"repos":[5,"{SECRET}/x"]}}"#),
+            format!(r#"{{"repos":"{SECRET}/x"}}"#),
+            format!(r#"{{"repos":["{SECRET}/x"],"extra":1}}"#),
+            format!(r#""{SECRET}""#),
+            format!(r#"["{SECRET}/x"]"#),
+            r#"{"repos":null}"#.to_string(),
+        ];
+        for block in cases {
+            let err = load_github_settings(&write(&dir, &github_text(&block))).unwrap_err();
+            assert_eq!(err, GithubError::SettingsInvalid, "{block}");
+            let shown = [
+                format!("{err:?}"),
+                err.to_string(),
+                serde_json::to_string(&err).unwrap(),
+                err.message_pl(),
+            ];
+            for text in shown {
+                assert!(!text.contains("secret"), "leak for {block}: {text}");
+            }
+        }
+    }
+
+    #[test]
+    fn github_bom_is_stripped_and_broken_files_are_settings_invalid() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("settings.json");
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(github_text(r#"{"repos":["octo-test/alpha"]}"#).as_bytes());
+        fs::write(&p, bytes).unwrap();
+        assert!(load_github_settings(&p).unwrap().is_some());
+        for text in [
+            "{ not json",
+            r#"{"github":{"repos":["octo-test/alpha"]}}"#,
+            r#"{"version":2,"github":{"repos":["octo-test/alpha"]}}"#,
+        ] {
+            assert_eq!(
+                load_github_settings(&write(&dir, text)),
+                Err(GithubError::SettingsInvalid),
+                "{text}"
+            );
+        }
+        fs::write(&p, [0xFF, 0xFE, 0x00]).unwrap();
+        assert_eq!(load_github_settings(&p), Err(GithubError::SettingsInvalid));
+        // A directory where the file should be: unreadable, not "missing".
+        assert_eq!(
+            load_github_settings(dir.path()),
+            Err(GithubError::SettingsInvalid)
+        );
+    }
+
+    #[test]
+    fn github_block_is_independent_of_the_other_loaders() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = json_path(&dir);
+        // A broken github block leaves vault, GitLab and todo loaders green.
+        for block in [r#""nope""#, r#"{"repos":["bad"]}"#, r#"{"bogus":1}"#] {
+            let text = format!(
+                r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":[]}}}},"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{{"limit":4}},"github":{block}}}"#
+            );
+            let p = write(&dir, &text);
+            assert!(load_settings(&p).unwrap().work.is_some(), "{block}");
+            assert!(load_gitlab_settings(&p).unwrap().is_some(), "{block}");
+            assert_eq!(load_todo_limit(&p).unwrap(), 4, "{block}");
+            assert!(load_github_settings(&p).is_err(), "{block}");
+        }
+        // And a broken sibling block never hides the repos.
+        let text = r#"{"version":1,"spaces":{},"gitlab":"nope","todo":{"limit":0},"github":{"repos":["octo-test/alpha"]}}"#;
+        let cfg = load_github_settings(&write(&dir, text)).unwrap().unwrap();
+        assert_eq!(repo_names(&cfg), ["octo-test/alpha"]);
     }
 
     fn todo_text(block: &str) -> String {

@@ -1,7 +1,7 @@
 ---
 change_id: github-assigned-issues
 title: Github assigned issues
-status: plan_reviewed
+status: implementing
 created: 2026-11-23
 updated: 2026-11-23
 archived_at: null

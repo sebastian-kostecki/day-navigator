@@ -48,7 +48,7 @@ One developer on one Windows 11 machine works for a company (issues in a work Gi
 | S-02 | gitlab-visibility-filter| choose which assigned GitLab items the list shows                                      | S-01          | FR-002                                    | ready |
 | S-03 | hide-and-resurface      | hide an issue and get it back when its status changes or someone else comments         | S-01, F-01    | FR-003, US-02                             | done        |
 | S-04 | new-assignment-notify   | get a Windows notification for every new assigned issue or MR                          | S-01, F-01    | FR-004, NFR Świeżość, NFR Lekkość w tle    | ready |
-| S-05 | github-assigned-issues  | see open GitHub issues assigned to them from the repositories listed in settings       | F-02          | FR-005, FR-015                            | planning |
+| S-05 | github-assigned-issues  | see open GitHub issues assigned to them from the repositories listed in settings       | F-02          | FR-005, FR-015                            | in-progress |
 | S-06 | own-tasks               | add, edit and complete their own tasks in the Work or Private space                    | F-01          | FR-006, FR-007, FR-008, FR-010            | done     |
 | S-07 | todo-list               | pick today's items from the lists into "To do", tick them, carry the rest to tomorrow  | S-01, S-06    | FR-011, FR-012, US-01                     | done |
 | S-08 | work-timer              | start and stop work time from an always-visible counter and correct entries            | F-01          | FR-013, FR-017, NFR Trwałość czasu pracy  | done |
@@ -167,7 +167,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - Resolved 2026-11-23: the app uses `gh` installed on Windows (already installed and logged in), not WSL. Open Roadmap Question #1.
 - **Risk:** Kept off the north star path because of the `gh` decision; now resolved, it reuses F-02 and the view pattern from S-01.
-- **Status:** planning
+- **Status:** in-progress
 
 ### S-06: Own tasks
 

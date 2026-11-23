@@ -123,6 +123,86 @@ pub struct GitlabConfig {
     pub user: Option<GitlabUser>,
 }
 
+/// Why a GitHub repository name was refused. Carries no value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("invalid github repository")]
+pub struct RepoError;
+
+/// A GitHub repository `owner/name`. Owner: 1-39 characters from `[A-Za-z0-9-]`,
+/// not starting or ending with `-`. Name: 1-100 characters from `[A-Za-z0-9._-]`,
+/// not `.` or `..`. The owner never starts with `-`, so the value can never be
+/// read as a flag. Debug is opaque so a repo name never reaches a log.
+#[derive(Clone, PartialEq, Eq)]
+pub struct GithubRepo(String);
+
+impl GithubRepo {
+    pub fn parse(input: &str) -> Result<GithubRepo, RepoError> {
+        let (owner, name) = input.split_once('/').ok_or(RepoError)?;
+        let owner_ok = (1..=39).contains(&owner.len())
+            && !owner.starts_with('-')
+            && !owner.ends_with('-')
+            && owner
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-');
+        let name_ok = (1..=100).contains(&name.len())
+            && name != "."
+            && name != ".."
+            && name
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'));
+        if !owner_ok || !name_ok {
+            return Err(RepoError);
+        }
+        Ok(GithubRepo(input.to_string()))
+    }
+
+    /// The name as written in settings (original case).
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Lowercase form: GitHub owners and repositories are case-insensitive.
+    pub fn key(&self) -> String {
+        self.0.to_ascii_lowercase()
+    }
+}
+
+impl std::fmt::Debug for GithubRepo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("GithubRepo(..)")
+    }
+}
+
+/// The configured GitHub repositories, in settings order (1..=50, no duplicates).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GithubConfig {
+    pub repos: Vec<GithubRepo>,
+}
+
+/// `--limit` of the assigned-issues call; a repo that returns this many is
+/// treated as cut off.
+pub const GH_ISSUE_LIMIT: usize = 500;
+
+fn gh_assigned_issues_args(repo: &GithubRepo) -> Vec<String> {
+    [
+        "issue",
+        "list",
+        "-R",
+        repo.as_str(),
+        "--assignee",
+        "@me",
+        "--state",
+        "open",
+        "--limit",
+        "500",
+        "--json",
+        "number,title,url,updatedAt",
+    ]
+    .iter()
+    .map(|a| a.to_string())
+    .collect()
+}
+
 /// Fixed endpoints for the two assigned-items calls without a user (GET: the
 /// query string is part of the endpoint, no `-f` / `-F` fields).
 pub const ASSIGNED_ISSUES_ENDPOINT: &str = "issues?scope=assigned_to_me&state=opened&per_page=100";
@@ -200,6 +280,9 @@ pub enum CliCall {
     GlabAssignedMergeRequests(GitlabHost, Option<GitlabUser>),
     /// GET of one issue's notes, newest first (read-only).
     GlabIssueNotes(GitlabHost, IssueRef),
+    /// `gh issue list` of one repository: open issues assigned to the account
+    /// (read-only).
+    GhAssignedIssues(GithubRepo),
 }
 
 impl CliCall {
@@ -233,6 +316,9 @@ impl CliCall {
                 iid: 12,
             },
         ));
+        all.push(CliCall::GhAssignedIssues(
+            GithubRepo::parse("octo-test/alpha").expect("valid example repo"),
+        ));
         all
     }
 
@@ -243,7 +329,7 @@ impl CliCall {
             | CliCall::GlabAssignedIssues(..)
             | CliCall::GlabAssignedMergeRequests(..)
             | CliCall::GlabIssueNotes(..) => Tool::Glab,
-            CliCall::GhVersion | CliCall::GhAuthStatus => Tool::Gh,
+            CliCall::GhVersion | CliCall::GhAuthStatus | CliCall::GhAssignedIssues(..) => Tool::Gh,
         }
     }
 
@@ -261,6 +347,7 @@ impl CliCall {
                 assigned_args(ASSIGNED_MRS_ENDPOINT, MRS_USER_PREFIX, host, user)
             }
             CliCall::GlabIssueNotes(host, issue) => issue_notes_args(host, issue),
+            CliCall::GhAssignedIssues(repo) => gh_assigned_issues_args(repo),
         }
     }
 
@@ -274,6 +361,7 @@ impl CliCall {
             CliCall::GlabAssignedIssues(..) => "glab:assigned-issues",
             CliCall::GlabAssignedMergeRequests(..) => "glab:assigned-mrs",
             CliCall::GlabIssueNotes(..) => "glab:issue-notes",
+            CliCall::GhAssignedIssues(..) => "gh:assigned-issues",
         }
     }
 }
@@ -339,9 +427,9 @@ impl CliError {
 mod tests {
     use super::*;
 
-    const VARIANT_COUNT: usize = 7;
+    const VARIANT_COUNT: usize = 8;
 
-    const EXAMPLE_COUNT: usize = 9;
+    const EXAMPLE_COUNT: usize = 10;
 
     fn example_host() -> GitlabHost {
         GitlabHost::parse("gitlab.example.invalid").unwrap()
@@ -362,6 +450,7 @@ mod tests {
             CliCall::GlabAssignedIssues(..) => 4,
             CliCall::GlabAssignedMergeRequests(..) => 5,
             CliCall::GlabIssueNotes(..) => 6,
+            CliCall::GhAssignedIssues(..) => 7,
         }
     }
 
@@ -375,7 +464,7 @@ mod tests {
             assert!(o < VARIANT_COUNT, "ordinal out of range for {c:?}");
             seen[o] += 1;
         }
-        assert_eq!(seen, [1, 1, 1, 1, 2, 2, 1]);
+        assert_eq!(seen, [1, 1, 1, 1, 2, 2, 1, 1]);
         let with_user = examples
             .iter()
             .filter(|c| {
@@ -394,6 +483,7 @@ mod tests {
                     CliCall::GlabAssignedIssues(..)
                         | CliCall::GlabAssignedMergeRequests(..)
                         | CliCall::GlabIssueNotes(..)
+                        | CliCall::GhAssignedIssues(..)
                 ),
                 "ALL must stay parameterless"
             );
@@ -460,6 +550,38 @@ mod tests {
             })
     }
 
+    /// The repo allow-list, written out here on purpose: the guard must not
+    /// trust `GithubRepo::parse`, so a looser validator fails this test.
+    fn guard_repo_ok(repo: &str) -> bool {
+        let Some((owner, name)) = repo.split_once('/') else {
+            return false;
+        };
+        (1..=39).contains(&owner.len())
+            && !owner.starts_with('-')
+            && !owner.ends_with('-')
+            && owner
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b == b'-')
+            && (1..=100).contains(&name.len())
+            && name != "."
+            && name != ".."
+            && name
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+    }
+
+    /// Everything after the repo in the one allowed `gh issue list` shape.
+    const GH_ISSUES_TAIL: [&str; 8] = [
+        "--assignee",
+        "@me",
+        "--state",
+        "open",
+        "--limit",
+        "500",
+        "--json",
+        "number,title,url,updatedAt",
+    ];
+
     /// The read-only guard on one argument list.
     fn check_read_only(args: &[&str]) -> Result<(), String> {
         if args.is_empty() {
@@ -472,7 +594,11 @@ mod tests {
             && args[2] == "--paginate"
             && args[3] == "--hostname"
             && GitlabHost::parse(args[4]).is_ok();
-        if !simple && !gitlab_api {
+        let gh_issues = args.len() == 12
+            && args[..3] == ["issue", "list", "-R"]
+            && guard_repo_ok(args[3])
+            && args[4..] == GH_ISSUES_TAIL;
+        if !simple && !gitlab_api && !gh_issues {
             return Err("not a known read-only shape".into());
         }
         for (i, a) in args.iter().enumerate() {
@@ -801,6 +927,155 @@ mod tests {
             ];
             for ep in &cases {
                 proptest::prop_assert!(!guard_accepts_endpoint(ep), "{:?}", ep);
+            }
+        }
+    }
+
+    fn gh_args(repo: &str) -> Vec<String> {
+        let mut args: Vec<String> = ["issue", "list", "-R", repo]
+            .iter()
+            .map(|a| a.to_string())
+            .collect();
+        args.extend(GH_ISSUES_TAIL.iter().map(|a| a.to_string()));
+        args
+    }
+
+    fn gh_guard(args: &[String]) -> Result<(), String> {
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        check_read_only(&args)
+    }
+
+    #[test]
+    fn gh_assigned_issues_has_exact_arguments_name_and_tool() {
+        let call = CliCall::GhAssignedIssues(GithubRepo::parse("Octo-Test/Alpha").unwrap());
+        assert_eq!(
+            call.args(),
+            [
+                "issue",
+                "list",
+                "-R",
+                "Octo-Test/Alpha",
+                "--assignee",
+                "@me",
+                "--state",
+                "open",
+                "--limit",
+                "500",
+                "--json",
+                "number,title,url,updatedAt"
+            ]
+        );
+        assert_eq!(call.name(), "gh:assigned-issues");
+        assert_eq!(call.tool(), Tool::Gh);
+        assert_eq!(GH_ISSUE_LIMIT, 500);
+        assert!(!format!("{call:?}").contains("Octo"));
+        assert!(gh_guard(&call.args()).is_ok());
+    }
+
+    #[test]
+    fn guard_rejects_bad_repos_and_altered_gh_shapes() {
+        assert!(gh_guard(&gh_args("octo-test/alpha")).is_ok());
+        for bad in ["-X/foo", "a/b c", "a/b&c", "a", "a/b/c", "a/", "/b", "a/.."] {
+            assert!(gh_guard(&gh_args(bad)).is_err(), "{bad:?}");
+        }
+        // Every position other than the repo must match the literal.
+        for i in (0..12).filter(|i| *i != 3) {
+            let mut args = gh_args("octo-test/alpha");
+            args[i] = "other".to_string();
+            assert!(gh_guard(&args).is_err(), "position {i}");
+        }
+        let mut wrong_state = gh_args("octo-test/alpha");
+        wrong_state[7] = "all".to_string();
+        assert!(gh_guard(&wrong_state).is_err());
+        for flag in WRITE_FLAGS.iter().chain(&["--web", "--body", "close"]) {
+            let mut extra = gh_args("octo-test/alpha");
+            extra.push(flag.to_string());
+            assert!(gh_guard(&extra).is_err(), "{flag}");
+        }
+        let mut shorter = gh_args("octo-test/alpha");
+        shorter.pop();
+        assert!(gh_guard(&shorter).is_err());
+        assert!(check_read_only(&["issue", "create"]).is_err());
+        assert!(check_read_only(&["issue", "list", "-R", "octo-test/alpha"]).is_err());
+    }
+
+    #[test]
+    fn repo_accepts_valid_forms_and_refuses_everything_else() {
+        let long_owner = format!("{}/x", "a".repeat(39));
+        let long_name = format!("o/{}", "n".repeat(100));
+        for ok in [
+            "octo-test/alpha",
+            "Octo/Repo",
+            "a/b",
+            "a-b/c.d_e-f",
+            "a/.hidden",
+            "a/..x",
+            "a/-x",
+            long_owner.as_str(),
+            long_name.as_str(),
+        ] {
+            assert_eq!(GithubRepo::parse(ok).unwrap().as_str(), ok);
+        }
+        assert_eq!(GithubRepo::parse("Octo/Repo").unwrap().key(), "octo/repo");
+        let too_long_owner = format!("{}/x", "a".repeat(40));
+        let too_long_name = format!("o/{}", "n".repeat(101));
+        let bad = [
+            "",
+            "a",
+            "a/",
+            "/b",
+            "a/b/c",
+            "-a/b",
+            "a-/b",
+            "a_b/c",
+            "a.b/c",
+            "a/.",
+            "a/..",
+            "a /b",
+            "a/b ",
+            " a/b",
+            "a/b c",
+            "a/b\n",
+            "a/b&c",
+            "a/b;c",
+            "a/b@c",
+            "ä/b",
+            "a/ł",
+            too_long_owner.as_str(),
+            too_long_name.as_str(),
+        ];
+        for b in bad {
+            assert!(GithubRepo::parse(b).is_err(), "{b:?}");
+        }
+    }
+
+    #[test]
+    fn repo_debug_and_error_are_opaque() {
+        let repo = GithubRepo::parse("octo-test/alpha").unwrap();
+        assert_eq!(format!("{repo:?}"), "GithubRepo(..)");
+        let config = GithubConfig { repos: vec![repo] };
+        assert!(!format!("{config:?}").contains("octo"));
+        let err = GithubRepo::parse("octo test/alpha").unwrap_err();
+        assert!(!format!("{err:?}").contains("octo"));
+        assert!(!err.to_string().contains("octo"));
+    }
+
+    proptest::proptest! {
+        /// No value `GithubRepo::parse` accepts starts with `-` or carries a
+        /// forbidden character, and every accepted value passes the guard.
+        #[test]
+        fn accepted_repos_are_safe_arguments(
+            s in "[a-zA-Z0-9._/ &|<>^%\"`;$@:?#+,=-]{0,30}"
+        ) {
+            if let Ok(repo) = GithubRepo::parse(&s) {
+                let v = repo.as_str();
+                proptest::prop_assert!(!v.starts_with('-'));
+                proptest::prop_assert!(
+                    !v.chars().any(|c| c.is_whitespace() || BAD_CHARS.contains(c))
+                );
+                proptest::prop_assert!(
+                    gh_guard(&CliCall::GhAssignedIssues(repo.clone()).args()).is_ok()
+                );
             }
         }
     }

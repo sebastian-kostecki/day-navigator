@@ -501,9 +501,9 @@ One `gh issue list` per configured repo every 10 minutes, sequential, each cappe
 
 #### Automated
 
-- [ ] 1.1 `cargo test` passes in `src-tauri/`, including the new guard, settings, parse and `github_fetch` tests
-- [ ] 1.2 `cargo clippy --all-targets -- -D warnings` passes in `src-tauri/`
-- [ ] 1.3 `cargo fmt --check` passes in `src-tauri/`
+- [x] 1.1 `cargo test` passes in `src-tauri/`, including the new guard, settings, parse and `github_fetch` tests
+- [x] 1.2 `cargo clippy --all-targets -- -D warnings` passes in `src-tauri/`
+- [x] 1.3 `cargo fmt --check` passes in `src-tauri/`
 
 #### Manual
 

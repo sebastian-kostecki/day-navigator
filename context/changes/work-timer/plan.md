@@ -41,7 +41,7 @@ This slice adds the first app-owned table in the F-01 store (migration 1), the f
 - A START/STOP item in the tray menu. A restore button for removed entries (they stay in the database only). Hard deletion.
 - Merging or auto-trimming overlapping entries: overlaps are refused (decided).
 - Autostart, idle detection, holiday calendars (PRD Non-Goals).
-- Second-level precision in corrections: the edit and add forms use minutes. START/STOP keep millisecond instants.
+- Second-level precision in corrections: the edit and add forms use minutes. START/STOP keep millisecond instants, and an edit keeps the stored instant of a field whose minute was not changed (Phase 1 §3).
 - Reading or writing vaults, `settings.json` changes, a date library in the UI, a router or a global state library.
 - Building S-01's GitLab view. This slice only leaves a view switch that S-01 extends with one more entry.
 
@@ -55,7 +55,7 @@ Commands emit `work-time-changed` after each successful write. The header and th
 
 ## Critical Implementation Details
 
-- **Timing & lifecycle.** The webview keeps running while hidden in the tray, possibly for days, and WebView2 may throttle hidden timers. The header must refetch status when the page becomes visible again (`visibilitychange`) and when the local day ends (`Date.now() >= dayEndMs` from the last status). Otherwise "Dziś" keeps yesterday's total after midnight.
+- **Timing & lifecycle.** The webview keeps running while hidden in the tray, possibly for days, and WebView2 may throttle hidden timers. The header must refetch status when the page becomes visible again (`visibilitychange`) or the window gains focus (the tray's `set_focus()`, `runtime.rs:115-117`; `visibilitychange` on `window.hide()`/`show()` in WebView2 is unverified), and when the local day ends, via a `setTimeout` armed to `dayEndMs` from the last status that runs whether or not the counter is running. Otherwise "Dziś" keeps yesterday's total after midnight.
 - **State sequencing.** Overlap and "at most one running entry" are checked inside the same IMMEDIATE transaction as the insert/update. A partial unique index enforces the single running entry as a second line of defence. A double-clicked START must yield `AlreadyRunning` for the second call, never two running rows.
 - **Local time resolution.** A form time that falls in the spring DST gap (e.g. 2027-03-28 02:30 in Poland) is refused as `InvalidLocalTime`. An ambiguous autumn time (e.g. 2026-10-25 02:30) resolves to the earlier instant. Day bounds use local midnight via `earliest()`, so DST days are 23 h or 25 h long.
 
@@ -120,6 +120,7 @@ CREATE INDEX work_entries_start ON work_entries (start_ms);
   - `is_running(&Store) -> bool`, for S-06.
 - Validation order for add/update: resolve local times (`InvalidLocalTime`) → `EndNotAfterStart` → `InFuture` (start or end > now) → `Overlap` against every other counted entry. Intervals are half-open `[start, end)`. The running entry counts as `[start, +∞)`. Adjacent entries (one ends 12:00, the next starts 12:00) do not overlap. `NotFound` covers unknown or removed ids.
 - Local resolution: `"YYYY-MM-DDTHH:MM"` → `tz.from_local_datetime`. `None` → `InvalidLocalTime`, `Ambiguous` → earlier. Day bounds: local midnight of `day` and `day + 1` via `earliest()`.
+- Unchanged minute keeps the stored instant: in `update`, when a submitted local start (or end) equals the stored instant floored to the minute in `tz`, the stored millisecond instant is kept, not the resolved `HH:MM:00`. The form always re-sends both fields, so without this rule editing only the end would move the start up to 59 s earlier. An entry started by START right after a STOP in the same minute (STOP 12:00:30, START 12:00:40) would then be refused as `Overlap` with its neighbour, although the user never touched its start.
 
 #### 4. Module registration and test dependency
 
@@ -147,6 +148,7 @@ CREATE INDEX work_entries_start ON work_entries (start_ms);
 - A test asserts that a serialized `WorkTimeError::Overlap` contains only the entry id
 - `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass
 - `cargo audit` passes with the `chrono-tz` dev-dependency
+- Unit tests prove an unchanged minute keeps the stored instant: editing only the end keeps the start's milliseconds, and an entry started right after a STOP in the same minute stays editable without `Overlap`
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation from the human that the manual testing was successful before proceeding to the next phase. Phase blocks use plain bullets — the corresponding `- [ ]` checkboxes for these items live in the `## Progress` section at the bottom of the plan.
 
@@ -172,7 +174,7 @@ Expose the domain to the UI through async commands that run on the blocking pool
 
 **File**: `src-tauri/src/work_time/commands.rs` (new, the only file in `work_time` that imports `tauri`), registered in `src-tauri/src/lib.rs` `generate_handler!`
 
-**Intent**: Thin async wrappers. Each takes `State<'_, StoreHandle>` and `AppHandle`, reads `now` (`Utc::now().timestamp_millis()`) and `today` (`Local::now().date_naive()`), runs `with_store` inside `blocking`, and on a successful write emits `work-time-changed` (no payload). Errors are logged by kind only.
+**Intent**: Thin async wrappers. Each takes `AppHandle`, reads `now` (`Utc::now().timestamp_millis()`) and `today` (`Local::now().date_naive()`), moves an `AppHandle` clone into `blocking` and calls `app.state::<StoreHandle>().with_store(today, …)` inside it, and on a successful write emits `work-time-changed` (no payload). `StoreHandle` is neither `Clone` nor `Arc` (`store/mod.rs:182-185`), so a `State<'_, StoreHandle>` cannot cross into the `'static` closure; the health round reaches it the same way (`runtime.rs:277`). Errors are logged by kind only.
 
 **Contract**:
 - `work_timer_status() -> WorkTimerStatus`
@@ -235,7 +237,8 @@ Give `App.tsx` one piece of view state and a fixed header. The header holds the 
 
 **Contract**:
 - `useWorkTimer()` returns a discriminated state `loading | error {message, lastOkAt} | loaded {status}`, plus `start()`, `stop()`, `busy`, `actionError`, `retry()`.
-- It subscribes to `work-time-changed` before the first load (the `useHealth` pattern) and refetches on the event, on `visibilitychange` → visible, and when `Date.now() >= status.dayEndMs`.
+- It subscribes to `work-time-changed` before the first load (the `useHealth` pattern) and refetches on the event, on `visibilitychange` → visible, on window `focus`, and at day end via a `setTimeout` armed to `status.dayEndMs` (re-armed after each status load, armed whether or not the counter is running).
+- Latest-request-wins: each status request (load, refetch, START/STOP response) takes a sequence number, and a response older than the last applied one is dropped (the `TasksView` guard), so a slow read cannot show "stopped" after START.
 - The 1 s interval runs only while running.
 - The display is `Dziś H:MM:SS` with total = `todayClosedMs + (running ? Date.now() - runningFromMs : 0)`. `format.ts` has `formatDuration(ms)` and `formatClock(ms)` (HH:MM via `toLocaleTimeString("pl-PL")`).
 - The header shows START when stopped and STOP when running, disabled while `busy`. After `AlreadyRunning`/`NotRunning` it just refetches with no message, because another action already changed the state.
@@ -257,6 +260,7 @@ Give `App.tsx` one piece of view state and a fixed header. The header holds the 
 - Restart Windows with the counter running, relaunch → still running
 - Leave the app hidden in the tray across midnight (or set the clock forward), show it → "Dziś" counts only the time since midnight
 - Make the store fail (e.g. rename `day-navigator.db` while the app is quit and keep a backup so it is refused as `Missing`), launch → the header shows the error and retry, not 0:00:00
+- With the counter stopped and the window left open across midnight (or the clock set forward), "Dziś" resets without any interaction
 
 **Implementation Note**: After completing this phase and all automated verification passes, pause here for manual confirmation from the human that the manual testing was successful before proceeding to the next phase.
 
@@ -328,6 +332,7 @@ The correction screen: pick a day, see its entries and total, add a missing entr
   - `AlreadyRunning`/`NotRunning`
   - `RunningEndEdit`
   - `NotFound` for removed ids
+  - an unchanged minute keeps the stored instant on edit
 - Refusal atomicity: after each refused mutation, the table is byte-for-byte the same rows.
 - Error serialization: the `kind`/`detail` shape, and no times in `Overlap`.
 
@@ -378,6 +383,7 @@ At most a few thousand rows a year. The day query is a range scan on `work_entri
 - [ ] 1.4 A test asserts that a serialized `WorkTimeError::Overlap` contains only the entry id
 - [ ] 1.5 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass
 - [ ] 1.6 `cargo audit` passes with the `chrono-tz` dev-dependency
+- [ ] 1.7 Unit tests prove an unchanged minute keeps the stored instant on edit
 
 ### Phase 2: Commands and event
 
@@ -407,6 +413,7 @@ At most a few thousand rows a year. The day query is a range scan on `work_entri
 - [ ] 3.7 Running counter survives a Windows restart
 - [ ] 3.8 After midnight in the tray, "Dziś" counts only time since midnight
 - [ ] 3.9 A failing store shows the header error with retry, not 0:00:00
+- [ ] 3.10 A stopped counter left open across midnight resets "Dziś" without interaction
 
 ### Phase 4: "Czas pracy" view
 

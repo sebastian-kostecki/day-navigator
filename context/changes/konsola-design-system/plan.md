@@ -446,10 +446,10 @@ Fonty dodają poniżej 1 MB do instalatora (pełne pliki woff2, sześć grubośc
 
 #### Automated
 
-- [x] 1.1 Bramki frontendu przechodzą: `npm run lint`, `npm run format:check`, `npm run build`
-- [x] 1.2 `dist/assets` zawiera sześć plików `.woff2` po `npm run build`
-- [x] 1.3 W `src/` nie ma odwołań do Google Fonts: `git grep --untracked -n "fonts.googleapis" -- src index.html` nic nie zwraca
-- [x] 1.4 `src/App.css` nie zawiera `prefers-color-scheme`
+- [x] 1.1 Bramki frontendu przechodzą: `npm run lint`, `npm run format:check`, `npm run build` — e5a646d
+- [x] 1.2 `dist/assets` zawiera sześć plików `.woff2` po `npm run build` — e5a646d
+- [x] 1.3 W `src/` nie ma odwołań do Google Fonts: `git grep --untracked -n "fonts.googleapis" -- src index.html` nic nie zwraca — e5a646d
+- [x] 1.4 `src/App.css` nie zawiera `prefers-color-scheme` — e5a646d
 
 #### Manual
 

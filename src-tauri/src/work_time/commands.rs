@@ -26,6 +26,7 @@ fn kind(e: &WorkTimeError) -> &'static str {
         WorkTimeError::Overlap { .. } => "Overlap",
         WorkTimeError::InvalidLocalTime => "InvalidLocalTime",
         WorkTimeError::RunningEndEdit => "RunningEndEdit",
+        WorkTimeError::NotAWorkday => "NotAWorkday",
         WorkTimeError::Background => "Background",
     }
 }

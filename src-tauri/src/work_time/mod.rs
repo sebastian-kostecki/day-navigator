@@ -10,8 +10,12 @@
 
 pub mod commands;
 pub mod error;
+pub mod norm;
+pub mod report;
 pub mod rules;
 
+#[cfg(test)]
+mod norm_tests;
 #[cfg(test)]
 mod tests;
 
@@ -21,6 +25,7 @@ use serde::Serialize;
 
 use crate::store::Store;
 pub use error::WorkTimeError;
+pub use report::DayKind;
 use rules::{day_bounds, local_day, local_string, portion, resolve_local};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -40,6 +45,10 @@ pub struct WorkTimerStatus {
     pub running_from_ms: Option<i64>,
     pub day_start_ms: i64,
     pub day_end_ms: i64,
+    /// Deviation of the current month from its norm, measured at `as_of_ms`.
+    /// Extrapolate by the elapsed running time, as for `today_closed_ms`.
+    pub month_deviation_ms: i64,
+    pub as_of_ms: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -66,6 +75,7 @@ pub struct DayEntries {
     /// not ended yet.
     pub running_from_ms: Option<i64>,
     pub day_end_ms: i64,
+    pub day_kind: DayKind,
 }
 
 struct Entry {
@@ -155,7 +165,8 @@ pub fn status<Tz: TimeZone>(
     now: i64,
     tz: &Tz,
 ) -> Result<WorkTimerStatus, WorkTimeError> {
-    let (day_start, day_end) = day_bounds(local_day(now, tz)?, tz)?;
+    let today = local_day(now, tz)?;
+    let (day_start, day_end) = day_bounds(today, tz)?;
     store.read(|c| {
         let mut closed = 0;
         let mut running = None;
@@ -170,6 +181,7 @@ pub fn status<Tz: TimeZone>(
             Some(e) => Some(e),
             None => running_entry(c)?,
         };
+        let month = report::compute(c, today, now, tz)?;
         Ok(WorkTimerStatus {
             running_from_ms: running.as_ref().map(|e| e.start.max(day_start)),
             running: running.map(|e| RunningEntry {
@@ -179,6 +191,8 @@ pub fn status<Tz: TimeZone>(
             today_closed_ms: closed,
             day_start_ms: day_start,
             day_end_ms: day_end,
+            month_deviation_ms: month.figures.deviation_ms.unwrap_or(0),
+            as_of_ms: now,
         })
     })
 }
@@ -218,6 +232,7 @@ pub fn entries_for_day<Tz: TimeZone>(
             closed_ms,
             running_from_ms,
             day_end_ms: day_end,
+            day_kind: report::day_kind(c, day)?,
         })
     })
 }

@@ -7,6 +7,7 @@ use chrono::NaiveDate;
 use chrono_tz::Europe::Warsaw;
 use common::test_store_dir;
 use day_navigator_lib::store::{Store, schema};
+use day_navigator_lib::work_time::report;
 use day_navigator_lib::work_time::rules::resolve_local;
 use day_navigator_lib::work_time::{self, WorkTimeError};
 
@@ -54,6 +55,40 @@ fn running_entry_survives_dropping_and_reopening_the_store() {
         work_time::start(&mut store, later),
         Err(WorkTimeError::AlreadyRunning)
     ));
+}
+
+#[test]
+fn days_off_survive_dropping_and_reopening_the_store() {
+    let (_tmp, dir) = test_store_dir();
+    let now = t("2026-11-23T12:00");
+    {
+        let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+        for day in ["2026-11-11", "2026-11-24", "2026-12-24"] {
+            let day = NaiveDate::parse_from_str(day, "%Y-%m-%d").unwrap();
+            report::set_day_off(&mut store, day, true, now).unwrap();
+        }
+        let unmarked = NaiveDate::from_ymd_opt(2026, 11, 24).unwrap();
+        report::set_day_off(&mut store, unmarked, false, now).unwrap();
+    }
+
+    let store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+    let nov = report::month_report(&store, today(), now, &Warsaw).unwrap();
+    assert_eq!(nov.days_off, vec!["2026-11-11".to_string()]);
+    assert_eq!(nov.figures.workdays, 20);
+    let dec = report::month_report(
+        &store,
+        NaiveDate::from_ymd_opt(2026, 12, 1).unwrap(),
+        now,
+        &Warsaw,
+    )
+    .unwrap();
+    assert_eq!(dec.days_off, vec!["2026-12-24".to_string()]);
+    assert!(!report::is_workday(&store, NaiveDate::from_ymd_opt(2026, 11, 11).unwrap()).unwrap());
+    assert!(report::is_workday(&store, unmarked_day()).unwrap());
+}
+
+fn unmarked_day() -> NaiveDate {
+    NaiveDate::from_ymd_opt(2026, 11, 24).unwrap()
 }
 
 #[test]

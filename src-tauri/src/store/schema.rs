@@ -39,6 +39,16 @@ CREATE INDEX work_entries_start ON work_entries (start_ms);",
   done_at    TEXT
 );",
     },
+    // S-09: days off. One row per local date (`YYYY-MM-DD`); un-marking deletes
+    // the row. A flag, not a user record.
+    Migration {
+        version: 3,
+        sql: "CREATE TABLE days_off (
+  day           TEXT PRIMARY KEY
+                CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  created_at_ms INTEGER NOT NULL
+) WITHOUT ROWID;",
+    },
 ];
 
 /// Versions must start at 1 and rise by exactly 1.

@@ -468,20 +468,20 @@ Opening the store applies v3 automatically. An older app build refuses the v3 da
 
 #### Automated
 
-- [x] 2.1 Rule unit tests pass
-- [x] 2.2 Store integration tests pass
-- [x] 2.3 Crash test never loses or half-applies a hide record
-- [x] 2.4 Errors never contain submitted values
-- [x] 2.5 Lint and format are clean
+- [x] 2.1 Rule unit tests pass — 96a2e01
+- [x] 2.2 Store integration tests pass — 96a2e01
+- [x] 2.3 Crash test never loses or half-applies a hide record — 96a2e01
+- [x] 2.4 Errors never contain submitted values — 96a2e01
+- [x] 2.5 Lint and format are clean — 96a2e01
 
 ### Phase 3: Wiring into the refresh round and commands
 
 #### Automated
 
-- [ ] 3.1 Round integration tests with fake-cli and a temp store pass
-- [ ] 3.2 next_snapshot and partition unit tests pass
-- [ ] 3.3 All Rust tests, lint and format pass
-- [ ] 3.4 Frontend type check and build pass with the new mirrors
+- [x] 3.1 Round integration tests with fake-cli and a temp store pass
+- [x] 3.2 next_snapshot and partition unit tests pass
+- [x] 3.3 All Rust tests, lint and format pass
+- [x] 3.4 Frontend type check and build pass with the new mirrors
 
 ### Phase 4: UI in "Praca (GitLab)"
 

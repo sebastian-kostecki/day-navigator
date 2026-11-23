@@ -63,7 +63,11 @@ pub struct GitlabItem {
 #[serde(rename_all = "camelCase")]
 pub struct AssignedItems {
     pub merge_requests: Vec<GitlabItem>,
+    /// Issues the user has not hidden; a returned one carries `changed` (S-03).
     pub issues: Vec<GitlabItem>,
+    /// Issues the user has hidden (S-03). Empty in a fetched list; the round
+    /// fills it when it partitions `issues`.
+    pub hidden_issues: Vec<GitlabItem>,
 }
 
 /// Why a round produced no list. No variant carries a value from the outside.
@@ -274,6 +278,13 @@ pub struct GitlabSnapshot {
     pub checked_at_ms: Option<u64>,
     pub refreshing: bool,
     pub seq: u64,
+    /// Hidden issues whose comment check failed this round (kept on a failed round).
+    pub hidden_check_failed: u32,
+    /// True when `gitlab.user` is set, so the user's own comments are known.
+    pub own_comments_known: bool,
+    /// Fixed Polish text when the hidden state could not be read or written;
+    /// the list then shows every issue.
+    pub hidden_error: Option<String>,
 }
 
 impl GitlabSnapshot {
@@ -286,6 +297,9 @@ impl GitlabSnapshot {
             checked_at_ms: None,
             refreshing: false,
             seq: 0,
+            hidden_check_failed: 0,
+            own_comments_known: false,
+            hidden_error: None,
         }
     }
 }
@@ -312,11 +326,17 @@ pub fn next_snapshot(
         checked_at_ms: Some(now_ms),
         refreshing: false,
         seq,
+        hidden_check_failed: 0,
+        own_comments_known: false,
+        hidden_error: None,
     };
     let items = match outcome {
         Ok(items) => {
             next.items = Some(items);
             next.last_success_ms = Some(now_ms);
+            // The round sets `hidden_check_failed` and `hidden_error` after
+            // reconciling; they describe this round only.
+            next.own_comments_known = config.is_some_and(|c| c.user.is_some());
             return (next, config.cloned());
         }
         Err(e) => e,
@@ -340,6 +360,10 @@ pub fn next_snapshot(
     if keeps {
         next.items = prev.items.clone();
         next.last_success_ms = prev.last_success_ms;
+        // The hidden state belongs to the kept list: no reconciliation ran.
+        next.hidden_check_failed = prev.hidden_check_failed;
+        next.own_comments_known = prev.own_comments_known;
+        next.hidden_error = prev.hidden_error.clone();
         (next, kept.cloned())
     } else {
         (next, None)
@@ -728,6 +752,7 @@ mod tests {
         AssignedItems {
             merge_requests: vec![],
             issues: vec![item(reference)],
+            hidden_issues: vec![],
         }
     }
 
@@ -983,11 +1008,54 @@ mod tests {
     }
 
     #[test]
+    fn snapshot_keeps_hidden_state_with_the_items_on_unavailable_and_error_rounds() {
+        let mut shown = items("g/p#1");
+        shown.hidden_issues = vec![item("g/p#2")];
+        let prev = GitlabSnapshot {
+            items: Some(shown.clone()),
+            last_success_ms: Some(1000),
+            hidden_check_failed: 2,
+            own_comments_known: true,
+            hidden_error: Some("fixed text".into()),
+            ..GitlabSnapshot::starting()
+        };
+        for err in [GitlabError::Unavailable, GitlabError::LoggedOut] {
+            let (s, kept) = next_snapshot(&prev, Some(&config()), Some(&config()), Err(err), 2000);
+            assert_eq!(s.items, Some(shown.clone()));
+            assert_eq!(s.hidden_check_failed, 2);
+            assert!(s.own_comments_known);
+            assert_eq!(s.hidden_error.as_deref(), Some("fixed text"));
+            assert_eq!(kept, Some(config()));
+        }
+        // A changed user drops the list and its hidden state with it.
+        let (s, _) = next_snapshot(
+            &prev,
+            Some(&config()),
+            Some(&other_user_config()),
+            Err(GitlabError::Unavailable),
+            2000,
+        );
+        assert_eq!(s.items, None);
+        assert_eq!(s.hidden_check_failed, 0);
+        assert!(!s.own_comments_known);
+        assert_eq!(s.hidden_error, None);
+    }
+
+    #[test]
+    fn snapshot_success_reports_whether_own_comments_are_known() {
+        let prev = GitlabSnapshot::starting();
+        let (s, _) = next_snapshot(&prev, None, Some(&config()), Ok(items("g/p#1")), 1);
+        assert!(s.own_comments_known);
+        let (s, _) = next_snapshot(&prev, None, Some(&no_user_config()), Ok(items("g/p#1")), 1);
+        assert!(!s.own_comments_known);
+    }
+
+    #[test]
     fn snapshot_serializes_for_the_webview() {
         let mut s = GitlabSnapshot::starting();
         assert_eq!(
             serde_json::to_string(&s).unwrap(),
-            r#"{"state":{"state":"starting"},"items":null,"lastSuccessMs":null,"checkedAtMs":null,"refreshing":false,"seq":0}"#
+            r#"{"state":{"state":"starting"},"items":null,"lastSuccessMs":null,"checkedAtMs":null,"refreshing":false,"seq":0,"hiddenCheckFailed":0,"ownCommentsKnown":false,"hiddenError":null}"#
         );
         s.state = GitlabState::Unavailable {
             message: "m".into(),

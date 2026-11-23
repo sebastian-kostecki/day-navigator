@@ -4,9 +4,12 @@
 //! No `tauri` import and no clock: `now_ms` is a parameter. Every mutation is
 //! one `Store::write`, so a refusal changes nothing. A record holds ids,
 //! scoped labels and timestamps only: no title, URL, reference or comment text.
-//! Phase 3 wires this into the refresh round and the commands.
+//! `round` runs the rules in each GitLab round; `commands` is the UI entry
+//! (the only file here that imports `tauri`).
 
+pub mod commands;
 pub mod error;
+pub mod round;
 pub mod rules;
 
 #[cfg(test)]
@@ -18,6 +21,7 @@ use crate::cli::GitlabHost;
 use crate::gitlab::{ChangeReason, GitlabItem, ItemKind};
 use crate::store::{Store, StoreError};
 pub use error::HiddenIssueError;
+pub use round::{RoundChecks, RoundOutcome, check_round, commit_round};
 pub use rules::{
     CommentVerdict, HiddenRecord, PRUNE_AFTER_MS, SETTLE_MS, Transition, comment_verdict,
     needs_comment_check, plan_round, scoped_labels, status_changed,

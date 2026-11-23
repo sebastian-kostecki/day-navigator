@@ -2,8 +2,13 @@
 
 export type ItemKind = "issue" | "mergeRequest";
 
+/** Why a hidden issue came back to the list. Mirrors `gitlab::ChangeReason`. */
+export type ChangeReason = "status" | "comment" | "returned";
+
 export type GitlabItem = {
   kind: ItemKind;
+  /** GitLab's global id: the key for hide, unhide and dismiss. */
+  id: number;
   /** `group/project#12` or `group/project!34`. */
   reference: string;
   title: string;
@@ -13,11 +18,16 @@ export type GitlabItem = {
   updatedAt: string;
   labels: string[];
   draft: boolean;
+  /** Set on a visible issue that carries a "changed" mark. */
+  changed: ChangeReason | null;
 };
 
 export type AssignedItems = {
   mergeRequests: GitlabItem[];
+  /** Issues that are not hidden; a returned one carries `changed`. */
   issues: GitlabItem[];
+  /** Issues the user has hidden. */
+  hiddenIssues: GitlabItem[];
 };
 
 /** `GitlabState` is tagged by `state` and nested under the snapshot's `state`. */
@@ -38,4 +48,28 @@ export type GitlabSnapshot = {
   refreshing: boolean;
   /** Bumped on every stored change; snapshots are ordered by this. */
   seq: number;
+  /** Hidden issues whose comment check failed in the last round. */
+  hiddenCheckFailed: number;
+  /** True when `gitlab.user` is set, so the user's own comments are ignored. */
+  ownCommentsKnown: boolean;
+  /** Fixed Polish text when hidden state could not be read; the list shows every issue. */
+  hiddenError: string | null;
 };
+
+/** Mirrors `store::StoreError`. */
+export type StoreError =
+  | { kind: "DirUnavailable"; detail: { kind: string } }
+  | { kind: "Damaged"; detail: { reason: string } }
+  | { kind: "Missing" }
+  | { kind: "NewerSchema"; detail: { found: number; supported: number } }
+  | { kind: "MigrationFailed"; detail: { version: number; reason: string } }
+  | { kind: "Busy" }
+  | { kind: "Io"; detail: { kind: string } }
+  | { kind: "Sql"; detail: { reason: string } };
+
+/** Mirrors `hidden_issues::HiddenIssueError`. */
+export type HiddenIssueError =
+  | { kind: "Store"; detail: StoreError }
+  | { kind: "NotFound" }
+  | { kind: "NotInList" }
+  | { kind: "ListUnavailable" };

@@ -207,11 +207,29 @@ fn gitlab_notes_body(scenario: &str, endpoint: &Endpoint) -> Option<String> {
     Some(serde_json::Value::Array(notes).to_string())
 }
 
+/// When `FAKE_CLI_NOTES_LOG` names a file, appends one line to it per notes
+/// call, so a test can count them across processes.
+fn record_notes_call() {
+    let Ok(path) = std::env::var("FAKE_CLI_NOTES_LOG") else {
+        return;
+    };
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(file, "notes");
+    }
+}
+
 /// The GitLab scenarios that serve the assigned lists and the notes call:
 /// `gitlab-notes-*` and `gitlab-two-pages` (lists and notes both paged).
 fn gitlab_notes_scenario(scenario: &str) -> i32 {
     let endpoint = endpoint();
     let paged = scenario == "gitlab-two-pages";
+    if matches!(endpoint, Endpoint::Notes { .. }) {
+        record_notes_call();
+    }
     let body = match &endpoint {
         Endpoint::Notes { .. } => match scenario {
             "gitlab-notes-unavailable" => {

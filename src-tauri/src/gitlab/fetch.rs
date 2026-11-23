@@ -27,6 +27,7 @@ pub fn fetch_assigned(
     Ok(AssignedItems {
         merge_requests,
         issues,
+        hidden_issues: Vec::new(),
     })
 }
 

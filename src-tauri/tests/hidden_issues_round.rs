@@ -117,7 +117,7 @@ fn fetch(runner: &CliRunner, cfg: &GitlabConfig) -> AssignedItems {
 
 /// One round after a successful fetch, as the refresh thread runs it.
 fn round(env: &Env, runner: &CliRunner, cfg: &GitlabConfig, full: &AssignedItems) -> RoundOutcome {
-    let checks = check_round(&env.store, runner, cfg, full, NOW + 1_000);
+    let checks = check_round(&env.store, runner, cfg, full, NOW + 1_000, None);
     commit_round(&env.store, &cfg.host, full, checks, NOW + 1_000)
 }
 
@@ -284,6 +284,53 @@ fn drop_off_marks_absent_and_return_resurfaces_as_returned() {
 }
 
 #[test]
+fn a_returned_issue_with_a_failed_check_is_not_counted_as_failed() {
+    let env = env();
+    let cfg = config(Some("invented.user"));
+    let runner = env.runner("gitlab-notes-unavailable");
+    let full = fetch(&runner, &cfg);
+    env.hide(&full, WIDGET, &[], OLD);
+    let mut without = full.clone();
+    without.issues.retain(|i| i.id != WIDGET);
+    round(&env, &runner, &cfg, &without);
+
+    // Back on the list; its comment check fails, but returning needs no notes.
+    let out = round(&env, &runner, &cfg, &full);
+
+    assert_eq!(env.notes_calls(), 1);
+    assert_eq!(marked(&out, WIDGET), Some(ChangeReason::Returned));
+    assert_eq!(out.check_failed, 0, "a visible issue is not 'not checked'");
+}
+
+#[test]
+fn a_call_that_keeps_failing_does_not_starve_the_checks_after_it() {
+    let env = env();
+    let cfg = config(Some("invented.user"));
+    // GIZMO's notes call is unreachable every time; WIDGET has another's comment.
+    let runner = env.runner("gitlab-notes-one-unavailable");
+    let full = fetch(&runner, &cfg);
+    env.hide(&full, GIZMO, &[], "2026-02-19T08:00:00.000Z");
+    env.hide(&full, WIDGET, &[], OLD);
+
+    // First round: GIZMO comes first, fails and stops the round.
+    let checks = check_round(&env.store, &runner, &cfg, &full, NOW + 1_000, None);
+    assert_eq!(checks.stopped_at(), Some(GIZMO));
+    let out = commit_round(&env.store, &cfg.host, &full, checks, NOW + 1_000);
+    assert_eq!(env.notes_calls(), 1);
+    assert_eq!(out.check_failed, 2);
+    assert_eq!(out.hidden_issues.len(), 2);
+
+    // Next round resumes after GIZMO: WIDGET is checked first and resurfaces.
+    let checks = check_round(&env.store, &runner, &cfg, &full, NOW + 2_000, Some(GIZMO));
+    assert_eq!(checks.stopped_at(), Some(GIZMO));
+    let out = commit_round(&env.store, &cfg.host, &full, checks, NOW + 2_000);
+    assert_eq!(env.notes_calls(), 3);
+    assert_eq!(marked(&out, WIDGET), Some(ChangeReason::Comment));
+    assert_eq!(ids(&out.hidden_issues), [GIZMO]);
+    assert_eq!(out.check_failed, 1);
+}
+
+#[test]
 fn without_a_configured_user_any_comment_resurfaces() {
     let env = env();
     let cfg = config(None);
@@ -306,7 +353,7 @@ fn a_store_failure_gives_the_unpartitioned_list_and_a_store_error() {
     let runner = env.runner("gitlab-notes-other");
     let full = fetch(&runner, &cfg);
 
-    let checks = check_round(&store, &runner, &cfg, &full, NOW);
+    let checks = check_round(&store, &runner, &cfg, &full, NOW, None);
     let out = commit_round(&store, &cfg.host, &full, checks, NOW);
 
     assert_eq!(env.notes_calls(), 0, "a store read failure skips the calls");

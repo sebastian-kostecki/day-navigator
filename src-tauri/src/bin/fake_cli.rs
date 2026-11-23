@@ -236,6 +236,18 @@ fn gitlab_notes_scenario(scenario: &str) -> i32 {
                 eprint!("{GLAB_NO_NETWORK}");
                 return 1;
             }
+            // Only the issue without notes is unreachable (like a slow call that
+            // timed out); the one with notes answers as in `gitlab-notes-other`.
+            "gitlab-notes-one-unavailable" => {
+                let Endpoint::Notes { project_id, iid } = &endpoint else {
+                    return 98;
+                };
+                if (*project_id, *iid) != (NOTES_PROJECT_ID, NOTES_IID) {
+                    eprint!("{GLAB_NO_NETWORK}");
+                    return 1;
+                }
+                gitlab_notes_body("gitlab-notes-other", &endpoint)
+            }
             "gitlab-notes-bad-json" => Some(format!(
                 "[{{\"body\":\"{BAD_NOTES_MARKER}\",\"author\":{{\"username\":\"a\"}},\"system\":false,\"created_at\":\"2026-03"
             )),
@@ -303,6 +315,7 @@ fn main() {
         | "gitlab-notes-system"
         | "gitlab-notes-none"
         | "gitlab-notes-unavailable"
+        | "gitlab-notes-one-unavailable"
         | "gitlab-notes-bad-json"
         | "gitlab-two-pages" => gitlab_notes_scenario(&scenario),
         "gitlab-empty" => {

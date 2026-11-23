@@ -21,13 +21,23 @@ use crate::gitlab::fetch::fetch_issue_notes;
 use crate::gitlab::{AssignedItems, GitlabError, GitlabItem};
 use crate::store::StoreHandle;
 
-/// What `check_round` found: the records read before the notes calls and one
-/// verdict per checked issue.
+/// What `check_round` found: the records read before the notes calls, one
+/// verdict per checked issue, and the issue whose failed call stopped the
+/// round (if any).
 #[derive(Debug)]
 pub struct RoundChecks {
     records: Result<Vec<HiddenRecord>, HiddenIssueError>,
     checks: HashMap<u64, Result<CommentVerdict, ()>>,
-    failed: u32,
+    stopped_at: Option<u64>,
+}
+
+impl RoundChecks {
+    /// The issue whose notes call stopped the round. The next round passes it
+    /// to `check_round` as `resume_after`, so a call that keeps timing out
+    /// cannot starve the checks ordered after it.
+    pub fn stopped_at(&self) -> Option<u64> {
+        self.stopped_at
+    }
 }
 
 /// What the round shows: the partitioned issues, how many comment checks
@@ -49,16 +59,31 @@ fn stops_round(e: &GitlabError) -> bool {
     )
 }
 
+/// The records in check order: those after `resume_after` (by issue id) first,
+/// then the rest from the start. `None` keeps the stored order.
+fn check_order(records: &[HiddenRecord], resume_after: Option<u64>) -> Vec<&HiddenRecord> {
+    let Some(cursor) = resume_after else {
+        return records.iter().collect();
+    };
+    let (rest, first): (Vec<_>, Vec<_>) = records.iter().partition(|r| r.issue_id <= cursor);
+    first.into_iter().chain(rest).collect()
+}
+
 /// Reads the records and runs the notes calls of the hidden issues that are due.
 /// Holds no lock. After the first unavailable, logged-out or missing-tool failure
 /// no further call starts and every remaining due issue counts as failed. A store
 /// read failure is carried in the result and skips the calls.
+///
+/// `resume_after` is the previous round's `stopped_at`: checks start after that
+/// issue, so one call that keeps timing out (reported as unavailable) is tried
+/// last instead of first and the others still get checked.
 pub fn check_round(
     store: &StoreHandle,
     runner: &CliRunner,
     config: &GitlabConfig,
     full: &AssignedItems,
     now_ms: i64,
+    resume_after: Option<u64>,
 ) -> RoundChecks {
     let today = Local::now().date_naive();
     let records = match store.with_store(today, |s| list(s, &config.host)) {
@@ -67,14 +92,14 @@ pub fn check_round(
             return RoundChecks {
                 records: Err(e),
                 checks: HashMap::new(),
-                failed: 0,
+                stopped_at: None,
             };
         }
     };
     let mut checks = HashMap::new();
     let mut failed = 0u32;
-    let mut stopped = false;
-    for rec in &records {
+    let mut stopped_at = None;
+    for rec in check_order(&records, resume_after) {
         let Some(item) = full.issues.iter().find(|i| i.id == rec.issue_id) else {
             continue;
         };
@@ -84,7 +109,7 @@ pub fn check_round(
         }
         // An unreadable baseline cannot be compared: a failed check, never a guess.
         let verdict = match rec.baseline() {
-            Some(baseline) if !stopped => {
+            Some(baseline) if stopped_at.is_none() => {
                 let issue = IssueRef {
                     project_id: item.project_id,
                     iid: item.iid,
@@ -93,7 +118,7 @@ pub fn check_round(
                     Ok(notes) => Ok(comment_verdict(&notes, baseline, config.user.as_ref())),
                     Err(e) => {
                         if stops_round(&e) {
-                            stopped = true;
+                            stopped_at = Some(rec.issue_id);
                         }
                         Err(())
                     }
@@ -112,7 +137,7 @@ pub fn check_round(
     RoundChecks {
         records: Ok(records),
         checks,
-        failed,
+        stopped_at,
     }
 }
 
@@ -146,7 +171,7 @@ pub fn commit_round(
     let RoundChecks {
         records,
         checks: verdicts,
-        failed,
+        ..
     } = checks;
     let records = match records {
         Ok(records) => records,
@@ -159,10 +184,16 @@ pub fn commit_round(
         Err(e) => return unpartitioned(e),
     };
     let (visible_issues, hidden_issues) = partition(&full.issues, &rows);
+    // Only issues still hidden after the write count: one that came back
+    // without notes (status, returned) is visible and needs no re-check notice.
+    let check_failed = verdicts
+        .iter()
+        .filter(|(id, v)| v.is_err() && rows.iter().any(|r| r.issue_id == **id && r.is_hidden()))
+        .count() as u32;
     RoundOutcome {
         visible_issues,
         hidden_issues,
-        check_failed: failed,
+        check_failed,
         store_error: None,
     }
 }

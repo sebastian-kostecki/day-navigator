@@ -1,5 +1,7 @@
 // Mirrors the serde output of `GitlabSnapshot` in src-tauri/src/gitlab/mod.rs.
 
+import type { StoreError } from "../components/storeError";
+
 export type ItemKind = "issue" | "mergeRequest";
 
 /** Why a hidden issue came back to the list. Mirrors `gitlab::ChangeReason`. */
@@ -55,17 +57,6 @@ export type GitlabSnapshot = {
   /** Fixed Polish text when hidden state could not be read; the list shows every issue. */
   hiddenError: string | null;
 };
-
-/** Mirrors `store::StoreError`. */
-export type StoreError =
-  | { kind: "DirUnavailable"; detail: { kind: string } }
-  | { kind: "Damaged"; detail: { reason: string } }
-  | { kind: "Missing" }
-  | { kind: "NewerSchema"; detail: { found: number; supported: number } }
-  | { kind: "MigrationFailed"; detail: { version: number; reason: string } }
-  | { kind: "Busy" }
-  | { kind: "Io"; detail: { kind: string } }
-  | { kind: "Sql"; detail: { reason: string } };
 
 /** Mirrors `hidden_issues::HiddenIssueError`. */
 export type HiddenIssueError =

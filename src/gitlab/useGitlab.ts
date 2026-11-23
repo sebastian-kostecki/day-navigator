@@ -5,6 +5,7 @@ import {
   getGitlabSnapshot,
   hiddenIssueErrorMessage,
   hideGitlabIssue,
+  isHiddenIssueStale,
   refreshGitlab,
   unhideGitlabIssue,
 } from "./api";
@@ -18,6 +19,11 @@ export function useGitlab() {
   const [snapshot, setSnapshot] = useState<GitlabSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  // Row actions: the new snapshot arrives through `gitlab-changed`, so a
+  // success changes no local list; a failure becomes an inline notice that
+  // lasts until the next action or the next finished round.
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<ReadonlySet<number>>(new Set());
   // Bumped by `retry` to re-run the subscribe-and-load effect.
   const [attempt, setAttempt] = useState(0);
 
@@ -34,6 +40,8 @@ export function useGitlab() {
     listen<GitlabSnapshot>("gitlab-changed", (e) => {
       if (cancelled) return;
       setLoadError(null);
+      // A finished round replaces the list the failed action was based on.
+      if (!e.payload.refreshing) setActionError(null);
       accept(e.payload);
     })
       .then((fn) => {
@@ -79,26 +87,26 @@ export function useGitlab() {
     }
   }, []);
 
-  // Row actions: the new snapshot arrives through `gitlab-changed`, so a
-  // success changes no local list; a failure becomes an inline notice.
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<ReadonlySet<number>>(new Set());
-
-  const act = useCallback(async (id: number, run: (id: number) => Promise<void>) => {
-    setActionError(null);
-    setBusy((b) => new Set(b).add(id));
-    try {
-      await run(id);
-    } catch (e) {
-      setActionError(hiddenIssueErrorMessage(e));
-    } finally {
-      setBusy((b) => {
-        const next = new Set(b);
-        next.delete(id);
-        return next;
-      });
-    }
-  }, []);
+  const act = useCallback(
+    async (id: number, run: (id: number) => Promise<void>) => {
+      setActionError(null);
+      setBusy((b) => new Set(b).add(id));
+      try {
+        await run(id);
+      } catch (e) {
+        setActionError(hiddenIssueErrorMessage(e));
+        // The row was stale (own-tasks pattern): fetch a fresh list.
+        if (isHiddenIssueStale(e)) void refresh();
+      } finally {
+        setBusy((b) => {
+          const next = new Set(b);
+          next.delete(id);
+          return next;
+        });
+      }
+    },
+    [refresh],
+  );
 
   const hide = useCallback((id: number) => act(id, hideGitlabIssue), [act]);
   const unhide = useCallback((id: number) => act(id, unhideGitlabIssue), [act]);

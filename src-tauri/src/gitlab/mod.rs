@@ -220,6 +220,11 @@ fn parse_items(
     let raw: Vec<RawItem> = parse_pages(json)?;
     let mut keyed: Vec<(DateTime<FixedOffset>, GitlabItem)> = Vec::with_capacity(raw.len());
     for r in raw {
+        // GitLab ids start at 1. A zero would key a hide record wrongly and build
+        // a notes endpoint the read-only guard refuses (`projects/0/...`).
+        if r.id == 0 || r.project_id == 0 || r.iid == 0 {
+            return Err(GitlabError::ResponseInvalid);
+        }
         let stamp = DateTime::parse_from_rfc3339(&r.updated_at)
             .map_err(|_| GitlabError::ResponseInvalid)?;
         let item = GitlabItem {
@@ -476,6 +481,22 @@ mod tests {
                 parse_issues(&json, &host()),
                 Err(GitlabError::ResponseInvalid),
                 "{field}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_zero_identity_field_is_response_invalid() {
+        for (id, iid, project_id) in [(0, 2, 3), (1, 0, 3), (1, 2, 0)] {
+            let json = format!("[{}]", raw_json(id, iid, project_id, "g/p#1"));
+            assert_eq!(
+                parse_issues(&json, &host()),
+                Err(GitlabError::ResponseInvalid),
+                "{id}/{iid}/{project_id}"
+            );
+            assert_eq!(
+                parse_merge_requests(&json, &host()),
+                Err(GitlabError::ResponseInvalid)
             );
         }
     }

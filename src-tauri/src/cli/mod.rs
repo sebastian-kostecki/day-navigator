@@ -778,7 +778,8 @@ mod tests {
     }
 
     proptest::proptest! {
-        /// Every `IssueRef` the code can build passes the independent guard.
+        /// Every `IssueRef` the code can build passes the independent guard
+        /// (`parse_items` refuses zero ids, so the range starts at 1).
         #[test]
         fn every_issue_ref_passes_the_guard(project_id in 1u64.., iid in 1u64..) {
             proptest::prop_assert!(notes_passes_the_guard(project_id, iid));

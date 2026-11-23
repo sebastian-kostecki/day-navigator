@@ -261,7 +261,7 @@ export function GitlabView() {
         </p>
       )}
       {actionError && (
-        <p className="own-task-error" role="alert">
+        <p className="task-error" role="alert">
           {actionError}
         </p>
       )}

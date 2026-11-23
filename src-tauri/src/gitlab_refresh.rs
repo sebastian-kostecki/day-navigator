@@ -113,6 +113,8 @@ impl GitlabRefreshState {
         let (visible, hidden) = partition(&full.issues, &records);
         // One write: a concurrent "refreshing" flag flip must not be lost.
         let mut snap = self.write();
+        // Failed checks are only counted per round; never more than are hidden.
+        snap.hidden_check_failed = snap.hidden_check_failed.min(hidden.len() as u32);
         snap.items = Some(AssignedItems {
             merge_requests: full.merge_requests.clone(),
             issues: visible,
@@ -182,8 +184,10 @@ pub fn start(app: &AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Rec
 
 fn refresh_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Receiver<()>) {
     let runner = CliRunner::system();
+    // The issue whose notes call stopped the last round; checks resume after it.
+    let mut resume_after = None;
     loop {
-        refresh_round(&app, &settings_path, &runner);
+        refresh_round(&app, &settings_path, &runner, &mut resume_after);
         match wake_rx.recv_timeout(REFRESH_INTERVAL) {
             Ok(()) => while wake_rx.try_recv().is_ok() {},
             Err(RecvTimeoutError::Timeout) => {}
@@ -225,7 +229,12 @@ fn run_fetch(
     }
 }
 
-fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliRunner) {
+fn refresh_round(
+    app: &AppHandle,
+    settings_path: &Option<PathBuf>,
+    runner: &CliRunner,
+    resume_after: &mut Option<u64>,
+) {
     let state = app.state::<GitlabRefreshState>();
     let started = Instant::now();
     let before = state.snapshot();
@@ -244,7 +253,11 @@ fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliR
     // Comment checks run `glab` and read the store: no lock held.
     let store = app.state::<StoreHandle>();
     let checks = match (&config, &fetched) {
-        (Some(cfg), Ok(full)) => Some(check_round(&store, runner, cfg, full, now_ms() as i64)),
+        (Some(cfg), Ok(full)) => {
+            let checks = check_round(&store, runner, cfg, full, now_ms() as i64, *resume_after);
+            *resume_after = checks.stopped_at();
+            Some(checks)
+        }
         _ => None,
     };
 
@@ -377,5 +390,115 @@ mod tests {
         assert!(rx.try_recv().is_err());
         drop(rx);
         assert!(state.wake().is_err());
+    }
+
+    fn host() -> GitlabHost {
+        GitlabHost::parse("gitlab.example.invalid").unwrap()
+    }
+
+    fn entry(id: u64, kind: ItemKind) -> GitlabItem {
+        GitlabItem {
+            kind,
+            id,
+            project_id: 100,
+            iid: id,
+            reference: format!("acme/invented#{id}"),
+            title: format!("Invented {id}"),
+            web_url: None,
+            updated_at: "2026-03-03T08:00:00.000Z".into(),
+            labels: vec![],
+            draft: false,
+            changed: None,
+        }
+    }
+
+    fn record(id: u64, reason: Option<gitlab::ChangeReason>) -> HiddenRecord {
+        HiddenRecord {
+            issue_id: id,
+            project_id: 100,
+            iid: id,
+            scoped_labels: vec![],
+            baseline_updated_at: "2026-03-03T08:00:00.000Z".into(),
+            settle_after_ms: None,
+            hidden_at_ms: 1,
+            absent_since_ms: None,
+            changed_reason: reason,
+            changed_at_ms: reason.map(|_| 2),
+        }
+    }
+
+    /// State with a kept list of issues 1 and 2 and MR 3, as a round leaves it.
+    fn kept_state() -> GitlabRefreshState {
+        let (state, _rx) = GitlabRefreshState::new();
+        *state.kept_config.lock().unwrap() = Some(GitlabConfig {
+            host: host(),
+            user: None,
+        });
+        *state.kept_full.lock().unwrap() = Some(AssignedItems {
+            merge_requests: vec![entry(3, ItemKind::MergeRequest)],
+            issues: vec![entry(1, ItemKind::Issue), entry(2, ItemKind::Issue)],
+            hidden_issues: vec![],
+        });
+        state
+    }
+
+    #[test]
+    fn act_on_issue_without_a_kept_list_is_list_unavailable() {
+        let (state, _rx) = GitlabRefreshState::new();
+        let out = state.act_on_issue(1, |_, _| panic!("no store op without a list"));
+        assert!(matches!(out, Err(HiddenIssueError::ListUnavailable)));
+        assert_eq!(state.snapshot().seq, 0);
+    }
+
+    #[test]
+    fn act_on_issue_refuses_an_mr_or_an_unknown_id() {
+        let state = kept_state();
+        for id in [3, 99] {
+            let out = state.act_on_issue(id, |_, _| panic!("no store op for {id}"));
+            assert!(matches!(out, Err(HiddenIssueError::NotInList)));
+        }
+        assert_eq!(state.snapshot().seq, 0);
+    }
+
+    #[test]
+    fn act_on_issue_repartitions_from_the_returned_rows() {
+        let state = kept_state();
+        {
+            let mut snap = state.write();
+            snap.seq = 7;
+            snap.hidden_error = Some("stary błąd".into());
+            snap.hidden_check_failed = 2;
+        }
+
+        state
+            .act_on_issue(1, |h, item| {
+                assert_eq!(h, &host());
+                assert_eq!(item.id, 1);
+                Ok(vec![
+                    record(1, None),
+                    record(2, Some(gitlab::ChangeReason::Comment)),
+                ])
+            })
+            .unwrap();
+
+        let snap = state.snapshot();
+        assert_eq!(snap.seq, 8);
+        assert_eq!(snap.hidden_error, None);
+        // Never more failed checks than hidden issues.
+        assert_eq!(snap.hidden_check_failed, 1);
+        let items = snap.items.unwrap();
+        assert_eq!(items.merge_requests, vec![entry(3, ItemKind::MergeRequest)]);
+        assert_eq!(items.hidden_issues, vec![entry(1, ItemKind::Issue)]);
+        assert_eq!(items.issues.len(), 1);
+        assert_eq!(items.issues[0].id, 2);
+        assert_eq!(items.issues[0].changed, Some(gitlab::ChangeReason::Comment));
+    }
+
+    #[test]
+    fn act_on_issue_store_error_leaves_the_snapshot_alone() {
+        let state = kept_state();
+        let out = state.act_on_issue(1, |_, _| Err(HiddenIssueError::NotFound));
+        assert!(matches!(out, Err(HiddenIssueError::NotFound)));
+        assert_eq!(state.snapshot(), GitlabSnapshot::starting());
     }
 }

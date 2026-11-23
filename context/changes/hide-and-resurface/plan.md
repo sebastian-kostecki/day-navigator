@@ -214,7 +214,7 @@ A row with `changed_reason IS NULL` is hidden. A row with a reason is a visible 
   - `MarkAbsent { issue_id }` (first round missing);
   - `Prune { issue_id }` (absent ≥ 30 days, i.e. `now_ms - absent_since_ms >= 30 * 86_400_000`);
   - `ClearAbsent` only together with `Resurface { reason: returned }` on reappearance.
-  - A failed check (`Err`) yields no transition for that issue.
+  - A failed check (`Err`) yields no comment-based transition for that issue. A status change or a return still applies, because neither needs the notes (see Addendum A).
   - Reason precedence: status, then comment, then returned.
 - Marked rows (reason set) get no new reason. They take part only in `MarkAbsent` and `Prune`, and in `ClearAbsent` without a resurface.
 
@@ -435,7 +435,7 @@ Row actions, the "changed" mark, the hidden section and the notices.
 
 ## Performance Considerations
 
-Each round makes at most one notes call per hidden issue whose `updated_at` moved or whose single settling check is due, and none when nothing changed. A round stops issuing notes calls at the first unavailable/logged-out/missing-tool failure, so a VPN drop costs one 20 s timeout, not one per issue. That keeps the background-lightness NFR. Notes are paginated, newest first; typical issues fit in one page, and multi-page output is read in full.
+Each round makes at most one notes call per hidden issue whose `updated_at` moved or whose single settling check is due, and none when nothing changed. A round stops issuing notes calls at the first unavailable/logged-out/missing-tool failure, so a VPN drop costs one 20 s timeout, not one per issue. The next round starts after the issue that stopped it (Addendum A), so one slow call cannot starve the rest. That keeps the background-lightness NFR. Notes are paginated, newest first; typical issues fit in one page, and multi-page output is read in full.
 
 ## Migration Notes
 
@@ -450,6 +450,24 @@ Opening the store applies v3 automatically. An older app build refuses the v3 da
 - Record-module pattern: `src-tauri/src/work_time/`
 - Guard pattern: `src-tauri/src/cli/mod.rs:369-396`, `:575-596`
 - UI action pattern: `src/own-tasks/useOwnTasks.ts`, `src/own-tasks/OwnTasksView.tsx`
+
+## Addendum A: Implementation review fixes (2026-11-23)
+
+Changes from `reviews/impl-review.md` triage:
+
+- **Check order rotates (F1).** The runner reports a 20 s timeout as `Unavailable`, the same as no VPN, so one slow notes call used to stop the round first every time. Every check after it, in `issue_id` order, failed forever. Now:
+  - `check_round` takes `resume_after: Option<u64>` and returns `RoundChecks::stopped_at()`: the issue whose call stopped the round.
+  - The refresh loop passes the previous round's `stopped_at` back in, so checks start after that issue.
+  - The other due issues therefore get checked, and a VPN drop still costs one timeout per round.
+- **`check_failed` counts only hidden issues (F2).**
+  - A failed check does not block a status or return resurface; those need no notes.
+  - `commit_round` counts a failed check only when its issue is still hidden after the write.
+  - `act_on_issue` caps the count at the new number of hidden issues, so it never exceeds what is hidden after an unhide.
+- **Zero ids are refused (F7).** `parse_items` treats an `id`, `iid` or `project_id` of 0 as `ResponseInvalid`. Every parsed `IssueRef` therefore passes the read-only guard.
+- **Known limitation (F4): offset pages can shift.**
+  - With more than 100 open assigned issues, the list is read in offset pages. If an issue on an earlier page closes while `glab` is between pages, the next item moves onto that earlier page and is skipped.
+  - A skipped hidden issue is marked absent. The next round then resurfaces it as "wróciło na listę", and the mark stays until dismissed.
+  - Accepted for a personal list. If it ever happens, require two consecutive absent rounds before `MarkAbsent`.
 
 ## Progress
 

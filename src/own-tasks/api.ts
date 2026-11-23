@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { OwnTask, OwnTaskError, OwnTaskInput, Space, StoreError } from "./types";
+import { storeErrorMessage } from "../components/storeError";
+import type { OwnTask, OwnTaskError, OwnTaskInput, Space } from "./types";
 
 export function listOwnTasks(): Promise<OwnTask[]> {
   return invoke<OwnTask[]>("list_own_tasks");
@@ -31,29 +32,6 @@ function asOwnTaskError(e: unknown): OwnTaskError | null {
 /** True when the task the user acted on no longer exists, so the list is stale. */
 export function isOwnTaskNotFound(e: unknown): boolean {
   return asOwnTaskError(e)?.kind === "NotFound";
-}
-
-function storeErrorMessage(e: StoreError): string {
-  switch (e.kind) {
-    case "DirUnavailable":
-      return "Dane aplikacji: folder danych jest niedostępny.";
-    case "Damaged":
-      return "Dane aplikacji: plik danych jest uszkodzony.";
-    case "Missing":
-      return "Dane aplikacji: brakuje pliku danych, chociaż istnieją kopie zapasowe.";
-    case "NewerSchema":
-      return "Dane aplikacji pochodzą z nowszej wersji aplikacji.";
-    case "MigrationFailed":
-      return "Dane aplikacji: nie udało się zaktualizować struktury danych.";
-    case "Busy":
-      return "Dane aplikacji są chwilowo zajęte — spróbuj ponownie.";
-    case "Io":
-      return "Dane aplikacji: błąd odczytu lub zapisu.";
-    case "Sql":
-      return "Dane aplikacji: błąd bazy danych.";
-    default:
-      return "Dane aplikacji: nieoczekiwany błąd.";
-  }
 }
 
 /** Polish message for anything thrown by an own-task invoke call. */

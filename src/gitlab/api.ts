@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
-import type { GitlabSnapshot, HiddenIssueError, StoreError } from "./types";
+import { storeErrorMessage } from "../components/storeError";
+import type { GitlabSnapshot, HiddenIssueError } from "./types";
 
 export function getGitlabSnapshot(): Promise<GitlabSnapshot> {
   return invoke<GitlabSnapshot>("gitlab_snapshot");
@@ -38,27 +39,10 @@ function asHiddenIssueError(e: unknown): HiddenIssueError | null {
   return null;
 }
 
-function storeErrorMessage(e: StoreError): string {
-  switch (e.kind) {
-    case "DirUnavailable":
-      return "Dane aplikacji: folder danych jest niedostępny.";
-    case "Damaged":
-      return "Dane aplikacji: plik danych jest uszkodzony.";
-    case "Missing":
-      return "Dane aplikacji: brakuje pliku danych, chociaż istnieją kopie zapasowe.";
-    case "NewerSchema":
-      return "Dane aplikacji pochodzą z nowszej wersji aplikacji.";
-    case "MigrationFailed":
-      return "Dane aplikacji: nie udało się zaktualizować struktury danych.";
-    case "Busy":
-      return "Dane aplikacji są chwilowo zajęte — spróbuj ponownie.";
-    case "Io":
-      return "Dane aplikacji: błąd odczytu lub zapisu.";
-    case "Sql":
-      return "Dane aplikacji: błąd bazy danych.";
-    default:
-      return "Dane aplikacji: nieoczekiwany błąd.";
-  }
+/** True when the row the user acted on is no longer what the list showed. */
+export function isHiddenIssueStale(e: unknown): boolean {
+  const kind = asHiddenIssueError(e)?.kind;
+  return kind === "NotFound" || kind === "NotInList";
 }
 
 /** Polish message for anything thrown by a hide, unhide or dismiss call. */

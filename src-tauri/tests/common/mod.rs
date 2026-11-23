@@ -6,7 +6,7 @@ pub mod crash;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use day_navigator_lib::settings::{Settings, SpaceSettings, TaskSettings};
+use day_navigator_lib::settings::{Settings, SpaceSettings};
 use day_navigator_lib::vault::{VaultPath, VaultRegistry};
 use tempfile::TempDir;
 
@@ -51,18 +51,6 @@ pub fn space_settings(root: &Path, excluded: &[&str]) -> SpaceSettings {
             .iter()
             .map(|e| VaultPath::parse(e).unwrap())
             .collect(),
-        tasks: None,
-    }
-}
-
-/// Invented task settings matching the fixture vault's `Tasks/` and `Templates/`.
-pub fn test_tasks_settings() -> TaskSettings {
-    TaskSettings {
-        folder: VaultPath::parse("Tasks").unwrap(),
-        template: VaultPath::parse("Templates/Task.md").unwrap(),
-        statuses: ["Todo", "In progress", "Done"].map(String::from).to_vec(),
-        done_status: "Done".to_string(),
-        priorities: ["High", "Medium", "Low"].map(String::from).to_vec(),
     }
 }
 

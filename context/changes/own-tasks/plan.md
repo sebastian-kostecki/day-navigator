@@ -442,9 +442,9 @@ Single user, tens to hundreds of rows: list reads the whole table and sorts in R
 
 #### Automated
 
-- [x] 2.1 `npm run build` passes (tsc strict + Vite)
-- [x] 2.2 `npm run lint` and `npm run format:check` pass
-- [x] 2.3 `cargo test`, `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` pass in `src-tauri/`
+- [x] 2.1 `npm run build` passes (tsc strict + Vite) — ad049bf
+- [x] 2.2 `npm run lint` and `npm run format:check` pass — ad049bf
+- [x] 2.3 `cargo test`, `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` pass in `src-tauri/` — ad049bf
 
 #### Manual
 
@@ -460,9 +460,9 @@ Single user, tens to hundreds of rows: list reads the whole table and sorts in R
 
 #### Automated
 
-- [ ] 3.1 `cargo test`, `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` pass in `src-tauri/`
-- [ ] 3.2 `npm run build`, `npm run lint` and `npm run format:check` pass
-- [ ] 3.3 No references remain: searching `src/` and `src-tauri/src/` for `TasksView`, `TaskSettings`, `list_work_tasks` and `mod tasks` returns nothing
+- [x] 3.1 `cargo test`, `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` pass in `src-tauri/`
+- [x] 3.2 `npm run build`, `npm run lint` and `npm run format:check` pass
+- [x] 3.3 No references remain: searching `src/` and `src-tauri/src/` for `TasksView`, `TaskSettings`, `list_work_tasks` and `mod tasks` returns nothing
 
 #### Manual
 

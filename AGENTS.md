@@ -15,7 +15,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 
 ## Project Structure
 
-- `src/` — React UI; entry `main.tsx`, root component `App.tsx`. One folder per feature (`src/health/`, `src/tasks/`); shared UI in `src/components/`.
+- `src/` — React UI; entry `main.tsx`, root component `App.tsx`. One folder per feature (`src/health/`, `src/own-tasks/`); shared UI in `src/components/`.
 - `src-tauri/src/lib.rs` — Tauri builder: register plugins and `#[tauri::command]` handlers here. `main.rs` only calls `day_navigator_lib::run()`.
 - `src-tauri/capabilities/default.json` — permissions for the `main` window; add a plugin's permissions here when you add the plugin.
 - `src-tauri/tauri.conf.json` — app identity, window and bundle config.

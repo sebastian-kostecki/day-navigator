@@ -33,7 +33,7 @@ fn invalid(reason: &str) -> VaultError {
 }
 
 /// Values are written verbatim, so anything that would need YAML quoting is refused.
-pub(crate) fn check_plain(value: &str) -> Result<(), VaultError> {
+fn check_plain(value: &str) -> Result<(), VaultError> {
     if value.contains(['\r', '\n']) {
         return Err(invalid("value contains a line break"));
     }

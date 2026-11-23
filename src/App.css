@@ -116,7 +116,7 @@ button:disabled {
   cursor: not-allowed;
 }
 
-/* Tasks view */
+/* Shared form layout */
 
 fieldset {
   display: flex;
@@ -125,14 +125,6 @@ fieldset {
   margin: 0;
   padding: 0;
   border: 0;
-}
-
-.new-task {
-  margin-bottom: 16px;
-}
-
-.new-task input[type="text"] {
-  flex: 1 1 200px;
 }
 
 .toggle {
@@ -144,59 +136,6 @@ fieldset {
 
 .toggle input {
   padding: 0;
-}
-
-.task-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.task-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  margin-bottom: 8px;
-  background-color: #ffffff;
-  border: 1px solid #e2e2e2;
-  border-radius: 8px;
-}
-
-.task-main {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.task-title {
-  font-weight: 600;
-}
-
-.task-meta {
-  display: flex;
-  gap: 12px;
-  font-size: 0.85em;
-  color: #666666;
-}
-
-.task-error,
-.error-banner {
-  color: #b00020;
-}
-
-.error-banner {
-  padding: 12px 16px;
-  border: 1px solid #b00020;
-  border-radius: 8px;
-  background-color: #fdecee;
-}
-
-.task-notice {
-  padding: 8px 12px;
-  border-radius: 6px;
-  background-color: #fff4d6;
 }
 
 .empty {
@@ -359,28 +298,8 @@ fieldset {
     color: #ff6b6e;
   }
 
-  .task-row {
-    background-color: #3a3a3a;
-    border-color: #4a4a4a;
-  }
-
-  .task-meta,
   .empty {
     color: #b0b0b0;
-  }
-
-  .task-error,
-  .error-banner {
-    color: #ff8a9b;
-  }
-
-  .error-banner {
-    background-color: #4a2a30;
-    border-color: #ff8a9b;
-  }
-
-  .task-notice {
-    background-color: #4a4325;
   }
 
   .own-task-note-input {

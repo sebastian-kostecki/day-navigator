@@ -8,7 +8,7 @@ use sha2::{Digest, Sha256};
 use super::error::VaultError;
 
 /// UTF-8 byte order mark.
-pub(crate) const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
+const BOM: [u8; 3] = [0xEF, 0xBB, 0xBF];
 
 /// An ATX heading: level 1..=6 and its text (without `#` markers).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -194,14 +194,6 @@ fn frontmatter(bytes: &[u8]) -> Option<Frontmatter> {
         }
     }
     None
-}
-
-/// Byte range of the frontmatter body (between the `---` fences), if any.
-pub(crate) fn frontmatter_span(bytes: &[u8]) -> Option<Span> {
-    frontmatter(bytes).map(|fm| Span {
-        start: fm.body_start,
-        end: fm.body_end,
-    })
 }
 
 fn is_key_line(text: &[u8], key: &str) -> bool {

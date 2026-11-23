@@ -409,7 +409,7 @@ S-02, S-05 and S-10 can run in parallel and may also append a migration (v5 and 
 
 #### Manual
 
-- [ ] 1.4 Starting the dev app against an existing database migrates it to v7 without errors, and the tray still reports "Dane aplikacji" as OK
+- [x] 1.4 Starting the dev app against an existing database migrates it to v7 without errors, and the tray still reports "Dane aplikacji" as OK
 
 ### Phase 2: Toasts in the refresh round
 
@@ -421,11 +421,11 @@ S-02, S-05 and S-10 can run in parallel and may also append a migration (v5 and 
 
 #### Manual
 
-- [ ] 2.4 On VPN with the installed or dev build, assigning a test issue to yourself in the company GitLab shows `Nawigator dnia — nowe zgłoszenie` with its reference and title by the next round (press "Odśwież" to shorten the wait)
-- [ ] 2.5 Restarting the app shows no toast for items already notified
-- [ ] 2.6 Turning the VPN off for at least one round, then on again, gives no toast for unchanged items
-- [ ] 2.7 Hiding and un-hiding an issue gives no toast
-- [ ] 2.8 The app log contains only counts for this feature: no reference, title or host
+- [x] 2.4 On VPN with the installed or dev build, assigning a test issue to yourself in the company GitLab shows `Nawigator dnia — nowe zgłoszenie` with its reference and title by the next round (press "Odśwież" to shorten the wait)
+- [x] 2.5 Restarting the app shows no toast for items already notified
+- [x] 2.6 Turning the VPN off for at least one round, then on again, gives no toast for unchanged items
+- [x] 2.7 Hiding and un-hiding an issue gives no toast
+- [x] 2.8 The app log contains only counts for this feature: no reference, title or host
 
 ### Phase 3: Refresh-interval setting
 
@@ -438,5 +438,5 @@ S-02, S-05 and S-10 can run in parallel and may also append a migration (v5 and 
 
 #### Manual
 
-- [ ] 3.5 With `"gitlabRefresh": {"minutes": 1}` the view's "Ostatnie udane odświeżenie" time advances about every minute without pressing "Odśwież"; with the block removed it advances every 10 min
-- [ ] 3.6 With `"gitlabRefresh": {"minutes": 99}` the "Praca (GitLab)" view shows the invalid-setting notice, the list still loads and refreshes, and fixing the value clears the notice after the next round
+- [x] 3.5 With `"gitlabRefresh": {"minutes": 1}` the view's "Ostatnie udane odświeżenie" time advances about every minute without pressing "Odśwież"; with the block removed it advances every 10 min
+- [x] 3.6 With `"gitlabRefresh": {"minutes": 99}` the "Praca (GitLab)" view shows the invalid-setting notice, the list still loads and refreshes, and fixing the value clears the notice after the next round

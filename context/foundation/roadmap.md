@@ -47,7 +47,7 @@ One developer on one Windows 11 machine works for a company (issues in a work Gi
 | S-01 | gitlab-assigned-list    | see assigned GitLab issues and MRs, or a calm "unavailable" state without VPN          | F-02          | FR-001, FR-015, FR-016, US-01              | done |
 | S-02 | gitlab-visibility-filter| choose which assigned GitLab items the list shows                                      | S-01          | FR-002                                    | ready |
 | S-03 | hide-and-resurface      | hide an issue and get it back when its status changes or someone else comments         | S-01, F-01    | FR-003, US-02                             | done        |
-| S-04 | new-assignment-notify   | get a Windows notification for every new assigned issue or MR                          | S-01, F-01    | FR-004, NFR Świeżość, NFR Lekkość w tle    | ready |
+| S-04 | new-assignment-notify   | get a Windows notification for every new assigned issue or MR                          | S-01, F-01    | FR-004, NFR Świeżość, NFR Lekkość w tle    | in-progress |
 | S-05 | github-assigned-issues  | see open GitHub issues assigned to them from the repositories listed in settings       | F-02          | FR-005, FR-015                            | ready |
 | S-06 | own-tasks               | add, edit and complete their own tasks in the Work or Private space                    | F-01          | FR-006, FR-007, FR-008, FR-010            | done     |
 | S-07 | todo-list               | pick today's items from the lists into "To do", tick them, carry the rest to tomorrow  | S-01, S-06    | FR-011, FR-012, US-01                     | done |
@@ -154,7 +154,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - Resolved 2026-11-23: default background refresh every 10 min (meets ≤ 15 min; the code's fixed 5 min becomes this default). Open Roadmap Question #3.
 - **Risk:** Background refresh is the first always-on work in the app; it must stay light and must not turn a reconnected VPN into a burst of notifications.
-- **Status:** ready
+- **Status:** in-progress
 
 ### S-05: Assigned GitHub issues in "Projects (GitHub)"
 

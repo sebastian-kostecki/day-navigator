@@ -157,7 +157,10 @@ Everything needed to turn the settings repo list into parsed per-repo results th
   - `octo-test/missing` → exit 1 with a "Could not resolve to a Repository" style stderr.
   - `octo-test/garbled` → invalid JSON.
   - `octo-test/huge` → 500 issues.
-- These run under a new `gh-issues` scenario. The existing `gh-logged-out` and `gh-no-network` cover whole-source failures.
+  - `octo-test/offline` → exit 1 with a network-error stderr (`dial tcp …`), classified `Unavailable`.
+  - `octo-test/logged-out` → exit 4, classified `LoggedOut`.
+- These run under a new `gh-issues` scenario. The existing `gh-logged-out` and `gh-no-network` cover whole-source failures on the first call.
+- A general call log: when `FAKE_CLI_CALL_LOG` is set, every call (glab and gh) appends its argv as one line to that file. `FAKE_CLI_SCENARIO` is process-wide, so this is the only way to prove a later repo was never called.
 - Invented data carries the existing leak markers, so leak tests can assert they never reach logs or errors.
 
 #### 6. Tests
@@ -173,7 +176,8 @@ Everything needed to turn the settings repo list into parsed per-repo results th
   - alpha OK + missing → per-repo `Failed`.
   - garbled → per-repo `ResponseInvalid`.
   - huge → per-repo `Truncated`.
-  - `gh-logged-out` and `gh-no-network` → whole-source `Err` with the remaining repos not called.
+  - `[alpha, offline, beta]` and `[alpha, logged-out, beta]` → whole-source `Err` (`Unavailable` / `LoggedOut`). The `FAKE_CLI_CALL_LOG` contains alpha and the failing repo, never beta.
+  - `gh-logged-out` and `gh-no-network` → whole-source `Err` on the first call.
   - A nonexistent gh path → `ToolMissing`.
 - Unit tests cover URL checking, sort order, lowercase reference and `message_pl` containing no repo text.
 
@@ -243,10 +247,10 @@ A background GitHub round every 10 minutes, a snapshot the UI can read, and the 
   - `unavailable` → `SourceState::Unavailable`.
   - `error` → `Error`.
   - `notConfigured` → the same state GitLab's `notConfigured` maps to.
-  - `ok` with any repo `error` → `Error` with short reason "repozytorium".
+  - `ok` with any repo `error` → `Error` with the fixed kind `RepoFailed` (never the per-repo kind, so the status and its transition stay stable while the set of failing repos or their kinds change) and a message without repo names: "Nie udało się pobrać N z M repozytoriów GitHub".
   - `ok` without repo errors → OK.
-- `short_reason` covers the new kinds (`Truncated`; reuse existing ones).
-- `runtime.rs`: `probe_round` appends the GitHub status after GitLab; `check_round` reads the GitHub snapshot; `check_health_now` and the tray "check" also wake the GitHub thread.
+- `short_reason` covers the new kinds: `Truncated` → "lista niepełna", `RepoFailed` → "błąd repozytorium" (reuse existing ones for the rest).
+- `runtime.rs`: `probe_round` and `check_round` take a new GitHub status parameter (after GitLab) and read the GitHub snapshot. The GitHub thread is woken from the same three places as GitLab: `check_health_now` (`runtime.rs:112`), the tray "check" item (`:162`) and the watchdog resume (`:347`).
 - Tests:
   - A `github_snapshot_maps_to_a_source` test.
   - Unavailable is silent in both directions.
@@ -401,8 +405,9 @@ Pick GitHub issues into "To do", and tick them automatically when they are no lo
 - TodoView:
   - Reads `useGithub({ refreshOnMount: false })`.
   - Adds a GitHub section to the picker, with issues from repos without errors and the same status texts as the GitLab section.
-  - Renders GitHub entries with the open link and the closed-in-source badge.
-  - Extends the "unverified" banner so it also shows when GitHub is down or not loaded and an unticked GitHub entry exists.
+  - The `onList` picker key gets a source prefix (`own:…`, `gitlab:<itemKind>:<ref>`, `github:<ref>`), replacing `gitlabKey` (`TodoView.tsx:28-30`, `:112-114`). Today every non-own row is keyed without a source, so a GitHub `owner/repo#N` would collide with a GitLab reference.
+  - Renders GitHub entries in every branch that today assumes "non-own = GitLab": the open link (`:132`), the kind badge (`:157-163`, "Zgłoszenie GitHub" instead of reading `itemKind`) and the closed-in-source badge (`:165-166`, "zamknięte w GitHubie"). The union has no `never` check, so a missed branch fails silently rather than at build time.
+  - Extends the "unverified" banner so it also shows when an unticked GitHub entry exists and either GitHub is down or not loaded, or that entry's repo (the `reference` part before `#`) has an error in the snapshot or is missing from `snapshot.repos` (removed from settings). Such entries are never ticked by reconcile, so they must not look verified.
 
 #### 5. Tests
 
@@ -411,7 +416,8 @@ Pick GitHub issues into "To do", and tick them automatically when they are no lo
 **Intent**: Prove the migration keeps data and the GitHub rules hold.
 
 **Contract**:
-- **Migration:** a database built at v6 with own and GitLab rows (live, ticked, removed, closed, with and without `gitlab_account`) opens at v7 with every row and column value unchanged, and the old unique indexes still reject duplicates.
+- **Existing tests to update:** `tests/todo.rs:71-78` (exact list of `todo_items` objects; add `todo_items_live_github`), `tests/hidden_issues.rs:112` (`user_version == 6`; compare against the v6 prefix or `MIGRATIONS.len()` instead), `tests/todo_crash.rs:168-177` (duplicate check on `gitlab_*`; add the GitHub twin).
+- **Migration:** following the precedent `tests/hidden_issues.rs:96-123` (`Store::open(.., &MIGRATIONS[..6], ..)`, insert, reopen with the full list), a database built at v6 with own and GitLab rows (live, ticked, removed, closed, with and without `gitlab_account`) opens at v7 with every row and column value unchanged, and the old unique indexes still reject duplicates.
 - **"To do":**
   - Add a GitHub entry, then add it again → `AlreadyOnList`.
   - The limit is shared across all three sources.

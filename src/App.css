@@ -203,6 +203,133 @@ fieldset {
   color: #666666;
 }
 
+/* Own tasks view */
+
+.own-task-form {
+  margin-bottom: 16px;
+}
+
+.own-task-title-input,
+.own-task-note-input {
+  flex: 1 1 100%;
+  box-sizing: border-box;
+}
+
+.own-task-note-input {
+  resize: vertical;
+  border: 1px solid #c8c8c8;
+  border-radius: 6px;
+  padding: 0.5em 0.8em;
+  font-size: 1em;
+  font-family: inherit;
+  color: inherit;
+  background-color: #ffffff;
+}
+
+.own-task-counter {
+  flex: 1 1 100%;
+  margin-top: -4px;
+  font-size: 0.8em;
+  color: #666666;
+  text-align: right;
+}
+
+.own-task-filter {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.own-task-filter button.active {
+  border-color: #396cd8;
+  background-color: #e8effc;
+}
+
+.own-task-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.own-task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background-color: #ffffff;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+}
+
+.own-task-row.editing {
+  display: block;
+}
+
+.own-task-row.is-done .own-task-title {
+  text-decoration: line-through;
+  color: #666666;
+}
+
+.own-task-row > input[type="checkbox"] {
+  flex: none;
+  margin-top: 6px;
+  padding: 0;
+}
+
+.own-task-row > button {
+  flex: none;
+  margin-left: auto;
+}
+
+.own-task-main {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.own-task-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.own-task-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85em;
+  color: #666666;
+}
+
+.own-task-badge {
+  padding: 0 8px;
+  border-radius: 10px;
+  background-color: #e8effc;
+  color: #1f4aa8;
+}
+
+.own-task-badge.private {
+  background-color: #e6f4ea;
+  color: #1e6b3a;
+}
+
+.own-task-note {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.9em;
+}
+
+.own-task-error {
+  color: #b00020;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;
@@ -254,5 +381,40 @@ fieldset {
 
   .task-notice {
     background-color: #4a4325;
+  }
+
+  .own-task-note-input {
+    color: #ffffff;
+    background-color: #1f1f1f;
+    border-color: #555555;
+  }
+
+  .own-task-row {
+    background-color: #3a3a3a;
+    border-color: #4a4a4a;
+  }
+
+  .own-task-row.is-done .own-task-title,
+  .own-task-meta,
+  .own-task-counter {
+    color: #b0b0b0;
+  }
+
+  .own-task-filter button.active {
+    background-color: #2c3b5e;
+  }
+
+  .own-task-badge {
+    background-color: #2c3b5e;
+    color: #b9ccf5;
+  }
+
+  .own-task-badge.private {
+    background-color: #25422f;
+    color: #a8dcb7;
+  }
+
+  .own-task-error {
+    color: #ff8a9b;
   }
 }

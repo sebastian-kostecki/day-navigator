@@ -11,10 +11,12 @@ pub mod vault;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
-use chrono::Local;
+use chrono::{Local, NaiveDateTime};
 use tauri::Manager;
 
+use crate::own_tasks::{OwnTask, OwnTaskError, OwnTaskInput};
 use crate::settings::TaskSettings;
+use crate::store::{Store, StoreError, StoreHandle};
 use crate::tasks::{DoneUpdate, NewTask, TaskError, TaskRow};
 use crate::vault::markdown::SpanHash;
 use crate::vault::{Space, Vault, VaultError, VaultPath, VaultRegistry};
@@ -146,6 +148,64 @@ async fn set_work_task_status(
         .await
 }
 
+/// Runs a store operation off the main thread with the current local time.
+/// `tauri::State` is not `'static`, so the handle is fetched from the
+/// `AppHandle` inside the blocking closure.
+async fn on_store<T, E>(
+    app: tauri::AppHandle,
+    f: impl FnOnce(&mut Store, NaiveDateTime) -> Result<T, E> + Send + 'static,
+) -> Result<T, E>
+where
+    T: Send + 'static,
+    E: From<StoreError> + Send + 'static,
+{
+    let now = Local::now().naive_local();
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<StoreHandle>()
+            .with_store(now.date(), |s| f(s, now))
+    })
+    .await
+    .map_err(|_| {
+        E::from(StoreError::Io {
+            kind: "background task failed".to_string(),
+        })
+    })?
+}
+
+#[tauri::command]
+async fn list_own_tasks(app: tauri::AppHandle) -> Result<Vec<OwnTask>, OwnTaskError> {
+    on_store(app, |s, _| own_tasks::list(s)).await
+}
+
+#[tauri::command]
+async fn add_own_task(app: tauri::AppHandle, input: OwnTaskInput) -> Result<OwnTask, OwnTaskError> {
+    on_store(app, move |s, now| own_tasks::add(s, &input, now)).await
+}
+
+#[tauri::command]
+async fn edit_own_task(
+    app: tauri::AppHandle,
+    id: i64,
+    input: OwnTaskInput,
+) -> Result<OwnTask, OwnTaskError> {
+    on_store(app, move |s, now| own_tasks::edit(s, id, &input, now)).await
+}
+
+#[tauri::command]
+async fn set_own_task_done(
+    app: tauri::AppHandle,
+    id: i64,
+    done: bool,
+) -> Result<OwnTask, OwnTaskError> {
+    on_store(app, move |s, now| own_tasks::set_done(s, id, done, now)).await
+}
+
+/// S-08 seam: replace `false` with the work-time counter's running state.
+#[tauri::command]
+async fn own_task_default_space() -> Result<Space, OwnTaskError> {
+    Ok(own_tasks::default_space(false))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
@@ -207,7 +267,12 @@ pub fn run() {
             get_work_task_settings,
             list_work_tasks,
             create_work_task,
-            set_work_task_status
+            set_work_task_status,
+            list_own_tasks,
+            add_own_task,
+            edit_own_task,
+            set_own_task_done,
+            own_task_default_space
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

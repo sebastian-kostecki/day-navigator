@@ -430,9 +430,9 @@ Single user, tens to hundreds of rows: list reads the whole table and sorts in R
 
 #### Automated
 
-- [x] 1.1 `cargo test` passes in `src-tauri/`, including the new unit, integration and crash tests
-- [x] 1.2 `cargo clippy --all-targets -- -D warnings` passes
-- [x] 1.3 `cargo fmt --check` passes
+- [x] 1.1 `cargo test` passes in `src-tauri/`, including the new unit, integration and crash tests — 79b0764
+- [x] 1.2 `cargo clippy --all-targets -- -D warnings` passes — 79b0764
+- [x] 1.3 `cargo fmt --check` passes — 79b0764
 
 #### Manual
 
@@ -442,9 +442,9 @@ Single user, tens to hundreds of rows: list reads the whole table and sorts in R
 
 #### Automated
 
-- [ ] 2.1 `npm run build` passes (tsc strict + Vite)
-- [ ] 2.2 `npm run lint` and `npm run format:check` pass
-- [ ] 2.3 `cargo test`, `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` pass in `src-tauri/`
+- [x] 2.1 `npm run build` passes (tsc strict + Vite)
+- [x] 2.2 `npm run lint` and `npm run format:check` pass
+- [x] 2.3 `cargo test`, `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` pass in `src-tauri/`
 
 #### Manual
 

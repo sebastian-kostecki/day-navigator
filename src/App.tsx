@@ -1,12 +1,12 @@
 import { HealthPanel } from "./health/HealthPanel";
-import TasksView from "./tasks/TasksView";
+import OwnTasksView from "./own-tasks/OwnTasksView";
 import "./App.css";
 
 // No navigation yet (S-01): the views are stacked.
 function App() {
   return (
     <>
-      <TasksView />
+      <OwnTasksView />
       <HealthPanel />
     </>
   );

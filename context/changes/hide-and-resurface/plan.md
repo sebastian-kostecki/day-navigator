@@ -487,8 +487,8 @@ Opening the store applies v3 automatically. An older app build refuses the v3 da
 
 #### Automated
 
-- [x] 4.1 Frontend checks pass
-- [x] 4.2 The full gate passes before commit
+- [x] 4.1 Frontend checks pass — f5040be
+- [x] 4.2 The full gate passes before commit — f5040be
 
 #### Manual
 

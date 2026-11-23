@@ -155,7 +155,7 @@ export function GitlabView() {
         <button type="button" disabled={refreshing} onClick={() => void refresh()}>
           {refreshing ? "Odświeżam…" : "Odśwież"}
         </button>
-        {lastSuccessMs != null && (
+        {lastSuccessMs != null && state.state !== "error" && (
           <span className="checked-at">
             Ostatnie udane odświeżenie: {formatClock(lastSuccessMs)}
           </span>

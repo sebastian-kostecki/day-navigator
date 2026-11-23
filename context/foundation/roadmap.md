@@ -43,15 +43,15 @@ One developer on one Windows 11 machine works for a company (issues in a work Gi
 | ID   | Change ID               | Outcome (user can …)                                                                  | Prerequisites | PRD refs                                  | Status   |
 | ---- | ----------------------- | ------------------------------------------------------------------------------------- | ------------- | ----------------------------------------- | -------- |
 | F-01 | app-data-store          | (foundation) app-owned data survives close, restart and crash                          | —             | NFR Trwałość czasu pracy, Constraints      | done |
-| F-02 | read-only-cli-runner    | (foundation) logged-in `glab`/`gh` run read-only, with classified result states        | —             | Access Control Changes, NFR Nigdy pusta lista | ready |
-| S-01 | gitlab-assigned-list    | see assigned GitLab issues and MRs, or a calm "unavailable" state without VPN          | F-02          | FR-001, FR-015, FR-016, US-01              | proposed |
+| F-02 | read-only-cli-runner    | (foundation) logged-in `glab`/`gh` run read-only, with classified result states        | —             | Access Control Changes, NFR Nigdy pusta lista | done |
+| S-01 | gitlab-assigned-list    | see assigned GitLab issues and MRs, or a calm "unavailable" state without VPN          | F-02          | FR-001, FR-015, FR-016, US-01              | in-progress |
 | S-02 | gitlab-visibility-filter| choose which assigned GitLab items the list shows                                      | S-01          | FR-002                                    | proposed |
 | S-03 | hide-and-resurface      | hide an issue and get it back when its status changes or someone else comments         | S-01, F-01    | FR-003, US-02                             | proposed |
 | S-04 | new-assignment-notify   | get a Windows notification for every new assigned issue or MR                          | S-01, F-01    | FR-004, NFR Świeżość, NFR Lekkość w tle    | proposed |
 | S-05 | github-assigned-issues  | see open GitHub issues assigned to them from the repositories listed in settings       | F-02          | FR-005, FR-015                            | blocked  |
-| S-06 | own-tasks               | add, edit and complete their own tasks in the Work or Private space                    | F-01          | FR-006, FR-007, FR-008, FR-010            | proposed |
+| S-06 | own-tasks               | add, edit and complete their own tasks in the Work or Private space                    | F-01          | FR-006, FR-007, FR-008, FR-010            | ready |
 | S-07 | todo-list               | pick today's items from the lists into "To do", tick them, carry the rest to tomorrow  | S-01, S-06    | FR-011, FR-012, US-01                     | proposed |
-| S-08 | work-timer              | start and stop work time from an always-visible counter and correct entries            | F-01          | FR-013, FR-017, NFR Trwałość czasu pracy  | proposed |
+| S-08 | work-timer              | start and stop work time from an always-visible counter and correct entries            | F-01          | FR-013, FR-017, NFR Trwałość czasu pracy  | ready |
 | S-09 | work-norm-report        | see day and month sums and how far the month is from the norm                          | S-08          | FR-014                                    | proposed |
 | S-10 | timer-reminders         | get reminded when the counter runs too long or is not running on a workday             | S-08          | FR-018                                    | proposed |
 
@@ -103,7 +103,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Placed before the north star because a read-only, no-shell call path and invented-data tests are hard rules. Building them inside the first slice would mix the security contract with the view. This foundation does not cover listing issues; that is S-01.
-- **Status:** ready
+- **Status:** done
 
 ## Slices
 
@@ -117,7 +117,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** The north star; it is the first time real work data passes through the app, so the guardrail that no work data reaches logs or tests is exercised here first.
-- **Status:** proposed
+- **Status:** in-progress
 
 ### S-02: Visibility filter for GitLab items
 
@@ -179,7 +179,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** The space default reads the counter's state; until S-08 lands the default falls back to Private, so the slice does not depend on S-08.
-- **Status:** proposed
+- **Status:** ready
 
 ### S-07: "To do" list
 
@@ -204,7 +204,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - Record from 2026-12-01 with December entries added by hand until this ships, or start at the first full month after it ships? (PRD Open Question #2) — Owner: user. Block: no.
 - **Risk:** Can start in parallel with the north star; the 2026-12-01 start date is the reason not to push it late.
-- **Status:** proposed
+- **Status:** ready
 
 ### S-09: Work-norm report
 
@@ -236,15 +236,15 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | Roadmap ID | Change ID                | Suggested issue title                                   | Ready for `/10x-plan` | Notes |
 | ---------- | ------------------------ | ------------------------------------------------------- | --------------------- | ----- |
 | F-01       | app-data-store           | Durable app-owned data store                            | yes                   | Run `/10x-plan app-data-store` |
-| F-02       | read-only-cli-runner     | Read-only runner for glab/gh with result states         | yes                   | Run `/10x-plan read-only-cli-runner`; unlocks the north star |
-| S-01       | gitlab-assigned-list     | "Work (GitLab)" view: assigned issues and MRs           | no                    | Waits on F-02 |
+| F-02       | read-only-cli-runner     | Read-only runner for glab/gh with result states         | no                    | Done; archived 2026-11-23 |
+| S-01       | gitlab-assigned-list     | "Work (GitLab)" view: assigned issues and MRs           | yes                   | Run `/10x-plan gitlab-assigned-list`; the north star |
 | S-02       | gitlab-visibility-filter | Filter visible GitLab items                             | no                    | Waits on S-01 |
 | S-03       | hide-and-resurface       | Hide issues; resurface on status change or comment      | no                    | Waits on S-01, F-01 |
 | S-04       | new-assignment-notify    | Notify on new assigned issues and MRs                   | no                    | Waits on S-01, F-01 |
 | S-05       | github-assigned-issues   | "Projects (GitHub)" view: assigned open issues          | no                    | Blocked on Open Roadmap Question #1 |
-| S-06       | own-tasks                | Own tasks in Work/Private; remove vault task screen     | no                    | Waits on F-01 |
+| S-06       | own-tasks                | Own tasks in Work/Private; remove vault task screen     | yes                   | Run `/10x-plan own-tasks` |
 | S-07       | todo-list                | "To do" list with limit and carry-over                  | no                    | Waits on S-01, S-06 |
-| S-08       | work-timer               | Durable work-time counter with corrections              | no                    | Waits on F-01 |
+| S-08       | work-timer               | Durable work-time counter with corrections              | yes                   | Run `/10x-plan work-timer` |
 | S-09       | work-norm-report         | Work-norm report (sums, deviation, needed per day)      | no                    | Waits on S-08 |
 | S-10       | timer-reminders          | Reminders for a long-running or missing counter         | no                    | Waits on S-08 |
 
@@ -275,3 +275,4 @@ Entries below come from this milestone's previous decomposition (archived at `co
 - **F-02: (foundation) the app lives in the tray with a status icon (OK / source error / not running), and any source failure (missing configured path, failed command, logged-out `glab`/`gh`) is reported there and as a Windows notice within 1 minute; screens show the error instead of an empty list.** — Archived 2026-11-21 → `context/archive/2026-11-20-source-health-status/`. Lesson: —.
 - **S-05: User can create a task from the template in the work vault and change its status from the app.** — Archived 2026-11-21 → `context/archive/2026-11-20-work-tasks-from-template/`. Lesson: —.
 - **F-01: (foundation) the app keeps its own data (own tasks, the "To do" list, hidden-issue snapshots, work-time entries) in its app data dir. A write is never half-applied, and the data survives closing the app, restarting Windows and a crash — proven by tests on invented data.** — Archived 2026-11-23 → `context/archive/2026-11-23-app-data-store/`. Lesson: —.
+- **F-02: (foundation) the app runs the logged-in `glab`/`gh` with a fixed program and fixed arguments, read-only, and reports each call as one of: data, unavailable (no VPN/network), logged out, tool missing, error. A fake CLI makes these states testable without any work data.** — Archived 2026-11-23 → `context/archive/2026-11-23-read-only-cli-runner/`. Lesson: —.

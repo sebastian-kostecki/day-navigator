@@ -28,22 +28,22 @@ const REFRESH_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
 /// Managed state of the GitLab list, shared by the refresh thread, the health
 /// round and the commands.
-pub struct GitlabState {
+pub struct GitlabRefreshState {
     snapshot: RwLock<GitlabSnapshot>,
     /// The host and user the kept items came from. Only the refresh thread touches it.
-    kept_host: Mutex<Option<GitlabConfig>>,
+    kept_config: Mutex<Option<GitlabConfig>>,
     /// Wakes the refresh thread for an immediate round.
     wake: mpsc::Sender<()>,
     /// `seq` of the last snapshot pushed to the webview.
     published: Mutex<u64>,
 }
 
-impl GitlabState {
+impl GitlabRefreshState {
     fn new() -> (Self, mpsc::Receiver<()>) {
         let (wake, rx) = mpsc::channel();
-        let state = GitlabState {
+        let state = GitlabRefreshState {
             snapshot: RwLock::new(GitlabSnapshot::starting()),
-            kept_host: Mutex::new(None),
+            kept_config: Mutex::new(None),
             wake,
             published: Mutex::new(0),
         };
@@ -74,24 +74,24 @@ impl GitlabState {
 /// The stored snapshot. Async so it never runs on the main thread.
 #[tauri::command]
 pub async fn gitlab_snapshot(
-    state: tauri::State<'_, GitlabState>,
+    state: tauri::State<'_, GitlabRefreshState>,
 ) -> Result<GitlabSnapshot, String> {
     Ok(state.snapshot())
 }
 
 /// Wakes the refresh thread for an immediate round.
 #[tauri::command]
-pub async fn refresh_gitlab(state: tauri::State<'_, GitlabState>) -> Result<(), String> {
+pub async fn refresh_gitlab(state: tauri::State<'_, GitlabRefreshState>) -> Result<(), String> {
     state
         .wake()
         .map_err(|_| "Wątek odświeżania GitLaba nie działa".to_string())
 }
 
-/// Registers `GitlabState` and returns the wake receiver for `start`. Must run
+/// Registers `GitlabRefreshState` and returns the wake receiver for `start`. Must run
 /// before `runtime::start`: the health thread reads this state in its first
 /// round, and `app.state` panics on unmanaged state.
 pub fn manage(app: &tauri::App) -> mpsc::Receiver<()> {
-    let (state, rx) = GitlabState::new();
+    let (state, rx) = GitlabRefreshState::new();
     app.manage(state);
     rx
 }
@@ -106,6 +106,16 @@ pub fn start(app: &AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Rec
         .spawn(move || refresh_loop(a, settings_path, wake_rx))
     {
         log::error!("gitlab: cannot start refresh thread: {e}");
+        // Never leave the view on "Pobieram…" and the tray green: store an error
+        // the view and the health round both show.
+        let state = app.state::<GitlabRefreshState>();
+        let next = {
+            let prev = state.snapshot();
+            gitlab::next_snapshot(&prev, None, None, Err(GitlabError::ThreadDown), now_ms()).0
+        };
+        *state.write() = next;
+        publish(app, &state);
+        let _ = app.state::<HealthState>().wake.send(());
     }
 }
 
@@ -142,7 +152,7 @@ fn run_fetch(
     Result<gitlab::AssignedItems, GitlabError>,
 ) {
     let Some(path) = settings_path else {
-        return (None, Err(GitlabError::SettingsInvalid));
+        return (None, Err(GitlabError::ConfigDirUnresolved));
     };
     match load_gitlab_settings(path) {
         Ok(Some(config)) => {
@@ -155,7 +165,7 @@ fn run_fetch(
 }
 
 fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliRunner) {
-    let state = app.state::<GitlabState>();
+    let state = app.state::<GitlabRefreshState>();
     let started = Instant::now();
     let before = state.snapshot();
     let before_status = health::gitlab_status(&before);
@@ -171,7 +181,7 @@ fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliR
     let (config, outcome) = run_fetch(settings_path, runner);
 
     let kept = state
-        .kept_host
+        .kept_config
         .lock()
         .unwrap_or_else(|p| p.into_inner())
         .clone();
@@ -179,7 +189,7 @@ fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliR
         let prev = state.snapshot();
         gitlab::next_snapshot(&prev, kept.as_ref(), config.as_ref(), outcome, now_ms())
     };
-    *state.kept_host.lock().unwrap_or_else(|p| p.into_inner()) = next_kept;
+    *state.kept_config.lock().unwrap_or_else(|p| p.into_inner()) = next_kept;
     let after_status = health::gitlab_status(&next);
     let from = state_label(&before);
     let to = state_label(&next);
@@ -200,7 +210,7 @@ fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliR
 
 /// Pushes the stored snapshot to the webview unless a newer one was already
 /// pushed. Re-reading under `published` keeps events ordered by `seq`.
-fn publish(app: &AppHandle, state: &GitlabState) {
+fn publish(app: &AppHandle, state: &GitlabRefreshState) {
     let mut last = state.published.lock().unwrap_or_else(|p| p.into_inner());
     let snap = state.snapshot();
     if snap.seq <= *last {
@@ -246,7 +256,7 @@ mod tests {
 
     #[test]
     fn state_holds_a_starting_snapshot_and_wakes_coalesce() {
-        let (state, rx) = GitlabState::new();
+        let (state, rx) = GitlabRefreshState::new();
         assert_eq!(state.snapshot(), GitlabSnapshot::starting());
         state.wake().unwrap();
         state.wake().unwrap();

@@ -61,6 +61,10 @@ pub enum GitlabError {
     Failed { exit_code: Option<i32> },
     #[error("the gitlab response could not be read")]
     ResponseInvalid,
+    #[error("the app config dir cannot be resolved")]
+    ConfigDirUnresolved,
+    #[error("the gitlab refresh thread is not running")]
+    ThreadDown,
 }
 
 fn exit_code_text(exit_code: &Option<i32>) -> String {
@@ -92,6 +96,8 @@ impl GitlabError {
             GitlabError::ToolMissing => "ToolMissing",
             GitlabError::Failed { .. } => "Failed",
             GitlabError::ResponseInvalid => "ResponseInvalid",
+            GitlabError::ConfigDirUnresolved => "ConfigDirUnresolved",
+            GitlabError::ThreadDown => "ThreadDown",
         }
     }
 
@@ -118,6 +124,11 @@ impl GitlabError {
             GitlabError::ResponseInvalid => {
                 "Nie udało się odczytać odpowiedzi GitLaba".to_string()
             }
+            GitlabError::ConfigDirUnresolved => {
+                "Nie można ustalić folderu konfiguracji aplikacji, więc nie ma skąd odczytać ustawień GitLaba"
+                    .to_string()
+            }
+            GitlabError::ThreadDown => "Wątek odświeżania GitLaba nie działa".to_string(),
         }
     }
 }
@@ -552,6 +563,32 @@ mod tests {
             GitlabError::Unavailable.message_pl(),
             CliError::Unavailable { tool }.message_pl()
         );
+        assert_eq!(
+            serde_json::to_string(&GitlabError::ConfigDirUnresolved).unwrap(),
+            r#"{"kind":"ConfigDirUnresolved"}"#
+        );
+        assert_eq!(GitlabError::ThreadDown.kind(), "ThreadDown");
+        // An unresolved config dir is not a bad "gitlab" block.
+        assert!(
+            !GitlabError::ConfigDirUnresolved
+                .message_pl()
+                .contains("\"gitlab\"")
+        );
+    }
+
+    #[test]
+    fn thread_down_without_config_is_an_error_with_no_items() {
+        let mut prev = GitlabSnapshot::starting();
+        prev.refreshing = true;
+        let (s, k) = next_snapshot(&prev, None, None, Err(GitlabError::ThreadDown), 9);
+        assert!(matches!(
+            s.state,
+            GitlabState::Error { ref kind, .. } if kind == "ThreadDown"
+        ));
+        assert!(!s.refreshing);
+        assert_eq!(s.items, None);
+        assert!(s.seq > prev.seq);
+        assert_eq!(k, None);
     }
 
     // ----- snapshot rule

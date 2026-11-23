@@ -191,6 +191,8 @@ fn short_reason(kind: &str) -> &'static str {
         "ToolMissing" => "brak programu",
         "Failed" => "błąd wywołania",
         "ResponseInvalid" => "nieczytelna odpowiedź",
+        "ConfigDirUnresolved" => "brak folderu konfiguracji",
+        "ThreadDown" => "wątek odświeżania nie działa",
         _ => "błąd źródła",
     }
 }
@@ -742,6 +744,11 @@ mod tests {
         assert_eq!(short_reason("ToolMissing"), "brak programu");
         assert_eq!(short_reason("Failed"), "błąd wywołania");
         assert_eq!(short_reason("ResponseInvalid"), "nieczytelna odpowiedź");
+        assert_eq!(
+            short_reason("ConfigDirUnresolved"),
+            "brak folderu konfiguracji"
+        );
+        assert_eq!(short_reason("ThreadDown"), "wątek odświeżania nie działa");
     }
 
     #[test]

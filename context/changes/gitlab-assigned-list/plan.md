@@ -20,7 +20,7 @@ Roadmap slice S-01, the north star. The user opens the "Praca (GitLab)" view and
 
 ## Desired End State
 
-- `settings.json` accepts `"gitlab": { "host": "<hostname>" }`. The host is validated as a bare hostname and kept only in the user's app config dir.
+- `settings.json` accepts `"gitlab": { "host": "<hostname>", "user": "<login>" }` (`user` optional, added by the addendum below). The host is validated as a bare hostname, the user as a bare login, and both are kept only in the user's app config dir.
 - A background thread fetches the assigned open MRs and issues at startup, every 5 minutes, after a resume from sleep and on demand. It keeps the last successful result in memory only and publishes a snapshot to the webview (`gitlab-changed`) and to source health.
 - The "Praca (GitLab)" view is the default view. It shows two sections, "Merge requesty" then "Zgłoszenia", each newest-updated first, with a count. A title opens the item in the default browser. Without VPN a calm notice replaces the alarm, and the last list stays visible, greyed, with "lista z HH:MM". After a restart without VPN it says "brak udanego odświeżenia od uruchomienia aplikacji".
 - The tray shows GitLab as a source: green with the tooltip "Nawigator dnia — OK (GitLab niedostępny)" without VPN and no toast; red with a toast when `glab` is logged out, missing or fails.
@@ -310,6 +310,8 @@ The app gets one piece of view state and a fixed header with navigation. The Git
 
 At idle the refresh thread sleeps on its channel. Every 5 minutes it starts at most two short `glab` processes; without VPN the first call usually fails fast (DNS) and the second is skipped, and the 20 s runner limit bounds the worst case. The list lives in memory only and is small (tens of items). `--paginate` with `per_page=100` keeps page count low; the runner's 16 MiB stdout cap bounds memory.
 
+Known limit (accepted in the implementation review, F5): the runner classifies a call that passes the 20 s limit as `Unavailable` (an F-02 rule). A paginated fetch that is always too slow therefore shows the calm "GitLab niedostępny" notice, with no tray error or toast. With tens of assigned items this needs one page per call. If it ever matters, a later slice can give timeouts their own kind.
+
 ## Migration Notes
 
 None for data. `settings.json` gains an optional `gitlab` block; existing files without it keep working and show GitLab as not configured.
@@ -323,6 +325,32 @@ None for data. `settings.json` gains an optional `gitlab` block; existing files 
 - Webview subscription pattern: `src/health/useHealth.ts:17-56`
 - Settings loader: `src-tauri/src/settings.rs:36-122`
 - Opener default URLs: tauri-plugin-opener `permissions/allow-default-urls.toml`
+
+## Addendum A: optional `gitlab.user` (commit e52ba30)
+
+Found during manual testing, after the epilogue. A group access token logs `glab` in as a bot, so `scope=assigned_to_me` returns the bot's assignments (none). An optional login switches the two calls to an explicit assignee. This addendum replaces the matching Phase 1 contracts.
+
+- **Settings**: `"gitlab": { "host": "<hostname>", "user": "<login>" | null }`, still `deny_unknown_fields`. `load_gitlab_settings` returns `Result<Option<GitlabConfig>, GitlabError>`, where `GitlabConfig { host: GitlabHost, user: Option<GitlabUser> }`. A bad `user` is `SettingsInvalid` with no detail. The `NotConfigured` / `SettingsInvalid` texts mention the optional `"user"`.
+- **`GitlabUser`** (`cli/mod.rs`): 1–255 characters from `[A-Za-z0-9._-]`, not starting with `-` or `.`, case kept. The error carries no value, and `Debug` prints `GitlabUser(..)`.
+- **Calls**: `GlabAssignedIssues(GitlabHost, Option<GitlabUser>)` / `GlabAssignedMergeRequests(GitlabHost, Option<GitlabUser>)`.
+  - Without a user, the arguments are unchanged.
+  - With a user, the endpoint is `issues?scope=all&state=opened&assignee_username=<login>&per_page=100`, and `merge_requests?…` for MRs.
+  - `args()` returns `Vec<String>`.
+  - `examples()` has 8 entries (each GitLab variant with and without a user), and the exhaustiveness test expects `[1,1,1,1,2,2]`.
+- **Guard**: the endpoint is either one of the two fixed endpoints, or exactly `<fixed prefix><login><fixed suffix>`. The login is checked against an allow-list written out in the test, not by `GitlabUser::parse`. The endpoint must have exactly one `?` and three `&`, and none of `# % : / +`, whitespace or control characters. A proptest checks that every login `GitlabUser::parse` accepts also passes the guard. These guard details were added by the review fix for F3.
+- **Fetch and snapshot**: `fetch_assigned(runner, &GitlabConfig)`. Kept items belong to the whole config (host, user); a change of either drops them. The managed field is `kept_config`.
+- **Visibility caveat**: with a bot or group token, `scope=all&assignee_username` lists only the items that token can see. Assignments outside the token's group do not appear. This is a GitLab permission limit, not a filter.
+
+## Addendum B: implementation review fixes
+
+From `reviews/impl-review.md`:
+
+- **F2**: the tray "Sprawdź teraz" and `check_health_now` also wake the GitLab thread. A logged-out `glab` then reaches the tray on demand.
+- **F4**: if the `gitlab-refresh` thread cannot start, the snapshot becomes `error` / `ThreadDown`, so the view and the tray show it.
+- **F6**: an unresolved config dir is `GitlabError::ConfigDirUnresolved`, not `SettingsInvalid`.
+- **F7**: the managed state is `GitlabRefreshState`; `gitlab::GitlabState` stays the snapshot state tag.
+- **F8**: in the error state, the footer no longer repeats the last-success time.
+- **F9**: the capability grants only `opener:allow-open-url` scoped to `https://*`, not `opener:default`.
 
 ## Progress
 
@@ -339,7 +367,7 @@ None for data. `settings.json` gains an optional `gitlab` block; existing files 
 
 #### Manual
 
-- [ ] 1.5 Reviewer confirms the two new argument lists are GET-only and the guard test would reject a write flag, a non-allow-listed endpoint or a host with a scheme
+- [x] 1.5 Reviewer confirms the two new argument lists are GET-only and the guard test would reject a write flag, a non-allow-listed endpoint or a host with a scheme
 
 ### Phase 2: Background refresh, source health and tray
 
@@ -350,10 +378,10 @@ None for data. `settings.json` gains an optional `gitlab` block; existing files 
 
 #### Manual
 
-- [ ] 2.3 With VPN off and `gitlab.host` set, the tray stays green with the "GitLab niedostępny" tooltip and no toast
-- [ ] 2.4 A logged-out `glab` turns the tray red with a toast; logging back in recovers
-- [ ] 2.5 No console window flashes when the app runs `glab`
-- [ ] 2.6 The app log contains GitLab state kinds only: no hostname, title, project path or URL
+- [x] 2.3 With VPN off and `gitlab.host` set, the tray stays green with the "GitLab niedostępny" tooltip and no toast
+- [x] 2.4 A logged-out `glab` turns the tray red with a toast; logging back in recovers
+- [x] 2.5 No console window flashes when the app runs `glab`
+- [x] 2.6 The app log contains GitLab state kinds only: no hostname, title, project path or URL
 
 ### Phase 3: Navigation, header and the "Praca (GitLab)" view
 
@@ -364,9 +392,9 @@ None for data. `settings.json` gains an optional `gitlab` block; existing files 
 
 #### Manual
 
-- [ ] 3.3 With VPN on, the view lists assigned open MRs and issues in two sections, newest first, matching GitLab
-- [ ] 3.4 Clicking a title opens the item in the default browser
-- [ ] 3.5 VPN off + "Odśwież" shows the calm notice with "lista z HH:MM" and the greyed list
-- [ ] 3.6 Restart without VPN shows "brak udanego odświeżenia od uruchomienia aplikacji" and no list
-- [ ] 3.7 A logged-out `glab` shows "Błąd GitLaba" with the last successful time
-- [ ] 3.8 Navigation switches between all three views and the header stays visible
+- [x] 3.3 With VPN on, the view lists assigned open MRs and issues in two sections, newest first, matching GitLab
+- [x] 3.4 Clicking a title opens the item in the default browser
+- [x] 3.5 VPN off + "Odśwież" shows the calm notice with "lista z HH:MM" and the greyed list
+- [x] 3.6 Restart without VPN shows "brak udanego odświeżenia od uruchomienia aplikacji" and no list
+- [x] 3.7 A logged-out `glab` shows "Błąd GitLaba" with the last successful time
+- [x] 3.8 Navigation switches between all three views and the header stays visible

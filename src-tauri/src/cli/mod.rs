@@ -364,17 +364,34 @@ mod tests {
     const BAD_CHARS: &str = "&|<>^%\"`;$";
     const ALLOWED_ENDPOINTS: &[&str] = &[ASSIGNED_ISSUES_ENDPOINT, ASSIGNED_MRS_ENDPOINT];
 
-    /// A fixed endpoint, or `<prefix><valid login><suffix>`.
+    /// The login allow-list, written out here on purpose: the guard must not
+    /// trust `GitlabUser::parse`, so a looser validator fails this test.
+    fn guard_login_ok(login: &str) -> bool {
+        (1..=255).contains(&login.len())
+            && !login.starts_with(['-', '.'])
+            && login
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+    }
+
+    /// A fixed endpoint, or `<prefix><valid login><suffix>` with one query and
+    /// exactly its three fixed parameters.
     fn endpoint_allowed(endpoint: &str) -> bool {
         if ALLOWED_ENDPOINTS.contains(&endpoint) {
             return true;
         }
-        [ISSUES_USER_PREFIX, MRS_USER_PREFIX].iter().any(|prefix| {
-            endpoint
-                .strip_prefix(prefix)
-                .and_then(|rest| rest.strip_suffix(USER_SUFFIX))
-                .is_some_and(|login| GitlabUser::parse(login).is_ok())
-        })
+        let shape_ok = endpoint.matches('?').count() == 1
+            && endpoint.matches('&').count() == 3
+            && !endpoint
+                .chars()
+                .any(|c| c.is_whitespace() || c.is_control() || "#%:/+".contains(c));
+        shape_ok
+            && [ISSUES_USER_PREFIX, MRS_USER_PREFIX].iter().any(|prefix| {
+                endpoint
+                    .strip_prefix(prefix)
+                    .and_then(|rest| rest.strip_suffix(USER_SUFFIX))
+                    .is_some_and(guard_login_ok)
+            })
     }
 
     /// The read-only guard on one argument list.
@@ -469,7 +486,10 @@ mod tests {
             // empty user
             format!("{ISSUES_USER_PREFIX}{USER_SUFFIX}"),
         ];
-        for bad_user in ["a&b", "a/b", "a b", "-a", ".a", "a?b", "a=b", "a%20b"] {
+        for bad_user in [
+            "a&b", "a/b", "a b", "-a", ".a", "a?b", "a=b", "a%20b", "a#b", ":id", "a:b", "a+b",
+            "a,b", "a[b]",
+        ] {
             bad_endpoints.push(format!("{ISSUES_USER_PREFIX}{bad_user}{USER_SUFFIX}"));
             bad_endpoints.push(format!("{MRS_USER_PREFIX}{bad_user}{USER_SUFFIX}"));
         }
@@ -517,12 +537,61 @@ mod tests {
             "a?b",
             "a=b",
             "a@b",
+            "a#b",
+            "a:b",
+            ":user",
+            "a+b",
+            "a,b",
+            "a[b]",
             "ä",
             "a\nb",
             too_long.as_str(),
         ];
         for b in bad {
             assert!(GitlabUser::parse(b).is_err(), "{b:?}");
+        }
+    }
+
+    /// Whether both user-form calls built from `login` pass the guard.
+    /// `None` when `GitlabUser::parse` refuses the login.
+    fn user_calls_pass_the_guard(login: &str) -> Option<bool> {
+        let user = GitlabUser::parse(login).ok()?;
+        Some(
+            [
+                CliCall::GlabAssignedIssues(example_host(), Some(user.clone())),
+                CliCall::GlabAssignedMergeRequests(example_host(), Some(user)),
+            ]
+            .iter()
+            .all(|call| {
+                let args = call.args();
+                let args: Vec<&str> = args.iter().map(String::as_str).collect();
+                check_read_only(&args).is_ok()
+            }),
+        )
+    }
+
+    /// Every character `GitlabUser::parse` accepts must pass the independent
+    /// guard, so widening the validator by one character breaks this test.
+    #[test]
+    fn every_char_the_validator_accepts_passes_the_guard() {
+        for c in (0u8..=127).map(char::from).chain(['ä', 'ł', '\u{2028}']) {
+            for login in [format!("a{c}b"), c.to_string()] {
+                if let Some(passes) = user_calls_pass_the_guard(&login) {
+                    assert!(passes, "{login:?}");
+                }
+            }
+        }
+    }
+
+    proptest::proptest! {
+        /// Mostly valid logins with at most one odd character in the middle.
+        #[test]
+        fn every_accepted_login_passes_the_guard(
+            s in "[a-zA-Z0-9]{1,6}[._#:+&?/%=, -]?[a-zA-Z0-9._-]{0,6}"
+        ) {
+            if let Some(passes) = user_calls_pass_the_guard(&s) {
+                proptest::prop_assert!(passes, "{:?}", s);
+            }
         }
     }
 

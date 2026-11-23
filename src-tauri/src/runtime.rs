@@ -22,6 +22,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::VaultState;
+use crate::github_refresh::GithubRefreshState;
 use crate::gitlab_refresh::GitlabRefreshState;
 use crate::health::{self, HealthSnapshot, Overall, SourceStatus};
 use crate::store::StoreHandle;
@@ -101,15 +102,18 @@ pub async fn health_status(state: tauri::State<'_, HealthState>) -> Result<Healt
     Ok(state.snapshot())
 }
 
-/// Wakes the check thread for an immediate round, and the GitLab thread so the
-/// health round sees a fresh GitLab status (it wakes health again on a change).
+/// Wakes the check thread for an immediate round, and the GitLab and GitHub
+/// threads so the health round sees a fresh status (each wakes health again on a
+/// change).
 #[tauri::command]
 pub async fn check_health_now(
     state: tauri::State<'_, HealthState>,
     gitlab: tauri::State<'_, GitlabRefreshState>,
+    github: tauri::State<'_, GithubRefreshState>,
 ) -> Result<(), String> {
-    // A dead GitLab thread is already shown as its own source error.
+    // A dead refresh thread is already shown as its own source error.
     let _ = gitlab.wake();
+    let _ = github.wake();
     state
         .wake
         .send(())
@@ -160,6 +164,7 @@ pub fn build_tray(app: &tauri::App) -> tauri::Result<mpsc::Receiver<()>> {
             "open" => show_main(app),
             "check" => {
                 let _ = app.state::<GitlabRefreshState>().wake();
+                let _ = app.state::<GithubRefreshState>().wake();
                 let _ = app.state::<HealthState>().wake.send(());
             }
             "quit" => app.exit(0),
@@ -249,6 +254,7 @@ fn probe_round(
     store: &StoreHandle,
     today: NaiveDate,
     gitlab: Option<SourceStatus>,
+    github: Option<SourceStatus>,
 ) -> ProbeResult {
     let (registry, mut sources) = match settings_path {
         Some(p) => health::probe(p),
@@ -257,6 +263,8 @@ fn probe_round(
     sources.push(health::store_status(store, today));
     // Absent until the first GitLab round has finished.
     sources.extend(gitlab);
+    // Likewise for GitHub.
+    sources.extend(github);
     (registry, sources)
 }
 
@@ -288,6 +296,7 @@ fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut 
         &app.state::<StoreHandle>(),
         Local::now().date_naive(),
         health::gitlab_status(&app.state::<GitlabRefreshState>().snapshot()),
+        health::github_status(&app.state::<GithubRefreshState>().snapshot()),
     );
     // Stamp as soon as the probe returns. The probe is the part that can hang;
     // stamping after the blocking tray calls below let the watchdog flag a
@@ -345,6 +354,7 @@ fn watchdog_loop(app: AppHandle) {
             resumed_at = Some(now);
             let _ = state.wake.send(());
             let _ = app.state::<GitlabRefreshState>().wake();
+            let _ = app.state::<GithubRefreshState>().wake();
         }
 
         let action = health::watchdog_step(

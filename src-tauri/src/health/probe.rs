@@ -6,6 +6,7 @@ use std::path::Path;
 use chrono::NaiveDate;
 
 use super::{SourceId, SourceState, SourceStatus};
+use crate::github::{GithubSnapshot, GithubState};
 use crate::gitlab::{GitlabSnapshot, GitlabState};
 use crate::settings::load_settings;
 use crate::store::{StoreError, StoreHandle};
@@ -94,6 +95,44 @@ pub fn gitlab_status(snapshot: &GitlabSnapshot) -> Option<SourceStatus> {
     Some(SourceStatus {
         id: SourceId::Gitlab,
         label: "GitLab".to_string(),
+        state,
+    })
+}
+
+/// The GitHub source derived from the last snapshot. `None` while the first
+/// round has not finished. A successful round with any failing repo is an
+/// error of the fixed kind `RepoFailed`, so the status (and its transition) stays
+/// stable while the set of failing repos or their kinds change. Messages never
+/// carry repo names.
+pub fn github_status(snapshot: &GithubSnapshot) -> Option<SourceStatus> {
+    let state = match &snapshot.state {
+        GithubState::Starting => return None,
+        GithubState::Ok => {
+            let failed = snapshot.repos.iter().filter(|r| r.error.is_some()).count();
+            if failed == 0 {
+                SourceState::Ok
+            } else {
+                SourceState::Error {
+                    kind: "RepoFailed".to_string(),
+                    message: format!(
+                        "Nie udało się pobrać {failed} z {} repozytoriów GitHub",
+                        snapshot.repos.len()
+                    ),
+                }
+            }
+        }
+        GithubState::NotConfigured => SourceState::NotConfigured,
+        GithubState::Unavailable { message } => SourceState::Unavailable {
+            message: message.clone(),
+        },
+        GithubState::Error { kind, message } => SourceState::Error {
+            kind: kind.clone(),
+            message: message.clone(),
+        },
+    };
+    Some(SourceStatus {
+        id: SourceId::Github,
+        label: "GitHub".to_string(),
         state,
     })
 }
@@ -320,6 +359,78 @@ mod tests {
                 message
             }
         );
+    }
+
+    #[test]
+    fn github_snapshot_maps_to_a_source() {
+        use crate::github::{GithubError, RepoErrorView, RepoView};
+        let snap = |state: GithubState| GithubSnapshot {
+            state,
+            ..GithubSnapshot::starting()
+        };
+        assert_eq!(github_status(&GithubSnapshot::starting()), None);
+
+        let s = github_status(&snap(GithubState::Ok)).unwrap();
+        assert_eq!(s.id, SourceId::Github);
+        assert_eq!(s.label, "GitHub");
+        assert_eq!(s.state, SourceState::Ok);
+
+        let s = github_status(&snap(GithubState::NotConfigured)).unwrap();
+        assert_eq!(s.state, SourceState::NotConfigured);
+
+        let message = GithubError::Unavailable.message_pl();
+        let s = github_status(&snap(GithubState::Unavailable {
+            message: message.clone(),
+        }))
+        .unwrap();
+        assert_eq!(s.state, SourceState::Unavailable { message });
+
+        let message = GithubError::LoggedOut.message_pl();
+        let s = github_status(&snap(GithubState::Error {
+            kind: "LoggedOut".to_string(),
+            message: message.clone(),
+        }))
+        .unwrap();
+        assert_eq!(
+            s.state,
+            SourceState::Error {
+                kind: "LoggedOut".to_string(),
+                message
+            }
+        );
+
+        // A repo error under an `ok` round is red with a fixed kind and a
+        // message without repo names, whatever the per-repo kind.
+        let repo = |name: &str, kind: Option<&str>| RepoView {
+            repo: name.to_string(),
+            issues: vec![],
+            error: kind.map(|k| RepoErrorView {
+                kind: k.to_string(),
+                message: "m".to_string(),
+            }),
+        };
+        let with = |repos: Vec<RepoView>| GithubSnapshot {
+            repos,
+            ..snap(GithubState::Ok)
+        };
+        let all_ok = with(vec![repo("octo-test/alpha", None)]);
+        assert_eq!(github_status(&all_ok).unwrap().state, SourceState::Ok);
+        let one = with(vec![
+            repo("octo-test/alpha", Some("Failed")),
+            repo("octo-test/beta", None),
+            repo("octo-test/gamma", None),
+        ]);
+        let other_kind = with(vec![
+            repo("octo-test/alpha", None),
+            repo("octo-test/beta", Some("Truncated")),
+            repo("octo-test/gamma", None),
+        ]);
+        let expected = SourceState::Error {
+            kind: "RepoFailed".to_string(),
+            message: "Nie udało się pobrać 1 z 3 repozytoriów GitHub".to_string(),
+        };
+        assert_eq!(github_status(&one).unwrap().state, expected);
+        assert_eq!(github_status(&other_kind).unwrap().state, expected);
     }
 
     #[test]

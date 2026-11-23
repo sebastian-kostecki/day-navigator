@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod github;
+pub mod github_refresh;
 pub mod gitlab;
 pub mod gitlab_refresh;
 pub mod health;
@@ -181,10 +182,12 @@ pub fn run() {
             app.manage(store::StoreHandle::new(data_dir));
             // Managed before the health thread starts: its first round reads it.
             let gitlab_rx = gitlab_refresh::manage(app);
+            let github_rx = github_refresh::manage(app);
             let wake_rx = runtime::build_tray(app)?;
             runtime::start(app.handle(), settings_path.clone(), wake_rx);
-            // After `runtime::start`: the refresh thread wakes `HealthState`.
-            gitlab_refresh::start(app.handle(), settings_path, gitlab_rx);
+            // After `runtime::start`: the refresh threads wake `HealthState`.
+            gitlab_refresh::start(app.handle(), settings_path.clone(), gitlab_rx);
+            github_refresh::start(app.handle(), settings_path, github_rx);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -200,6 +203,8 @@ pub fn run() {
             runtime::check_health_now,
             gitlab_refresh::gitlab_snapshot,
             gitlab_refresh::refresh_gitlab,
+            github_refresh::github_snapshot,
+            github_refresh::refresh_github,
             hidden_issues::commands::hide_gitlab_issue,
             hidden_issues::commands::unhide_gitlab_issue,
             hidden_issues::commands::dismiss_gitlab_change,

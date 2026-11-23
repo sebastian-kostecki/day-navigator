@@ -9,7 +9,7 @@ use serde::{Serialize, Serializer};
 
 use crate::vault::Space;
 
-pub use probe::{gitlab_status, probe, store_status, unresolved_config_dir};
+pub use probe::{github_status, gitlab_status, probe, store_status, unresolved_config_dir};
 
 /// Longest tooltip the Windows tray accepts, in UTF-16 units (`szTip` holds 128
 /// including the terminator).
@@ -27,12 +27,15 @@ pub enum SourceId {
     AppData,
     /// Assigned GitLab issues and merge requests ("GitLab").
     Gitlab,
+    /// Assigned GitHub issues ("GitHub").
+    Github,
 }
 
 impl SourceId {
     pub fn key(&self) -> String {
         match self {
             SourceId::Gitlab => "gitlab".to_string(),
+            SourceId::Github => "github".to_string(),
             SourceId::Settings => "settings".to_string(),
             SourceId::Vault(s) => format!("vault:{s}"),
             SourceId::Exclusions(s) => format!("exclusions:{s}"),
@@ -193,6 +196,8 @@ fn short_reason(kind: &str) -> &'static str {
         "ResponseInvalid" => "nieczytelna odpowiedź",
         "ConfigDirUnresolved" => "brak folderu konfiguracji",
         "ThreadDown" => "wątek odświeżania nie działa",
+        "Truncated" => "lista niepełna",
+        "RepoFailed" => "błąd repozytorium",
         _ => "błąd źródła",
     }
 }
@@ -749,6 +754,57 @@ mod tests {
             "brak folderu konfiguracji"
         );
         assert_eq!(short_reason("ThreadDown"), "wątek odświeżania nie działa");
+    }
+
+    const H: SourceId = SourceId::Github;
+
+    #[test]
+    fn github_source_key_and_short_reasons() {
+        assert_eq!(H.key(), "github");
+        assert_eq!(serde_json::to_string(&H).unwrap(), "\"github\"");
+        assert_eq!(short_reason("Truncated"), "lista niepełna");
+        assert_eq!(short_reason("RepoFailed"), "błąd repozytorium");
+    }
+
+    #[test]
+    fn github_unavailable_is_silent_and_tooltip_names_it() {
+        let ok = vec![st(H, "GitHub", SourceState::Ok)];
+        let down = vec![unavailable(H, "GitHub")];
+        assert!(transitions(&[], &down).is_empty());
+        assert!(transitions(&ok, &down).is_empty());
+        assert!(transitions(&down, &ok).is_empty());
+        let src = vec![st(W, "V", SourceState::Ok), unavailable(H, "GitHub")];
+        assert_eq!(overall(&src, false, true), Overall::Ok);
+        assert_eq!(
+            tooltip(Overall::Ok, &src),
+            "Nawigator dnia — OK (GitHub niedostępny)"
+        );
+    }
+
+    #[test]
+    fn github_logged_out_recovery_and_repo_error_are_transitions() {
+        let ok = vec![st(H, "GitHub", SourceState::Ok)];
+        let bad = vec![err(H, "GitHub", "LoggedOut", "m")];
+        let entered = transitions(&ok, &bad);
+        assert_eq!(entered.len(), 1);
+        assert_eq!(notice_for(&entered).unwrap().body, "GitHub: wylogowano");
+        let rec = transitions(&bad, &ok);
+        assert_eq!(rec.len(), 1);
+        assert_eq!(rec[0].to_kind, None);
+
+        // A repo error is red; a changing set of failing repos keeps one kind,
+        // so it is one transition in and one out.
+        let repo_bad = vec![err(H, "GitHub", "RepoFailed", "1 z 3")];
+        let repo_bad_more = vec![err(H, "GitHub", "RepoFailed", "2 z 3")];
+        assert_eq!(overall(&repo_bad, false, true), Overall::Error);
+        let entered = transitions(&ok, &repo_bad);
+        assert_eq!(entered.len(), 1);
+        assert_eq!(
+            notice_for(&entered).unwrap().body,
+            "GitHub: błąd repozytorium"
+        );
+        assert!(transitions(&repo_bad, &repo_bad_more).is_empty());
+        assert_eq!(transitions(&repo_bad, &ok).len(), 1);
     }
 
     #[test]

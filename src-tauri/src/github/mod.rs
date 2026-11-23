@@ -12,7 +12,8 @@ use std::cmp::Reverse;
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 
-use crate::cli::{CliError, GithubRepo, Tool};
+use crate::cli::{CliError, GithubConfig, GithubRepo, Tool};
+use fetch::RepoResult;
 
 /// One open issue assigned to the `gh` account.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -182,6 +183,141 @@ pub fn parse_issues(repo: &GithubRepo, stdout: &str) -> Result<Vec<GithubIssue>,
     Ok(keyed.into_iter().map(|(_, issue)| issue).collect())
 }
 
+// --------------------------------------------------------------- snapshot
+
+/// What the view should say about the source. No repo name is part of it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(
+    tag = "state",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum GithubState {
+    Starting,
+    Ok,
+    NotConfigured,
+    Unavailable { message: String },
+    Error { kind: String, message: String },
+}
+
+/// Why one repository has no list. Fixed text only.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoErrorView {
+    pub kind: String,
+    pub message: String,
+}
+
+/// One repository of the last successful round.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepoView {
+    /// `owner/name` as written in settings.
+    pub repo: String,
+    pub issues: Vec<GithubIssue>,
+    pub error: Option<RepoErrorView>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GithubSnapshot {
+    pub state: GithubState,
+    /// Last successful round in this session (memory only), in settings order.
+    pub repos: Vec<RepoView>,
+    pub last_success_ms: Option<u64>,
+    pub checked_at_ms: Option<u64>,
+    pub refreshing: bool,
+    pub seq: u64,
+}
+
+impl GithubSnapshot {
+    /// Before the first round has finished.
+    pub fn starting() -> Self {
+        GithubSnapshot {
+            state: GithubState::Starting,
+            repos: Vec::new(),
+            last_success_ms: None,
+            checked_at_ms: None,
+            refreshing: false,
+            seq: 0,
+        }
+    }
+}
+
+fn repo_view(result: RepoResult) -> RepoView {
+    let (issues, error) = match result.outcome {
+        Ok(issues) => (issues, None),
+        Err(e) => (
+            Vec::new(),
+            Some(RepoErrorView {
+                kind: e.kind().to_string(),
+                message: e.message_pl(),
+            }),
+        ),
+    };
+    RepoView {
+        repo: result.repo.as_str().to_string(),
+        issues,
+        error,
+    }
+}
+
+/// The next snapshot after one round, and the config the kept repos now belong to.
+///
+/// `kept` is the config the previous snapshot's repos came from; `config` is
+/// this round's config (`None` when not configured or invalid). A successful
+/// round, even with per-repo errors, replaces `repos` and `last_success_ms`.
+/// `Unavailable` and the error kinds keep them only while the repo list is
+/// unchanged; `NotConfigured`, `SettingsInvalid` and a changed list drop them.
+/// `seq` always increases.
+pub fn next_snapshot(
+    prev: &GithubSnapshot,
+    kept: Option<&GithubConfig>,
+    config: Option<&GithubConfig>,
+    outcome: Result<Vec<RepoResult>, GithubError>,
+    now_ms: u64,
+) -> (GithubSnapshot, Option<GithubConfig>) {
+    let mut next = GithubSnapshot {
+        state: GithubState::Ok,
+        repos: Vec::new(),
+        last_success_ms: None,
+        checked_at_ms: Some(now_ms),
+        refreshing: false,
+        seq: prev.seq + 1,
+    };
+    let error = match outcome {
+        Ok(results) => {
+            next.repos = results.into_iter().map(repo_view).collect();
+            next.last_success_ms = Some(now_ms);
+            return (next, config.cloned());
+        }
+        Err(e) => e,
+    };
+    let keeps = config.is_some()
+        && config == kept
+        && !matches!(
+            error,
+            GithubError::NotConfigured | GithubError::SettingsInvalid
+        );
+    next.state = match &error {
+        GithubError::NotConfigured => GithubState::NotConfigured,
+        GithubError::Unavailable => GithubState::Unavailable {
+            message: error.message_pl(),
+        },
+        other => GithubState::Error {
+            kind: other.kind().to_string(),
+            message: other.message_pl(),
+        },
+    };
+    if keeps {
+        next.repos = prev.repos.clone();
+        next.last_success_ms = prev.last_success_ms;
+        (next, kept.cloned())
+    } else {
+        (next, None)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -323,6 +459,230 @@ mod tests {
             }),
             GithubError::Failed { exit_code: Some(1) }
         );
+    }
+
+    // ---- snapshot
+
+    fn config(repos: &[&str]) -> GithubConfig {
+        GithubConfig {
+            repos: repos
+                .iter()
+                .map(|r| GithubRepo::parse(r).unwrap())
+                .collect(),
+        }
+    }
+
+    fn issue(repo: &str, n: u64) -> GithubIssue {
+        GithubIssue {
+            repo: repo.to_string(),
+            number: n,
+            reference: format!("{}#{n}", repo.to_ascii_lowercase()),
+            title: format!("Invented {n}"),
+            web_url: None,
+            updated_at: "2026-03-03T08:00:00Z".to_string(),
+        }
+    }
+
+    fn result(repo: &str, outcome: Result<Vec<GithubIssue>, GithubError>) -> RepoResult {
+        RepoResult {
+            repo: GithubRepo::parse(repo).unwrap(),
+            outcome,
+        }
+    }
+
+    fn good_round() -> Vec<RepoResult> {
+        vec![
+            result("octo-test/alpha", Ok(vec![issue("octo-test/alpha", 1)])),
+            result("octo-test/beta", Ok(vec![])),
+        ]
+    }
+
+    fn prev_with_list() -> (GithubSnapshot, GithubConfig) {
+        let cfg = config(&["octo-test/alpha", "octo-test/beta"]);
+        let (snap, kept) = next_snapshot(
+            &GithubSnapshot::starting(),
+            None,
+            Some(&cfg),
+            Ok(good_round()),
+            100,
+        );
+        assert_eq!(kept, Some(cfg.clone()));
+        (snap, cfg)
+    }
+
+    #[test]
+    fn starting_snapshot_is_empty() {
+        let s = GithubSnapshot::starting();
+        assert_eq!(s.state, GithubState::Starting);
+        assert!(s.repos.is_empty());
+        assert_eq!((s.seq, s.last_success_ms, s.checked_at_ms), (0, None, None));
+        assert!(!s.refreshing);
+    }
+
+    #[test]
+    fn success_replaces_repos_and_keeps_per_repo_errors() {
+        let (prev, cfg) = prev_with_list();
+        let round = vec![
+            result(
+                "octo-test/alpha",
+                Err(GithubError::Failed { exit_code: Some(1) }),
+            ),
+            result("octo-test/beta", Ok(vec![issue("octo-test/beta", 5)])),
+        ];
+        let (next, kept) = next_snapshot(&prev, Some(&cfg), Some(&cfg), Ok(round), 200);
+        assert_eq!(next.state, GithubState::Ok);
+        assert_eq!(next.seq, prev.seq + 1);
+        assert_eq!(next.last_success_ms, Some(200));
+        assert_eq!(next.checked_at_ms, Some(200));
+        assert!(!next.refreshing);
+        assert_eq!(kept, Some(cfg));
+        assert_eq!(next.repos.len(), 2);
+        let err = next.repos[0].error.as_ref().unwrap();
+        assert_eq!(err.kind, "Failed");
+        assert!(next.repos[0].issues.is_empty());
+        assert_eq!(next.repos[1].issues[0].number, 5);
+        assert!(next.repos[1].error.is_none());
+    }
+
+    #[test]
+    fn unavailable_keeps_the_list_while_the_repos_are_unchanged() {
+        let (prev, cfg) = prev_with_list();
+        let (next, kept) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            Some(&cfg),
+            Err(GithubError::Unavailable),
+            300,
+        );
+        assert_eq!(
+            next.state,
+            GithubState::Unavailable {
+                message: GithubError::Unavailable.message_pl()
+            }
+        );
+        assert_eq!(next.repos, prev.repos);
+        assert_eq!(next.last_success_ms, Some(100));
+        assert_eq!(next.checked_at_ms, Some(300));
+        assert_eq!(kept, Some(cfg));
+    }
+
+    #[test]
+    fn whole_source_errors_keep_the_list_with_their_kind() {
+        let (prev, cfg) = prev_with_list();
+        for e in [GithubError::LoggedOut, GithubError::ToolMissing] {
+            let (next, kept) = next_snapshot(&prev, Some(&cfg), Some(&cfg), Err(e.clone()), 300);
+            assert_eq!(
+                next.state,
+                GithubState::Error {
+                    kind: e.kind().to_string(),
+                    message: e.message_pl()
+                }
+            );
+            assert_eq!(next.repos, prev.repos);
+            assert_eq!(next.last_success_ms, Some(100));
+            assert_eq!(kept, Some(cfg.clone()));
+        }
+    }
+
+    #[test]
+    fn a_changed_repo_list_drops_the_kept_list() {
+        let (prev, cfg) = prev_with_list();
+        let other = config(&["octo-test/alpha"]);
+        for e in [GithubError::Unavailable, GithubError::LoggedOut] {
+            let (next, kept) = next_snapshot(&prev, Some(&cfg), Some(&other), Err(e), 300);
+            assert!(next.repos.is_empty());
+            assert_eq!(next.last_success_ms, None);
+            assert_eq!(kept, None);
+        }
+    }
+
+    #[test]
+    fn not_configured_and_invalid_settings_drop_the_list() {
+        let (prev, cfg) = prev_with_list();
+        let (next, kept) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            None,
+            Err(GithubError::NotConfigured),
+            300,
+        );
+        assert_eq!(next.state, GithubState::NotConfigured);
+        assert!(next.repos.is_empty());
+        assert_eq!(kept, None);
+
+        // Even with an unchanged config, these two never keep.
+        for e in [GithubError::NotConfigured, GithubError::SettingsInvalid] {
+            let (next, kept) = next_snapshot(&prev, Some(&cfg), Some(&cfg), Err(e), 300);
+            assert!(next.repos.is_empty());
+            assert_eq!(next.last_success_ms, None);
+            assert_eq!(kept, None);
+        }
+        let (next, _) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            None,
+            Err(GithubError::SettingsInvalid),
+            300,
+        );
+        assert_eq!(
+            next.state,
+            GithubState::Error {
+                kind: "SettingsInvalid".to_string(),
+                message: GithubError::SettingsInvalid.message_pl()
+            }
+        );
+    }
+
+    #[test]
+    fn a_failure_without_a_config_never_keeps() {
+        let (prev, cfg) = prev_with_list();
+        let (next, kept) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            None,
+            Err(GithubError::ConfigDirUnresolved),
+            300,
+        );
+        assert!(next.repos.is_empty());
+        assert_eq!(kept, None);
+    }
+
+    #[test]
+    fn seq_always_increases() {
+        let (prev, cfg) = prev_with_list();
+        let (a, _) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            Some(&cfg),
+            Err(GithubError::Unavailable),
+            1,
+        );
+        let (b, _) = next_snapshot(&a, None, None, Err(GithubError::NotConfigured), 2);
+        assert!(a.seq > prev.seq && b.seq > a.seq);
+    }
+
+    #[test]
+    fn snapshot_serializes_camel_case_without_repo_names_in_errors() {
+        let cfg = config(&["octo-test/alpha"]);
+        let round = vec![result("octo-test/alpha", Err(GithubError::Truncated))];
+        let (snap, _) = next_snapshot(&GithubSnapshot::starting(), None, Some(&cfg), Ok(round), 9);
+        let v = serde_json::to_value(&snap).unwrap();
+        assert_eq!(v["state"], serde_json::json!({"state": "ok"}));
+        assert_eq!(v["lastSuccessMs"], 9);
+        assert_eq!(v["repos"][0]["repo"], "octo-test/alpha");
+        assert_eq!(v["repos"][0]["error"]["kind"], "Truncated");
+        let message = v["repos"][0]["error"]["message"].as_str().unwrap();
+        assert!(!message.contains("octo"), "{message}");
+        let un = serde_json::to_value(GithubState::Unavailable {
+            message: "m".into(),
+        })
+        .unwrap();
+        assert_eq!(
+            un,
+            serde_json::json!({"state": "unavailable", "message": "m"})
+        );
+        let nc = serde_json::to_value(GithubState::NotConfigured).unwrap();
+        assert_eq!(nc, serde_json::json!({"state": "notConfigured"}));
     }
 
     #[test]

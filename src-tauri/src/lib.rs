@@ -1,4 +1,5 @@
 pub mod cli;
+pub mod gitlab;
 pub mod health;
 pub mod runtime;
 pub mod settings;

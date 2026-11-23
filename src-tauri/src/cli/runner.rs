@@ -94,7 +94,7 @@ impl CliRunner {
         }
     }
 
-    pub fn run(&self, call: CliCall) -> Result<String, CliError> {
+    pub fn run(&self, call: &CliCall) -> Result<String, CliError> {
         let started = Instant::now();
         let result = self.run_inner(call);
         let ms = started.elapsed().as_millis();
@@ -105,7 +105,7 @@ impl CliRunner {
         result
     }
 
-    fn run_inner(&self, call: CliCall) -> Result<String, CliError> {
+    fn run_inner(&self, call: &CliCall) -> Result<String, CliError> {
         let tool = call.tool();
         let failed = |exit_code| CliError::Failed { tool, exit_code };
 

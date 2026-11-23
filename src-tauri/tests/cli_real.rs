@@ -7,7 +7,7 @@ use day_navigator_lib::cli::{CliCall, CliRunner};
 #[ignore = "manual: runs the real glab and gh"]
 fn real_clis_report_outcome_kinds() {
     let runner = CliRunner::system();
-    for &call in CliCall::ALL {
+    for call in CliCall::ALL {
         let kind = match runner.run(call) {
             Ok(_) => "data",
             Err(e) => e.kind(),

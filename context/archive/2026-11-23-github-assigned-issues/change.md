@@ -1,10 +1,10 @@
 ---
 change_id: github-assigned-issues
 title: Github assigned issues
-status: impl_reviewed
+status: archived
 created: 2026-11-23
 updated: 2026-11-23
-archived_at: null
+archived_at: 2026-11-23T15:16:36Z
 ---
 
 ## Notes

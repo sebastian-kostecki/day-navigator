@@ -459,20 +459,20 @@ Opening the store applies v3 automatically. An older app build refuses the v3 da
 
 #### Automated
 
-- [x] 1.1 CLI guard and argument tests pass, including the new shape, per-character and proptest cases
-- [x] 1.2 Fetch and runner integration tests pass, including notes scenarios and argv echo
-- [x] 1.3 Notes parsing rejects bad JSON without leaking content
-- [x] 1.4 Lint and format are clean
+- [x] 1.1 CLI guard and argument tests pass, including the new shape, per-character and proptest cases — 276380a
+- [x] 1.2 Fetch and runner integration tests pass, including notes scenarios and argv echo — 276380a
+- [x] 1.3 Notes parsing rejects bad JSON without leaking content — 276380a
+- [x] 1.4 Lint and format are clean — 276380a
 
 ### Phase 2: Hidden-issue store and resurfacing rules
 
 #### Automated
 
-- [ ] 2.1 Rule unit tests pass
-- [ ] 2.2 Store integration tests pass
-- [ ] 2.3 Crash test never loses or half-applies a hide record
-- [ ] 2.4 Errors never contain submitted values
-- [ ] 2.5 Lint and format are clean
+- [x] 2.1 Rule unit tests pass
+- [x] 2.2 Store integration tests pass
+- [x] 2.3 Crash test never loses or half-applies a hide record
+- [x] 2.4 Errors never contain submitted values
+- [x] 2.5 Lint and format are clean
 
 ### Phase 3: Wiring into the refresh round and commands
 

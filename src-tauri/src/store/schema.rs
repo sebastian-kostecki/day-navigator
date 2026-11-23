@@ -39,6 +39,27 @@ CREATE INDEX work_entries_start ON work_entries (start_ms);",
   done_at    TEXT
 );",
     },
+    // S-03: hidden GitLab issues. No titles, URLs, references or comment text:
+    // ids, scoped labels and timestamps only. A NULL `changed_reason` is a
+    // hidden issue; a reason is a visible issue carrying a "changed" mark.
+    Migration {
+        version: 3,
+        sql: "CREATE TABLE hidden_issues (
+  host                TEXT    NOT NULL,
+  issue_id            INTEGER NOT NULL,
+  project_id          INTEGER NOT NULL,
+  iid                 INTEGER NOT NULL,
+  scoped_labels       TEXT    NOT NULL,
+  baseline_updated_at TEXT    NOT NULL,
+  settle_after_ms     INTEGER,
+  hidden_at_ms        INTEGER NOT NULL,
+  absent_since_ms     INTEGER,
+  changed_reason      TEXT CHECK (changed_reason IN ('status','comment','returned')),
+  changed_at_ms       INTEGER,
+  CHECK ((changed_reason IS NULL) = (changed_at_ms IS NULL)),
+  PRIMARY KEY (host, issue_id)
+);",
+    },
 ];
 
 /// Versions must start at 1 and rise by exactly 1.

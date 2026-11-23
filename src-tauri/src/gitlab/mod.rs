@@ -23,6 +23,16 @@ pub enum ItemKind {
     MergeRequest,
 }
 
+/// Why a hidden issue came back to the list (S-03). The stored reason when
+/// several apply is `Status`, then `Comment`, then `Returned`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ChangeReason {
+    Status,
+    Comment,
+    Returned,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitlabItem {
@@ -45,6 +55,8 @@ pub struct GitlabItem {
     pub updated_at: String,
     pub labels: Vec<String>,
     pub draft: bool,
+    /// Set on a visible issue that carries a "changed" mark (S-03).
+    pub changed: Option<ChangeReason>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -217,6 +229,7 @@ fn parse_items(
             updated_at: r.updated_at,
             labels: r.labels,
             draft: kind == ItemKind::MergeRequest && r.draft,
+            changed: None,
         };
         keyed.push((stamp, item));
     }
@@ -707,6 +720,7 @@ mod tests {
             updated_at: "2026-03-02T10:00:00Z".into(),
             labels: vec![],
             draft: false,
+            changed: None,
         }
     }
 

@@ -121,6 +121,27 @@ CREATE UNIQUE INDEX todo_items_live_gitlab
   PRIMARY KEY (host, issue_id)
 );",
     },
+    // S-04: seen GitLab assignments, for new-assignment notifications. The
+    // account is the opaque key from `gitlab::account_key` (a hash, never a
+    // hostname or a login). A row holds kind, GitLab's numeric id and two
+    // instants: no title, reference or URL. `assignment_accounts` is a per-
+    // account seeding marker that is never pruned, so an account whose list
+    // was empty for a long time still notifies its next item. (Shipped as v7.)
+    Migration {
+        version: 7,
+        sql: "CREATE TABLE assignment_accounts (
+  account      TEXT PRIMARY KEY,
+  seeded_at_ms INTEGER NOT NULL
+) WITHOUT ROWID;
+CREATE TABLE seen_assignments (
+  account       TEXT    NOT NULL REFERENCES assignment_accounts(account),
+  kind          TEXT    NOT NULL CHECK (kind IN ('issue','mergeRequest')),
+  item_id       INTEGER NOT NULL CHECK (item_id > 0),
+  first_seen_ms INTEGER NOT NULL,
+  last_seen_ms  INTEGER NOT NULL,
+  PRIMARY KEY (account, kind, item_id)
+) WITHOUT ROWID;",
+    },
 ];
 
 /// Versions must start at 1 and rise by exactly 1.

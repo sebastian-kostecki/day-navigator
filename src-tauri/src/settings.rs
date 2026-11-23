@@ -303,6 +303,67 @@ fn parse_reminder_settings(text: &str) -> Result<ReminderSettings, ReminderSetti
     Ok(settings)
 }
 
+pub const DEFAULT_REFRESH_MINUTES: u32 = 10;
+/// The wait starts after a round ends, so 15 would exceed the 15 minute limit;
+/// 14 keeps a margin.
+pub const REFRESH_MINUTES_MAX: u64 = 14;
+
+/// The top-level `gitlabRefresh` block is invalid (not an object, an unknown
+/// key or a value outside 1..=14). Carries no detail: serde errors can quote
+/// the value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RefreshSettingInvalid;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawGitlabRefresh {
+    #[serde(default)]
+    minutes: Option<serde_json::Value>,
+}
+
+/// Reads only the top-level `gitlabRefresh` block, on its own. A file-level
+/// problem (unreadable, bad UTF-8 or JSON, wrong `version`) is `Ok(10)`: the
+/// GitLab block already reports the file. Only a block-level problem is `Err`.
+pub fn load_gitlab_refresh_minutes(path: &Path) -> Result<u32, RefreshSettingInvalid> {
+    let Ok(bytes) = fs::read(path) else {
+        return Ok(DEFAULT_REFRESH_MINUTES);
+    };
+    let bytes = bytes
+        .strip_prefix(&[0xEF, 0xBB, 0xBF][..])
+        .unwrap_or(&bytes);
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        return Ok(DEFAULT_REFRESH_MINUTES);
+    };
+    parse_gitlab_refresh_minutes(text)
+}
+
+fn parse_gitlab_refresh_minutes(text: &str) -> Result<u32, RefreshSettingInvalid> {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(text) else {
+        return Ok(DEFAULT_REFRESH_MINUTES);
+    };
+    if value.get("version").and_then(|v| v.as_u64()) != Some(SUPPORTED_VERSION) {
+        return Ok(DEFAULT_REFRESH_MINUTES);
+    }
+    let Some(block) = value.get("gitlabRefresh") else {
+        return Ok(DEFAULT_REFRESH_MINUTES);
+    };
+    if block.is_null() {
+        return Ok(DEFAULT_REFRESH_MINUTES);
+    }
+    if !block.is_object() {
+        return Err(RefreshSettingInvalid);
+    }
+    let raw: RawGitlabRefresh =
+        serde_json::from_value(block.clone()).map_err(|_| RefreshSettingInvalid)?;
+    match raw.minutes {
+        None | Some(serde_json::Value::Null) => Ok(DEFAULT_REFRESH_MINUTES),
+        Some(v) => match v.as_u64() {
+            Some(n) if (1..=REFRESH_MINUTES_MAX).contains(&n) => Ok(n as u32),
+            _ => Err(RefreshSettingInvalid),
+        },
+    }
+}
+
 fn parse_settings(text: &str) -> Result<Settings, VaultError> {
     let value: serde_json::Value =
         serde_json::from_str(text).map_err(|e| invalid(format!("malformed JSON: {e}")))?;
@@ -805,6 +866,104 @@ mod tests {
             assert_eq!(load_todo_limit(&p).unwrap(), 3, "{block}");
             assert!(load_reminder_settings(&p).is_err(), "{block}");
         }
+    }
+
+    fn refresh_text(block: &str) -> String {
+        format!(r#"{{"version":1,"spaces":{{}},"gitlabRefresh":{block}}}"#)
+    }
+
+    #[test]
+    fn refresh_minutes_defaults_and_file_level_problems_give_ten() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            load_gitlab_refresh_minutes(&dir.path().join("settings.json")),
+            Ok(DEFAULT_REFRESH_MINUTES)
+        );
+        for text in [
+            r#"{"version":1,"spaces":{}}"#.to_string(),
+            refresh_text("null"),
+            refresh_text("{}"),
+            refresh_text(r#"{"minutes":null}"#),
+            "{ not json".to_string(),
+            r#"{"version":2,"gitlabRefresh":{"minutes":0}}"#.to_string(),
+            r#"{"gitlabRefresh":{"minutes":0}}"#.to_string(),
+        ] {
+            assert_eq!(
+                load_gitlab_refresh_minutes(&write(&dir, &text)),
+                Ok(10),
+                "{text}"
+            );
+        }
+        let p = dir.path().join("settings.json");
+        fs::write(&p, [0xFF, 0xFE, 0x00]).unwrap();
+        assert_eq!(load_gitlab_refresh_minutes(&p), Ok(10));
+        // A directory where the file should be: unreadable, still the default.
+        assert_eq!(load_gitlab_refresh_minutes(dir.path()), Ok(10));
+    }
+
+    #[test]
+    fn refresh_minutes_range_edges() {
+        let dir = tempfile::tempdir().unwrap();
+        for n in [1u32, 7, 14] {
+            let text = refresh_text(&format!(r#"{{"minutes":{n}}}"#));
+            assert_eq!(load_gitlab_refresh_minutes(&write(&dir, &text)), Ok(n));
+        }
+    }
+
+    #[test]
+    fn refresh_minutes_invalid_blocks_are_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        for block in [
+            r#"{"minutes":0}"#,
+            r#"{"minutes":15}"#,
+            r#"{"minutes":"10"}"#,
+            r#"{"minutes":10.5}"#,
+            r#"{"minutes":true}"#,
+            r#"{"minutes":-1}"#,
+            r#"{"minutes":5,"extra":1}"#,
+            r#"{"other":1}"#,
+            r#""10""#,
+            r#"[10]"#,
+        ] {
+            assert_eq!(
+                load_gitlab_refresh_minutes(&write(&dir, &refresh_text(block))),
+                Err(RefreshSettingInvalid),
+                "{block}"
+            );
+        }
+    }
+
+    #[test]
+    fn refresh_minutes_bom_is_stripped() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("settings.json");
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(refresh_text(r#"{"minutes":3}"#).as_bytes());
+        fs::write(&p, bytes).unwrap();
+        assert_eq!(load_gitlab_refresh_minutes(&p), Ok(3));
+    }
+
+    #[test]
+    fn broken_refresh_block_leaves_the_other_loaders_green() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = json_path(&dir);
+        for block in [r#"{"minutes":0}"#, r#""nope""#, r#"{"bogus":1}"#] {
+            let text = format!(
+                r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":[]}}}},"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{{"limit":4}},"gitlabRefresh":{block}}}"#
+            );
+            let p = write(&dir, &text);
+            assert!(load_settings(&p).unwrap().work.is_some(), "{block}");
+            assert!(load_gitlab_settings(&p).unwrap().is_some(), "{block}");
+            assert_eq!(load_todo_limit(&p).unwrap(), 4, "{block}");
+            assert!(load_gitlab_refresh_minutes(&p).is_err(), "{block}");
+        }
+    }
+
+    #[test]
+    fn refresh_loader_ignores_a_broken_gitlab_block() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = r#"{"version":1,"spaces":{},"gitlab":"nope","todo":{"limit":0},"gitlabRefresh":{"minutes":6}}"#;
+        assert_eq!(load_gitlab_refresh_minutes(&write(&dir, text)), Ok(6));
     }
 
     fn work_with(dir: &tempfile::TempDir, extra: &str) -> String {

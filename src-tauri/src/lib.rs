@@ -3,6 +3,7 @@ pub mod gitlab;
 pub mod gitlab_refresh;
 pub mod health;
 pub mod hidden_issues;
+pub mod new_assignments;
 pub mod own_tasks;
 pub mod runtime;
 pub mod settings;

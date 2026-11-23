@@ -1,10 +1,10 @@
 ---
 change_id: hide-and-resurface
 title: Hide and resurface
-status: impl_reviewed
+status: archived
 created: 2026-11-23
 updated: 2026-11-23
-archived_at: null
+archived_at: 2026-11-23T12:45:41Z
 ---
 
 ## Notes

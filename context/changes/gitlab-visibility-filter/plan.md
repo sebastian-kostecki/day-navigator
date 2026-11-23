@@ -437,8 +437,8 @@ None. The block is optional and absent means today's behaviour. No store schema 
 
 #### Automated
 
-- [ ] 4.1 npm run lint, npm run format:check and npm run build pass
-- [ ] 4.2 cargo test passes
+- [x] 4.1 npm run lint, npm run format:check and npm run build pass — e1500f6
+- [x] 4.2 cargo test passes — e1500f6
 
 #### Manual
 

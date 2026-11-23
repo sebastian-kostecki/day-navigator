@@ -385,8 +385,8 @@ Migration v3 only adds a table, so existing data is untouched. A store opened by
 
 #### Manual
 
-- [ ] 2.3 With VPN, an item closed or merged in GitLab that sits in "Do zrobienia" shows as ticked "zamknięte w GitLabie" after a refresh
-- [ ] 2.4 Without VPN, a refresh leaves every GitLab entry in "Do zrobienia" unchanged
+- [x] 2.3 With VPN, an item closed or merged in GitLab that sits in "Do zrobienia" shows as ticked "zamknięte w GitLabie" after a refresh
+- [x] 2.4 Without VPN, a refresh leaves every GitLab entry in "Do zrobienia" unchanged
 
 ### Phase 3: Commands and the "Do zrobienia" view
 
@@ -398,11 +398,11 @@ Migration v3 only adds a table, so existing data is untouched. A store opened by
 
 #### Manual
 
-- [ ] 3.4 At app start "Do zrobienia" is the active tab and the empty list shows "Nic na dziś — dodaj z list poniżej"
-- [ ] 3.5 Pick 5 items (mixed); the 6th is refused with the limit message; tick 2 and 2 more can be added
-- [ ] 3.6 Ticking an own task shows it done in "Moje zadania"; reopening it there shows it unticked in "Do zrobienia"
-- [ ] 3.7 Remove an item: it leaves the list, an own task's done state is unchanged, and it is pickable again
-- [ ] 3.8 An invalid `todo.limit` shows the settings error with the list still visible; a valid value works without a restart
-- [ ] 3.9 Without VPN, GitLab entries show stored titles with the "niezweryfikowany" line and stay unticked
-- [ ] 3.10 Next day: open items carry over with "od DD.MM" and items ticked the day before are gone
-- [ ] 3.11 After a restart all entries and ticks are intact
+- [x] 3.4 At app start "Do zrobienia" is the active tab and the empty list shows "Nic na dziś — dodaj z list poniżej"
+- [x] 3.5 Pick 5 items (mixed); the 6th is refused with the limit message; tick 2 and 2 more can be added
+- [x] 3.6 Ticking an own task shows it done in "Moje zadania"; reopening it there shows it unticked in "Do zrobienia"
+- [x] 3.7 Remove an item: it leaves the list, an own task's done state is unchanged, and it is pickable again
+- [x] 3.8 An invalid `todo.limit` shows the settings error with the list still visible; a valid value works without a restart
+- [x] 3.9 Without VPN, GitLab entries show stored titles with the "niezweryfikowany" line and stay unticked
+- [x] 3.10 Next day: open items carry over with "od DD.MM" and items ticked the day before are gone
+- [x] 3.11 After a restart all entries and ticks are intact

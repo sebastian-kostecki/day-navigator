@@ -14,16 +14,20 @@ use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Duration, Instant};
 
+use chrono::Local;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::cli::{CliRunner, GitlabConfig};
 use crate::gitlab::fetch::fetch_assigned;
-use crate::gitlab::{self, GitlabError, GitlabSnapshot};
+use crate::gitlab::{self, AssignedItems, GitlabError, GitlabSnapshot};
 use crate::health;
 use crate::runtime::{HealthState, now_ms};
 use crate::settings::load_gitlab_settings;
+use crate::store::StoreHandle;
+use crate::todo;
 
 const EVENT: &str = "gitlab-changed";
+const TODO_EVENT: &str = "todo-changed";
 const REFRESH_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
 /// Managed state of the GitLab list, shared by the refresh thread, the health
@@ -193,8 +197,12 @@ fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliR
     let after_status = health::gitlab_status(&next);
     let from = state_label(&before);
     let to = state_label(&next);
+    let todo_changed = reconcile_todo(app, &next);
     *state.write() = next;
     publish(app, &state);
+    if todo_changed && let Err(e) = app.emit(TODO_EVENT, ()) {
+        log::warn!("todo: emit failed: {e}");
+    }
 
     if from != to {
         log::info!("gitlab: {from} -> {to}");
@@ -205,6 +213,46 @@ fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliR
         // The GitLab source status changed: run a health round now instead of
         // waiting up to 30 s for the tray to catch up.
         let _ = app.state::<HealthState>().wake.send(());
+    }
+}
+
+/// The list a "To do" reconcile may use, with the account it came from: only
+/// a successful round's items. A stale list kept after a failed round must
+/// never tick anything.
+fn reconcile_input(snap: &GitlabSnapshot) -> Option<(&AssignedItems, &str)> {
+    match snap.state {
+        gitlab::GitlabState::Ok => Some((snap.items.as_ref()?, snap.account.as_deref()?)),
+        _ => None,
+    }
+}
+
+/// Reconciles "To do" entries with a successful list. Returns whether at least
+/// one row changed. A store error is logged by kind and changes nothing else.
+fn reconcile_todo(app: &AppHandle, next: &GitlabSnapshot) -> bool {
+    let Some((items, account)) = reconcile_input(next) else {
+        return false;
+    };
+    let now = Local::now().naive_local();
+    let result = app.state::<StoreHandle>().with_store(now.date(), |s| {
+        todo::reconcile_gitlab(s, account, items, now.date(), now)
+    });
+    match result {
+        Ok(changed) => {
+            if changed > 0 {
+                log::debug!("todo: reconcile changed {changed} rows");
+            }
+            changed > 0
+        }
+        // An unopenable store is reported by the health round; a warning every
+        // GitLab round would only repeat it.
+        Err(e @ todo::TodoError::Store(_)) => {
+            log::debug!("todo: reconcile failed: {}", e.kind());
+            false
+        }
+        Err(e) => {
+            log::warn!("todo: reconcile failed: {}", e.kind());
+            false
+        }
     }
 }
 
@@ -252,6 +300,48 @@ mod tests {
             })),
             "error:LoggedOut"
         );
+    }
+
+    #[test]
+    fn reconcile_input_only_for_ok_with_items() {
+        let items = AssignedItems {
+            merge_requests: vec![],
+            issues: vec![],
+        };
+        let with = |state| GitlabSnapshot {
+            state,
+            items: Some(items.clone()),
+            account: Some("account-a".into()),
+            ..GitlabSnapshot::starting()
+        };
+        assert_eq!(
+            reconcile_input(&with(State::Ok)),
+            Some((&items, "account-a"))
+        );
+        // Items without the account they came from are never reconciled.
+        let no_account = GitlabSnapshot {
+            account: None,
+            ..with(State::Ok)
+        };
+        assert!(reconcile_input(&no_account).is_none());
+        // A failed round keeps the last items; they must not be used.
+        assert!(
+            reconcile_input(&with(State::Unavailable {
+                message: String::new()
+            }))
+            .is_none()
+        );
+        assert!(
+            reconcile_input(&with(State::Error {
+                kind: "LoggedOut".into(),
+                message: String::new()
+            }))
+            .is_none()
+        );
+        assert!(reconcile_input(&with(State::NotConfigured)).is_none());
+        assert!(reconcile_input(&with(State::Starting)).is_none());
+        // Ok without items (not reachable in practice) gives nothing.
+        assert!(reconcile_input(&snap(State::Ok)).is_none());
     }
 
     #[test]

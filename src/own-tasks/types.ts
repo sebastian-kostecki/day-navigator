@@ -1,3 +1,5 @@
+import type { StoreError } from "../components/storeError";
+
 export type Space = "work" | "private";
 export type Priority = "high" | "medium" | "low";
 
@@ -22,17 +24,6 @@ export interface OwnTaskInput {
   due: string | null;
   priority: Priority | null;
 }
-
-/** Mirrors `store::StoreError`. */
-export type StoreError =
-  | { kind: "DirUnavailable"; detail: { kind: string } }
-  | { kind: "Damaged"; detail: { reason: string } }
-  | { kind: "Missing" }
-  | { kind: "NewerSchema"; detail: { found: number; supported: number } }
-  | { kind: "MigrationFailed"; detail: { version: number; reason: string } }
-  | { kind: "Busy" }
-  | { kind: "Io"; detail: { kind: string } }
-  | { kind: "Sql"; detail: { reason: string } };
 
 /** Mirrors `own_tasks::OwnTaskError`. */
 export type OwnTaskError =

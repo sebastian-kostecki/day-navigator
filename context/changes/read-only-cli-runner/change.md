@@ -1,7 +1,7 @@
 ---
 change_id: read-only-cli-runner
 title: Read only cli runner
-status: planned
+status: implementing
 created: 2026-11-23
 updated: 2026-11-23
 archived_at: null

@@ -56,7 +56,7 @@ Decisions settled during planning: a timeout of 20 s means `Unavailable`; HTTP 5
 
 **Pipe draining and timeout ordering.** Read stdout and stderr on two threads from the moment the child is spawned. If they are read only after the process exits, a child that fills a pipe buffer blocks forever and every call ends in the timeout. Poll `try_wait` until the deadline, then `kill` and `wait`. After the child is gone, join the readers with a short bound (about 2 s). A grandchild that inherited the pipes can keep them open, and the runner must not hang on it.
 
-**Classification order.** Exit code 0 is data, whatever stderr says (update notices and similar noise). For a non-zero exit, check logged out first, then unavailable, then fall back to `Failed`. `gh` exit code 4 is logged out regardless of text.
+**Classification order.** Exit code 0 is data, whatever stderr says (update notices and similar noise). For a non-zero exit: `gh` exit code 4 is logged out regardless of text; then unavailable (network or 5xx text); then logged out (login text); then fall back to `Failed`. Network text goes before login text because both CLIs append login hints to network failures. `glab auth status` adds "run glab auth login --hostname …" whenever the token is stored in plain text in its config, even when the call succeeded (glab 1.124 `internal/commands/auth/status/status.go:251-253`). `gh auth status` reports a refused or unresolved connection, but not a timeout, as "The token … is invalid" plus "To re-authenticate, run: gh auth login" (gh 2.105 `pkg/cmd/auth/status/status.go:505-515`, 142-149; both checked 2026-11-23). A transport failure means auth was never checked, so the network text wins.
 
 ## Phase 1: Call contract and classification
 
@@ -81,7 +81,7 @@ Pure code with no processes: the call list, the error type with its Polish descr
   - `fn name(self) -> &'static str`: a stable log key such as `"glab:version"`, `"gh:auth-status"`
 - `CliError`, derived `Debug, Clone, PartialEq, Eq, thiserror::Error, Serialize`, with `#[serde(tag = "kind", content = "detail", rename_all_fields = "camelCase")]`. Its variants are `Unavailable { tool }`, `LoggedOut { tool }`, `ToolMissing { tool }` and `Failed { tool, exit_code: Option<i32> }`. The `Display` text is English with no stderr.
 - `CliError::kind(&self) -> &'static str` returns the variant name, for logs. `CliError::message_pl(&self) -> String` returns a fixed Polish text that never includes stderr or a hostname:
-  - Unavailable: `"GitLab niedostępny (brak VPN lub sieci)"` / `"GitHub niedostępny (brak sieci)"`
+  - Unavailable: `"GitLab niedostępny (brak VPN, sieci lub serwer nie odpowiada)"` / `"GitHub niedostępny (brak sieci lub serwer nie odpowiada)"`. The text names the server too, because a 5xx error and the 20 s timeout map here as well.
   - LoggedOut: `"Nie zalogowano w glab — uruchom glab auth login"` / the same for `gh`
   - ToolMissing: `"Nie znaleziono programu glab"` / `gh`
   - Failed: `"glab zakończył się błędem (kod N)"`, or `"... (bez kodu)"` when there is no exit code
@@ -94,10 +94,12 @@ Pure code with no processes: the call list, the error type with its Polish descr
 **Intent**: Turn a finished process's exit code and stderr into a result, following the order in Critical Implementation Details. Only this function ever reads stderr.
 
 **Contract**: `pub fn classify(tool: Tool, exit_code: Option<i32>, stderr: &str) -> Result<(), CliError>`, case-insensitive matching on fixed substrings:
-- Exit code `Some(0)` → `Ok(())`.
-- Logged out: `gh` with exit code `Some(4)`; or stderr containing `401 unauthorized`, `(http 401)`, `http 401`, `auth login`, `not logged in`, `no token`.
-- Unavailable: `dial tcp`, `i/o timeout`, `no such host`, `connection refused`, `connectex`, `error connecting to`, `tls handshake timeout`, `context deadline exceeded`, `connection reset`, `network is unreachable`; or an HTTP 5xx status, meaning `http 5` followed by two digits (matches glab's `(HTTP 503)` and gh's `HTTP 502: Bad Gateway`, but not `https://`).
-- Anything else → `Failed { tool, exit_code }`.
+The checks run in this order, and the first match wins:
+1. Exit code `Some(0)` → `Ok(())`.
+2. `gh` with exit code `Some(4)` → `LoggedOut`.
+3. Unavailable: `dial tcp`, `proxyconnect`, `i/o timeout`, `no such host`, `connection refused`, `connectex`, `error connecting to`, `tls handshake timeout`, `context deadline exceeded`, `connection reset`, `network is unreachable`; or an HTTP 5xx status, meaning `http 5` followed by two digits (matches glab's `(HTTP 503)` and gh's `HTTP 502: Bad Gateway`, but not `https://`).
+4. Logged out: stderr containing `401 unauthorized`, `(http 401)`, `http 401`, `auth login`, `not logged in`, `no token`.
+5. Anything else → `Failed { tool, exit_code }`.
 
 #### 3. Unit tests
 
@@ -107,8 +109,8 @@ Pure code with no processes: the call list, the error type with its Polish descr
 
 **Contract**:
 - **Read-only guard:** for every `CliCall::ALL`, the arguments are non-empty. The first argument is `version` or `--version`, or the list is exactly `auth status`. No argument is one of `-X`, `--method`, `-f`, `-F`, `--field`, `--raw-field`, `--input`, `-d`, `--data`, and none contains whitespace or one of ``&|<>^%"`;$``.
-- **Exhaustiveness:** a test helper with an exhaustive `match` on `CliCall` asserts each variant is in `ALL`. Adding a variant without adding it to `ALL` fails the build or the test.
-- **Classification table:** one row per sample → expected result. It covers both tools' logged-out shapes, DNS and timeout shapes, `connectex` refused, `(HTTP 503)` and `HTTP 502:`, exit 0 with update-notice noise on stderr (→ data), an unknown error with exit 2 (→ `Failed { exit_code: Some(2) }`), `None` exit code with empty stderr (→ `Failed { exit_code: None }`), and an `https://...` URL with a 5xx-looking port or path that must not count as HTTP 5xx.
+- **Exhaustiveness:** a test helper `fn ordinal(c: CliCall) -> usize` uses an exhaustive `match` (no `_` arm) to give each variant a distinct ordinal `0..VARIANT_COUNT`, with `const VARIANT_COUNT: usize` defined next to it. The test asserts that `ALL.len() == VARIANT_COUNT` and that `ALL` maps one-to-one onto `0..VARIANT_COUNT`. A new variant first fails the build at the `match`; once the author adds an arm and bumps the count, the test fails until the variant is also in `ALL`.
+- **Classification table:** one row per sample → expected result. It covers both tools' logged-out shapes, DNS and timeout shapes, `connectex` refused, `(HTTP 503)` and `HTTP 502:`, exit 0 with update-notice noise on stderr (→ data), an unknown error with exit 2 (→ `Failed { exit_code: Some(2) }`), `None` exit code with empty stderr (→ `Failed { exit_code: None }`), an `https://...` URL with a 5xx-looking port or path that must not count as HTTP 5xx, and two mixed rows that must give `Unavailable`: a glab `API call failed: … dial tcp …: i/o timeout` followed by `run glab auth login --hostname gitlab.example.invalid`, and a gh `proxyconnect tcp: dial tcp …: connectex: … refused` followed by `The token in keyring is invalid` and `To re-authenticate, run: gh auth login -h github.example.invalid`.
 - **No-leak check:** for every error built from a sample whose stderr contains `example.invalid`, none of `Debug`, `Display`, `serde_json::to_string` or `message_pl` contains `example.invalid`.
 - **Serialization:** `CliError::Failed` serializes as `{"kind":"Failed","detail":{"tool":"glab","exitCode":2}}`.
 
@@ -174,6 +176,7 @@ The process side: start the real program, limit time and output, map spawn failu
   - `non-utf8`
   - an unknown scenario: exit 99
 - Its stderr samples use `gitlab.example.invalid` / `github.example.invalid` only.
+- Keeping the fake out of the installer depends on two rules, so put both in a comment above the `[[bin]]` entry. (a) `path` stays exactly `src/bin/fake_cli.rs`. tauri-cli 2.12.6 builds with `cargo build --bins`, which skips the fake because its required feature is off. Its own binary list (`get_binaries`, `crates/tauri-cli/src/interface/rust.rs:937-1023`) drops `[[bin]]` entries whose required features are off. It also drops the matching `src/bin/*` file, which it matches by path only, since `fake-cli` ≠ `fake_cli`. The NSIS bundler copies every listed non-main binary into the installer, and fails if one was not built. (b) `test-support` is never added to `default` features.
 
 #### 3. Integration tests
 
@@ -214,7 +217,7 @@ The process side: start the real program, limit time and output, map spawn failu
 
 - Integration tests pass: `cargo test --test cli_runner` (in `src-tauri/`)
 - Full pre-commit gate passes: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- Release build does not contain the fake: after `cargo build --release`, `src-tauri/target/release/fake-cli.exe` does not exist
+- Release build does not contain the fake: after `cargo build --release`, `src-tauri/target/release/fake-cli.exe` does not exist. This is a proxy check: the installer comes from `tauri build` in CI, and the rules in §2 keep the fake out of it.
 
 #### Manual Verification:
 
@@ -259,7 +262,7 @@ None: new module, no stored data, no settings change.
 
 ## References
 
-- Roadmap item: `context/foundation/roadmap.md` (F-02: Read-only CLI runner; S-01, S-05 build on it)
+- Roadmap item: `context/foundation/roadmap.md` (F-02: Read-only CLI runner; S-01, S-05 build on it). This is the new-MVP roadmap, which at review time (2026-11-23) existed only uncommitted in the main checkout. The committed roadmap still uses the old IDs (F-02 = source health, S-01 = morning plan, S-05 = task template), and so does the archived source-health plan (S-07/S-16). Prerequisite: commit the new roadmap to `main` and merge it into this branch before `/10x-implement`.
 - PRD: `context/foundation/prd.md` — FR-015, Constraints & Compatibility ("Aplikacja tylko czyta z GitLaba i GitHuba"), NFR "Nigdy pusta lista zamiast błędu", NFR "Dane pracy i vaulty", Open Question #1
 - Error enum pattern: `src-tauri/src/vault/error.rs:11-13`
 - Pure-rules split: `src-tauri/src/health/mod.rs:1-2`, `src-tauri/src/health/probe.rs:1-2`
@@ -275,9 +278,9 @@ None: new module, no stored data, no settings change.
 
 #### Automated
 
-- [ ] 1.1 Unit tests pass: `cargo test --lib cli`
-- [ ] 1.2 Format and lint are clean: `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`
-- [ ] 1.3 Full Rust suite still passes: `cargo test`
+- [x] 1.1 Unit tests pass: `cargo test --lib cli`
+- [x] 1.2 Format and lint are clean: `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`
+- [x] 1.3 Full Rust suite still passes: `cargo test`
 
 #### Manual
 

@@ -1,3 +1,4 @@
+pub mod cli;
 pub mod health;
 pub mod runtime;
 pub mod settings;

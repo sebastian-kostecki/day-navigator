@@ -61,8 +61,3 @@ pub fn portion(start: i64, end: Option<i64>, now: i64, day_start: i64, day_end: 
     let s = start.max(day_start);
     (e - s).max(0)
 }
-
-/// Half-open overlap; `None` as an end means unbounded (running entry).
-pub fn overlaps(a_start: i64, a_end: Option<i64>, b_start: i64, b_end: Option<i64>) -> bool {
-    a_start < b_end.unwrap_or(i64::MAX) && b_start < a_end.unwrap_or(i64::MAX)
-}

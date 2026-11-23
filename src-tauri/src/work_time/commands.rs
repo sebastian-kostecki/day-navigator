@@ -44,8 +44,14 @@ async fn run<T: Send + 'static>(
             .with_store(today, |store| f(store, Utc::now().timestamp_millis()))
     })
     .await;
-    if let Err(e) = &result {
-        log::warn!("work_time: {name} failed: {}", kind(e));
+    match &result {
+        // A store or background failure is worth a warning; a refusal of a
+        // user action (overlap, future time…) is routine.
+        Err(e @ (WorkTimeError::Store(_) | WorkTimeError::Background)) => {
+            log::warn!("work_time: {name} failed: {}", kind(e));
+        }
+        Err(e) => log::debug!("work_time: {name} refused: {}", kind(e)),
+        Ok(_) => {}
     }
     result
 }
@@ -74,26 +80,23 @@ pub async fn list_work_entries(app: AppHandle, day: String) -> Result<DayEntries
     .await
 }
 
+// START/STOP notify as soon as the write commits and only then read the new
+// status, so a failed read can't hide a committed change from the listeners.
 #[tauri::command]
 pub async fn start_work(app: AppHandle) -> Result<WorkTimerStatus, WorkTimeError> {
-    let status = run(&app, "start", |store, now| {
-        super::start(store, now)?;
-        super::status(store, now, &Local)
+    run(&app, "start", |store, now| {
+        super::start(store, now).map(|_| ())
     })
     .await?;
     notify(&app);
-    Ok(status)
+    work_timer_status(app).await
 }
 
 #[tauri::command]
 pub async fn stop_work(app: AppHandle) -> Result<WorkTimerStatus, WorkTimeError> {
-    let status = run(&app, "stop", |store, now| {
-        super::stop(store, now)?;
-        super::status(store, now, &Local)
-    })
-    .await?;
+    run(&app, "stop", super::stop).await?;
     notify(&app);
-    Ok(status)
+    work_timer_status(app).await
 }
 
 #[tauri::command]

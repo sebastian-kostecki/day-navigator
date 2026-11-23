@@ -3,13 +3,12 @@ import { listen } from "@tauri-apps/api/event";
 import {
   WORK_TIME_CHANGED,
   addWorkEntry,
-  asWorkTimeError,
   listWorkEntries,
   removeWorkEntry,
   updateWorkEntry,
   workTimeErrorMessage,
 } from "./api";
-import type { DayEntries, WorkTimeError } from "./types";
+import type { DayEntries } from "./types";
 
 type Result =
   | { state: "error"; message: string; lastOkAt: number | null }
@@ -21,13 +20,11 @@ export type EntriesState =
   | { state: "error"; message: string; lastOkAt: number | null }
   | { state: "loaded"; data: DayEntries };
 
-function toError(e: unknown): WorkTimeError {
-  return asWorkTimeError(e) ?? { kind: "Background" };
-}
-
 export function useWorkEntries(day: string) {
   const [result, setResult] = useState<{ day: string; value: Result } | null>(null);
   const [busyIds, setBusyIds] = useState<Set<number>>(new Set());
+  // Bumped by retry to redo the subscribe and the load together.
+  const [attempt, setAttempt] = useState(0);
 
   // Latest request wins: a slower, older response must not replace a newer one
   // (or the list of a day the user has already left).
@@ -51,7 +48,8 @@ export function useWorkEntries(day: string) {
   }, [day]);
 
   // Subscribe first and load only once the listener is registered, so no event
-  // between the two is lost.
+  // between the two is lost. A failed subscribe never loads, and retry redoes
+  // both, so a list that can no longer update is never shown.
   useEffect(() => {
     let cancelled = false;
     let unlisten: (() => void) | undefined;
@@ -81,17 +79,20 @@ export function useWorkEntries(day: string) {
       cancelled = true;
       unlisten?.();
     };
-  }, [day, refresh]);
+  }, [day, refresh, attempt]);
 
+  /**
+   * Resolves to `null` on success, or to the raw failure for
+   * `workTimeErrorMessage`. The list itself refreshes via `work-time-changed`.
+   */
   const withBusy = useCallback(
-    async (id: number | null, call: () => Promise<void>): Promise<WorkTimeError | null> => {
+    async (id: number | null, call: () => Promise<void>): Promise<unknown> => {
       if (id !== null) setBusyIds((b) => new Set(b).add(id));
       try {
         await call();
-        void refresh();
         return null;
       } catch (e) {
-        return toError(e);
+        return e || new Error("brak szczegółów");
       } finally {
         if (id !== null) {
           setBusyIds((b) => {
@@ -102,7 +103,7 @@ export function useWorkEntries(day: string) {
         }
       }
     },
-    [refresh],
+    [],
   );
 
   const add = useCallback(
@@ -115,7 +116,7 @@ export function useWorkEntries(day: string) {
     [withBusy],
   );
   const remove = useCallback((id: number) => withBusy(id, () => removeWorkEntry(id)), [withBusy]);
-  const retry = useCallback(() => void refresh(), [refresh]);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   const entries: EntriesState =
     result !== null && result.day === day ? result.value : { state: "loading" };

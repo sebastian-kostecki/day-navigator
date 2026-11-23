@@ -21,7 +21,7 @@ use serde::Serialize;
 
 use crate::store::Store;
 pub use error::WorkTimeError;
-use rules::{day_bounds, local_day, local_string, overlaps, portion, resolve_local};
+use rules::{day_bounds, local_day, local_string, portion, resolve_local};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,7 +59,8 @@ pub struct DayEntries {
     /// `YYYY-MM-DD`.
     pub day: String,
     pub entries: Vec<EntryRow>,
-    /// Sum of the portions of closed entries.
+    /// Sum of the fixed portions: closed entries, plus a running entry's part
+    /// of a day that has already ended.
     pub closed_ms: i64,
     /// Set only while the running entry counts in this day and the day has
     /// not ended yet.
@@ -81,14 +82,14 @@ fn row_to_entry(r: &rusqlite::Row<'_>) -> rusqlite::Result<Entry> {
     })
 }
 
-/// Counted (not removed) entries, ordered by start, optionally without one id.
-fn counted(conn: &Connection, exclude: Option<i64>) -> Result<Vec<Entry>, WorkTimeError> {
+/// The counted (not removed) entry with this id.
+fn counted_by_id(conn: &Connection, id: i64) -> Result<Option<Entry>, WorkTimeError> {
     let mut stmt = conn.prepare(
         "SELECT id, start_ms, end_ms FROM work_entries \
-         WHERE removed_at_ms IS NULL AND id IS NOT ?1 ORDER BY start_ms, id",
+         WHERE id = ?1 AND removed_at_ms IS NULL",
     )?;
-    let rows = stmt.query_map([exclude], row_to_entry)?;
-    Ok(rows.collect::<Result<_, _>>()?)
+    let mut rows = stmt.query_map([id], row_to_entry)?;
+    Ok(rows.next().transpose()?)
 }
 
 fn running_entry(conn: &Connection) -> Result<Option<Entry>, WorkTimeError> {
@@ -125,18 +126,25 @@ fn in_day(
     Ok(out)
 }
 
-/// First counted entry that overlaps `[start, end)` (`None` = unbounded).
+/// Refuses when a counted entry overlaps `[start, end)` (`None` = unbounded).
+/// Half-open on both sides: a running entry counts as `[start, +∞)`, and
+/// adjacent entries (one ends where the next starts) do not overlap.
 fn find_overlap(
     conn: &Connection,
     exclude: Option<i64>,
     start: i64,
     end: Option<i64>,
 ) -> Result<(), WorkTimeError> {
-    match counted(conn, exclude)?
-        .into_iter()
-        .find(|o| overlaps(start, end, o.start, o.end))
-    {
-        Some(o) => Err(WorkTimeError::Overlap { entry_id: o.id }),
+    let mut stmt = conn.prepare(
+        "SELECT id FROM work_entries \
+         WHERE removed_at_ms IS NULL AND id IS NOT ?1 \
+           AND (end_ms IS NULL OR end_ms > ?2) \
+           AND (?3 IS NULL OR start_ms < ?3) \
+         ORDER BY start_ms, id LIMIT 1",
+    )?;
+    let mut rows = stmt.query_map((exclude, start, end), |r| r.get::<_, i64>(0))?;
+    match rows.next().transpose()? {
+        Some(entry_id) => Err(WorkTimeError::Overlap { entry_id }),
         None => Ok(()),
     }
 }
@@ -189,9 +197,10 @@ pub fn entries_for_day<Tz: TimeZone>(
         let mut running_from_ms = None;
         for e in in_day(c, day_start, day_end, now)? {
             let p = portion(e.start, e.end, now, day_start, day_end);
-            if e.end.is_some() {
+            if e.end.is_some() || now >= day_end {
+                // A running entry's part of a day that has ended is final.
                 closed_ms += p;
-            } else if now < day_end {
+            } else {
                 running_from_ms = Some(e.start.max(day_start));
             }
             entries.push(EntryRow {
@@ -224,12 +233,8 @@ pub fn start(store: &mut Store, now: i64) -> Result<i64, WorkTimeError> {
         if running_entry(tx)?.is_some() {
             return Err(WorkTimeError::AlreadyRunning);
         }
-        if let Some(e) = counted(tx, None)?
-            .into_iter()
-            .find(|e| e.end.is_some_and(|end| end > now))
-        {
-            return Err(WorkTimeError::Overlap { entry_id: e.id });
-        }
+        // No running entry here, so this only finds closed entries ending after now.
+        find_overlap(tx, None, now, None)?;
         tx.execute(
             "INSERT INTO work_entries(start_ms, end_ms, created_at_ms, updated_at_ms) \
              VALUES (?1, NULL, ?2, ?2)",
@@ -306,10 +311,7 @@ pub fn update<Tz: TimeZone>(
     tz: &Tz,
 ) -> Result<(), WorkTimeError> {
     store.write(|tx| {
-        let current = counted(tx, None)?
-            .into_iter()
-            .find(|e| e.id == id)
-            .ok_or(WorkTimeError::NotFound)?;
+        let current = counted_by_id(tx, id)?.ok_or(WorkTimeError::NotFound)?;
         let start = resolve_or_keep(start_local, current.start, tz)?;
         let end = match (current.end, end_local) {
             (None, Some(_)) => return Err(WorkTimeError::RunningEndEdit),

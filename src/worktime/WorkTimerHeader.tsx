@@ -23,8 +23,13 @@ export function WorkTimerHeader() {
   }
 
   const { status } = timer;
-  const live = status.running !== null && status.runningFromMs !== null;
-  const total = status.todayClosedMs + (live ? nowMs - (status.runningFromMs ?? nowMs) : 0);
+  // Capped at the day end (a late refetch must not count into tomorrow) and
+  // clamped at zero (a clock moved back must not shrink the closed total).
+  const total =
+    status.todayClosedMs +
+    (status.running !== null && status.runningFromMs !== null
+      ? Math.max(0, Math.min(nowMs, status.dayEndMs) - status.runningFromMs)
+      : 0);
 
   return (
     <div className="work-timer">

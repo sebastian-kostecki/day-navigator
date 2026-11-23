@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { ErrorState } from "../components/ErrorState";
 import { workTimeErrorMessage } from "./api";
 import { formatClock, formatDuration } from "./format";
-import type { EntryRow, WorkTimeError } from "./types";
+import type { EntryRow } from "./types";
 import { useWorkEntries } from "./useWorkEntries";
 
 function pad(n: number): string {
@@ -35,7 +35,8 @@ function rowRange(row: EntryRow, day: string): string {
   return `${localLabel(row.startLocal, day)}–${end}`;
 }
 
-type SaveFn = (start: string, end: string | null) => Promise<WorkTimeError | null>;
+/** Resolves to `null` on success, or to the failure for `workTimeErrorMessage`. */
+type SaveFn = (start: string, end: string | null) => Promise<unknown>;
 
 function EntryForm(props: {
   initialStart: string;
@@ -114,8 +115,8 @@ function EntryItem(props: {
   day: string;
   busy: boolean;
   entriesById: Map<number, EntryRow>;
-  onUpdate: (id: number, start: string, end: string | null) => Promise<WorkTimeError | null>;
-  onRemove: (id: number) => Promise<WorkTimeError | null>;
+  onUpdate: (id: number, start: string, end: string | null) => Promise<unknown>;
+  onRemove: (id: number) => Promise<unknown>;
 }) {
   const { row, day, busy, entriesById, onUpdate, onRemove } = props;
   const [mode, setMode] = useState<"view" | "edit" | "confirm">("view");
@@ -190,10 +191,12 @@ export default function WorkTimeView() {
   const { entries, add, update, remove, busyIds, retry } = useWorkEntries(day);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
-  const isToday = day === localToday();
-  const ticking = isToday && entries.state === "loaded" && entries.data.runningFromMs !== null;
+  // `runningFromMs` is set only while the running entry counts in a day that
+  // has not ended, so this ticks on today's view (and on a view left open past
+  // midnight, where the total stops at the day end).
+  const ticking = entries.state === "loaded" && entries.data.runningFromMs !== null;
 
-  // Tick only on today's view with a running entry.
+  // Tick only while a running entry counts in the shown day.
   useEffect(() => {
     if (!ticking) return;
     const handle = setInterval(() => setNowMs(Date.now()), 1000);
@@ -241,7 +244,9 @@ export default function WorkTimeView() {
     const entriesById = new Map(data.entries.map((r) => [r.id, r]));
     const total =
       data.closedMs +
-      (isToday && data.runningFromMs !== null ? Math.max(0, nowMs - data.runningFromMs) : 0);
+      (data.runningFromMs !== null
+        ? Math.max(0, Math.min(nowMs, data.dayEndMs) - data.runningFromMs)
+        : 0);
     body = (
       <>
         {data.entries.length === 0 ? (

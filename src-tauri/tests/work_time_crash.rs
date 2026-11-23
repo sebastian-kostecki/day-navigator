@@ -1,5 +1,9 @@
 //! S-08 crash proof: killing a process that loops START/STOP at any moment
 //! leaves the store consistent and never loses a reported commit.
+//!
+//! The writer does not pause inside a transaction, so kills land between
+//! commits. A kill in the middle of a transaction (rollback, no partial write)
+//! is proven for the store itself by `tests/store_crash.rs`.
 
 mod common;
 

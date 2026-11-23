@@ -5,6 +5,7 @@ import {
   asWorkTimeError,
   startWork,
   stopWork,
+  timerActionErrorMessage,
   workTimeErrorMessage,
   workTimerStatus,
 } from "./api";
@@ -23,6 +24,8 @@ export function useWorkTimer() {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Bumped by retry to redo the subscribe and the load together.
+  const [attempt, setAttempt] = useState(0);
 
   // Latest request wins: every status request takes a number and a response
   // older than the last applied one is dropped, so a slow read cannot show
@@ -43,6 +46,8 @@ export function useWorkTimer() {
     const id = ++issued.current;
     try {
       apply(id, { state: "loaded", status: await workTimerStatus() });
+      // A fresh status supersedes the message of an earlier failed action.
+      setActionError(null);
     } catch (e) {
       apply(id, {
         state: "error",
@@ -92,7 +97,7 @@ export function useWorkTimer() {
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onFocus);
     };
-  }, [refresh, apply]);
+  }, [refresh, apply, attempt]);
 
   const dayEndMs = timer.state === "loaded" ? timer.status.dayEndMs : null;
   const running = timer.state === "loaded" && timer.status.running !== null;
@@ -105,15 +110,29 @@ export function useWorkTimer() {
     return () => clearTimeout(handle);
   }, [dayEndMs, refresh]);
 
-  // Tick only while running.
+  // Tick only while running. The tick also catches a day end that the
+  // timeout above missed (a throttled or late timer): once past it, refetch
+  // once for this day end.
+  const refetchedFor = useRef<number | null>(null);
   useEffect(() => {
     if (!running) return;
-    const handle = setInterval(() => setNowMs(Date.now()), 1000);
+    const handle = setInterval(() => {
+      const t = Date.now();
+      setNowMs(t);
+      if (
+        dayEndMs !== null &&
+        t >= dayEndMs + DAY_END_SLACK_MS &&
+        refetchedFor.current !== dayEndMs
+      ) {
+        refetchedFor.current = dayEndMs;
+        void refresh();
+      }
+    }, 1000);
     return () => clearInterval(handle);
-  }, [running]);
+  }, [running, dayEndMs, refresh]);
 
   const act = useCallback(
-    async (call: () => Promise<WorkTimerStatus>) => {
+    async (action: "start" | "stop", call: () => Promise<WorkTimerStatus>) => {
       setBusy(true);
       setActionError(null);
       const id = ++issued.current;
@@ -125,7 +144,7 @@ export function useWorkTimer() {
           // Another action already changed the state: just show it.
           await refresh();
         } else {
-          setActionError(workTimeErrorMessage(e));
+          setActionError(timerActionErrorMessage(action, e));
         }
       } finally {
         setBusy(false);
@@ -134,9 +153,11 @@ export function useWorkTimer() {
     [apply, refresh],
   );
 
-  const start = useCallback(() => act(startWork), [act]);
-  const stop = useCallback(() => act(stopWork), [act]);
-  const retry = useCallback(() => void refresh(), [refresh]);
+  const start = useCallback(() => act("start", startWork), [act]);
+  const stop = useCallback(() => act("stop", stopWork), [act]);
+  // Redo the subscribe with the load, as useHealth does: a load without a
+  // listener would show a counter that never updates.
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   return { timer, nowMs, busy, actionError, start, stop, retry };
 }

@@ -100,3 +100,19 @@ export function workTimeErrorMessage(e: unknown, entriesById?: Map<number, Entry
       return `Nieoczekiwany błąd (${(err as { kind: string }).kind})`;
   }
 }
+
+/**
+ * Polish text for a refused START or STOP. Both take `now` from the system
+ * clock, so `EndNotAfterStart` on STOP and `Overlap` on START (a closed entry
+ * ending after now) mean the clock is behind the stored times.
+ */
+export function timerActionErrorMessage(action: "start" | "stop", e: unknown): string {
+  const kind = asWorkTimeError(e)?.kind;
+  if (action === "stop" && kind === "EndNotAfterStart") {
+    return "Zegar systemowy wskazuje czas sprzed początku wpisu — STOP zadziała, gdy zegar go dogoni";
+  }
+  if (action === "start" && kind === "Overlap") {
+    return "Zegar systemowy wskazuje czas sprzed końca innego wpisu — sprawdź zegar lub popraw wpis";
+  }
+  return workTimeErrorMessage(e);
+}

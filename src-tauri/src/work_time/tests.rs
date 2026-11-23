@@ -481,9 +481,12 @@ fn running_entry_from_before_midnight_counts_only_from_midnight() {
     assert_eq!(yesterday.entries.len(), 1);
     assert_eq!(yesterday.entries[0].day_portion_ms, HOUR);
     assert_eq!(yesterday.running_from_ms, None);
+    // The running entry's part of a day that has ended is in that day's total.
+    assert_eq!(yesterday.closed_ms, HOUR);
     let today = entries_for_day(&store, day("2026-11-23"), late, &Warsaw).unwrap();
     assert_eq!(today.entries[0].day_portion_ms, HOUR);
     assert_eq!(today.running_from_ms, Some(day_start));
+    assert_eq!(today.closed_ms, 0);
     // A day that has not begun does not list the running entry.
     let tomorrow = entries_for_day(&store, day("2026-11-24"), late, &Warsaw).unwrap();
     assert!(tomorrow.entries.is_empty());

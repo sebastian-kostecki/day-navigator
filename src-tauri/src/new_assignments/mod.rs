@@ -6,14 +6,18 @@
 //! and two instants: no title, reference, URL or hostname.
 
 pub mod error;
+pub mod notice;
 pub mod rules;
 
 #[cfg(test)]
 mod tests;
 
+use std::collections::{HashMap, HashSet};
+
 use crate::gitlab::{AssignedItems, ItemKind};
 use crate::store::{Store, StoreError};
 pub use error::NewAssignmentError;
+pub use notice::notices_for;
 pub use rules::{FORGET_AFTER_MS, ItemKey, RoundPlan, SeenRow, plan_round};
 
 fn kind_text(kind: ItemKind) -> &'static str {
@@ -124,4 +128,63 @@ pub fn record_round(
         }
         Ok(plan.new)
     })
+}
+
+#[derive(Debug, Default)]
+struct AccountSeen {
+    /// Keys of the last successful round.
+    last: Option<HashSet<ItemKey>>,
+    /// Keys the fallback toasted while the store failed.
+    toasted_unstored: HashSet<ItemKey>,
+}
+
+/// Per-account session memory that keeps notifications working, without
+/// repeats, while the store fails, and avoids a duplicate when it recovers.
+#[derive(Debug, Default)]
+pub struct SessionSeen {
+    accounts: HashMap<String, AccountSeen>,
+}
+
+impl SessionSeen {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// The keys to notify for `account` this round, given the store's answer.
+    /// Store ok: its new keys minus those the fallback already toasted. Store
+    /// error: the keys not in the last round (nothing on the session's first
+    /// round, a silent seed). The account's `last` becomes `current`.
+    pub fn resolve(
+        &mut self,
+        account: &str,
+        current: &[ItemKey],
+        stored: Result<Vec<ItemKey>, NewAssignmentError>,
+    ) -> Vec<ItemKey> {
+        let seen = self.accounts.entry(account.to_string()).or_default();
+        let notify = match stored {
+            Ok(new) => {
+                let out = new
+                    .into_iter()
+                    .filter(|k| !seen.toasted_unstored.contains(k))
+                    .collect();
+                seen.toasted_unstored.clear();
+                out
+            }
+            Err(_) => match &seen.last {
+                Some(last) => {
+                    let mut out = Vec::new();
+                    for key in current {
+                        if !last.contains(key) && !out.contains(key) {
+                            out.push(*key);
+                        }
+                    }
+                    seen.toasted_unstored.extend(out.iter().copied());
+                    out
+                }
+                None => Vec::new(),
+            },
+        };
+        seen.last = Some(current.iter().copied().collect());
+        notify
+    }
 }

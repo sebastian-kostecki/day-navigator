@@ -403,9 +403,9 @@ S-02, S-05 and S-10 can run in parallel and may also append a migration (v5 and 
 
 #### Automated
 
-- [x] 1.1 Rule, store and crash tests pass: `cd src-tauri && cargo test new_assignments`
-- [x] 1.2 Full Rust suite passes: `cd src-tauri && cargo test`
-- [x] 1.3 `cd src-tauri && cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
+- [x] 1.1 Rule, store and crash tests pass: `cd src-tauri && cargo test new_assignments` — 6ef10d1
+- [x] 1.2 Full Rust suite passes: `cd src-tauri && cargo test` — 6ef10d1
+- [x] 1.3 `cd src-tauri && cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean — 6ef10d1
 
 #### Manual
 
@@ -415,9 +415,9 @@ S-02, S-05 and S-10 can run in parallel and may also append a migration (v5 and 
 
 #### Automated
 
-- [ ] 2.1 Notice, fallback and predicate tests pass: `cd src-tauri && cargo test new_assignments` and `cargo test gitlab_refresh`
-- [ ] 2.2 Full Rust suite passes: `cd src-tauri && cargo test`
-- [ ] 2.3 `cd src-tauri && cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
+- [x] 2.1 Notice, fallback and predicate tests pass: `cd src-tauri && cargo test new_assignments` and `cargo test gitlab_refresh`
+- [x] 2.2 Full Rust suite passes: `cd src-tauri && cargo test`
+- [x] 2.3 `cd src-tauri && cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
 
 #### Manual
 

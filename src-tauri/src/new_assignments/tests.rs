@@ -80,3 +80,207 @@ fn seeded_account_with_all_rows_forgotten_still_notifies() {
 fn key_debug_is_opaque() {
     assert_eq!(format!("{:?}", issue(123_456)), "ItemKey(..)");
 }
+
+mod notices {
+    use crate::gitlab::{GitlabItem, ItemKind};
+    use crate::new_assignments::notices_for;
+
+    fn item(kind: ItemKind, id: u64, title: &str) -> GitlabItem {
+        GitlabItem {
+            kind,
+            id,
+            project_id: 1,
+            iid: id,
+            reference: match kind {
+                ItemKind::Issue => format!("acme/invented#{id}"),
+                ItemKind::MergeRequest => format!("acme/invented!{id}"),
+            },
+            title: title.to_string(),
+            web_url: Some("https://secret-host.example.invalid/acme/invented/-/issues/1".into()),
+            updated_at: "2026-03-03T08:00:00.000Z".into(),
+            labels: vec![],
+            draft: false,
+            changed: None,
+        }
+    }
+
+    fn issues(n: u64) -> Vec<GitlabItem> {
+        (1..=n)
+            .map(|i| item(ItemKind::Issue, i, &format!("Title {i}")))
+            .collect()
+    }
+
+    fn refs(items: &[GitlabItem]) -> Vec<&GitlabItem> {
+        items.iter().collect()
+    }
+
+    #[test]
+    fn no_items_give_no_notice() {
+        assert!(notices_for(&[]).is_empty());
+    }
+
+    #[test]
+    fn one_issue_and_one_mr_get_their_own_titles() {
+        let items = [
+            item(ItemKind::Issue, 1, "Fix parser"),
+            item(ItemKind::MergeRequest, 2, "Add widget"),
+        ];
+        let n = notices_for(&refs(&items));
+        assert_eq!(n.len(), 2);
+        assert_eq!(n[0].title, "Nawigator dnia — nowe zgłoszenie");
+        assert_eq!(n[0].body, "acme/invented#1 — Fix parser");
+        assert_eq!(n[1].title, "Nawigator dnia — nowy MR");
+        assert_eq!(n[1].body, "acme/invented!2 — Add widget");
+    }
+
+    #[test]
+    fn three_items_give_three_separate_notices_in_order() {
+        let items = issues(3);
+        let n = notices_for(&refs(&items));
+        assert_eq!(n.len(), 3);
+        assert_eq!(n[2].body, "acme/invented#3 — Title 3");
+    }
+
+    #[test]
+    fn four_items_give_one_combined_notice() {
+        let items = issues(4);
+        let n = notices_for(&refs(&items));
+        assert_eq!(n.len(), 1);
+        assert_eq!(n[0].title, "Nawigator dnia — nowe przypisania (4)");
+        assert_eq!(
+            n[0].body,
+            "acme/invented#1 — Title 1\nacme/invented#2 — Title 2\nacme/invented#3 — Title 3\ni 1 więcej"
+        );
+    }
+
+    #[test]
+    fn separate_title_is_cut_at_100_chars_on_a_char_boundary() {
+        let title = format!("{}ąlong-tail", "a".repeat(99));
+        let items = [item(ItemKind::Issue, 1, &title)];
+        let body = &notices_for(&refs(&items))[0].body;
+        assert_eq!(body, &format!("acme/invented#1 — {}ą…", "a".repeat(99)));
+        // Exactly 100 characters is not cut.
+        let exact = "ż".repeat(100);
+        let items = [item(ItemKind::Issue, 1, &exact)];
+        assert_eq!(
+            notices_for(&refs(&items))[0].body,
+            format!("acme/invented#1 — {exact}")
+        );
+    }
+
+    #[test]
+    fn combined_line_title_is_cut_at_40_chars() {
+        let long = format!("{}łlong-tail", "b".repeat(39));
+        let mut items = issues(4);
+        items[0].title = long;
+        let n = notices_for(&refs(&items));
+        let first = n[0].body.lines().next().unwrap();
+        assert_eq!(first, format!("acme/invented#1 — {}ł…", "b".repeat(39)));
+        assert!(n[0].body.ends_with("i 1 więcej"));
+    }
+
+    #[test]
+    fn control_characters_become_spaces() {
+        let mut it = item(ItemKind::Issue, 1, "Line\none\u{7}two\r\n");
+        it.reference = "acme/in\tvented#1".into();
+        let items = [it];
+        let n = notices_for(&refs(&items));
+        assert_eq!(n[0].body, "acme/in vented#1 — Line one two  ");
+        assert_eq!(n[0].body.lines().count(), 1);
+    }
+
+    #[test]
+    fn no_host_or_url_reaches_a_notice() {
+        for count in [1, 4] {
+            let items = issues(count);
+            for n in notices_for(&refs(&items)) {
+                for text in [&n.title, &n.body] {
+                    assert!(!text.contains("secret-host"));
+                    assert!(!text.contains("http"));
+                }
+            }
+        }
+    }
+}
+
+mod session {
+    use crate::gitlab::ItemKind;
+    use crate::new_assignments::{ItemKey, NewAssignmentError, SessionSeen};
+    use crate::store::StoreError;
+
+    fn k(id: u64) -> ItemKey {
+        ItemKey::new(ItemKind::Issue, id)
+    }
+
+    fn fail() -> Result<Vec<ItemKey>, NewAssignmentError> {
+        Err(NewAssignmentError::Store(StoreError::Damaged {
+            reason: "invented".into(),
+        }))
+    }
+
+    #[test]
+    fn store_ok_with_nothing_in_session_passes_new_through() {
+        let mut s = SessionSeen::new();
+        assert_eq!(s.resolve("a", &[k(1), k(2)], Ok(vec![k(2)])), vec![k(2)]);
+    }
+
+    #[test]
+    fn store_ok_overlapping_the_session_has_no_duplicate() {
+        let mut s = SessionSeen::new();
+        s.resolve("a", &[k(1)], Ok(vec![]));
+        assert_eq!(s.resolve("a", &[k(1), k(2)], Ok(vec![k(2)])), vec![k(2)]);
+        assert!(s.resolve("a", &[k(1), k(2)], Ok(vec![])).is_empty());
+    }
+
+    #[test]
+    fn store_error_after_an_earlier_round_notifies_only_the_new_item() {
+        let mut s = SessionSeen::new();
+        s.resolve("a", &[k(1)], Ok(vec![]));
+        assert_eq!(s.resolve("a", &[k(1), k(2)], fail()), vec![k(2)]);
+        // Not repeated while the store keeps failing.
+        assert!(s.resolve("a", &[k(1), k(2)], fail()).is_empty());
+    }
+
+    #[test]
+    fn store_error_first_is_silent() {
+        let mut s = SessionSeen::new();
+        assert!(s.resolve("a", &[k(1), k(2)], fail()).is_empty());
+        assert!(s.resolve("a", &[k(1), k(2)], fail()).is_empty());
+    }
+
+    #[test]
+    fn store_error_first_then_ok_notifies_an_overnight_key_once() {
+        let mut s = SessionSeen::new();
+        assert!(s.resolve("a", &[k(1)], fail()).is_empty());
+        assert_eq!(s.resolve("a", &[k(1), k(2)], Ok(vec![k(2)])), vec![k(2)]);
+        assert!(s.resolve("a", &[k(1), k(2)], Ok(vec![])).is_empty());
+    }
+
+    #[test]
+    fn fallback_toast_then_ok_returning_it_has_no_duplicate() {
+        let mut s = SessionSeen::new();
+        s.resolve("a", &[k(1)], Ok(vec![]));
+        assert_eq!(s.resolve("a", &[k(1), k(2)], fail()), vec![k(2)]);
+        // The store recovers and still reports 2 (plus 3) as new.
+        assert_eq!(
+            s.resolve("a", &[k(1), k(2), k(3)], Ok(vec![k(2), k(3)])),
+            vec![k(3)]
+        );
+        // The suppression was one-shot.
+        assert_eq!(
+            s.resolve("a", &[k(1), k(2), k(3)], Ok(vec![k(2)])),
+            vec![k(2)]
+        );
+    }
+
+    #[test]
+    fn accounts_do_not_share_session_memory() {
+        let mut s = SessionSeen::new();
+        s.resolve("a", &[k(1)], Ok(vec![]));
+        // Account b has no earlier round: silent on error.
+        assert!(s.resolve("b", &[k(1), k(2)], fail()).is_empty());
+        assert_eq!(s.resolve("a", &[k(1), k(2)], fail()), vec![k(2)]);
+        // b's recovery is unaffected by a's fallback toast.
+        assert_eq!(s.resolve("b", &[k(1), k(2)], Ok(vec![k(2)])), vec![k(2)]);
+    }
+}

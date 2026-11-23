@@ -28,7 +28,8 @@ use crate::gitlab::fetch::fetch_assigned;
 use crate::gitlab::{self, AssignedItems, GitlabError, GitlabItem, GitlabSnapshot, ItemKind};
 use crate::health;
 use crate::hidden_issues::{HiddenIssueError, HiddenRecord, check_round, commit_round, partition};
-use crate::runtime::{HealthState, now_ms};
+use crate::new_assignments::{ItemKey, SessionSeen, keys_of, notices_for, record_round};
+use crate::runtime::{HealthState, now_ms, toast};
 use crate::settings::load_gitlab_settings;
 use crate::store::StoreHandle;
 use crate::todo;
@@ -189,8 +190,16 @@ fn refresh_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::R
     let runner = CliRunner::system();
     // The issue whose notes call stopped the last round; checks resume after it.
     let mut resume_after = None;
+    // Session memory for new-assignment toasts while the store fails.
+    let mut session_seen = SessionSeen::new();
     loop {
-        refresh_round(&app, &settings_path, &runner, &mut resume_after);
+        refresh_round(
+            &app,
+            &settings_path,
+            &runner,
+            &mut resume_after,
+            &mut session_seen,
+        );
         match wake_rx.recv_timeout(REFRESH_INTERVAL) {
             Ok(()) => while wake_rx.try_recv().is_ok() {},
             Err(RecvTimeoutError::Timeout) => {}
@@ -237,6 +246,7 @@ fn refresh_round(
     settings_path: &Option<PathBuf>,
     runner: &CliRunner,
     resume_after: &mut Option<u64>,
+    session_seen: &mut SessionSeen,
 ) {
     let state = app.state::<GitlabRefreshState>();
     let started = Instant::now();
@@ -291,6 +301,9 @@ fn refresh_round(
         (_, Err(e), _) => Err(e),
     };
     let succeeded = outcome.is_ok();
+    // The full list (hidden issues included) is the notification input, kept
+    // before it moves into `kept_full`.
+    let round_full = full_list.clone();
 
     let kept = state
         .kept_config
@@ -318,12 +331,17 @@ fn refresh_round(
     let after_status = health::gitlab_status(&next);
     let from = state_label(&before);
     let to = state_label(&next);
+    let notify_account = notify_input(&next).map(str::to_string);
     let todo_changed = reconcile_todo(app, &next);
     *state.write() = next;
     drop(gate);
     publish(app, &state);
     if todo_changed && let Err(e) = app.emit(TODO_EVENT, ()) {
         log::warn!("todo: emit failed: {e}");
+    }
+    // After the gate and the publish: no lock is held while a toast shows.
+    if let (Some(full), Some(account)) = (&round_full, &notify_account) {
+        notify_new_assignments(app, account, full, session_seen);
     }
 
     if from != to {
@@ -345,6 +363,50 @@ fn reconcile_input(snap: &GitlabSnapshot) -> Option<(&AssignedItems, &str)> {
     match snap.state {
         gitlab::GitlabState::Ok => Some((snap.items.as_ref()?, snap.account.as_deref()?)),
         _ => None,
+    }
+}
+
+/// The account a new-assignment step may act on: only a successful round with
+/// an account. A stale list kept after a failed round must never notify.
+fn notify_input(snap: &GitlabSnapshot) -> Option<&str> {
+    match snap.state {
+        gitlab::GitlabState::Ok => snap.account.as_deref(),
+        _ => None,
+    }
+}
+
+/// Records the round's full list in the seen set and shows a toast for every
+/// new item. Runs outside every lock. A store error falls back to the session
+/// memory and is logged by kind only; nothing logs a reference, title or URL.
+fn notify_new_assignments(
+    app: &AppHandle,
+    account: &str,
+    full: &AssignedItems,
+    session_seen: &mut SessionSeen,
+) {
+    let current = keys_of(full);
+    let now = Local::now().naive_local();
+    let stored = app.state::<StoreHandle>().with_store(now.date(), |s| {
+        record_round(s, account, &current, now_ms() as i64)
+    });
+    if let Err(e) = &stored {
+        // An unopenable store is reported by the health round.
+        log::debug!("gitlab: seen set failed: {}", e.kind());
+    }
+    let new_keys = session_seen.resolve(account, &current, stored);
+    if new_keys.is_empty() {
+        return;
+    }
+    let items: Vec<&GitlabItem> = full
+        .merge_requests
+        .iter()
+        .chain(&full.issues)
+        .chain(&full.hidden_issues)
+        .filter(|i| new_keys.contains(&ItemKey::new(i.kind, i.id)))
+        .collect();
+    log::info!("gitlab: {} new assignments", items.len());
+    for notice in notices_for(&items) {
+        toast(app, &notice.title, &notice.body);
     }
 }
 
@@ -463,6 +525,34 @@ mod tests {
         assert!(reconcile_input(&with(State::Starting)).is_none());
         // Ok without items (not reachable in practice) gives nothing.
         assert!(reconcile_input(&snap(State::Ok)).is_none());
+    }
+
+    #[test]
+    fn notify_input_only_for_ok_with_an_account() {
+        let with = |state, account: Option<&str>| GitlabSnapshot {
+            state,
+            account: account.map(str::to_string),
+            ..GitlabSnapshot::starting()
+        };
+        assert_eq!(
+            notify_input(&with(State::Ok, Some("account-a"))),
+            Some("account-a")
+        );
+        assert!(notify_input(&with(State::Ok, None)).is_none());
+        // A failed round keeps the last account; it must not notify.
+        for state in [
+            State::Starting,
+            State::NotConfigured,
+            State::Unavailable {
+                message: String::new(),
+            },
+            State::Error {
+                kind: "LoggedOut".into(),
+                message: String::new(),
+            },
+        ] {
+            assert!(notify_input(&with(state, Some("account-a"))).is_none());
+        }
     }
 
     #[test]

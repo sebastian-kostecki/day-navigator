@@ -163,3 +163,63 @@ fn an_absent_item_is_forgotten_after_thirty_days_and_notifies_on_return() {
     .unwrap();
     assert_eq!(back, vec![issue(1)]);
 }
+
+mod round {
+    use std::path::PathBuf;
+    use std::time::Duration;
+
+    use super::*;
+    use day_navigator_lib::cli::{CliRunner, GitlabConfig, GitlabHost};
+    use day_navigator_lib::gitlab::fetch::fetch_assigned;
+    use day_navigator_lib::new_assignments::keys_of;
+
+    fn fake() -> PathBuf {
+        PathBuf::from(env!("CARGO_BIN_EXE_fake-cli"))
+    }
+
+    #[test]
+    fn new_assignments_fake_cli_round_seeds_then_returns_a_deleted_key() {
+        let runner = CliRunner::with_programs(
+            fake(),
+            fake(),
+            Duration::from_secs(10),
+            vec![(
+                "FAKE_CLI_SCENARIO".to_string(),
+                "gitlab-assigned".to_string(),
+            )],
+        );
+        let config = GitlabConfig {
+            host: GitlabHost::parse("gitlab.example.invalid").unwrap(),
+            user: None,
+        };
+        let (_tmp, dir) = test_store_dir();
+        let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+
+        let list = fetch_assigned(&runner, &config).expect("data");
+        let keys = keys_of(&list);
+        assert!(keys.len() > 1);
+
+        let first = record_round(&mut store, ACCOUNT_A, &keys, NOW).unwrap();
+        assert!(first.is_empty(), "the first round seeds silently");
+
+        let gone = keys[0];
+        store
+            .write::<_, StoreError>(|tx| {
+                let kind = match gone.kind {
+                    ItemKind::Issue => "issue",
+                    ItemKind::MergeRequest => "mergeRequest",
+                };
+                let n = tx.execute(
+                    "DELETE FROM seen_assignments WHERE account = ?1 AND kind = ?2 AND item_id = ?3",
+                    rusqlite::params![ACCOUNT_A, kind, gone.id as i64],
+                )?;
+                assert_eq!(n, 1);
+                Ok(())
+            })
+            .unwrap();
+
+        let again = fetch_assigned(&runner, &config).expect("data");
+        let next = record_round(&mut store, ACCOUNT_A, &keys_of(&again), NOW + 1_000).unwrap();
+        assert_eq!(next, vec![gone]);
+    }
+}

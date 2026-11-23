@@ -231,7 +231,7 @@ fn publish(app: &AppHandle, state: &HealthState) {
     emit_snapshot(app, &snap);
 }
 
-fn toast(app: &AppHandle, title: &str, body: &str) {
+pub(crate) fn toast(app: &AppHandle, title: &str, body: &str) {
     if !health::notices_allowed() {
         return;
     }

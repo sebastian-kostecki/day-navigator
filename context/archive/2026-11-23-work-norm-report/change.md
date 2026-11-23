@@ -1,10 +1,10 @@
 ---
 change_id: work-norm-report
 title: Work norm report
-status: impl_reviewed
+status: archived
 created: 2026-11-23
 updated: 2026-11-23
-archived_at: null
+archived_at: 2026-11-23T12:27:13Z
 ---
 
 ## Notes

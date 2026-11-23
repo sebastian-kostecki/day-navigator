@@ -332,10 +332,10 @@ None for data. `settings.json` gains an optional `gitlab` block; existing files 
 
 #### Automated
 
-- [x] 1.1 Unit tests pass: `cargo test --lib`
-- [x] 1.2 Integration tests pass: `cargo test --test cli_runner --test gitlab_fetch`
-- [x] 1.3 Format and lint are clean: `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`
-- [x] 1.4 Full Rust suite passes: `cargo test`
+- [x] 1.1 Unit tests pass: `cargo test --lib` — f305e16
+- [x] 1.2 Integration tests pass: `cargo test --test cli_runner --test gitlab_fetch` — f305e16
+- [x] 1.3 Format and lint are clean: `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` — f305e16
+- [x] 1.4 Full Rust suite passes: `cargo test` — f305e16
 
 #### Manual
 
@@ -345,8 +345,8 @@ None for data. `settings.json` gains an optional `gitlab` block; existing files 
 
 #### Automated
 
-- [ ] 2.1 Unit tests pass: `cargo test --lib -- health gitlab`
-- [ ] 2.2 Full pre-commit gate passes
+- [x] 2.1 Unit tests pass: `cargo test --lib -- health gitlab`
+- [x] 2.2 Full pre-commit gate passes
 
 #### Manual
 

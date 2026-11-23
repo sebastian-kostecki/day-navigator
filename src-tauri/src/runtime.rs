@@ -22,6 +22,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 
 use crate::VaultState;
+use crate::gitlab_refresh::GitlabState;
 use crate::health::{self, HealthSnapshot, Overall, SourceStatus};
 use crate::store::StoreHandle;
 use crate::vault::{VaultError, VaultRegistry};
@@ -118,7 +119,7 @@ pub fn show_main(app: &AppHandle) {
     }
 }
 
-fn now_ms() -> u64 {
+pub(crate) fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
@@ -240,12 +241,15 @@ fn probe_round(
     settings_path: &Option<PathBuf>,
     store: &StoreHandle,
     today: NaiveDate,
+    gitlab: Option<SourceStatus>,
 ) -> ProbeResult {
     let (registry, mut sources) = match settings_path {
         Some(p) => health::probe(p),
         None => health::unresolved_config_dir(),
     };
     sources.push(health::store_status(store, today));
+    // Absent until the first GitLab round has finished.
+    sources.extend(gitlab);
     (registry, sources)
 }
 
@@ -276,6 +280,7 @@ fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut 
         settings_path,
         &app.state::<StoreHandle>(),
         Local::now().date_naive(),
+        health::gitlab_status(&app.state::<GitlabState>().snapshot()),
     );
     // Stamp as soon as the probe returns. The probe is the part that can hang;
     // stamping after the blocking tray calls below let the watchdog flag a
@@ -332,6 +337,7 @@ fn watchdog_loop(app: AppHandle) {
             // run a round now instead of waiting out its 30 s timer.
             resumed_at = Some(now);
             let _ = state.wake.send(());
+            let _ = app.state::<GitlabState>().wake();
         }
 
         let action = health::watchdog_step(

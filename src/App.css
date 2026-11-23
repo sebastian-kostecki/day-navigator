@@ -50,6 +50,11 @@ h2 {
   color: #6b6b6b;
 }
 
+.source.unavailable {
+  border-left-color: #9a9a9a;
+  color: #6b6b6b;
+}
+
 .source.error {
   border-left-color: #d13438;
 }
@@ -223,6 +228,7 @@ fieldset {
   }
 
   .source.notConfigured,
+  .source.unavailable,
   .checked-at,
   .notice {
     color: #a8a8a8;

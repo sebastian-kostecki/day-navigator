@@ -9,7 +9,7 @@ use serde::{Serialize, Serializer};
 
 use crate::vault::Space;
 
-pub use probe::{probe, store_status, unresolved_config_dir};
+pub use probe::{gitlab_status, probe, store_status, unresolved_config_dir};
 
 /// Longest tooltip the Windows tray accepts, in UTF-16 units (`szTip` holds 128
 /// including the terminator).
@@ -25,11 +25,14 @@ pub enum SourceId {
     Exclusions(Space),
     /// The app-owned data store ("Dane aplikacji").
     AppData,
+    /// Assigned GitLab issues and merge requests ("GitLab").
+    Gitlab,
 }
 
 impl SourceId {
     pub fn key(&self) -> String {
         match self {
+            SourceId::Gitlab => "gitlab".to_string(),
             SourceId::Settings => "settings".to_string(),
             SourceId::Vault(s) => format!("vault:{s}"),
             SourceId::Exclusions(s) => format!("exclusions:{s}"),
@@ -57,7 +60,15 @@ impl Serialize for SourceId {
 pub enum SourceState {
     Ok,
     NotConfigured,
-    Error { kind: String, message: String },
+    /// Calm "cannot reach it right now" (for example no VPN): not an error, so
+    /// it never turns the tray red and never toasts.
+    Unavailable {
+        message: String,
+    },
+    Error {
+        kind: String,
+        message: String,
+    },
 }
 
 impl SourceState {
@@ -66,6 +77,10 @@ impl SourceState {
             SourceState::Error { kind, .. } => Some(kind),
             _ => None,
         }
+    }
+
+    fn is_unavailable(&self) -> bool {
+        matches!(self, SourceState::Unavailable { .. })
     }
 }
 
@@ -117,7 +132,8 @@ pub struct Notice {
 
 /// Transitions from `prev` to `next`: entering an error, changing error kind,
 /// or recovering (`Error` to `Ok`). A source missing from `prev` is Unknown.
-/// A source absent from `next`, and `Error` to `NotConfigured`, are silent.
+/// A source absent from `next`, and `Error` to `NotConfigured` or `Unavailable`,
+/// are silent; so is entering `Unavailable` from anywhere.
 pub fn transitions(prev: &[SourceStatus], next: &[SourceStatus]) -> Vec<Transition> {
     let mut out = Vec::new();
     for n in next {
@@ -126,7 +142,7 @@ pub fn transitions(prev: &[SourceStatus], next: &[SourceStatus]) -> Vec<Transiti
         let (to_kind, changed) = match &n.state {
             SourceState::Error { kind, .. } => (Some(kind.clone()), prev_kind != Some(kind)),
             SourceState::Ok => (None, prev_kind.is_some()),
-            SourceState::NotConfigured => (None, false),
+            SourceState::NotConfigured | SourceState::Unavailable { .. } => (None, false),
         };
         if changed {
             out.push(Transition {
@@ -171,6 +187,10 @@ fn short_reason(kind: &str) -> &'static str {
         "MigrationFailed" => "aktualizacja danych nie powiodła się",
         "DirUnavailable" => "folder danych niedostępny",
         "Busy" => "plik danych zajęty",
+        "LoggedOut" => "wylogowano",
+        "ToolMissing" => "brak programu",
+        "Failed" => "błąd wywołania",
+        "ResponseInvalid" => "nieczytelna odpowiedź",
         _ => "błąd źródła",
     }
 }
@@ -219,7 +239,18 @@ pub fn overall(sources: &[SourceStatus], heartbeat_stale: bool, started: bool) -
 pub fn tooltip(overall: Overall, sources: &[SourceStatus]) -> String {
     let text = match overall {
         Overall::Starting => format!("{APP_NAME} — uruchamianie…"),
-        Overall::Ok => format!("{APP_NAME} — OK"),
+        Overall::Ok => {
+            let down: Vec<&str> = sources
+                .iter()
+                .filter(|s| s.state.is_unavailable())
+                .map(|s| s.label.as_str())
+                .collect();
+            if down.is_empty() {
+                format!("{APP_NAME} — OK")
+            } else {
+                format!("{APP_NAME} — OK ({} niedostępny)", down.join(", "))
+            }
+        }
         Overall::NotRunning => format!("{APP_NAME} — sprawdzanie nie działa"),
         Overall::Error => {
             let failing: Vec<&SourceStatus> = sources
@@ -690,6 +721,92 @@ mod tests {
                 "was_stale={was_stale} age={age:?} gap={gap:?} since_resume={since_resume:?}"
             );
         }
+    }
+
+    const G: SourceId = SourceId::Gitlab;
+
+    fn unavailable(id: SourceId, label: &str) -> SourceStatus {
+        st(
+            id,
+            label,
+            SourceState::Unavailable {
+                message: "m".to_string(),
+            },
+        )
+    }
+
+    #[test]
+    fn gitlab_source_key_and_short_reasons() {
+        assert_eq!(G.key(), "gitlab");
+        assert_eq!(short_reason("LoggedOut"), "wylogowano");
+        assert_eq!(short_reason("ToolMissing"), "brak programu");
+        assert_eq!(short_reason("Failed"), "błąd wywołania");
+        assert_eq!(short_reason("ResponseInvalid"), "nieczytelna odpowiedź");
+    }
+
+    #[test]
+    fn unavailable_serialises_calmly() {
+        let s = unavailable(G, "GitLab");
+        let v = serde_json::to_value(&s).unwrap();
+        assert_eq!(v["id"], "gitlab");
+        assert_eq!(v["state"], "unavailable");
+        assert_eq!(v["message"], "m");
+    }
+
+    #[test]
+    fn unavailable_never_makes_overall_an_error() {
+        let src = vec![st(W, "V", SourceState::Ok), unavailable(G, "GitLab")];
+        assert_eq!(overall(&src, false, true), Overall::Ok);
+        assert_eq!(overall(&src, false, false), Overall::Starting);
+        assert_eq!(overall(&src, true, true), Overall::NotRunning);
+    }
+
+    #[test]
+    fn unavailable_is_silent_in_both_directions() {
+        let ok = vec![st(G, "GitLab", SourceState::Ok)];
+        let down = vec![unavailable(G, "GitLab")];
+        let bad = vec![err(G, "GitLab", "LoggedOut", "m")];
+        assert!(transitions(&[], &down).is_empty());
+        assert!(transitions(&ok, &down).is_empty());
+        assert!(transitions(&down, &ok).is_empty());
+        assert!(transitions(&bad, &down).is_empty());
+        // Leaving Unavailable into an error is a normal error transition.
+        assert_eq!(transitions(&down, &bad).len(), 1);
+    }
+
+    #[test]
+    fn logged_out_recovery_is_a_transition() {
+        let ok = vec![st(G, "GitLab", SourceState::Ok)];
+        let bad = vec![err(G, "GitLab", "LoggedOut", "m")];
+        let entered = transitions(&ok, &bad);
+        assert_eq!(entered.len(), 1);
+        let n = notice_for(&entered).unwrap();
+        assert_eq!(n.body, "GitLab: wylogowano");
+        let rec = transitions(&bad, &ok);
+        assert_eq!(rec.len(), 1);
+        assert_eq!(rec[0].to_kind, None);
+    }
+
+    #[test]
+    fn tooltip_notes_unavailable_sources_when_ok() {
+        let one = vec![st(W, "V", SourceState::Ok), unavailable(G, "GitLab")];
+        assert_eq!(
+            tooltip(Overall::Ok, &one),
+            "Nawigator dnia — OK (GitLab niedostępny)"
+        );
+        let two = vec![unavailable(G, "GitLab"), unavailable(P, "Vault Prywatne")];
+        assert_eq!(
+            tooltip(Overall::Ok, &two),
+            "Nawigator dnia — OK (GitLab, Vault Prywatne niedostępny)"
+        );
+        // Other states are unchanged.
+        assert_eq!(
+            tooltip(Overall::NotRunning, &one),
+            "Nawigator dnia — sprawdzanie nie działa"
+        );
+        let long = "Żółć".repeat(60);
+        let t = tooltip(Overall::Ok, &[unavailable(G, &long)]);
+        assert!(t.encode_utf16().count() <= 127);
     }
 
     #[test]

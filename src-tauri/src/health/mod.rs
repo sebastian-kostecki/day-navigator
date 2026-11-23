@@ -15,7 +15,7 @@ pub use probe::{gitlab_status, probe, store_status, unresolved_config_dir};
 /// including the terminator).
 const TOOLTIP_MAX_UTF16: usize = 127;
 const MAX_NOTICE_LINES: usize = 3;
-const APP_NAME: &str = "Nawigator dnia";
+pub(crate) const APP_NAME: &str = "Nawigator dnia";
 
 /// A checked source. Serialised as its stable key (`settings`, `vault:work`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

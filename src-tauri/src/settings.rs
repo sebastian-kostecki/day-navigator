@@ -2,7 +2,9 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
+use chrono::NaiveTime;
 use serde::Deserialize;
 
 use crate::cli::{GitlabConfig, GitlabHost, GitlabUser};
@@ -184,6 +186,121 @@ fn parse_todo_limit(text: &str) -> Result<u32, TodoError> {
             _ => Err(TodoError::SettingsInvalid),
         },
     }
+}
+
+/// Default `longRunningHours` of the `reminders` block.
+pub const DEFAULT_LONG_RUNNING_HOURS: u64 = 10;
+const LONG_RUNNING_HOURS_MAX: u64 = 24;
+
+/// Work-time reminder triggers; `None` means that reminder is switched off.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReminderSettings {
+    pub long_running: Option<Duration>,
+    pub not_running_after: Option<NaiveTime>,
+}
+
+impl Default for ReminderSettings {
+    fn default() -> Self {
+        ReminderSettings {
+            long_running: Some(Duration::from_secs(DEFAULT_LONG_RUNNING_HOURS * 3600)),
+            not_running_after: NaiveTime::from_hms_opt(9, 0, 0),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum ReminderSettingsError {
+    #[error("the reminders settings block is invalid")]
+    SettingsInvalid,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct RawReminders {
+    #[serde(default)]
+    long_running_hours: Option<serde_json::Value>,
+    #[serde(default)]
+    not_running_after: Option<serde_json::Value>,
+}
+
+/// Reads only the top-level `reminders` block, on its own, like the `todo`
+/// block. Shape:
+///
+/// ```json
+/// "reminders": { "longRunningHours": 10, "notRunningAfter": "09:00" }
+/// ```
+///
+/// - `longRunningHours`: an integer 1..=24 or `false` (off). Default 10.
+/// - `notRunningAfter`: a zero-padded 24-hour `"HH:MM"` or `false` (off).
+///   Default `"09:00"`.
+///
+/// A missing file, an absent or `null` block and absent or `null` fields are
+/// the defaults. Anything else is `SettingsInvalid`, with no detail: serde
+/// errors can quote the value.
+pub fn load_reminder_settings(path: &Path) -> Result<ReminderSettings, ReminderSettingsError> {
+    let bytes = match fs::read(path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(ReminderSettings::default());
+        }
+        Err(_) => return Err(ReminderSettingsError::SettingsInvalid),
+    };
+    let bytes = bytes
+        .strip_prefix(&[0xEF, 0xBB, 0xBF][..])
+        .unwrap_or(&bytes);
+    let text = std::str::from_utf8(bytes).map_err(|_| ReminderSettingsError::SettingsInvalid)?;
+    parse_reminder_settings(text)
+}
+
+fn parse_hhmm(text: &str) -> Option<NaiveTime> {
+    let b = text.as_bytes();
+    if b.len() != 5 || b[2] != b':' {
+        return None;
+    }
+    if ![0, 1, 3, 4].iter().all(|&i| b[i].is_ascii_digit()) {
+        return None;
+    }
+    let hours: u32 = text[0..2].parse().ok()?;
+    let minutes: u32 = text[3..5].parse().ok()?;
+    NaiveTime::from_hms_opt(hours, minutes, 0)
+}
+
+fn parse_reminder_settings(text: &str) -> Result<ReminderSettings, ReminderSettingsError> {
+    const INVALID: ReminderSettingsError = ReminderSettingsError::SettingsInvalid;
+    let value: serde_json::Value = serde_json::from_str(text).map_err(|_| INVALID)?;
+    if value.get("version").and_then(|v| v.as_u64()) != Some(SUPPORTED_VERSION) {
+        return Err(INVALID);
+    }
+    let Some(block) = value.get("reminders") else {
+        return Ok(ReminderSettings::default());
+    };
+    if block.is_null() {
+        return Ok(ReminderSettings::default());
+    }
+    if !block.is_object() {
+        return Err(INVALID);
+    }
+    let raw: RawReminders = serde_json::from_value(block.clone()).map_err(|_| INVALID)?;
+    let mut settings = ReminderSettings::default();
+    match raw.long_running_hours {
+        None => {}
+        Some(serde_json::Value::Bool(false)) => settings.long_running = None,
+        Some(v) => match v.as_u64() {
+            Some(n) if (1..=LONG_RUNNING_HOURS_MAX).contains(&n) => {
+                settings.long_running = Some(Duration::from_secs(n * 3600));
+            }
+            _ => return Err(INVALID),
+        },
+    }
+    match raw.not_running_after {
+        None => {}
+        Some(serde_json::Value::Bool(false)) => settings.not_running_after = None,
+        Some(serde_json::Value::String(s)) => {
+            settings.not_running_after = Some(parse_hhmm(&s).ok_or(INVALID)?);
+        }
+        Some(_) => return Err(INVALID),
+    }
+    Ok(settings)
 }
 
 fn parse_settings(text: &str) -> Result<Settings, VaultError> {
@@ -542,6 +659,152 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let text = r#"{"version":1,"spaces":{},"gitlab":"nope","todo":{"limit":4}}"#;
         assert_eq!(load_todo_limit(&write(&dir, text)).unwrap(), 4);
+    }
+
+    fn reminders_text(block: &str) -> String {
+        format!(r#"{{"version":1,"spaces":{{}},"reminders":{block}}}"#)
+    }
+
+    fn hours(h: u64) -> Option<Duration> {
+        Some(Duration::from_secs(h * 3600))
+    }
+
+    fn hm(h: u32, m: u32) -> Option<NaiveTime> {
+        NaiveTime::from_hms_opt(h, m, 0)
+    }
+
+    #[test]
+    fn reminders_defaults() {
+        let dir = tempfile::tempdir().unwrap();
+        let want = ReminderSettings {
+            long_running: hours(10),
+            not_running_after: hm(9, 0),
+        };
+        assert_eq!(
+            load_reminder_settings(&dir.path().join("settings.json")).unwrap(),
+            want
+        );
+        for text in [
+            r#"{"version":1,"spaces":{}}"#.to_string(),
+            reminders_text("null"),
+            reminders_text("{}"),
+            reminders_text(r#"{"longRunningHours":null,"notRunningAfter":null}"#),
+        ] {
+            assert_eq!(
+                load_reminder_settings(&write(&dir, &text)).unwrap(),
+                want,
+                "{text}"
+            );
+        }
+    }
+
+    #[test]
+    fn reminders_false_switches_each_off_separately() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = reminders_text(r#"{"longRunningHours":false}"#);
+        let s = load_reminder_settings(&write(&dir, &text)).unwrap();
+        assert_eq!((s.long_running, s.not_running_after), (None, hm(9, 0)));
+        let text = reminders_text(r#"{"notRunningAfter":false}"#);
+        let s = load_reminder_settings(&write(&dir, &text)).unwrap();
+        assert_eq!((s.long_running, s.not_running_after), (hours(10), None));
+        let both = reminders_text(r#"{"longRunningHours":false,"notRunningAfter":false}"#);
+        let s = load_reminder_settings(&write(&dir, &both)).unwrap();
+        assert_eq!((s.long_running, s.not_running_after), (None, None));
+    }
+
+    #[test]
+    fn reminders_range_edges_are_accepted() {
+        let dir = tempfile::tempdir().unwrap();
+        for (h, t) in [(1u64, "00:00"), (24, "23:59"), (7, "09:30")] {
+            let text = reminders_text(&format!(
+                r#"{{"longRunningHours":{h},"notRunningAfter":"{t}"}}"#
+            ));
+            let s = load_reminder_settings(&write(&dir, &text)).unwrap();
+            assert_eq!(s.long_running, hours(h), "{t}");
+            assert_eq!(
+                s.not_running_after,
+                Some(NaiveTime::parse_from_str(t, "%H:%M").unwrap())
+            );
+        }
+    }
+
+    #[test]
+    fn reminders_invalid_values_are_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let blocks = [
+            r#"{"longRunningHours":0}"#,
+            r#"{"longRunningHours":25}"#,
+            r#"{"longRunningHours":-1}"#,
+            r#"{"longRunningHours":1.5}"#,
+            r#"{"longRunningHours":true}"#,
+            r#"{"longRunningHours":"10"}"#,
+            r#"{"longRunningHours":[10]}"#,
+            r#"{"notRunningAfter":true}"#,
+            r#"{"notRunningAfter":9}"#,
+            r#"{"notRunningAfter":"9:00"}"#,
+            r#"{"notRunningAfter":"24:00"}"#,
+            r#"{"notRunningAfter":"09:60"}"#,
+            r#"{"notRunningAfter":"09:00:00"}"#,
+            r#"{"notRunningAfter":"+9:00"}"#,
+            r#"{"notRunningAfter":""}"#,
+            r#"{"notRunningAfter":["09:00"]}"#,
+            r#"{"extra":1}"#,
+            r#"{"longRunningHours":5,"other":1}"#,
+            r#""10""#,
+            r#"[10]"#,
+            r#"true"#,
+        ];
+        for block in blocks {
+            let err = load_reminder_settings(&write(&dir, &reminders_text(block))).unwrap_err();
+            assert_eq!(err, ReminderSettingsError::SettingsInvalid, "{block}");
+        }
+        for text in [
+            "{ not json",
+            r#"{"reminders":{"longRunningHours":5}}"#,
+            r#"{"version":2,"reminders":{"longRunningHours":5}}"#,
+        ] {
+            let err = load_reminder_settings(&write(&dir, text)).unwrap_err();
+            assert_eq!(err, ReminderSettingsError::SettingsInvalid, "{text}");
+        }
+        let p = dir.path().join("settings.json");
+        fs::write(&p, [0xFF, 0xFE, 0x00]).unwrap();
+        assert!(load_reminder_settings(&p).is_err());
+    }
+
+    #[test]
+    fn reminders_bom_is_stripped() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("settings.json");
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(reminders_text(r#"{"longRunningHours":3}"#).as_bytes());
+        fs::write(&p, bytes).unwrap();
+        assert_eq!(load_reminder_settings(&p).unwrap().long_running, hours(3));
+    }
+
+    #[test]
+    fn reminders_loader_ignores_broken_todo_and_gitlab_blocks() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = r#"{"version":1,"spaces":{},"gitlab":"nope","todo":{"limit":0},"reminders":{"longRunningHours":4}}"#;
+        let p = write(&dir, text);
+        assert_eq!(load_reminder_settings(&p).unwrap().long_running, hours(4));
+        assert!(load_todo_limit(&p).is_err());
+        assert!(load_gitlab_settings(&p).is_err());
+    }
+
+    #[test]
+    fn broken_reminders_block_leaves_other_loaders_green() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = json_path(&dir);
+        for block in [r#"{"longRunningHours":0}"#, r#""nope""#, r#"{"bogus":1}"#] {
+            let text = format!(
+                r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":[]}}}},"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{{"limit":3}},"reminders":{block}}}"#
+            );
+            let p = write(&dir, &text);
+            assert!(load_settings(&p).unwrap().work.is_some(), "{block}");
+            assert!(load_gitlab_settings(&p).unwrap().is_some(), "{block}");
+            assert_eq!(load_todo_limit(&p).unwrap(), 3, "{block}");
+            assert!(load_reminder_settings(&p).is_err(), "{block}");
+        }
     }
 
     fn work_with(dir: &tempfile::TempDir, extra: &str) -> String {

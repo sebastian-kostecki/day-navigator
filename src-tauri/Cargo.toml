@@ -63,6 +63,8 @@ test-support = []
 
 [dev-dependencies]
 proptest = "1"
+# Real Europe/Warsaw rules for the midnight and DST tests; never in production.
+chrono-tz = "0.10"
 # Self dev-dependency: turns on `test-support` for `cargo test` alone.
 day-navigator = { path = ".", features = ["test-support"] }
 

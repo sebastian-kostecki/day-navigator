@@ -2,13 +2,16 @@ import { useState } from "react";
 import { GitlabView } from "./gitlab/GitlabView";
 import { HealthPanel } from "./health/HealthPanel";
 import OwnTasksView from "./own-tasks/OwnTasksView";
+import WorkTimeView from "./worktime/WorkTimeView";
+import { WorkTimerHeader } from "./worktime/WorkTimerHeader";
 import "./App.css";
 
-type View = "gitlab" | "tasks" | "health";
+type View = "gitlab" | "tasks" | "work-time" | "health";
 
 const VIEWS: { id: View; label: string }[] = [
   { id: "gitlab", label: "Praca (GitLab)" },
   { id: "tasks", label: "Moje zadania" },
+  { id: "work-time", label: "Czas pracy" },
   { id: "health", label: "Stan źródeł" },
 ];
 
@@ -31,10 +34,11 @@ function App() {
             </button>
           ))}
         </nav>
-        {/* S-08: the always-visible work-time counter goes here. */}
+        <WorkTimerHeader />
       </header>
       {view === "gitlab" && <GitlabView />}
       {view === "tasks" && <OwnTasksView />}
+      {view === "work-time" && <WorkTimeView />}
       {view === "health" && <HealthPanel />}
     </>
   );

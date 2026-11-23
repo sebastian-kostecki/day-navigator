@@ -8,6 +8,7 @@ pub mod settings;
 pub mod space;
 pub mod store;
 pub mod vault;
+pub mod work_time;
 
 use std::sync::{Arc, RwLock};
 
@@ -37,6 +38,23 @@ impl VaultState {
     pub fn replace(&self, next: Result<VaultRegistry, VaultError>) {
         *self.0.write().unwrap_or_else(|p| p.into_inner()) = Arc::new(next);
     }
+}
+
+/// The blocking task could not run to completion (join error text). Each
+/// command error type maps it to its own variant.
+pub struct BackgroundFailed(pub String);
+
+/// Runs blocking work off the main thread (used by the work-time commands).
+pub(crate) async fn blocking<T, E>(
+    work: impl FnOnce() -> Result<T, E> + Send + 'static,
+) -> Result<T, E>
+where
+    T: Send + 'static,
+    E: From<BackgroundFailed> + Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|e| E::from(BackgroundFailed(e.to_string())))?
 }
 
 /// Runs a store operation off the main thread with the current local time.
@@ -91,10 +109,21 @@ async fn set_own_task_done(
     on_store(app, move |s, now| own_tasks::set_done(s, id, done, now)).await
 }
 
-/// S-08 seam: replace `false` with the work-time counter's running state.
+/// The add form's space: Work while the work-time counter runs, else Private.
 #[tauri::command]
-async fn own_task_default_space() -> Result<Space, OwnTaskError> {
-    Ok(own_tasks::default_space(false))
+async fn own_task_default_space(app: tauri::AppHandle) -> Result<Space, OwnTaskError> {
+    on_store(app, |s, _| {
+        let running = work_time::is_running(s).map_err(|e| match e {
+            work_time::WorkTimeError::Store(e) => OwnTaskError::Store(e),
+            // `is_running` only reads, so only store errors are expected; any
+            // other variant stays value-free.
+            _ => OwnTaskError::Store(StoreError::Sql {
+                reason: "work-time state unreadable".to_string(),
+            }),
+        })?;
+        Ok(own_tasks::default_space(running))
+    })
+    .await
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -164,7 +193,14 @@ pub fn run() {
             add_own_task,
             edit_own_task,
             set_own_task_done,
-            own_task_default_space
+            own_task_default_space,
+            work_time::commands::work_timer_status,
+            work_time::commands::list_work_entries,
+            work_time::commands::start_work,
+            work_time::commands::stop_work,
+            work_time::commands::add_work_entry,
+            work_time::commands::update_work_entry,
+            work_time::commands::remove_work_entry
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -37,7 +37,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 
 - App-owned records go only through `store::StoreHandle` (`src-tauri/src/store/`: SQLite, WAL, daily backup in `backups/`, 7 kept). No ad-hoc files for app data.
 - A schema change = append a `Migration` to `store/schema.rs`; never edit a shipped one. Changes spanning records happen in one `write`. Store errors never carry row values or paths.
-- Store commands are `async` and call `with_store` inside `spawn_blocking` (the `on_store` helper in `lib.rs`), never from a sync command: the health round holds the store lock during reopen and backup.
+- Store commands are `async` and call `with_store` inside `spawn_blocking` (the `on_store` helper in `lib.rs`; the work-time commands use the generic `blocking`), never from a sync command: the health round holds the store lock during reopen and backup.
 - The tray reports the store as "Dane aplikacji" (`app-data`). A damaged, newer or lost database is refused, never reset.
 - Restoring: quit the app, copy a file from `backups/` over `day-navigator.db`, delete `day-navigator.db-wal` and `-shm`. Starting over on purpose: quit the app and clear both `day-navigator.db*` and `backups/` (a missing database next to existing backups is refused as `Missing`).
 - Data slices reuse the crash harness in `src-tauri/tests/common/crash.rs`.

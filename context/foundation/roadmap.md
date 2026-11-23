@@ -239,13 +239,13 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | F-02       | read-only-cli-runner     | Read-only runner for glab/gh with result states         | no                    | Done; archived 2026-11-23 |
 | S-01       | gitlab-assigned-list     | "Work (GitLab)" view: assigned issues and MRs           | no                    | Done; archived 2026-11-23 |
 | S-02       | gitlab-visibility-filter | Filter visible GitLab items                             | yes                   | Run `/10x-plan gitlab-visibility-filter` |
-| S-03       | hide-and-resurface       | Hide issues; resurface on status change or comment      | yes                   | Run `/10x-plan hide-and-resurface` |
+| S-03       | hide-and-resurface       | Hide issues; resurface on status change or comment      | no                    | Done; archived 2026-11-23 |
 | S-04       | new-assignment-notify    | Notify on new assigned issues and MRs                   | yes                   | Run `/10x-plan new-assignment-notify` |
 | S-05       | github-assigned-issues   | "Projects (GitHub)" view: assigned open issues          | no                    | Blocked on Open Roadmap Question #1 |
 | S-06       | own-tasks                | Own tasks in Work/Private; remove vault task screen     | no                    | Done; archived 2026-11-23 |
-| S-07       | todo-list                | "To do" list with limit and carry-over                  | yes                   | Run `/10x-plan todo-list` |
+| S-07       | todo-list                | "To do" list with limit and carry-over                  | no                    | Done; archived 2026-11-23 |
 | S-08       | work-timer               | Durable work-time counter with corrections              | no                    | Done; archived 2026-11-23 |
-| S-09       | work-norm-report         | Work-norm report (sums, deviation, needed per day)      | yes                   | Run `/10x-plan work-norm-report` |
+| S-09       | work-norm-report         | Work-norm report (sums, deviation, needed per day)      | no                    | Done; archived 2026-11-23 |
 | S-10       | timer-reminders          | Reminders for a long-running or missing counter         | yes                   | Run `/10x-plan timer-reminders` |
 
 ## Open Roadmap Questions

@@ -24,6 +24,10 @@ const BAD_JSON_MARKER: &str = "LEAK-MARKER-TITLE-7c1e";
 /// up in an error.
 const BAD_NOTES_MARKER: &str = "LEAK-MARKER-NOTE-4b2d";
 
+/// Marker inside a title that parses fine (`gh-issues`, `octo-test/alpha#3`);
+/// tests assert it reaches the issue list and nothing else.
+const GH_TITLE_MARKER: &str = "LEAK-MARKER-GH-TITLE-5a8e";
+
 /// The one issue that has notes in the notes scenarios: project and in-project
 /// number of "Widget crashes on start". Any other issue gets an empty array.
 const NOTES_PROJECT_ID: u64 = 102;
@@ -312,7 +316,7 @@ fn gh_issues_scenario() -> i32 {
                 gh_issue_value(
                     "octo-test/alpha",
                     3,
-                    "Gizmo jitters",
+                    &format!("Gizmo jitters {GH_TITLE_MARKER}"),
                     "2026-02-20T08:00:00Z",
                 ),
                 gh_issue_value(

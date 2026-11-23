@@ -485,6 +485,17 @@ One `gh issue list` per configured repo every 10 minutes, sequential, each cappe
 - `settings.json` needs no migration. The `github` block is optional, and other blocks ignore it (`RawSettings` has no `deny_unknown_fields`).
 - If S-04 (`new-assignment-notify`) merges a migration first, renumber this one to the next free version before merging, as was done for v5/v6.
 
+## Implementation Notes
+
+Recorded after the implementation review (`reviews/impl-review.md`). These are deliberate differences between the code and the plan text above:
+
+- `check_round` takes no GitHub parameter. It reads the GitHub snapshot itself, as it already did for GitLab. Only `probe_round` gained the parameter.
+- The snapshot command wrapper is `getGithubSnapshot()`, mirroring `getGitlabSnapshot()`.
+- `GithubRepo::parse` returns a value-free `RepoError`, not `()`.
+- `Truncated` triggers on `>= GH_ISSUE_LIMIT`.
+- Migration v7's github row branch also requires `gitlab_account IS NULL` (review F1).
+- `reconcile_github` keeps a stored URL when the fresh one was dropped (review F6). Its doc comment states the single-account assumption (review F3).
+
 ## References
 
 - Roadmap slice: `context/foundation/roadmap.md` (S-05, Open Roadmap Question #1)

@@ -297,6 +297,9 @@ fn table_check_refuses_inconsistent_github_rows() {
         // github carrying gitlab columns
         "INSERT INTO todo_items (source, github_ref, github_title, gitlab_ref, picked_on, picked_at) \
          VALUES ('github','o/r#1','t','x','2026-11-23','2026-11-23T08:00:00')",
+        // github carrying a gitlab account
+        "INSERT INTO todo_items (source, github_ref, github_title, gitlab_account, picked_on, picked_at) \
+         VALUES ('github','o/r#1','t','acct','2026-11-23','2026-11-23T08:00:00')",
         // gitlab carrying github columns
         "INSERT INTO todo_items (source, gitlab_kind, gitlab_ref, gitlab_title, github_ref, \
             picked_on, picked_at) \

@@ -103,6 +103,35 @@ fn garbled_output_is_response_invalid_for_that_repo_and_leaks_nothing() {
 }
 
 #[test]
+fn a_loaded_title_reaches_the_issue_list_and_nothing_else() {
+    use day_navigator_lib::github::{GithubSnapshot, next_snapshot};
+    use day_navigator_lib::health::probe::github_status;
+    const TITLE_MARKER: &str = "LEAK-MARKER-GH-TITLE-5a8e";
+
+    let cfg = config(&["octo-test/alpha", "octo-test/missing"]);
+    let fetched = fetch_assigned(&runner("gh-issues"), &cfg);
+    let (snap, _) = next_snapshot(&GithubSnapshot::starting(), None, Some(&cfg), fetched, 1);
+
+    // The title is data: it is in the alpha list...
+    let alpha = &snap.repos[0];
+    assert!(alpha.issues.iter().any(|i| i.title.contains(TITLE_MARKER)));
+    // ...and in nothing that reaches a log line, the tray or an error text.
+    let status = github_status(&snap).expect("a status after a round");
+    let error = snap.repos[1].error.as_ref().expect("missing repo error");
+    let shown = [
+        format!("{:?}", snap.state),
+        serde_json::to_string(&snap.state).unwrap(),
+        format!("{status:?}"),
+        serde_json::to_string(&status).unwrap(),
+        format!("{error:?}"),
+    ];
+    for text in shown {
+        assert!(!text.contains(TITLE_MARKER), "{text}");
+        assert!(!text.contains("octo-test"), "{text}");
+    }
+}
+
+#[test]
 fn a_full_page_is_truncated_for_that_repo_and_never_a_list() {
     let got = fetch_assigned(
         &runner("gh-issues"),

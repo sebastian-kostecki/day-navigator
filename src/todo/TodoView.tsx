@@ -336,8 +336,8 @@ export default function TodoView() {
         githubOk={githubState === "ok"}
         githubRepoErrors={
           githubState === "ok" && githubSnapshot
-            ? githubSnapshot.repos.some((r) => r.error !== null)
-            : false
+            ? repoErrorSpread(githubSnapshot.repos.map((r) => r.error !== null))
+            : "none"
         }
         githubLoadError={githubLoadError}
         githubLastSuccess={
@@ -365,6 +365,14 @@ export default function TodoView() {
       />
     </main>
   );
+}
+
+/** How many GitHub repos failed in an Ok round: none, some or every one. */
+type RepoErrorSpread = "none" | "some" | "all";
+
+function repoErrorSpread(failed: boolean[]): RepoErrorSpread {
+  const n = failed.filter(Boolean).length;
+  return n === 0 ? "none" : n === failed.length ? "all" : "some";
 }
 
 function Picker({
@@ -407,7 +415,7 @@ function Picker({
   gitlabStatus: string | null;
   githubIssues: GithubIssue[];
   githubOk: boolean;
-  githubRepoErrors: boolean;
+  githubRepoErrors: RepoErrorSpread;
   githubLoadError: string | null;
   githubLastSuccess: string;
   onRetryGithub: () => void;
@@ -490,16 +498,26 @@ function Picker({
           {githubStatus}
         </p>
       )}
-      {githubRepoErrors && (
+      {githubRepoErrors === "some" && (
         <p className="gitlab-notice" role="status">
           Część repozytoriów GitHub nie załadowała się — ich zgłoszeń nie ma na liście.
+        </p>
+      )}
+      {githubRepoErrors === "all" && (
+        <p className="gitlab-notice" role="status">
+          Żadne repozytorium GitHub nie załadowało się — nie ma czego dodać.
         </p>
       )}
       {githubCandidates.length === 0 ? (
         githubIssues.length > 0 ? (
           <p className="empty">Wszystko z GitHuba jest już na liście.</p>
+        ) : githubOk && githubRepoErrors === "none" ? (
+          <p className="empty">Brak przypisanych w GitHubie.</p>
         ) : (
-          githubOk && <p className="empty">Brak przypisanych w GitHubie.</p>
+          githubOk &&
+          githubRepoErrors === "some" && (
+            <p className="empty">Brak przypisanych w repozytoriach, które się załadowały.</p>
+          )
         )
       ) : (
         <ul className="todo-list">

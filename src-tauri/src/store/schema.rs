@@ -162,7 +162,7 @@ CREATE UNIQUE INDEX todo_items_live_gitlab
     OR
     (source = 'github' AND own_task_id IS NULL
       AND gitlab_kind IS NULL AND gitlab_ref IS NULL
-      AND gitlab_title IS NULL AND gitlab_url IS NULL
+      AND gitlab_title IS NULL AND gitlab_url IS NULL AND gitlab_account IS NULL
       AND github_ref IS NOT NULL AND github_title IS NOT NULL
       AND ((ticked_at IS NULL) = (ticked_by IS NULL)))
   )

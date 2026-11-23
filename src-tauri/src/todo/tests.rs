@@ -744,6 +744,47 @@ fn github_reconcile_ticks_only_missing_entries_of_loaded_repos() {
 }
 
 #[test]
+fn github_reconcile_keeps_the_stored_url_when_the_fresh_one_was_dropped() {
+    let (_t, mut s) = open();
+    pick_gh(&mut s, &gh("octo-test/alpha", 1), D1, 8, 5).unwrap();
+    // The issue is still listed, but its URL failed the check (say, a rename).
+    let mut no_url = gh("octo-test/alpha", 1);
+    no_url.web_url = None;
+    let alpha = [no_url];
+    let n = reconcile_github(
+        &mut s,
+        &[loaded("octo-test/alpha", &alpha)],
+        day(D1),
+        at(D1, 10, 0),
+    )
+    .unwrap();
+    assert_eq!(n, 0);
+    let l = list_on(&mut s, D1, 5);
+    assert!(matches!(
+        &l.items[0].entry,
+        TodoEntry::Github { web_url: Some(u), .. }
+            if u == "https://github.com/octo-test/alpha/issues/1"
+    ));
+
+    // A title change still refreshes, and the stored URL survives it.
+    let mut retitled = alpha[0].clone();
+    retitled.title = "Nowy tytul testowy".into();
+    let n = reconcile_github(
+        &mut s,
+        &[loaded("octo-test/alpha", &[retitled])],
+        day(D1),
+        at(D1, 11, 0),
+    )
+    .unwrap();
+    assert_eq!(n, 1);
+    let l = list_on(&mut s, D1, 5);
+    assert!(matches!(
+        &l.items[0].entry,
+        TodoEntry::Github { title, web_url: Some(_), .. } if title == "Nowy tytul testowy"
+    ));
+}
+
+#[test]
 fn github_reconcile_leaves_ticked_removed_closed_and_other_sources_alone() {
     let (_t, mut s) = open();
     let a = own(&mut s, "Zadanie A");

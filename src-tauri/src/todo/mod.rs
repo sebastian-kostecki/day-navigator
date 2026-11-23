@@ -558,7 +558,15 @@ pub fn reconcile_gitlab(
 /// issues, and refreshes the stored title and URL of the ones still present.
 /// An entry of a repo not in `loaded` (it failed this round, or it is no longer
 /// in settings) is left alone: nothing is known about it. Own and GitLab
-/// entries are never touched.
+/// entries are never touched. A stored URL is kept when the fresh one was
+/// dropped as foreign (for example after a repo rename), so a link never
+/// disappears.
+///
+/// Single-account assumption: unlike GitLab, no account is recorded per entry
+/// (out of scope for S-05). The list is "assigned to `@me`" for whichever
+/// account `gh` uses now, so after `gh auth switch` to another account the
+/// entries it is not assigned to are ticked as closed in the source. Switching
+/// back does not untick them.
 /// Returns the number of entries changed (roll-over closings not counted).
 pub fn reconcile_github(
     store: &mut Store,
@@ -612,14 +620,16 @@ pub fn reconcile_github(
                     )?;
                     changed += 1;
                 }
-                Some(issue) if issue.title != title || issue.web_url != url => {
-                    tx.execute(
-                        "UPDATE todo_items SET github_title = ?1, github_url = ?2 WHERE id = ?3",
-                        (&issue.title, &issue.web_url, id),
-                    )?;
-                    changed += 1;
+                Some(issue) => {
+                    let fresh_url = issue.web_url.as_ref().or(url.as_ref());
+                    if issue.title != title || fresh_url != url.as_ref() {
+                        tx.execute(
+                            "UPDATE todo_items SET github_title = ?1, github_url = ?2 WHERE id = ?3",
+                            (&issue.title, fresh_url, id),
+                        )?;
+                        changed += 1;
+                    }
                 }
-                Some(_) => {}
             }
         }
         Ok(changed)

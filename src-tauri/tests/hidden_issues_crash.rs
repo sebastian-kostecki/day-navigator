@@ -137,8 +137,15 @@ fn crash_never_loses_or_half_applies_a_hide_record() {
         let rows = hidden_issues::list(&store, &host()).unwrap();
         let present = |k: u64| rows.iter().any(|r| r.issue_id == k);
         // Every reported step is fully applied: its hide is there, and the
-        // issue the following reported step removed is gone.
+        // issue the following reported step removed is gone. The kill may also
+        // land after the unreported step `last + 1` committed its own writes
+        // (its hide first, then the removal of `last`) but before it printed,
+        // so `last` may be gone only when that step's hide is already there.
+        let next_started = present(last + 1);
         for k in 1..=last {
+            if k == last && removed_by_next_step(k) && next_started {
+                continue;
+            }
             let gone = k < last && removed_by_next_step(k);
             assert_eq!(
                 present(k),

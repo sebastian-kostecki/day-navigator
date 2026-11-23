@@ -24,8 +24,9 @@ pub enum KillAt {
 
 /// Upper bound for commits a writer makes in one run, so a writer whose
 /// parent died (IDE stop, runner timeout) stops on its own. Far above any
-/// kill point.
-pub const MAX_WRITER_COMMITS: u64 = 2_000;
+/// kill point: a fast disk commits 2 000 small writes in about 1.2 s, which
+/// is shorter than the longest `AfterDelay`, so the bound must leave room.
+pub const MAX_WRITER_COMMITS: u64 = 20_000;
 
 /// Kills and reaps the writer on every exit path, including a panic or an
 /// early return in the parent.

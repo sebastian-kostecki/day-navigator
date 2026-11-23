@@ -85,3 +85,10 @@ pub fn test_vault_with(make: impl FnOnce(&Path) -> Settings) -> (TempDir, VaultR
     let registry = VaultRegistry::from_settings(&make(&root));
     (tmp, registry)
 }
+
+/// A not-yet-created own data folder inside a temp dir, for `Store::open`.
+pub fn test_store_dir() -> (TempDir, PathBuf) {
+    let tmp = tempfile::tempdir().unwrap();
+    let dir = tmp.path().join("data");
+    (tmp, dir)
+}

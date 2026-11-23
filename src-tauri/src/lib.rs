@@ -1,6 +1,7 @@
 pub mod health;
 pub mod runtime;
 pub mod settings;
+pub mod store;
 pub mod tasks;
 pub mod vault;
 

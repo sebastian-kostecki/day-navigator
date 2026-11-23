@@ -12,7 +12,9 @@ edition = "2024"
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "day_navigator_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# Desktop only: `staticlib`/`cdylib` exist for Tauri mobile targets and cost
+# about 1 GB of artifacts per build configuration on Windows.
+crate-type = ["rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -50,6 +52,11 @@ day-navigator = { path = ".", features = ["test-support"] }
 [target.'cfg(windows)'.dev-dependencies]
 junction = "1"
 
+
+# Line numbers in backtraces, without full debug info: keeps every test binary
+# (each links the whole app) and its .pdb small.
+[profile.dev]
+debug = "line-tables-only"
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

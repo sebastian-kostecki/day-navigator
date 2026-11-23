@@ -41,6 +41,22 @@ export type GitlabState =
   | { state: "unavailable"; message: string }
   | { state: "error"; kind: string; message: string };
 
+/** Items the filter removed, per section. Mirrors `gitlab::FilteredOut`. */
+export type FilteredOut = {
+  mergeRequests: number;
+  issues: number;
+  hiddenIssues: number;
+};
+
+/** Recently closed items. Mirrors `gitlab::ClosedSection`. */
+export type ClosedSection = {
+  days: number;
+  items: GitlabItem[];
+  filteredOut: number;
+  /** Fixed Polish text when the closed fetch failed; `items` is then empty. */
+  error: string | null;
+};
+
 export type GitlabSnapshot = {
   state: GitlabState;
   /** Last successful list in this session (memory only). */
@@ -58,6 +74,13 @@ export type GitlabSnapshot = {
   hiddenError: string | null;
   /** True when `gitlabRefresh.minutes` is invalid and the default interval is used. */
   refreshSettingInvalid: boolean;
+  /** True when a `gitlabFilter` with at least one constraint is in effect. */
+  filterActive: boolean;
+  /** True when the `gitlabFilter` block is invalid and everything is shown. */
+  filterInvalid: boolean;
+  filteredOut: FilteredOut;
+  /** Recently closed items; null when `closedDays` is off or the filter is invalid. */
+  closed: ClosedSection | null;
 };
 
 /** Mirrors `hidden_issues::HiddenIssueError`. */

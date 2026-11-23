@@ -1,6 +1,12 @@
 import { ErrorState } from "../components/ErrorState";
 import { openGitlabItem } from "./api";
-import type { AssignedItems, ChangeReason, GitlabItem } from "./types";
+import type {
+  AssignedItems,
+  ChangeReason,
+  ClosedSection,
+  GitlabItem,
+  GitlabSnapshot,
+} from "./types";
 import { useGitlab } from "./useGitlab";
 
 function formatClock(ms: number): string {
@@ -100,15 +106,22 @@ function ItemRow({
   );
 }
 
+function FilteredCount({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return <p className="checked-at">Ukryte filtrem: {count}</p>;
+}
+
 function Section({
   title,
   items,
   emptyText,
+  filteredOut,
   actions,
 }: {
   title: string;
   items: GitlabItem[];
   emptyText: string;
+  filteredOut: number;
   actions?: RowActions;
 }) {
   return (
@@ -125,15 +138,25 @@ function Section({
           ))}
         </ul>
       )}
+      <FilteredCount count={filteredOut} />
     </section>
   );
 }
 
-function HiddenSection({ items, actions }: { items: GitlabItem[]; actions: RowActions }) {
-  if (items.length === 0) return null;
+function HiddenSection({
+  items,
+  filteredOut,
+  actions,
+}: {
+  items: GitlabItem[];
+  filteredOut: number;
+  actions: RowActions;
+}) {
+  if (items.length === 0 && filteredOut <= 0) return null;
   return (
     <details className="gitlab-hidden">
       <summary>Ukryte ({items.length})</summary>
+      <FilteredCount count={filteredOut} />
       <ul className="gitlab-list">
         {items.map((item) => (
           <ItemRow key={`${item.kind}:${item.reference}`} item={item} actions={actions} hidden />
@@ -143,29 +166,69 @@ function HiddenSection({ items, actions }: { items: GitlabItem[]; actions: RowAc
   );
 }
 
+function ClosedBlock({ closed }: { closed: ClosedSection }) {
+  return (
+    <section className="gitlab-section">
+      <h2>
+        Zamknięte (ostatnie {closed.days} dni) ({closed.items.length})
+      </h2>
+      {closed.error ? (
+        <p className="gitlab-notice" role="status">
+          {closed.error}
+        </p>
+      ) : closed.items.length === 0 ? (
+        <p className="empty">Brak zamkniętych w ostatnich {closed.days} dniach.</p>
+      ) : (
+        <ul className="gitlab-list">
+          {closed.items.map((item) => (
+            <ItemRow key={`${item.kind}:${item.reference}`} item={item} />
+          ))}
+        </ul>
+      )}
+      <FilteredCount count={closed.filteredOut} />
+    </section>
+  );
+}
+
 function Lists({
   items,
+  snapshot,
   stale,
   actions,
 }: {
   items: AssignedItems;
+  snapshot: GitlabSnapshot;
   stale: boolean;
   actions: RowActions;
 }) {
+  const { filterActive, filteredOut, closed } = snapshot;
   return (
     <div className={stale ? "gitlab-lists stale" : "gitlab-lists"}>
       <Section
         title="Merge requesty"
         items={items.mergeRequests}
-        emptyText="Brak przypisanych merge requestów."
+        emptyText={
+          filterActive
+            ? "Brak merge requestów pasujących do filtra."
+            : "Brak przypisanych merge requestów."
+        }
+        filteredOut={filteredOut.mergeRequests}
       />
       <Section
         title="Zgłoszenia"
         items={items.issues}
-        emptyText="Brak przypisanych zgłoszeń."
+        emptyText={
+          filterActive ? "Brak zgłoszeń pasujących do filtra." : "Brak przypisanych zgłoszeń."
+        }
+        filteredOut={filteredOut.issues}
         actions={actions}
       />
-      <HiddenSection items={items.hiddenIssues} actions={actions} />
+      <HiddenSection
+        items={items.hiddenIssues}
+        filteredOut={filteredOut.hiddenIssues}
+        actions={actions}
+      />
+      {closed && <ClosedBlock closed={closed} />}
     </div>
   );
 }
@@ -250,6 +313,11 @@ export function GitlabView() {
           co 10 min
         </p>
       )}
+      {snapshot.filterInvalid && (
+        <p className="gitlab-notice" role="status">
+          Nieprawidłowy blok gitlabFilter w settings.json — pokazuję wszystkie przypisane
+        </p>
+      )}
       {snapshot.hiddenError && (
         <p className="gitlab-notice" role="status">
           Lista pokazuje wszystkie zgłoszenia, bo nie udało się odczytać ukrytych.{" "}
@@ -273,7 +341,7 @@ export function GitlabView() {
         </p>
       )}
       {items && state.state !== "notConfigured" && (
-        <Lists items={items} stale={state.state !== "ok"} actions={actions} />
+        <Lists items={items} snapshot={snapshot} stale={state.state !== "ok"} actions={actions} />
       )}
       {refreshError && (
         <ErrorState

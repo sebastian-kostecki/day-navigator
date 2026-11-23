@@ -306,6 +306,11 @@ export default function TodoView() {
           snapshot?.items ? [...snapshot.items.mergeRequests, ...snapshot.items.issues] : []
         }
         gitlabOk={gitlabState === "ok"}
+        gitlabFilteredOut={
+          snapshot?.filterActive
+            ? snapshot.filteredOut.mergeRequests + snapshot.filteredOut.issues
+            : null
+        }
         gitlabLoadError={gitlabLoadError}
         gitlabLastSuccess={
           snapshot?.lastSuccessMs != null
@@ -383,6 +388,7 @@ function Picker({
   ownLoad,
   gitlabItems,
   gitlabOk,
+  gitlabFilteredOut,
   gitlabLoadError,
   gitlabLastSuccess,
   onRetryGitlab,
@@ -407,6 +413,8 @@ function Picker({
   ownLoad: OwnLoad;
   gitlabItems: GitlabItem[];
   gitlabOk: boolean;
+  /** Items the filter removed from the GitLab list; null when no filter is active. */
+  gitlabFilteredOut: number | null;
   gitlabLoadError: string | null;
   gitlabLastSuccess: string;
   onRetryGitlab: () => void;
@@ -456,7 +464,13 @@ function Picker({
         gitlabItems.length > 0 ? (
           <p className="empty">Wszystko z GitLaba jest już na liście.</p>
         ) : (
-          gitlabOk && <p className="empty">Brak przypisanych w GitLabie.</p>
+          gitlabOk && (
+            <p className="empty">
+              {gitlabFilteredOut !== null
+                ? `Brak pasujących do filtra (ukryte filtrem: ${gitlabFilteredOut})`
+                : "Brak przypisanych w GitLabie."}
+            </p>
+          )
         )
       ) : (
         <ul className="todo-list">

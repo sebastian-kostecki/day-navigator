@@ -423,11 +423,11 @@ None. The block is optional and absent means today's behaviour. No store schema 
 
 #### Automated
 
-- [ ] 3.1 Guard tests: new variants read-only with and without a user; bad dates and shapes refused; examples cover every variant
-- [ ] 3.2 Closed parse tests: state selection, closing time vs cutoff, optional state, order, no content leaks
-- [ ] 3.3 Fake-CLI integration tests for closed fetch success and failure classification
-- [ ] 3.4 Snapshot tests: closed kept/dropped with items; serialization includes closed
-- [ ] 3.5 cargo test, cargo fmt --check and cargo clippy pass
+- [x] 3.1 Guard tests: new variants read-only with and without a user; bad dates and shapes refused; examples cover every variant — 19cb331
+- [x] 3.2 Closed parse tests: state selection, closing time vs cutoff, optional state, order, no content leaks — 19cb331
+- [x] 3.3 Fake-CLI integration tests for closed fetch success and failure classification — 19cb331
+- [x] 3.4 Snapshot tests: closed kept/dropped with items; serialization includes closed — 19cb331
+- [x] 3.5 cargo test, cargo fmt --check and cargo clippy pass — 19cb331
 
 #### Manual
 

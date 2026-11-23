@@ -12,6 +12,14 @@ export type TodoEntry =
       title: string;
       webUrl: string | null;
       closedInSource: boolean;
+    }
+  | {
+      kind: "github";
+      /** Lowercase `owner/name#N`. */
+      reference: string;
+      title: string;
+      webUrl: string | null;
+      closedInSource: boolean;
     };
 
 /** Mirrors `todo::TodoItem`. Timestamps are local `YYYY-MM-DDTHH:MM:SS`. */
@@ -33,6 +41,7 @@ export type TodoError =
   | { kind: "TaskDone" }
   | { kind: "NotFound" }
   | { kind: "NotInGitlabList" }
+  | { kind: "NotInGithubList" }
   | { kind: "SettingsInvalid" }
   | { kind: "ConfigDirUnresolved" }
   | { kind: "Background" };

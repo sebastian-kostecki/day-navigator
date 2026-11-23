@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
 import { ErrorState } from "../components/ErrorState";
 import { openGitlabItem } from "../gitlab/api";
+import { openGithubIssue } from "../github/api";
+import type { GithubIssue } from "../github/types";
+import { useGithub } from "../github/useGithub";
 import type { GitlabItem } from "../gitlab/types";
 import { useGitlab } from "../gitlab/useGitlab";
 import { listOwnTasks, ownTaskErrorMessage } from "../own-tasks/api";
 import type { OwnTask, Space } from "../own-tasks/types";
 import { todoErrorMessage } from "./api";
-import type { TodoItem, TodoList } from "./types";
+import type { TodoEntry, TodoItem, TodoList } from "./types";
 import { useTodo } from "./useTodo";
 
 const SPACE_LABEL: Record<Space, string> = { work: "Praca", private: "Prywatne" };
@@ -25,8 +28,31 @@ function dayMonth(day: string): string {
   return `${date}.${month}`;
 }
 
+// Picker keys carry the source, so a GitHub `owner/repo#N` can never collide
+// with a GitLab reference.
 function gitlabKey(kind: string, reference: string): string {
-  return `${kind}:${reference}`;
+  return `gitlab:${kind}:${reference}`;
+}
+
+function githubKey(reference: string): string {
+  return `github:${reference}`;
+}
+
+function entryKey(entry: TodoEntry): string {
+  switch (entry.kind) {
+    case "own":
+      return `own:${entry.taskId}`;
+    case "gitlab":
+      return gitlabKey(entry.itemKind, entry.reference);
+    case "github":
+      return githubKey(entry.reference);
+  }
+}
+
+/** `owner/name` part of a `owner/name#N` reference. */
+function repoOf(reference: string): string {
+  const at = reference.lastIndexOf("#");
+  return (at < 0 ? reference : reference.slice(0, at)).toLowerCase();
 }
 
 type OwnLoad =
@@ -35,15 +61,30 @@ type OwnLoad =
   | { state: "loaded"; tasks: OwnTask[] };
 
 export default function TodoView() {
-  const { load, lastSuccessAt, reloadError, retry, refresh, addOwn, addGitlab, setTicked, remove } =
-    useTodo();
-  // The picker only reads the stored GitLab snapshot: a visit to the default
-  // tab must not start a `glab` round.
+  const {
+    load,
+    lastSuccessAt,
+    reloadError,
+    retry,
+    refresh,
+    addOwn,
+    addGitlab,
+    addGithub,
+    setTicked,
+    remove,
+  } = useTodo();
+  // The picker only reads the stored GitLab and GitHub snapshots: a visit to
+  // the default tab must not start a `glab` or `gh` round.
   const {
     snapshot,
     loadError: gitlabLoadError,
     retry: retryGitlab,
   } = useGitlab({ refreshOnMount: false });
+  const {
+    snapshot: githubSnapshot,
+    loadError: githubLoadError,
+    retry: retryGithub,
+  } = useGithub({ refreshOnMount: false });
   const [ownLoad, setOwnLoad] = useState<OwnLoad>({ state: "loading" });
   const [ownLoadedAt, setOwnLoadedAt] = useState<Date | null>(null);
   // Bumped by the own-task error's retry button.
@@ -108,11 +149,7 @@ export default function TodoView() {
 
   const onList = new Set<string>();
   for (const item of list.items) {
-    onList.add(
-      item.entry.kind === "own"
-        ? `own:${item.entry.taskId}`
-        : gitlabKey(item.entry.itemKind, item.entry.reference),
-    );
+    onList.add(entryKey(item.entry));
   }
 
   const gitlabState = snapshot?.state.state ?? null;
@@ -126,10 +163,29 @@ export default function TodoView() {
     gitlabState === "notConfigured";
   const unverified = gitlabDown && list.items.some((i) => !i.ticked && i.entry.kind === "gitlab");
 
+  const githubState = githubSnapshot?.state.state ?? null;
+  const githubDown =
+    githubLoadError !== null ||
+    githubState === "unavailable" ||
+    githubState === "error" ||
+    githubState === "notConfigured";
+  // An unticked GitHub entry is also unverified when its repo did not load in
+  // the last successful round (it has an error, or it is no longer in
+  // settings): reconcile never ticks such an entry.
+  const githubUnverified = list.items.some((i) => {
+    if (i.ticked || i.entry.kind !== "github") return false;
+    if (githubDown) return true;
+    if (githubState !== "ok") return false;
+    const repo = repoOf(i.entry.reference);
+    const view = githubSnapshot?.repos.find((r) => r.repo.toLowerCase() === repo);
+    return !view || view.error !== null;
+  });
+
   function renderRow(item: TodoItem) {
     const { entry } = item;
     const title = entry.title;
-    const url = entry.kind === "gitlab" ? entry.webUrl : null;
+    const url = entry.kind === "own" ? null : entry.webUrl;
+    const openUrl = entry.kind === "github" ? openGithubIssue : openGitlabItem;
     return (
       <li key={item.id} className={item.ticked ? "todo-row is-done" : "todo-row"}>
         <input
@@ -142,11 +198,7 @@ export default function TodoView() {
         <div className="todo-main">
           <span className="todo-title">
             {url ? (
-              <button
-                type="button"
-                className="link-button"
-                onClick={() => void openGitlabItem(url)}
-              >
+              <button type="button" className="link-button" onClick={() => void openUrl(url)}>
                 {title}
               </button>
             ) : (
@@ -156,14 +208,19 @@ export default function TodoView() {
           <span className="todo-meta">
             {entry.kind === "own" ? (
               <span className={`own-task-badge ${entry.space}`}>{SPACE_LABEL[entry.space]}</span>
-            ) : (
+            ) : entry.kind === "gitlab" ? (
               <span className="badge todo-source">
                 {entry.itemKind === "mergeRequest" ? "MR" : "Zgłoszenie"} {entry.reference}
               </span>
+            ) : (
+              <span className="badge todo-source">Zgłoszenie GitHub {entry.reference}</span>
             )}
             {item.carriedOver && <span className="badge">od {dayMonth(item.pickedOn)}</span>}
             {entry.kind === "gitlab" && entry.closedInSource && (
               <span className="badge todo-closed">zamknięte w GitLabie</span>
+            )}
+            {entry.kind === "github" && entry.closedInSource && (
+              <span className="badge todo-closed">zamknięte w GitHubie</span>
             )}
           </span>
         </div>
@@ -216,6 +273,17 @@ export default function TodoView() {
         </p>
       )}
 
+      {githubUnverified && (
+        <p className="gitlab-notice" role="status">
+          GitHub niedostępny lub repozytorium niezaładowane — stan pozycji z GitHuba
+          niezweryfikowany (ostatnie odświeżenie{" "}
+          {githubSnapshot?.lastSuccessMs != null
+            ? formatClock(githubSnapshot.lastSuccessMs)
+            : "brak"}
+          )
+        </p>
+      )}
+
       {open.length === 0 && done.length === 0 && (
         <p className="empty">Nic na dziś — dodaj z list poniżej</p>
       )}
@@ -260,8 +328,40 @@ export default function TodoView() {
                     ? "Błąd GitLaba — lista może być nieaktualna."
                     : null
         }
+        githubIssues={
+          githubSnapshot
+            ? githubSnapshot.repos.filter((r) => !r.error).flatMap((r) => r.issues)
+            : []
+        }
+        githubOk={githubState === "ok"}
+        githubRepoErrors={
+          githubState === "ok" && githubSnapshot
+            ? githubSnapshot.repos.some((r) => r.error !== null)
+            : false
+        }
+        githubLoadError={githubLoadError}
+        githubLastSuccess={
+          githubSnapshot?.lastSuccessMs != null
+            ? `Ostatnie udane odświeżenie: ${formatClock(githubSnapshot.lastSuccessMs)}`
+            : lastRefreshLabel(null)
+        }
+        onRetryGithub={retryGithub}
+        githubStatus={
+          githubLoadError
+            ? null
+            : !githubSnapshot || githubState === "starting"
+              ? "Pobieram przypisane z GitHuba…"
+              : githubState === "notConfigured"
+                ? "GitHub nie jest skonfigurowany."
+                : githubState === "unavailable"
+                  ? "GitHub niedostępny (brak sieci) — lista może być nieaktualna."
+                  : githubState === "error"
+                    ? "Błąd GitHuba — lista może być nieaktualna."
+                    : null
+        }
         onAddOwn={(id) => void act(() => addOwn(id))}
         onAddGitlab={(item) => void act(() => addGitlab(item.kind, item.reference))}
+        onAddGithub={(issue) => void act(() => addGithub(issue.reference))}
       />
     </main>
   );
@@ -281,8 +381,16 @@ function Picker({
   ownLastSuccess,
   onRetryOwn,
   gitlabStatus,
+  githubIssues,
+  githubOk,
+  githubRepoErrors,
+  githubLoadError,
+  githubLastSuccess,
+  onRetryGithub,
+  githubStatus,
   onAddOwn,
   onAddGitlab,
+  onAddGithub,
 }: {
   list: TodoList;
   onList: Set<string>;
@@ -297,10 +405,19 @@ function Picker({
   ownLastSuccess: string;
   onRetryOwn: () => void;
   gitlabStatus: string | null;
+  githubIssues: GithubIssue[];
+  githubOk: boolean;
+  githubRepoErrors: boolean;
+  githubLoadError: string | null;
+  githubLastSuccess: string;
+  onRetryGithub: () => void;
+  githubStatus: string | null;
   onAddOwn: (taskId: number) => void;
   onAddGitlab: (item: GitlabItem) => void;
+  onAddGithub: (issue: GithubIssue) => void;
 }) {
   const gitlabCandidates = gitlabItems.filter((i) => !onList.has(gitlabKey(i.kind, i.reference)));
+  const githubCandidates = githubIssues.filter((i) => !onList.has(githubKey(i.reference)));
   const ownCandidates =
     ownLoad.state === "loaded"
       ? ownLoad.tasks.filter((t) => t.doneAt === null && !onList.has(`own:${t.id}`))
@@ -351,6 +468,55 @@ function Picker({
                 title={disabledHint}
                 aria-label={`Dodaj: ${item.title}`}
                 onClick={() => onAddGitlab(item)}
+              >
+                Dodaj
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <h3>GitHub</h3>
+      {githubLoadError && (
+        <ErrorState
+          title="Nie udało się wczytać listy z GitHuba"
+          message={githubLoadError}
+          onRetry={onRetryGithub}
+          lastSuccess={githubLastSuccess}
+        />
+      )}
+      {githubStatus && (
+        <p className="gitlab-notice" role="status">
+          {githubStatus}
+        </p>
+      )}
+      {githubRepoErrors && (
+        <p className="gitlab-notice" role="status">
+          Część repozytoriów GitHub nie załadowała się — ich zgłoszeń nie ma na liście.
+        </p>
+      )}
+      {githubCandidates.length === 0 ? (
+        githubIssues.length > 0 ? (
+          <p className="empty">Wszystko z GitHuba jest już na liście.</p>
+        ) : (
+          githubOk && <p className="empty">Brak przypisanych w GitHubie.</p>
+        )
+      ) : (
+        <ul className="todo-list">
+          {githubCandidates.map((issue) => (
+            <li key={githubKey(issue.reference)} className="todo-row">
+              <div className="todo-main">
+                <span className="todo-title">{issue.title}</span>
+                <span className="todo-meta">
+                  <span className="badge todo-source">Zgłoszenie GitHub {issue.reference}</span>
+                </span>
+              </div>
+              <button
+                type="button"
+                disabled={disabled}
+                title={disabledHint}
+                aria-label={`Dodaj: ${issue.title}`}
+                onClick={() => onAddGithub(issue)}
               >
                 Dodaj
               </button>

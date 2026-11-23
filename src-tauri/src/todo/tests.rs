@@ -76,7 +76,9 @@ fn titles(l: &TodoList) -> Vec<String> {
     l.items
         .iter()
         .map(|i| match &i.entry {
-            TodoEntry::Own { title, .. } | TodoEntry::Gitlab { title, .. } => title.clone(),
+            TodoEntry::Own { title, .. }
+            | TodoEntry::Gitlab { title, .. }
+            | TodoEntry::Github { title, .. } => title.clone(),
         })
         .collect()
 }
@@ -603,6 +605,210 @@ fn tick_on_a_later_day_is_closed_when_the_clock_moves_back() {
     assert_eq!(titles(&list_on(&mut s, D1, 5)), ["Pozycja testowa 1"]);
 }
 
+fn gh(repo: &str, n: u64) -> GithubIssue {
+    GithubIssue {
+        repo: repo.into(),
+        number: n,
+        reference: format!("{}#{n}", repo.to_lowercase()),
+        title: format!("Zgloszenie testowe {n}"),
+        web_url: Some(format!("https://github.com/{repo}/issues/{n}")),
+        updated_at: "2026-11-20T10:00:00Z".into(),
+    }
+}
+
+fn pick_gh(
+    store: &mut Store,
+    issue: &GithubIssue,
+    d: &str,
+    h: u32,
+    limit: u32,
+) -> Result<i64, TodoError> {
+    add_github(store, issue, day(d), at(d, h, 0), Ok(limit))
+}
+
+fn loaded<'a>(repo: &str, issues: &'a [GithubIssue]) -> (String, &'a [GithubIssue]) {
+    (repo.to_string(), issues)
+}
+
+#[test]
+fn github_duplicate_is_refused_case_insensitively_until_removed_or_closed() {
+    let (_t, mut s) = open();
+    let id = pick_gh(&mut s, &gh("Octo-Test/Alpha", 1), D1, 8, 5).unwrap();
+    // Same issue, repo written in another case: the reference is lowercase.
+    assert!(matches!(
+        pick_gh(&mut s, &gh("octo-test/alpha", 1), D1, 9, 5),
+        Err(TodoError::AlreadyOnList)
+    ));
+    remove(&mut s, id, day(D1), at(D1, 9, 0)).unwrap();
+    pick_gh(&mut s, &gh("octo-test/alpha", 1), D1, 10, 5).unwrap();
+    assert_eq!(list_on(&mut s, D1, 5).items.len(), 1);
+}
+
+#[test]
+fn github_and_gitlab_entries_with_the_same_reference_coexist() {
+    let (_t, mut s) = open();
+    let mut lab = gl(ItemKind::Issue, 1);
+    lab.reference = "a/b#1".into();
+    pick_gl(&mut s, &lab, D1, 8, 5).unwrap();
+    pick_gh(&mut s, &gh("a/b", 1), D1, 9, 5).unwrap();
+    assert_eq!(list_on(&mut s, D1, 5).items.len(), 2);
+    // A GitHub reconcile never touches the GitLab entry.
+    let n = reconcile_github(&mut s, &[loaded("a/b", &[])], day(D1), at(D1, 10, 0)).unwrap();
+    assert_eq!(n, 1);
+    let l = list_on(&mut s, D1, 5);
+    assert_eq!(l.open_count, 1);
+    // And a GitLab reconcile never touches the GitHub entry.
+    let n = reconcile_gitlab(&mut s, ACC, &assigned(&[]), day(D1), at(D1, 11, 0)).unwrap();
+    assert_eq!(n, 1);
+    assert_eq!(list_on(&mut s, D1, 5).open_count, 0);
+}
+
+#[test]
+fn github_limit_counts_open_entries_of_every_source() {
+    let (_t, mut s) = open();
+    let a = own(&mut s, "Zadanie A");
+    pick_own(&mut s, a, D1, 8, 2).unwrap();
+    let id = pick_gh(&mut s, &gh("o/r", 1), D1, 9, 2).unwrap();
+    assert!(matches!(
+        pick_gh(&mut s, &gh("o/r", 2), D1, 10, 2),
+        Err(TodoError::LimitReached { limit: 2 })
+    ));
+    tick(&mut s, id, true, D1, 11).unwrap();
+    pick_gh(&mut s, &gh("o/r", 2), D1, 12, 2).unwrap();
+}
+
+#[test]
+fn github_reconcile_ticks_only_missing_entries_of_loaded_repos() {
+    let (_t, mut s) = open();
+    let kept = gh("Octo-Test/Alpha", 1);
+    let gone = gh("Octo-Test/Alpha", 2);
+    let failed = gh("octo-test/beta", 1);
+    let removed_from_settings = gh("octo-test/gamma", 1);
+    for i in [&kept, &gone, &failed, &removed_from_settings] {
+        pick_gh(&mut s, i, D1, 8, 9).unwrap();
+    }
+
+    let mut renamed = kept.clone();
+    renamed.title = "Nowy tytul testowy".into();
+    renamed.web_url = Some("https://github.com/Octo-Test/Alpha/issues/1?new".into());
+    let alpha = [renamed];
+    // Only alpha loaded: beta failed this round, gamma is no longer configured.
+    let n = reconcile_github(
+        &mut s,
+        &[loaded("octo-test/alpha", &alpha)],
+        day(D1),
+        at(D1, 10, 0),
+    )
+    .unwrap();
+    assert_eq!(n, 2);
+
+    let l = list_on(&mut s, D1, 9);
+    assert_eq!(l.open_count, 3);
+    let by_ref = |r: &str| {
+        l.items
+            .iter()
+            .find(|i| matches!(&i.entry, TodoEntry::Github { reference, .. } if reference == r))
+            .unwrap()
+    };
+    assert!(!by_ref("octo-test/alpha#1").ticked);
+    assert!(matches!(
+        &by_ref("octo-test/alpha#1").entry,
+        TodoEntry::Github { title, web_url: Some(u), .. }
+            if title == "Nowy tytul testowy" && u.ends_with("?new")
+    ));
+    assert!(by_ref("octo-test/alpha#2").ticked);
+    assert!(matches!(
+        by_ref("octo-test/alpha#2").entry,
+        TodoEntry::Github {
+            closed_in_source: true,
+            ..
+        }
+    ));
+    assert!(!by_ref("octo-test/beta#1").ticked);
+    assert!(!by_ref("octo-test/gamma#1").ticked);
+
+    // Nothing changed since: a second round counts zero.
+    let n = reconcile_github(
+        &mut s,
+        &[loaded("octo-test/alpha", &alpha)],
+        day(D1),
+        at(D1, 11, 0),
+    )
+    .unwrap();
+    assert_eq!(n, 0);
+    // No repo loaded: nothing is touched.
+    assert_eq!(
+        reconcile_github(&mut s, &[], day(D1), at(D1, 12, 0)).unwrap(),
+        0
+    );
+}
+
+#[test]
+fn github_reconcile_leaves_ticked_removed_closed_and_other_sources_alone() {
+    let (_t, mut s) = open();
+    let a = own(&mut s, "Zadanie A");
+    pick_own(&mut s, a, D1, 8, 9).unwrap();
+    pick_gl(&mut s, &gl(ItemKind::Issue, 1), D1, 8, 9).unwrap();
+    let ticked = pick_gh(&mut s, &gh("o/r", 1), D1, 8, 9).unwrap();
+    let removed = pick_gh(&mut s, &gh("o/r", 2), D1, 8, 9).unwrap();
+    tick(&mut s, ticked, true, D1, 9).unwrap();
+    remove(&mut s, removed, day(D1), at(D1, 9, 0)).unwrap();
+
+    let n = reconcile_github(&mut s, &[loaded("o/r", &[])], day(D1), at(D1, 10, 0)).unwrap();
+    assert_eq!(n, 0);
+    let l = list_on(&mut s, D1, 9);
+    assert_eq!(l.items.len(), 3);
+    // The user tick stayed a user tick.
+    assert!(l.items.iter().any(|i| i.id == ticked
+        && matches!(
+            i.entry,
+            TodoEntry::Github {
+                closed_in_source: false,
+                ..
+            }
+        )));
+    assert_eq!(l.open_count, 2);
+}
+
+#[test]
+fn github_source_tick_rolls_over_to_closed_the_next_day() {
+    let (_t, mut s) = open();
+    pick_gh(&mut s, &gh("o/r", 1), D1, 8, 5).unwrap();
+    reconcile_github(&mut s, &[loaded("o/r", &[])], day(D1), at(D1, 10, 0)).unwrap();
+    assert_eq!(list_on(&mut s, D1, 5).items.len(), 1);
+    let l = list_on(&mut s, D2, 5);
+    assert!(l.items.is_empty());
+    // Closed: the issue can be picked again (it came back).
+    pick_gh(&mut s, &gh("o/r", 1), D2, 9, 5).unwrap();
+}
+
+#[test]
+fn github_user_tick_rolls_over_and_untick_works() {
+    let (_t, mut s) = open();
+    let id = pick_gh(&mut s, &gh("o/r", 1), D1, 8, 5).unwrap();
+    tick(&mut s, id, true, D1, 9).unwrap();
+    assert_eq!(list_on(&mut s, D1, 5).open_count, 0);
+    tick(&mut s, id, false, D1, 10).unwrap();
+    assert_eq!(list_on(&mut s, D1, 5).open_count, 1);
+    tick(&mut s, id, true, D1, 11).unwrap();
+    assert!(list_on(&mut s, D2, 5).items.is_empty());
+}
+
+#[test]
+fn github_list_json_shape() {
+    let (_t, mut s) = open();
+    pick_gh(&mut s, &gh("Octo-Test/Alpha", 4), D1, 9, 5).unwrap();
+    let v = serde_json::to_value(list_on(&mut s, D1, 5)).unwrap();
+    let e = &v["items"][0]["entry"];
+    assert_eq!(e["kind"], "github");
+    assert_eq!(e["reference"], "octo-test/alpha#4");
+    assert_eq!(e["title"], "Zgloszenie testowe 4");
+    assert_eq!(e["closedInSource"], false);
+    assert!(e["webUrl"].is_string());
+    let json = serde_json::to_string(&TodoError::NotInGithubList).unwrap();
+    assert_eq!(json, r#"{"kind":"NotInGithubList"}"#);
+}
+
 #[test]
 fn error_json_shape() {
     let json = serde_json::to_string(&TodoError::LimitReached { limit: 5 }).unwrap();
@@ -663,6 +869,8 @@ fn errors_never_contain_titles_or_references() {
         pick_own(&mut s, 999, D1, 9, 5).unwrap_err(),
         TodoError::SettingsInvalid,
         TodoError::NotInGitlabList,
+        TodoError::NotInGithubList,
+        pick_gh(&mut s, &gh("octo-test/alpha", 1), D1, 9, 1).unwrap_err(),
     ];
     for e in errors {
         let shown = format!("{e} {e:?} {}", serde_json::to_string(&e).unwrap());

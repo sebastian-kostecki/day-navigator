@@ -15,6 +15,10 @@ export function addTodoGitlabItem(itemKind: ItemKind, reference: string): Promis
   return invoke<TodoList>("add_todo_gitlab_item", { itemKind, reference });
 }
 
+export function addTodoGithubItem(reference: string): Promise<TodoList> {
+  return invoke<TodoList>("add_todo_github_item", { reference });
+}
+
 export function setTodoTicked(id: number, ticked: boolean): Promise<TodoList> {
   return invoke<TodoList>("set_todo_ticked", { id, ticked });
 }
@@ -44,6 +48,7 @@ export function todoErrorMessage(e: unknown): string {
     case "ConfigDirUnresolved":
       return "Nie można ustalić folderu konfiguracji aplikacji, więc limit nie jest znany.";
     case "NotInGitlabList":
+    case "NotInGithubList":
     case "TaskDone":
     case "AlreadyOnList":
       return "Lista jest nieaktualna — odśwież i spróbuj ponownie.";

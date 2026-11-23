@@ -216,6 +216,7 @@ pub fn run() {
             todo::commands::list_todo,
             todo::commands::add_todo_own_task,
             todo::commands::add_todo_gitlab_item,
+            todo::commands::add_todo_github_item,
             todo::commands::set_todo_ticked,
             todo::commands::remove_todo,
             work_time::commands::work_timer_status,

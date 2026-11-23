@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import type { ItemKind } from "../gitlab/types";
 import {
+  addTodoGithubItem,
   addTodoGitlabItem,
   addTodoOwnTask,
   listTodo,
@@ -149,6 +150,10 @@ export function useTodo() {
       mutate(() => addTodoGitlabItem(kind, reference)),
     [mutate],
   );
+  const addGithub = useCallback(
+    (reference: string): MutationResult => mutate(() => addTodoGithubItem(reference)),
+    [mutate],
+  );
   const setTicked = useCallback(
     (id: number, ticked: boolean): MutationResult => mutate(() => setTodoTicked(id, ticked)),
     [mutate],
@@ -166,6 +171,7 @@ export function useTodo() {
     refresh: reload,
     addOwn,
     addGitlab,
+    addGithub,
     setTicked,
     remove,
   };

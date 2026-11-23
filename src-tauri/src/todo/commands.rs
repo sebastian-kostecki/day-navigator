@@ -13,6 +13,8 @@ use tauri::{AppHandle, Manager};
 
 use super::{TodoError, TodoList};
 use crate::blocking;
+use crate::github::{GithubIssue, GithubSnapshot};
+use crate::github_refresh::GithubRefreshState;
 use crate::gitlab::{AssignedItems, GitlabItem, ItemKind};
 use crate::gitlab_refresh::GitlabRefreshState;
 use crate::settings::load_todo_limit;
@@ -46,6 +48,18 @@ fn find_gitlab_item(
     };
     pool.iter()
         .find(|i| i.kind == kind && i.reference == reference)
+        .cloned()
+}
+
+/// The picked issue as the live snapshot knows it (by lowercase reference),
+/// never from UI-supplied text.
+fn find_github_issue(snapshot: &GithubSnapshot, reference: &str) -> Option<GithubIssue> {
+    let reference = reference.to_lowercase();
+    snapshot
+        .repos
+        .iter()
+        .flat_map(|r| r.issues.iter())
+        .find(|i| i.reference == reference)
         .cloned()
 }
 
@@ -118,6 +132,19 @@ pub async fn add_todo_gitlab_item(
 }
 
 #[tauri::command]
+pub async fn add_todo_github_item(
+    app: AppHandle,
+    reference: String,
+) -> Result<TodoList, TodoError> {
+    let issue = find_github_issue(&app.state::<GithubRefreshState>().snapshot(), &reference);
+    run(&app, "add github", move |store, today, now, limit| {
+        let issue = issue.ok_or(TodoError::NotInGithubList)?;
+        super::add_github(store, &issue, today, now, limit.clone()).map(|_| ())
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn set_todo_ticked(app: AppHandle, id: i64, ticked: bool) -> Result<TodoList, TodoError> {
     run(&app, "tick", move |store, today, now, _| {
         super::set_ticked(store, id, ticked, today, now)
@@ -165,6 +192,31 @@ mod tests {
         assert!(find_gitlab_item(Some(&items), ItemKind::Issue, "g/p!1").is_none());
         assert!(find_gitlab_item(Some(&items), ItemKind::Issue, "g/p#2").is_none());
         assert!(find_gitlab_item(None, ItemKind::Issue, "g/p#1").is_none());
+    }
+
+    #[test]
+    fn github_lookup_uses_the_snapshot_by_lowercase_reference_only() {
+        use crate::github::RepoView;
+        let issue = GithubIssue {
+            repo: "Octo-Test/Alpha".to_string(),
+            number: 1,
+            reference: "octo-test/alpha#1".to_string(),
+            title: "Invented".to_string(),
+            web_url: None,
+            updated_at: "2026-01-01T00:00:00Z".to_string(),
+        };
+        let snapshot = GithubSnapshot {
+            repos: vec![RepoView {
+                repo: "Octo-Test/Alpha".to_string(),
+                issues: vec![issue],
+                error: None,
+            }],
+            ..GithubSnapshot::starting()
+        };
+        assert!(find_github_issue(&snapshot, "octo-test/alpha#1").is_some());
+        assert!(find_github_issue(&snapshot, "Octo-Test/Alpha#1").is_some());
+        assert!(find_github_issue(&snapshot, "octo-test/alpha#2").is_none());
+        assert!(find_github_issue(&GithubSnapshot::starting(), "octo-test/alpha#1").is_none());
     }
 
     #[test]

@@ -109,7 +109,10 @@ fn v6_applies_on_a_v5_store_with_data() {
         assert_eq!(user_version(&v5), 5);
     }
     let store = open(&dir);
-    assert_eq!(user_version(&store), 6);
+    assert_eq!(
+        user_version(&store),
+        i64::from(schema::MIGRATIONS.last().unwrap().version)
+    );
     let counts: (i64, i64) = store
         .read::<_, StoreError>(|c| {
             Ok((

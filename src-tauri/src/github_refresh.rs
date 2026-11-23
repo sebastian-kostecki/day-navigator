@@ -15,16 +15,20 @@ use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Duration, Instant};
 
+use chrono::Local;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::cli::{CliRunner, GithubConfig};
 use crate::github::fetch::{RepoResult, fetch_assigned};
-use crate::github::{self, GithubError, GithubSnapshot, GithubState};
+use crate::github::{self, GithubError, GithubIssue, GithubSnapshot, GithubState};
 use crate::health;
 use crate::runtime::{HealthState, now_ms};
 use crate::settings::load_github_settings;
+use crate::store::StoreHandle;
+use crate::todo;
 
 const EVENT: &str = "github-changed";
+const TODO_EVENT: &str = "todo-changed";
 const REFRESH_INTERVAL: Duration = Duration::from_secs(10 * 60);
 
 /// Managed state of the GitHub list, shared by the refresh thread, the health
@@ -191,8 +195,12 @@ fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliR
     let after_status = health::github_status(&next);
     let from = state_label(&before);
     let to = state_label(&next);
+    let todo_changed = reconcile_todo(app, &next);
     *state.write() = next;
     publish(app, &state);
+    if todo_changed && let Err(e) = app.emit(TODO_EVENT, ()) {
+        log::warn!("todo: emit failed: {e}");
+    }
 
     if from != to {
         log::info!("github: {from} -> {to}");
@@ -203,6 +211,53 @@ fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliR
         // The GitHub source status changed: run a health round now instead of
         // waiting up to 30 s for the tray to catch up.
         let _ = app.state::<HealthState>().wake.send(());
+    }
+}
+
+/// The repos a "To do" reconcile may use: only those that loaded in a
+/// successful round, as `(lowercase repo key, issues)`. A stale list kept after
+/// a failed round, and a repo with its own error, never tick anything.
+fn reconcile_input(snap: &GithubSnapshot) -> Vec<(String, &[GithubIssue])> {
+    match snap.state {
+        GithubState::Ok => snap
+            .repos
+            .iter()
+            .filter(|r| r.error.is_none())
+            .map(|r| (r.repo.to_lowercase(), r.issues.as_slice()))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Reconciles "To do" entries with the repos that loaded. Returns whether at
+/// least one row changed. A store error is logged by kind and changes nothing
+/// else.
+fn reconcile_todo(app: &AppHandle, next: &GithubSnapshot) -> bool {
+    let loaded = reconcile_input(next);
+    if loaded.is_empty() {
+        return false;
+    }
+    let now = Local::now().naive_local();
+    let result = app.state::<StoreHandle>().with_store(now.date(), |s| {
+        todo::reconcile_github(s, &loaded, now.date(), now)
+    });
+    match result {
+        Ok(changed) => {
+            if changed > 0 {
+                log::debug!("todo: reconcile changed {changed} rows");
+            }
+            changed > 0
+        }
+        // An unopenable store is reported by the health round; a warning every
+        // GitHub round would only repeat it.
+        Err(e @ todo::TodoError::Store(_)) => {
+            log::debug!("todo: reconcile failed: {}", e.kind());
+            false
+        }
+        Err(e) => {
+            log::warn!("todo: reconcile failed: {}", e.kind());
+            false
+        }
     }
 }
 
@@ -250,6 +305,43 @@ mod tests {
             })),
             "error:LoggedOut"
         );
+    }
+
+    fn view(repo: &str, error: bool) -> github::RepoView {
+        github::RepoView {
+            repo: repo.to_string(),
+            issues: vec![],
+            error: error.then(|| github::RepoErrorView {
+                kind: "Failed".into(),
+                message: String::new(),
+            }),
+        }
+    }
+
+    #[test]
+    fn reconcile_input_is_the_loaded_repos_of_an_ok_round_in_lowercase() {
+        let mut ok = snap(State::Ok);
+        ok.repos = vec![view("Octo-Test/Alpha", false), view("octo-test/beta", true)];
+        let got = reconcile_input(&ok);
+        assert_eq!(got.len(), 1);
+        assert_eq!(got[0].0, "octo-test/alpha");
+
+        // A kept list after a failed round never reconciles.
+        for state in [
+            State::Starting,
+            State::NotConfigured,
+            State::Unavailable {
+                message: String::new(),
+            },
+            State::Error {
+                kind: "LoggedOut".into(),
+                message: String::new(),
+            },
+        ] {
+            let mut stale = snap(state);
+            stale.repos = vec![view("octo-test/alpha", false)];
+            assert!(reconcile_input(&stale).is_empty());
+        }
     }
 
     #[test]

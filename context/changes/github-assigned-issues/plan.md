@@ -526,9 +526,9 @@ One `gh issue list` per configured repo every 10 minutes, sequential, each cappe
 
 #### Automated
 
-- [x] 3.1 `npm run build` finishes with zero errors
-- [x] 3.2 `npm run lint` passes
-- [x] 3.3 `npm run format:check` passes
+- [x] 3.1 `npm run build` finishes with zero errors — 81a74e9
+- [x] 3.2 `npm run lint` passes — 81a74e9
+- [x] 3.3 `npm run format:check` passes — 81a74e9
 
 #### Manual
 
@@ -542,12 +542,12 @@ One `gh issue list` per configured repo every 10 minutes, sequential, each cappe
 
 #### Automated
 
-- [ ] 4.1 `cargo test` passes in `src-tauri/`, including the v6→v7 migration, "To do" GitHub and crash tests
-- [ ] 4.2 `cargo clippy --all-targets -- -D warnings` passes in `src-tauri/`
-- [ ] 4.3 `cargo fmt --check` passes in `src-tauri/`
-- [ ] 4.4 `npm run build` finishes with zero errors
-- [ ] 4.5 `npm run lint` passes
-- [ ] 4.6 `npm run format:check` passes
+- [x] 4.1 `cargo test` passes in `src-tauri/`, including the v6→v7 migration, "To do" GitHub and crash tests
+- [x] 4.2 `cargo clippy --all-targets -- -D warnings` passes in `src-tauri/`
+- [x] 4.3 `cargo fmt --check` passes in `src-tauri/`
+- [x] 4.4 `npm run build` finishes with zero errors
+- [x] 4.5 `npm run lint` passes
+- [x] 4.6 `npm run format:check` passes
 
 #### Manual
 

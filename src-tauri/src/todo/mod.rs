@@ -20,6 +20,7 @@ use chrono::{NaiveDate, NaiveDateTime};
 use rusqlite::{OptionalExtension, Transaction};
 use serde::Serialize;
 
+use crate::github::GithubIssue;
 use crate::gitlab::{AssignedItems, GitlabItem, ItemKind};
 use crate::own_tasks;
 use crate::space::Space;
@@ -73,6 +74,13 @@ pub enum TodoEntry {
         web_url: Option<String>,
         closed_in_source: bool,
     },
+    Github {
+        /// Lowercase `owner/name#N`.
+        reference: String,
+        title: String,
+        web_url: Option<String>,
+        closed_in_source: bool,
+    },
 }
 
 fn stamp(now: NaiveDateTime) -> String {
@@ -116,7 +124,8 @@ pub fn roll_over_in(tx: &Transaction<'_>, today: NaiveDate) -> Result<usize, Sto
            (source = 'own' AND EXISTS ( \
               SELECT 1 FROM own_tasks o WHERE o.id = todo_items.own_task_id \
                 AND o.done_at IS NOT NULL AND substr(o.done_at, 1, 10) <> ?2)) \
-           OR (source = 'gitlab' AND ticked_at IS NOT NULL AND substr(ticked_at, 1, 10) <> ?2))",
+           OR (source IN ('gitlab','github') AND ticked_at IS NOT NULL \
+               AND substr(ticked_at, 1, 10) <> ?2))",
         (&closed_at, &day),
     )?;
     Ok(changed)
@@ -131,6 +140,9 @@ struct Row {
     gitlab_ref: Option<String>,
     gitlab_title: Option<String>,
     gitlab_url: Option<String>,
+    github_ref: Option<String>,
+    github_title: Option<String>,
+    github_url: Option<String>,
     picked_on: String,
     picked_at: String,
     ticked_at: Option<String>,
@@ -143,7 +155,8 @@ struct Row {
 fn read_live(tx: &Transaction<'_>) -> Result<Vec<Row>, rusqlite::Error> {
     let mut stmt = tx.prepare(
         "SELECT t.id, t.source, t.own_task_id, t.gitlab_kind, t.gitlab_ref, t.gitlab_title, \
-                t.gitlab_url, t.picked_on, t.picked_at, t.ticked_at, t.ticked_by, \
+                t.gitlab_url, t.github_ref, t.github_title, t.github_url, \
+                t.picked_on, t.picked_at, t.ticked_at, t.ticked_by, \
                 o.space, o.title, o.done_at \
          FROM todo_items t LEFT JOIN own_tasks o ON o.id = t.own_task_id \
          WHERE t.removed_at IS NULL AND t.closed_at IS NULL",
@@ -157,13 +170,16 @@ fn read_live(tx: &Transaction<'_>) -> Result<Vec<Row>, rusqlite::Error> {
             gitlab_ref: r.get(4)?,
             gitlab_title: r.get(5)?,
             gitlab_url: r.get(6)?,
-            picked_on: r.get(7)?,
-            picked_at: r.get(8)?,
-            ticked_at: r.get(9)?,
-            ticked_by: r.get(10)?,
-            own_space: r.get(11)?,
-            own_title: r.get(12)?,
-            own_done_at: r.get(13)?,
+            github_ref: r.get(7)?,
+            github_title: r.get(8)?,
+            github_url: r.get(9)?,
+            picked_on: r.get(10)?,
+            picked_at: r.get(11)?,
+            ticked_at: r.get(12)?,
+            ticked_by: r.get(13)?,
+            own_space: r.get(14)?,
+            own_title: r.get(15)?,
+            own_done_at: r.get(16)?,
         })
     })?
     .collect()
@@ -201,6 +217,12 @@ impl Row {
                 reference: self.gitlab_ref.ok_or_else(corrupt)?,
                 title: self.gitlab_title.ok_or_else(corrupt)?,
                 web_url: self.gitlab_url,
+                closed_in_source: self.ticked_by.as_deref() == Some("source"),
+            },
+            "github" => TodoEntry::Github {
+                reference: self.github_ref.ok_or_else(corrupt)?,
+                title: self.github_title.ok_or_else(corrupt)?,
+                web_url: self.github_url,
                 closed_in_source: self.ticked_by.as_deref() == Some("source"),
             },
             _ => return Err(corrupt()),
@@ -356,8 +378,49 @@ pub fn add_gitlab(
     })
 }
 
+/// Picks a GitHub issue (the caller took it from the live snapshot). The
+/// reference is stored lowercase (`owner/name#N`), so settings case never makes
+/// two entries of one issue. Returns the new entry's id.
+pub fn add_github(
+    store: &mut Store,
+    issue: &GithubIssue,
+    today: NaiveDate,
+    now: NaiveDateTime,
+    limit: Result<u32, TodoError>,
+) -> Result<i64, TodoError> {
+    store.write(|tx| {
+        roll_over_in(tx, today)?;
+        let limit = limit?;
+        let reference = issue.reference.to_lowercase();
+        let live: bool = tx.query_row(
+            "SELECT EXISTS (SELECT 1 FROM todo_items WHERE github_ref = ?1 \
+               AND removed_at IS NULL AND closed_at IS NULL)",
+            [&reference],
+            |r| r.get(0),
+        )?;
+        if live {
+            return Err(TodoError::AlreadyOnList);
+        }
+        check_limit(tx, today, limit)?;
+        tx.execute(
+            "INSERT INTO todo_items \
+               (source, github_ref, github_title, github_url, picked_on, picked_at) \
+             VALUES ('github', ?1, ?2, ?3, ?4, ?5)",
+            (
+                &reference,
+                &issue.title,
+                &issue.web_url,
+                day_text(today),
+                stamp(now),
+            ),
+        )?;
+        Ok(tx.last_insert_rowid())
+    })
+}
+
 /// Ticks or unticks an entry on today's list. An own entry changes the task's
-/// `done_at` in the same transaction; a GitLab entry keeps its own tick.
+/// `done_at` in the same transaction; a GitLab or GitHub entry keeps its own
+/// tick.
 pub fn set_ticked(
     store: &mut Store,
     id: i64,
@@ -479,6 +542,80 @@ pub fn reconcile_gitlab(
                     tx.execute(
                         "UPDATE todo_items SET gitlab_title = ?1, gitlab_url = ?2 WHERE id = ?3",
                         (&item.title, &item.web_url, id),
+                    )?;
+                    changed += 1;
+                }
+                Some(_) => {}
+            }
+        }
+        Ok(changed)
+    })
+}
+
+/// Call after a GitHub round, with only the repos that loaded successfully
+/// (`(lowercase repo key, its issues)`). Ticks (`ticked_by = 'source'`) every
+/// open live GitHub entry of such a repo that is missing from that repo's
+/// issues, and refreshes the stored title and URL of the ones still present.
+/// An entry of a repo not in `loaded` (it failed this round, or it is no longer
+/// in settings) is left alone: nothing is known about it. Own and GitLab
+/// entries are never touched.
+/// Returns the number of entries changed (roll-over closings not counted).
+pub fn reconcile_github(
+    store: &mut Store,
+    loaded: &[(String, &[GithubIssue])],
+    today: NaiveDate,
+    now: NaiveDateTime,
+) -> Result<usize, TodoError> {
+    store.write(|tx| {
+        roll_over_in(tx, today)?;
+        let repos: HashMap<String, HashMap<&str, &GithubIssue>> = loaded
+            .iter()
+            .map(|(key, issues)| {
+                (
+                    key.to_lowercase(),
+                    issues.iter().map(|i| (i.reference.as_str(), i)).collect(),
+                )
+            })
+            .collect();
+
+        let mut stmt = tx.prepare(
+            "SELECT id, github_ref, github_title, github_url FROM todo_items \
+             WHERE source = 'github' AND removed_at IS NULL AND closed_at IS NULL \
+               AND ticked_at IS NULL",
+        )?;
+        let open = stmt
+            .query_map([], |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, Option<String>>(3)?,
+                ))
+            })?
+            .collect::<Result<Vec<_>, _>>()?;
+        drop(stmt);
+
+        let ts = stamp(now);
+        let mut changed = 0;
+        for (id, reference, title, url) in open {
+            let Some((repo, _)) = reference.rsplit_once('#') else {
+                continue;
+            };
+            let Some(issues) = repos.get(&repo.to_lowercase()) else {
+                continue;
+            };
+            match issues.get(reference.as_str()) {
+                None => {
+                    tx.execute(
+                        "UPDATE todo_items SET ticked_at = ?1, ticked_by = 'source' WHERE id = ?2",
+                        (&ts, id),
+                    )?;
+                    changed += 1;
+                }
+                Some(issue) if issue.title != title || issue.web_url != url => {
+                    tx.execute(
+                        "UPDATE todo_items SET github_title = ?1, github_url = ?2 WHERE id = ?3",
+                        (&issue.title, &issue.web_url, id),
                     )?;
                     changed += 1;
                 }

@@ -22,6 +22,8 @@ pub enum TodoError {
     NotFound,
     #[error("the item is not in the current gitlab list")]
     NotInGitlabList,
+    #[error("the item is not in the current github list")]
+    NotInGithubList,
     #[error("the todo settings block is invalid")]
     SettingsInvalid,
     #[error("the app config dir cannot be resolved")]
@@ -42,6 +44,7 @@ impl TodoError {
             TodoError::TaskDone => "TaskDone",
             TodoError::NotFound => "NotFound",
             TodoError::NotInGitlabList => "NotInGitlabList",
+            TodoError::NotInGithubList => "NotInGithubList",
             TodoError::SettingsInvalid => "SettingsInvalid",
             TodoError::ConfigDirUnresolved => "ConfigDirUnresolved",
             TodoError::Background => "Background",

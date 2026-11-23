@@ -278,9 +278,9 @@ None: new module, no stored data, no settings change.
 
 #### Automated
 
-- [x] 1.1 Unit tests pass: `cargo test --lib cli`
-- [x] 1.2 Format and lint are clean: `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings`
-- [x] 1.3 Full Rust suite still passes: `cargo test`
+- [x] 1.1 Unit tests pass: `cargo test --lib cli` — 36f4d9a
+- [x] 1.2 Format and lint are clean: `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` — 36f4d9a
+- [x] 1.3 Full Rust suite still passes: `cargo test` — 36f4d9a
 
 #### Manual
 
@@ -290,9 +290,9 @@ None: new module, no stored data, no settings change.
 
 #### Automated
 
-- [ ] 2.1 Integration tests pass: `cargo test --test cli_runner`
-- [ ] 2.2 Full pre-commit gate passes
-- [ ] 2.3 Release build does not contain the fake
+- [x] 2.1 Integration tests pass: `cargo test --test cli_runner`
+- [x] 2.2 Full pre-commit gate passes
+- [x] 2.3 Release build does not contain the fake
 
 #### Manual
 

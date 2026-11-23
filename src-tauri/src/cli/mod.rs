@@ -6,11 +6,12 @@
 //! Nothing here starts a process or imports `tauri`.
 
 pub mod classify;
-// `pub mod runner;` and the `CliRunner` re-export arrive in Phase 2.
+pub mod runner;
 
 use serde::Serialize;
 
 pub use classify::classify;
+pub use runner::CliRunner;
 
 /// The two CLIs the app talks to. Serialised as `"glab"` / `"gh"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

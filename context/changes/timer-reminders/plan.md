@@ -262,10 +262,10 @@ None. There is no schema change. Existing `settings.json` files without a `remin
 
 #### Automated
 
-- [x] 2.1 Health tests pass for the Przypomnienia source
-- [x] 2.2 Full cargo test suite passes
-- [x] 2.3 cargo fmt --check and cargo clippy pass
-- [x] 2.4 npm run lint, format:check and build pass
+- [x] 2.1 Health tests pass for the Przypomnienia source — 14308fe
+- [x] 2.2 Full cargo test suite passes — 14308fe
+- [x] 2.3 cargo fmt --check and cargo clippy pass — 14308fe
+- [x] 2.4 npm run lint, format:check and build pass — 14308fe
 
 #### Manual
 

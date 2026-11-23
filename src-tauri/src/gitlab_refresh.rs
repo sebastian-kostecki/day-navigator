@@ -30,13 +30,12 @@ use crate::health;
 use crate::hidden_issues::{HiddenIssueError, HiddenRecord, check_round, commit_round, partition};
 use crate::new_assignments::{ItemKey, SessionSeen, keys_of, notices_for, record_round};
 use crate::runtime::{HealthState, now_ms, toast};
-use crate::settings::load_gitlab_settings;
+use crate::settings::{DEFAULT_REFRESH_MINUTES, load_gitlab_refresh_minutes, load_gitlab_settings};
 use crate::store::StoreHandle;
 use crate::todo;
 
 const EVENT: &str = "gitlab-changed";
 const TODO_EVENT: &str = "todo-changed";
-const REFRESH_INTERVAL: Duration = Duration::from_secs(5 * 60);
 
 /// Managed state of the GitLab list, shared by the refresh thread, the health
 /// round and the commands.
@@ -193,14 +192,14 @@ fn refresh_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::R
     // Session memory for new-assignment toasts while the store fails.
     let mut session_seen = SessionSeen::new();
     loop {
-        refresh_round(
+        let wait = refresh_round(
             &app,
             &settings_path,
             &runner,
             &mut resume_after,
             &mut session_seen,
         );
-        match wake_rx.recv_timeout(REFRESH_INTERVAL) {
+        match wake_rx.recv_timeout(wait) {
             Ok(()) => while wake_rx.try_recv().is_ok() {},
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return,
@@ -241,13 +240,29 @@ fn run_fetch(
     }
 }
 
+/// The wait before the next round and whether the setting was invalid. Read
+/// every round, so a change needs no restart. No settings path or an invalid
+/// block gives the default.
+fn refresh_interval(settings_path: &Option<PathBuf>) -> (Duration, bool) {
+    let (minutes, invalid) = match settings_path {
+        Some(path) => match load_gitlab_refresh_minutes(path) {
+            Ok(m) => (m, false),
+            Err(_) => (DEFAULT_REFRESH_MINUTES, true),
+        },
+        None => (DEFAULT_REFRESH_MINUTES, false),
+    };
+    (Duration::from_secs(u64::from(minutes) * 60), invalid)
+}
+
+/// Runs one round and returns how long to wait before the next one.
 fn refresh_round(
     app: &AppHandle,
     settings_path: &Option<PathBuf>,
     runner: &CliRunner,
     resume_after: &mut Option<u64>,
     session_seen: &mut SessionSeen,
-) {
+) -> Duration {
+    let (wait, refresh_invalid) = refresh_interval(settings_path);
     let state = app.state::<GitlabRefreshState>();
     let started = Instant::now();
     let before = state.snapshot();
@@ -318,6 +333,7 @@ fn refresh_round(
         next.hidden_check_failed = check_failed;
         next.hidden_error = hidden_error;
     }
+    next.refresh_setting_invalid = refresh_invalid;
     {
         let mut kept_full = state.kept_full.lock().unwrap_or_else(|p| p.into_inner());
         match full_list {
@@ -354,6 +370,7 @@ fn refresh_round(
         // waiting up to 30 s for the tray to catch up.
         let _ = app.state::<HealthState>().wake.send(());
     }
+    wait
 }
 
 /// The list a "To do" reconcile may use, with the account it came from: only
@@ -668,6 +685,31 @@ mod tests {
         assert_eq!(items.issues.len(), 1);
         assert_eq!(items.issues[0].id, 2);
         assert_eq!(items.issues[0].changed, Some(gitlab::ChangeReason::Comment));
+    }
+
+    #[test]
+    fn act_on_issue_keeps_the_refresh_setting_flag() {
+        let state = kept_state();
+        state.write().refresh_setting_invalid = true;
+        state
+            .act_on_issue(1, |_, _| Ok(vec![record(1, None)]))
+            .unwrap();
+        assert!(state.snapshot().refresh_setting_invalid);
+    }
+
+    #[test]
+    fn refresh_interval_reads_the_setting_and_falls_back_to_ten_minutes() {
+        assert_eq!(
+            refresh_interval(&None),
+            (Duration::from_secs(10 * 60), false)
+        );
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        std::fs::write(&path, r#"{"version":1,"gitlabRefresh":{"minutes":3}}"#).unwrap();
+        let p = Some(path.clone());
+        assert_eq!(refresh_interval(&p), (Duration::from_secs(3 * 60), false));
+        std::fs::write(&path, r#"{"version":1,"gitlabRefresh":{"minutes":15}}"#).unwrap();
+        assert_eq!(refresh_interval(&p), (Duration::from_secs(10 * 60), true));
     }
 
     #[test]

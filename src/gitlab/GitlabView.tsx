@@ -243,6 +243,12 @@ export function GitlabView() {
           lastSuccess={lastSuccess}
         />
       )}
+      {snapshot.refreshSettingInvalid && (
+        <p className="gitlab-notice" role="status">
+          Nieprawidłowe ustawienie <code>gitlabRefresh.minutes</code> (dozwolone 1–14) — odświeżam
+          co 10 min
+        </p>
+      )}
       {snapshot.hiddenError && (
         <p className="gitlab-notice" role="status">
           Lista pokazuje wszystkie zgłoszenia, bo nie udało się odczytać ukrytych.{" "}

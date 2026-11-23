@@ -38,6 +38,10 @@ const NOTES_IID: u64 = 12;
 enum Endpoint {
     MergeRequests,
     Issues,
+    /// `merge_requests?...state=all...` (recently closed, any state).
+    ClosedMergeRequests,
+    /// `issues?...state=closed...` (recently closed).
+    ClosedIssues,
     /// `projects/<project_id>/issues/<iid>/notes?...`
     Notes {
         project_id: u64,
@@ -58,6 +62,13 @@ fn parse_notes_endpoint(arg: &str) -> Option<Endpoint> {
 
 fn endpoint() -> Endpoint {
     for arg in std::env::args().skip(1) {
+        // The closed calls first: they share the open calls' prefixes.
+        if arg.starts_with("merge_requests?") && arg.contains("&state=all&") {
+            return Endpoint::ClosedMergeRequests;
+        }
+        if arg.starts_with("issues?") && arg.contains("&state=closed&") {
+            return Endpoint::ClosedIssues;
+        }
         if arg.starts_with("merge_requests?") {
             return Endpoint::MergeRequests;
         }
@@ -95,6 +106,102 @@ fn issue_values() -> Vec<serde_json::Value> {
             "references": { "full": "acme/widgets#12" }
         }),
     ]
+}
+
+/// One entry of the closed lists; `extra` carries the state and closing times.
+fn closed_value(
+    id: u64,
+    iid: u64,
+    project_id: u64,
+    path: &str,
+    reference: &str,
+    title: &str,
+    extra: serde_json::Value,
+) -> serde_json::Value {
+    let mut v = serde_json::json!({
+        "id": id,
+        "iid": iid,
+        "project_id": project_id,
+        "title": title,
+        "web_url": format!("https://gitlab.example.invalid/{path}"),
+        "updated_at": "2026-03-10T08:00:00.000Z",
+        "labels": [],
+        "references": { "full": reference }
+    });
+    if let (Some(base), Some(more)) = (v.as_object_mut(), extra.as_object()) {
+        for (k, val) in more {
+            base.insert(k.clone(), val.clone());
+        }
+    }
+    v
+}
+
+/// What `glab api` returns for the closed calls (the server pre-filter is not
+/// modelled: every item is returned and the parser decides). Tests use the
+/// cutoff 2026-03-01T00:00:00Z.
+fn gitlab_closed_body(endpoint: &Endpoint) -> Option<String> {
+    let body = match endpoint {
+        Endpoint::ClosedMergeRequests => serde_json::json!([
+            closed_value(
+                7001,
+                40,
+                102,
+                "acme/widgets/-/merge_requests/40",
+                "acme/widgets!40",
+                "Merge widget cache",
+                serde_json::json!({
+                    "state": "merged",
+                    "merged_at": "2026-03-05T12:00:00.000Z",
+                    "closed_at": null
+                })
+            ),
+            closed_value(
+                7002,
+                41,
+                101,
+                "acme/gizmo/-/merge_requests/41",
+                "acme/gizmo!41",
+                "Drop gizmo shim",
+                serde_json::json!({
+                    "state": "closed",
+                    "closed_at": "2026-03-04T09:00:00.000Z",
+                    "merged_at": null
+                })
+            ),
+            closed_value(
+                7003,
+                42,
+                102,
+                "acme/widgets/-/merge_requests/42",
+                "acme/widgets!42",
+                "Still open widget change",
+                serde_json::json!({ "state": "opened", "closed_at": null, "merged_at": null })
+            ),
+        ]),
+        Endpoint::ClosedIssues => serde_json::json!([
+            closed_value(
+                8001,
+                20,
+                102,
+                "acme/widgets/-/issues/20",
+                "acme/widgets#20",
+                "Widget cache is stale",
+                serde_json::json!({ "state": "closed", "closed_at": "2026-03-06T08:00:00.000Z" })
+            ),
+            // Closed before the cutoff, updated (commented on) after it.
+            closed_value(
+                8002,
+                21,
+                101,
+                "acme/gizmo/-/issues/21",
+                "acme/gizmo#21",
+                "Old gizmo complaint",
+                serde_json::json!({ "state": "closed", "closed_at": "2026-02-10T08:00:00.000Z" })
+            ),
+        ]),
+        _ => return None,
+    };
+    Some(body.to_string())
 }
 
 /// Invented assigned items on `gitlab.example.invalid`: a draft MR with labels,
@@ -146,6 +253,9 @@ fn gitlab_assigned_body(endpoint: &Endpoint, paged: bool) -> Option<String> {
                 return Some(pages.concat());
             }
             serde_json::Value::Array(issues)
+        }
+        Endpoint::ClosedMergeRequests | Endpoint::ClosedIssues => {
+            return gitlab_closed_body(endpoint);
         }
         Endpoint::Notes { .. } | Endpoint::Other => return None,
     };
@@ -449,6 +559,21 @@ fn main() {
                 eprint!("{GLAB_NO_NETWORK}");
                 1
             }
+        },
+        // The open lists and the closed merge requests answer; the closed
+        // issues call has no network.
+        "gitlab-closed-issues-no-network" => match endpoint() {
+            Endpoint::ClosedIssues => {
+                eprint!("{GLAB_NO_NETWORK}");
+                1
+            }
+            other => match gitlab_assigned_body(&other, false) {
+                Some(body) => {
+                    println!("{body}");
+                    0
+                }
+                None => 98,
+            },
         },
         "glab-logged-out" => {
             eprintln!(

@@ -413,11 +413,11 @@ None. The block is optional and absent means today's behaviour. No store schema 
 
 #### Automated
 
-- [ ] 2.1 reconcile_input tests: only Ok with account and full list; returns the full list
-- [ ] 2.2 Filtered-out issue does not tick its "To do" entry
-- [ ] 2.3 act_on_issue re-applies the filter and stores counts; default filter keeps today's behaviour
-- [ ] 2.4 next_snapshot keeps/resets filter fields with the items; filter_invalid carried as a round flag; a kept round re-filters kept_full
-- [ ] 2.5 cargo test, cargo fmt --check and cargo clippy pass
+- [x] 2.1 reconcile_input tests: only Ok with account and full list; returns the full list — 0503eb5
+- [x] 2.2 Filtered-out issue does not tick its "To do" entry — 0503eb5
+- [x] 2.3 act_on_issue re-applies the filter and stores counts; default filter keeps today's behaviour — 0503eb5
+- [x] 2.4 next_snapshot keeps/resets filter fields with the items; filter_invalid carried as a round flag; a kept round re-filters kept_full — 0503eb5
+- [x] 2.5 cargo test, cargo fmt --check and cargo clippy pass — 0503eb5
 
 ### Phase 3: Recently closed fetch
 

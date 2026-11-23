@@ -207,6 +207,13 @@ struct RawItem {
     draft: bool,
     #[serde(default)]
     milestone: Option<RawMilestone>,
+    /// Read only by the recently-closed parser.
+    #[serde(default)]
+    state: Option<String>,
+    #[serde(default)]
+    closed_at: Option<String>,
+    #[serde(default)]
+    merged_at: Option<String>,
 }
 
 /// Link kept only on `https://<host>/`, with no whitespace or control characters.
@@ -239,6 +246,36 @@ pub(crate) fn parse_pages<T: DeserializeOwned>(json: &str) -> Result<Vec<T>, Git
     Ok(all)
 }
 
+/// One raw item as a display item plus its `updated_at` instant.
+fn build_item(
+    r: RawItem,
+    host: &GitlabHost,
+    kind: ItemKind,
+) -> Result<(DateTime<FixedOffset>, GitlabItem), GitlabError> {
+    // GitLab ids start at 1. A zero would key a hide record wrongly and build
+    // a notes endpoint the read-only guard refuses (`projects/0/...`).
+    if r.id == 0 || r.project_id == 0 || r.iid == 0 {
+        return Err(GitlabError::ResponseInvalid);
+    }
+    let stamp =
+        DateTime::parse_from_rfc3339(&r.updated_at).map_err(|_| GitlabError::ResponseInvalid)?;
+    let item = GitlabItem {
+        kind,
+        id: r.id,
+        project_id: r.project_id,
+        iid: r.iid,
+        reference: r.references.full,
+        title: r.title,
+        web_url: checked_url(&r.web_url, host),
+        updated_at: r.updated_at,
+        labels: r.labels,
+        draft: kind == ItemKind::MergeRequest && r.draft,
+        changed: None,
+        milestone: r.milestone.map(|m| m.title),
+    };
+    Ok((stamp, item))
+}
+
 fn parse_items(
     json: &str,
     host: &GitlabHost,
@@ -247,31 +284,46 @@ fn parse_items(
     let raw: Vec<RawItem> = parse_pages(json)?;
     let mut keyed: Vec<(DateTime<FixedOffset>, GitlabItem)> = Vec::with_capacity(raw.len());
     for r in raw {
-        // GitLab ids start at 1. A zero would key a hide record wrongly and build
-        // a notes endpoint the read-only guard refuses (`projects/0/...`).
-        if r.id == 0 || r.project_id == 0 || r.iid == 0 {
-            return Err(GitlabError::ResponseInvalid);
-        }
-        let stamp = DateTime::parse_from_rfc3339(&r.updated_at)
-            .map_err(|_| GitlabError::ResponseInvalid)?;
-        let item = GitlabItem {
-            kind,
-            id: r.id,
-            project_id: r.project_id,
-            iid: r.iid,
-            reference: r.references.full,
-            title: r.title,
-            web_url: checked_url(&r.web_url, host),
-            updated_at: r.updated_at,
-            labels: r.labels,
-            draft: kind == ItemKind::MergeRequest && r.draft,
-            changed: None,
-            milestone: r.milestone.map(|m| m.title),
-        };
-        keyed.push((stamp, item));
+        keyed.push(build_item(r, host, kind)?);
     }
     keyed.sort_by(|a, b| (Reverse(a.0), &a.1.reference).cmp(&(Reverse(b.0), &b.1.reference)));
     Ok(keyed.into_iter().map(|(_, item)| item).collect())
+}
+
+/// The closing instant that makes an item "recently closed", or `None` when it
+/// is not closed (an issue only in state `closed`; an MR in state `merged` by
+/// `merged_at` or `closed` by `closed_at`) or the time is missing or unreadable.
+fn closing_time(r: &RawItem, kind: ItemKind) -> Option<DateTime<FixedOffset>> {
+    let text = match (kind, r.state.as_deref()?) {
+        (ItemKind::Issue, "closed") | (ItemKind::MergeRequest, "closed") => r.closed_at.as_deref(),
+        (ItemKind::MergeRequest, "merged") => r.merged_at.as_deref(),
+        _ => None,
+    }?;
+    DateTime::parse_from_rfc3339(text).ok()
+}
+
+/// Items closed (issues), or closed or merged (MRs), at or after `cutoff`, each
+/// with its closing instant, newest closing first (ties by reference).
+/// `updated_after` only pre-filters on the server, so the decision is made here
+/// with the closing time. A missing `state` or closing time drops the item; a
+/// closing time of the wrong type is `ResponseInvalid`.
+pub fn parse_recently_closed(
+    json: &str,
+    host: &GitlabHost,
+    kind: ItemKind,
+    cutoff: DateTime<FixedOffset>,
+) -> Result<Vec<(DateTime<FixedOffset>, GitlabItem)>, GitlabError> {
+    let raw: Vec<RawItem> = parse_pages(json)?;
+    let mut closed: Vec<(DateTime<FixedOffset>, GitlabItem)> = Vec::new();
+    for r in raw {
+        let Some(at) = closing_time(&r, kind).filter(|at| *at >= cutoff) else {
+            continue;
+        };
+        let (_, item) = build_item(r, host, kind)?;
+        closed.push((at, item));
+    }
+    closed.sort_by(|a, b| (Reverse(a.0), &a.1.reference).cmp(&(Reverse(b.0), &b.1.reference)));
+    Ok(closed)
 }
 
 /// Issues, newest update first (ties by reference).
@@ -310,6 +362,19 @@ pub struct FilteredOut {
     pub hidden_issues: u32,
 }
 
+/// The optional "recently closed" section (`closedDays`): its own items, its own
+/// filter count and its own error, so a failed closed fetch never touches the
+/// open list. Never part of `AssignedItems`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ClosedSection {
+    pub days: u32,
+    pub items: Vec<GitlabItem>,
+    pub filtered_out: u32,
+    /// Fixed Polish text when the closed fetch failed; `items` is then empty.
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitlabSnapshot {
@@ -337,6 +402,9 @@ pub struct GitlabSnapshot {
     pub filter_invalid: bool,
     /// What the filter removed from each section of `items`. Belongs to the items.
     pub filtered_out: FilteredOut,
+    /// Recently closed items; `None` when `closedDays` is off or the filter is
+    /// invalid. Belongs to the items.
+    pub closed: Option<ClosedSection>,
     /// `account_key` of the config `items` came from; set iff `items` is. Kept
     /// next to the items so a reader never pairs them with another account.
     /// Not sent to the webview.
@@ -361,6 +429,7 @@ impl GitlabSnapshot {
             filter_active: false,
             filter_invalid: false,
             filtered_out: FilteredOut::default(),
+            closed: None,
             account: None,
         }
     }
@@ -396,14 +465,15 @@ pub fn next_snapshot(
         filter_active: false,
         filter_invalid: prev.filter_invalid,
         filtered_out: FilteredOut::default(),
+        closed: None,
         account: None,
     };
     let items = match outcome {
         Ok(items) => {
             next.items = Some(items);
             next.last_success_ms = Some(now_ms);
-            // The round sets `hidden_check_failed`, `hidden_error` and the
-            // filter fields after reconciling; they describe this round only.
+            // The round sets `hidden_check_failed`, `hidden_error`, the filter
+            // fields and `closed` after reconciling; they describe this round only.
             next.own_comments_known = config.is_some_and(|c| c.user.is_some());
             next.account = config.map(account_key);
             return (next, config.cloned());
@@ -436,6 +506,7 @@ pub fn next_snapshot(
         // The filter state belongs to the kept list too.
         next.filter_active = prev.filter_active;
         next.filtered_out = prev.filtered_out;
+        next.closed = prev.closed.clone();
         next.account = prev.account.clone();
         (next, kept.cloned())
     } else {
@@ -724,6 +795,285 @@ mod tests {
                 "{wrong}"
             );
         }
+    }
+
+    fn cutoff() -> DateTime<FixedOffset> {
+        DateTime::parse_from_rfc3339("2026-03-01T00:00:00Z").unwrap()
+    }
+
+    /// One closed-list entry: `fields` are raw JSON members appended after `state`.
+    fn closed_json(id: u64, reference: &str, fields: &str) -> String {
+        format!(
+            r#"{{"id":{id},"iid":{id},"project_id":1,"title":"T","web_url":"https://gitlab.example.invalid/a","updated_at":"2026-03-10T10:00:00Z","references":{{"full":"{reference}"}}{fields}}}"#
+        )
+    }
+
+    fn closed_refs(kind: ItemKind, entries: &[String]) -> Result<Vec<String>, GitlabError> {
+        let json = format!("[{}]", entries.join(","));
+        parse_recently_closed(&json, &host(), kind, cutoff())
+            .map(|v| v.into_iter().map(|(_, i)| i.reference).collect())
+    }
+
+    #[test]
+    fn closed_parse_keeps_merged_and_closed_mrs_and_drops_other_states() {
+        let entries = [
+            closed_json(
+                1,
+                "g/p!1",
+                r#","state":"merged","merged_at":"2026-03-05T00:00:00Z","closed_at":null"#,
+            ),
+            closed_json(
+                2,
+                "g/p!2",
+                r#","state":"closed","closed_at":"2026-03-04T00:00:00Z""#,
+            ),
+            closed_json(3, "g/p!3", r#","state":"opened","closed_at":null"#),
+            closed_json(
+                4,
+                "g/p!4",
+                r#","state":"locked","closed_at":"2026-03-04T00:00:00Z""#,
+            ),
+        ];
+        assert_eq!(
+            closed_refs(ItemKind::MergeRequest, &entries).unwrap(),
+            ["g/p!1", "g/p!2"]
+        );
+    }
+
+    #[test]
+    fn closed_parse_keeps_only_closed_issues() {
+        let entries = [
+            closed_json(
+                1,
+                "g/p#1",
+                r#","state":"closed","closed_at":"2026-03-05T00:00:00Z""#,
+            ),
+            closed_json(2, "g/p#2", r#","state":"opened","closed_at":null"#),
+            // A merge-request state means nothing for an issue.
+            closed_json(
+                3,
+                "g/p#3",
+                r#","state":"merged","merged_at":"2026-03-05T00:00:00Z""#,
+            ),
+        ];
+        assert_eq!(closed_refs(ItemKind::Issue, &entries).unwrap(), ["g/p#1"]);
+    }
+
+    #[test]
+    fn closed_parse_decides_by_the_closing_time_not_by_updated_at() {
+        // Updated after the cutoff (see `closed_json`) but closed before it.
+        let entries = [
+            closed_json(
+                1,
+                "g/p#1",
+                r#","state":"closed","closed_at":"2026-02-28T23:59:59Z""#,
+            ),
+            closed_json(
+                2,
+                "g/p#2",
+                r#","state":"closed","closed_at":"2026-03-01T00:00:00Z""#,
+            ),
+            // The same instant written with an offset, just before the cutoff.
+            closed_json(
+                3,
+                "g/p#3",
+                r#","state":"closed","closed_at":"2026-03-01T00:59:59+01:00""#,
+            ),
+        ];
+        assert_eq!(closed_refs(ItemKind::Issue, &entries).unwrap(), ["g/p#2"]);
+    }
+
+    #[test]
+    fn closed_parse_drops_a_missing_state_or_closing_time_without_an_error() {
+        let entries = [
+            closed_json(1, "g/p#1", ""),
+            closed_json(2, "g/p#2", r#","state":"closed""#),
+            closed_json(3, "g/p#3", r#","state":"closed","closed_at":null"#),
+            closed_json(4, "g/p#4", r#","state":"closed","closed_at":"yesterday""#),
+            closed_json(5, "g/p#5", r#","closed_at":"2026-03-05T00:00:00Z""#),
+        ];
+        assert_eq!(
+            closed_refs(ItemKind::Issue, &entries).unwrap(),
+            Vec::<String>::new()
+        );
+        let mr = [
+            closed_json(
+                6,
+                "g/p!6",
+                r#","state":"merged","closed_at":"2026-03-05T00:00:00Z""#,
+            ),
+            closed_json(7, "g/p!7", r#","state":"merged","merged_at":"nope""#),
+        ];
+        assert_eq!(
+            closed_refs(ItemKind::MergeRequest, &mr).unwrap(),
+            Vec::<String>::new()
+        );
+    }
+
+    #[test]
+    fn closed_parse_wrong_type_closing_time_is_response_invalid() {
+        for fields in [
+            r#","state":"closed","closed_at":5"#,
+            r#","state":"merged","merged_at":{}"#,
+            r#","state":5"#,
+        ] {
+            let json = format!("[{}]", closed_json(1, "g/p#1", fields));
+            for kind in [ItemKind::Issue, ItemKind::MergeRequest] {
+                assert_eq!(
+                    parse_recently_closed(&json, &host(), kind, cutoff()),
+                    Err(GitlabError::ResponseInvalid),
+                    "{fields}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn closed_parse_sorts_by_closing_time_then_reference() {
+        let entries = [
+            closed_json(
+                1,
+                "g/p#1",
+                r#","state":"closed","closed_at":"2026-03-02T00:00:00Z""#,
+            ),
+            closed_json(
+                2,
+                "g/p#2",
+                r#","state":"closed","closed_at":"2026-03-04T00:00:00Z""#,
+            ),
+            // Same instant as #2, written with an offset: ties go by reference.
+            closed_json(
+                3,
+                "g/a#3",
+                r#","state":"closed","closed_at":"2026-03-04T01:00:00+01:00""#,
+            ),
+        ];
+        assert_eq!(
+            closed_refs(ItemKind::Issue, &entries).unwrap(),
+            ["g/a#3", "g/p#2", "g/p#1"]
+        );
+    }
+
+    #[test]
+    fn closed_parse_returns_the_closing_instant_and_keeps_the_item_fields() {
+        let json = format!(
+            "[{}]",
+            closed_json(
+                1,
+                "g/p!1",
+                r#","state":"merged","merged_at":"2026-03-05T12:00:00Z","milestone":{"title":"Sprint 1"}"#
+            )
+        );
+        let got = parse_recently_closed(&json, &host(), ItemKind::MergeRequest, cutoff()).unwrap();
+        assert_eq!(got.len(), 1);
+        assert_eq!(
+            got[0].0,
+            DateTime::parse_from_rfc3339("2026-03-05T12:00:00Z").unwrap()
+        );
+        assert_eq!(got[0].1.kind, ItemKind::MergeRequest);
+        assert_eq!(got[0].1.milestone.as_deref(), Some("Sprint 1"));
+        assert!(got[0].1.changed.is_none());
+    }
+
+    #[test]
+    fn open_items_without_state_or_closing_fields_still_parse() {
+        let json = format!("[{}]", raw_json(1, 2, 3, "g/p#1"));
+        assert_eq!(parse_issues(&json, &host()).unwrap().len(), 1);
+        assert_eq!(parse_merge_requests(&json, &host()).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn closed_parse_errors_never_leak_response_content() {
+        const MARKER: &str = "LEAK-MARKER-CLOSED-2d7b";
+        let bodies = [
+            format!(r#"[{{"title":"{MARKER}","state":"closed","closed_at":"2026-03"#),
+            format!(
+                r#"[{{"id":1,"iid":1,"project_id":1,"title":"T","web_url":"u","updated_at":"2026-03-10T10:00:00Z","references":{{"full":"g/p#1"}},"state":"closed","closed_at":["{MARKER}"]}}]"#
+            ),
+            format!(r#"{{"{MARKER}":1}}"#),
+        ];
+        for body in &bodies {
+            let err = parse_recently_closed(body, &host(), ItemKind::Issue, cutoff()).unwrap_err();
+            let shown = [
+                format!("{err:?}"),
+                err.to_string(),
+                serde_json::to_string(&err).unwrap(),
+                err.message_pl(),
+            ];
+            for text in shown {
+                assert!(!text.contains(MARKER), "leak: {text}");
+                assert!(!text.contains("example.invalid"), "leak: {text}");
+            }
+        }
+    }
+
+    fn closed_section(error: Option<&str>) -> ClosedSection {
+        ClosedSection {
+            days: 7,
+            items: if error.is_some() {
+                vec![]
+            } else {
+                vec![item("g/p#9")]
+            },
+            filtered_out: 1,
+            error: error.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn snapshot_keeps_closed_with_the_items_and_drops_it_with_them() {
+        let prev = GitlabSnapshot {
+            items: Some(items("g/p#1")),
+            last_success_ms: Some(1000),
+            closed: Some(closed_section(None)),
+            ..GitlabSnapshot::starting()
+        };
+        let (s, _) = next_snapshot(
+            &prev,
+            Some(&config()),
+            Some(&config()),
+            Err(GitlabError::Unavailable),
+            2000,
+        );
+        assert_eq!(s.closed, Some(closed_section(None)));
+        for (cfg, err) in [
+            (Some(other_user_config()), GitlabError::Unavailable),
+            (None, GitlabError::NotConfigured),
+            (None, GitlabError::SettingsInvalid),
+        ] {
+            let (s, _) = next_snapshot(&prev, Some(&config()), cfg.as_ref(), Err(err), 2000);
+            assert_eq!(s.items, None);
+            assert_eq!(s.closed, None);
+        }
+        // A successful round starts clean: the round fills `closed`.
+        let (s, _) = next_snapshot(
+            &prev,
+            Some(&config()),
+            Some(&config()),
+            Ok(items("g/p#1")),
+            3000,
+        );
+        assert_eq!(s.closed, None);
+    }
+
+    #[test]
+    fn snapshot_serializes_the_closed_section() {
+        let s = GitlabSnapshot {
+            closed: Some(closed_section(None)),
+            ..GitlabSnapshot::starting()
+        };
+        let v = serde_json::to_value(&s).unwrap();
+        assert_eq!(v["closed"]["days"], 7);
+        assert_eq!(v["closed"]["filteredOut"], 1);
+        assert_eq!(v["closed"]["error"], serde_json::Value::Null);
+        assert_eq!(v["closed"]["items"][0]["reference"], "g/p#9");
+        let failed = GitlabSnapshot {
+            closed: Some(closed_section(Some("fixed text"))),
+            ..GitlabSnapshot::starting()
+        };
+        let v = serde_json::to_value(&failed).unwrap();
+        assert_eq!(v["closed"]["error"], "fixed text");
+        assert_eq!(v["closed"]["items"], serde_json::json!([]));
     }
 
     #[test]
@@ -1350,8 +1700,20 @@ mod tests {
         let mut s = GitlabSnapshot::starting();
         assert_eq!(
             serde_json::to_string(&s).unwrap(),
-            r#"{"state":{"state":"starting"},"items":null,"lastSuccessMs":null,"checkedAtMs":null,"refreshing":false,"seq":0,"hiddenCheckFailed":0,"ownCommentsKnown":false,"hiddenError":null,"refreshSettingInvalid":false,"filterActive":false,"filterInvalid":false,"filteredOut":{"mergeRequests":0,"issues":0,"hiddenIssues":0}}"#
+            r#"{"state":{"state":"starting"},"items":null,"lastSuccessMs":null,"checkedAtMs":null,"refreshing":false,"seq":0,"hiddenCheckFailed":0,"ownCommentsKnown":false,"hiddenError":null,"refreshSettingInvalid":false,"filterActive":false,"filterInvalid":false,"filteredOut":{"mergeRequests":0,"issues":0,"hiddenIssues":0},"closed":null}"#
         );
+        s.closed = Some(ClosedSection {
+            days: 7,
+            items: vec![],
+            filtered_out: 2,
+            error: Some("m".into()),
+        });
+        let v = serde_json::to_value(&s).unwrap();
+        assert_eq!(
+            v["closed"],
+            serde_json::json!({"days":7,"items":[],"filteredOut":2,"error":"m"})
+        );
+        s.closed = None;
         s.state = GitlabState::Unavailable {
             message: "m".into(),
         };

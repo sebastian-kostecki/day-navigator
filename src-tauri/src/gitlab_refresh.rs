@@ -26,10 +26,11 @@ use chrono::Local;
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::cli::{CliRunner, GitlabConfig, GitlabHost};
-use crate::gitlab::fetch::fetch_assigned;
+use crate::gitlab::fetch::{closed_window, fetch_assigned, fetch_recently_closed};
 use crate::gitlab::filter::GitlabFilter;
 use crate::gitlab::{
-    self, AssignedItems, FilteredOut, GitlabError, GitlabItem, GitlabSnapshot, ItemKind,
+    self, AssignedItems, ClosedSection, FilteredOut, GitlabError, GitlabItem, GitlabSnapshot,
+    ItemKind,
 };
 use crate::health;
 use crate::hidden_issues::{
@@ -218,6 +219,38 @@ fn load_filter(settings_path: &Option<PathBuf>) -> (GitlabFilter, bool) {
     }
 }
 
+/// Fetches and filters the recently-closed section. A failure (including a
+/// window the calendar cannot express) becomes the section's own fixed-text
+/// error with no items; the open list is not affected.
+fn fetch_closed_section(
+    runner: &CliRunner,
+    config: &GitlabConfig,
+    filter: &GitlabFilter,
+    days: u32,
+) -> ClosedSection {
+    let today = Local::now().date_naive();
+    let fetched = closed_window(today, days)
+        .ok_or(GitlabError::ResponseInvalid)
+        .and_then(|(after, cutoff)| fetch_recently_closed(runner, config, after, cutoff));
+    match fetched {
+        Ok(items) => {
+            let (items, filtered_out) = filter.apply(&items);
+            ClosedSection {
+                days,
+                items,
+                filtered_out,
+                error: None,
+            }
+        }
+        Err(e) => ClosedSection {
+            days,
+            items: Vec::new(),
+            filtered_out: 0,
+            error: Some(e.message_pl()),
+        },
+    }
+}
+
 /// The stored snapshot. Async so it never runs on the main thread.
 #[tauri::command]
 pub async fn gitlab_snapshot(
@@ -371,6 +404,15 @@ fn refresh_round(
         _ => None,
     };
 
+    // The recently-closed section runs `glab` too: only after a successful open
+    // fetch, with no lock held. Its failure stays inside the section.
+    let closed = match (&config, &fetched) {
+        (Some(cfg), Ok(_)) if !filter_invalid => filter
+            .closed_days
+            .map(|days| fetch_closed_section(runner, cfg, &filter, days)),
+        _ => None,
+    };
+
     // The commit, the snapshot and the kept list change together under the
     // gate, so a command can never see (or publish over) a half-updated state.
     let gate = state.hidden_gate.lock().unwrap_or_else(|p| p.into_inner());
@@ -424,6 +466,7 @@ fn refresh_round(
         next.hidden_error = hidden_error;
         next.filter_active = filter.is_active();
         next.filtered_out = filtered_out;
+        next.closed = closed;
     }
     next.refresh_setting_invalid = refresh_invalid;
     next.filter_invalid = filter_invalid;
@@ -1005,6 +1048,22 @@ mod tests {
         assert!(!snap.filter_active);
         assert_eq!(snap.filtered_out, FilteredOut::default());
         assert_eq!(snap.items.unwrap().merge_requests.len(), 1);
+    }
+
+    #[test]
+    fn act_on_issue_leaves_the_closed_section_unchanged() {
+        let state = kept_state();
+        let closed = ClosedSection {
+            days: 7,
+            items: vec![entry(50, ItemKind::Issue)],
+            filtered_out: 2,
+            error: None,
+        };
+        state.write().closed = Some(closed.clone());
+        state
+            .act_on_issue(1, |_, _| Ok(vec![record(1, None)]))
+            .unwrap();
+        assert_eq!(state.snapshot().closed, Some(closed));
     }
 
     #[test]

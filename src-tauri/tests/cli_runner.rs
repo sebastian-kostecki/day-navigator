@@ -199,11 +199,20 @@ fn errors_never_leak_stderr_or_hostnames() {
 
 #[test]
 fn gitlab_calls_with_a_user_pass_exactly_these_arguments() {
-    use day_navigator_lib::cli::{GitlabHost, GitlabUser, IssueRef};
+    use day_navigator_lib::cli::{GitlabHost, GitlabUser, IssueRef, UpdatedAfter};
     let host = GitlabHost::parse("gitlab.example.invalid").unwrap();
     let user = GitlabUser::parse("invented.user").unwrap();
+    let after = UpdatedAfter::new(chrono::NaiveDate::from_ymd_opt(2026, 3, 1).unwrap());
     let r = runner("data");
     let cases = [
+        (
+            CliCall::GlabRecentlyClosedIssues(host.clone(), Some(user.clone()), after),
+            "issues?scope=all&state=closed&assignee_username=invented.user&updated_after=2026-03-01&per_page=100",
+        ),
+        (
+            CliCall::GlabRecentlyClosedMergeRequests(host.clone(), None, after),
+            "merge_requests?scope=assigned_to_me&state=all&updated_after=2026-03-01&per_page=100",
+        ),
         (
             CliCall::GlabAssignedIssues(host.clone(), Some(user.clone())),
             "issues?scope=all&state=opened&assignee_username=invented.user&per_page=100",

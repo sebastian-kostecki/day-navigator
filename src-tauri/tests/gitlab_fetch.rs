@@ -3,8 +3,11 @@
 use std::path::PathBuf;
 use std::time::Duration;
 
-use day_navigator_lib::cli::{CliRunner, GitlabConfig, GitlabHost, GitlabUser, IssueRef};
-use day_navigator_lib::gitlab::fetch::{fetch_assigned, fetch_issue_notes};
+use chrono::{DateTime, FixedOffset, NaiveDate};
+use day_navigator_lib::cli::{
+    CliRunner, GitlabConfig, GitlabHost, GitlabUser, IssueRef, UpdatedAfter,
+};
+use day_navigator_lib::gitlab::fetch::{fetch_assigned, fetch_issue_notes, fetch_recently_closed};
 use day_navigator_lib::gitlab::notes::IssueNote;
 use day_navigator_lib::gitlab::{GitlabError, ItemKind};
 
@@ -161,6 +164,83 @@ fn with_a_user_failures_never_show_the_user_or_host() {
             assert!(!text.contains("example.invalid"), "{scenario}: {text}");
         }
     }
+}
+
+// ----------------------------------------------------------- recently closed
+
+fn closed_cutoff() -> DateTime<FixedOffset> {
+    DateTime::parse_from_rfc3339("2026-03-01T00:00:00Z").unwrap()
+}
+
+fn after() -> UpdatedAfter {
+    UpdatedAfter::new(NaiveDate::from_ymd_opt(2026, 2, 28).unwrap())
+}
+
+fn closed(
+    scenario: &str,
+    config: &GitlabConfig,
+) -> Result<Vec<day_navigator_lib::gitlab::GitlabItem>, GitlabError> {
+    fetch_recently_closed(&runner(scenario), config, after(), closed_cutoff())
+}
+
+#[test]
+fn recently_closed_returns_the_expected_items_newest_closing_first() {
+    let got = closed("gitlab-assigned", &host()).expect("data");
+    // The open MR and the issue closed before the cutoff are dropped.
+    assert_eq!(
+        refs(&got),
+        ["acme/widgets#20", "acme/widgets!40", "acme/gizmo!41"]
+    );
+    assert_eq!(got[0].kind, ItemKind::Issue);
+    assert_eq!(got[1].kind, ItemKind::MergeRequest);
+    assert_eq!(got[1].title, "Merge widget cache");
+    assert!(got.iter().all(|i| i.web_url.is_some()));
+}
+
+#[test]
+fn recently_closed_with_a_user_is_served_the_same() {
+    let with = closed("gitlab-assigned", &host_with_user()).expect("data");
+    let without = closed("gitlab-assigned", &host()).expect("data");
+    assert_eq!(with, without);
+}
+
+#[test]
+fn recently_closed_failures_classify_like_the_open_calls() {
+    let cases = [
+        ("glab-no-network", GitlabError::Unavailable),
+        ("glab-logged-out", GitlabError::LoggedOut),
+        ("unknown-error", GitlabError::Failed { exit_code: Some(2) }),
+        ("gitlab-closed-issues-no-network", GitlabError::Unavailable),
+        ("gitlab-bad-json", GitlabError::ResponseInvalid),
+    ];
+    for (scenario, expected) in cases {
+        for config in [host(), host_with_user()] {
+            let err = closed(scenario, &config).unwrap_err();
+            assert_eq!(err, expected, "{scenario}");
+            let shown = [
+                format!("{err:?}"),
+                err.to_string(),
+                serde_json::to_string(&err).unwrap(),
+                err.message_pl(),
+            ];
+            for text in shown {
+                assert!(!text.contains(MARKER), "{scenario}: {text}");
+                assert!(!text.contains("invented"), "{scenario}: {text}");
+                assert!(!text.contains("example.invalid"), "{scenario}: {text}");
+            }
+        }
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let r = CliRunner::with_programs(
+        dir.path().join("no-glab"),
+        dir.path().join("no-gh"),
+        Duration::from_secs(5),
+        Vec::new(),
+    );
+    assert_eq!(
+        fetch_recently_closed(&r, &host(), after(), closed_cutoff()),
+        Err(GitlabError::ToolMissing)
+    );
 }
 
 // ------------------------------------------------------------------ notes

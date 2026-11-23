@@ -233,6 +233,59 @@ fn assigned_args(
     ]
 }
 
+/// The date-only `updated_after` value of the recently-closed calls. Built only
+/// from a calendar date, so it always renders as `YYYY-MM-DD`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UpdatedAfter(chrono::NaiveDate);
+
+impl UpdatedAfter {
+    pub fn new(date: chrono::NaiveDate) -> UpdatedAfter {
+        UpdatedAfter(date)
+    }
+
+    /// `YYYY-MM-DD`.
+    pub fn render(&self) -> String {
+        self.0.format("%Y-%m-%d").to_string()
+    }
+}
+
+/// Endpoint shapes of the recently-closed calls: `<resource>?scope=assigned_to_me
+/// &state=<S>&updated_after=<D>&per_page=100` without a user, and
+/// `<resource>?scope=all&state=<S>&assignee_username=<login>&updated_after=<D>
+/// &per_page=100` with one. Issues use `state=closed`, merge requests `state=all`.
+pub const CLOSED_ISSUES_FIXED_PREFIX: &str =
+    "issues?scope=assigned_to_me&state=closed&updated_after=";
+pub const CLOSED_MRS_FIXED_PREFIX: &str =
+    "merge_requests?scope=assigned_to_me&state=all&updated_after=";
+pub const CLOSED_ISSUES_USER_PREFIX: &str = "issues?scope=all&state=closed&assignee_username=";
+pub const CLOSED_MRS_USER_PREFIX: &str = "merge_requests?scope=all&state=all&assignee_username=";
+pub const CLOSED_USER_MIDDLE: &str = "&updated_after=";
+pub const CLOSED_SUFFIX: &str = "&per_page=100";
+
+fn closed_args(
+    fixed_prefix: &str,
+    user_prefix: &str,
+    host: &GitlabHost,
+    user: &Option<GitlabUser>,
+    after: &UpdatedAfter,
+) -> Vec<String> {
+    let date = after.render();
+    let endpoint = match user {
+        Some(u) => format!(
+            "{user_prefix}{}{CLOSED_USER_MIDDLE}{date}{CLOSED_SUFFIX}",
+            u.as_str()
+        ),
+        None => format!("{fixed_prefix}{date}{CLOSED_SUFFIX}"),
+    };
+    vec![
+        "api".to_string(),
+        endpoint,
+        "--paginate".to_string(),
+        "--hostname".to_string(),
+        host.as_str().to_string(),
+    ]
+}
+
 /// One issue, by the numbers GitLab sent (project id and in-project number).
 /// Built only from parsed JSON numbers, so it can only render as digits in a
 /// path. Debug is opaque so ids never reach a log.
@@ -278,6 +331,11 @@ pub enum CliCall {
     GhAuthStatus,
     GlabAssignedIssues(GitlabHost, Option<GitlabUser>),
     GlabAssignedMergeRequests(GitlabHost, Option<GitlabUser>),
+    /// GET of the assigned issues closed since a date (read-only).
+    GlabRecentlyClosedIssues(GitlabHost, Option<GitlabUser>, UpdatedAfter),
+    /// GET of the assigned merge requests, any state, updated since a date
+    /// (read-only; the parser keeps the closed and merged ones).
+    GlabRecentlyClosedMergeRequests(GitlabHost, Option<GitlabUser>, UpdatedAfter),
     /// GET of one issue's notes, newest first (read-only).
     GlabIssueNotes(GitlabHost, IssueRef),
     /// `gh issue list` of one repository: open issues assigned to the account
@@ -308,7 +366,29 @@ impl CliCall {
             host.clone(),
             Some(user.clone()),
         ));
-        all.push(CliCall::GlabAssignedMergeRequests(host.clone(), Some(user)));
+        all.push(CliCall::GlabAssignedMergeRequests(
+            host.clone(),
+            Some(user.clone()),
+        ));
+        let after = UpdatedAfter::new(
+            chrono::NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid example date"),
+        );
+        all.push(CliCall::GlabRecentlyClosedIssues(host.clone(), None, after));
+        all.push(CliCall::GlabRecentlyClosedMergeRequests(
+            host.clone(),
+            None,
+            after,
+        ));
+        all.push(CliCall::GlabRecentlyClosedIssues(
+            host.clone(),
+            Some(user.clone()),
+            after,
+        ));
+        all.push(CliCall::GlabRecentlyClosedMergeRequests(
+            host.clone(),
+            Some(user),
+            after,
+        ));
         all.push(CliCall::GlabIssueNotes(
             host,
             IssueRef {
@@ -328,6 +408,8 @@ impl CliCall {
             | CliCall::GlabAuthStatus
             | CliCall::GlabAssignedIssues(..)
             | CliCall::GlabAssignedMergeRequests(..)
+            | CliCall::GlabRecentlyClosedIssues(..)
+            | CliCall::GlabRecentlyClosedMergeRequests(..)
             | CliCall::GlabIssueNotes(..) => Tool::Glab,
             CliCall::GhVersion | CliCall::GhAuthStatus | CliCall::GhAssignedIssues(..) => Tool::Gh,
         }
@@ -346,6 +428,20 @@ impl CliCall {
             CliCall::GlabAssignedMergeRequests(host, user) => {
                 assigned_args(ASSIGNED_MRS_ENDPOINT, MRS_USER_PREFIX, host, user)
             }
+            CliCall::GlabRecentlyClosedIssues(host, user, after) => closed_args(
+                CLOSED_ISSUES_FIXED_PREFIX,
+                CLOSED_ISSUES_USER_PREFIX,
+                host,
+                user,
+                after,
+            ),
+            CliCall::GlabRecentlyClosedMergeRequests(host, user, after) => closed_args(
+                CLOSED_MRS_FIXED_PREFIX,
+                CLOSED_MRS_USER_PREFIX,
+                host,
+                user,
+                after,
+            ),
             CliCall::GlabIssueNotes(host, issue) => issue_notes_args(host, issue),
             CliCall::GhAssignedIssues(repo) => gh_assigned_issues_args(repo),
         }
@@ -360,6 +456,8 @@ impl CliCall {
             CliCall::GhAuthStatus => "gh:auth-status",
             CliCall::GlabAssignedIssues(..) => "glab:assigned-issues",
             CliCall::GlabAssignedMergeRequests(..) => "glab:assigned-mrs",
+            CliCall::GlabRecentlyClosedIssues(..) => "glab:closed-issues",
+            CliCall::GlabRecentlyClosedMergeRequests(..) => "glab:closed-mrs",
             CliCall::GlabIssueNotes(..) => "glab:issue-notes",
             CliCall::GhAssignedIssues(..) => "gh:assigned-issues",
         }
@@ -427,9 +525,9 @@ impl CliError {
 mod tests {
     use super::*;
 
-    const VARIANT_COUNT: usize = 8;
+    const VARIANT_COUNT: usize = 10;
 
-    const EXAMPLE_COUNT: usize = 10;
+    const EXAMPLE_COUNT: usize = 14;
 
     fn example_host() -> GitlabHost {
         GitlabHost::parse("gitlab.example.invalid").unwrap()
@@ -451,6 +549,8 @@ mod tests {
             CliCall::GlabAssignedMergeRequests(..) => 5,
             CliCall::GlabIssueNotes(..) => 6,
             CliCall::GhAssignedIssues(..) => 7,
+            CliCall::GlabRecentlyClosedIssues(..) => 8,
+            CliCall::GlabRecentlyClosedMergeRequests(..) => 9,
         }
     }
 
@@ -464,7 +564,7 @@ mod tests {
             assert!(o < VARIANT_COUNT, "ordinal out of range for {c:?}");
             seen[o] += 1;
         }
-        assert_eq!(seen, [1, 1, 1, 1, 2, 2, 1, 1]);
+        assert_eq!(seen, [1, 1, 1, 1, 2, 2, 1, 1, 2, 2]);
         let with_user = examples
             .iter()
             .filter(|c| {
@@ -472,16 +572,20 @@ mod tests {
                     c,
                     CliCall::GlabAssignedIssues(_, Some(_))
                         | CliCall::GlabAssignedMergeRequests(_, Some(_))
+                        | CliCall::GlabRecentlyClosedIssues(_, Some(_), _)
+                        | CliCall::GlabRecentlyClosedMergeRequests(_, Some(_), _)
                 )
             })
             .count();
-        assert_eq!(with_user, 2);
+        assert_eq!(with_user, 4);
         for c in CliCall::ALL {
             assert!(
                 !matches!(
                     c,
                     CliCall::GlabAssignedIssues(..)
                         | CliCall::GlabAssignedMergeRequests(..)
+                        | CliCall::GlabRecentlyClosedIssues(..)
+                        | CliCall::GlabRecentlyClosedMergeRequests(..)
                         | CliCall::GlabIssueNotes(..)
                         | CliCall::GhAssignedIssues(..)
                 ),
@@ -530,10 +634,46 @@ mod tests {
             .is_some_and(|(project, iid)| guard_number_ok(project) && guard_number_ok(iid))
     }
 
-    /// A fixed endpoint, the notes shape, or `<prefix><valid login><suffix>`
-    /// with one query and exactly its three fixed parameters.
+    /// `YYYY-MM-DD`, written out here on purpose (the guard must not trust
+    /// `UpdatedAfter`): ten ASCII characters, digits and two dashes.
+    fn guard_date_ok(date: &str) -> bool {
+        date.len() == 10
+            && date.bytes().enumerate().all(|(i, b)| match i {
+                4 | 7 => b == b'-',
+                _ => b.is_ascii_digit(),
+            })
+    }
+
+    /// The recently-closed shapes, spelled out in full: the fixed form
+    /// `<R>?scope=assigned_to_me&state=<S>&updated_after=<D>&per_page=100` and
+    /// the user form `<R>?scope=all&state=<S>&assignee_username=<login>&updated_after=<D>&per_page=100`,
+    /// with `issues` + `closed` or `merge_requests` + `all`.
+    fn closed_endpoint_allowed(endpoint: &str) -> bool {
+        const FORMS: [(&str, &str); 2] = [("issues", "closed"), ("merge_requests", "all")];
+        FORMS.iter().any(|(resource, state)| {
+            let fixed = format!("{resource}?scope=assigned_to_me&state={state}&updated_after=");
+            let user = format!("{resource}?scope=all&state={state}&assignee_username=");
+            let fixed_ok = endpoint
+                .strip_prefix(fixed.as_str())
+                .and_then(|rest| rest.strip_suffix("&per_page=100"))
+                .is_some_and(guard_date_ok);
+            let user_ok = endpoint
+                .strip_prefix(user.as_str())
+                .and_then(|rest| rest.strip_suffix("&per_page=100"))
+                .and_then(|rest| rest.split_once("&updated_after="))
+                .is_some_and(|(login, date)| guard_login_ok(login) && guard_date_ok(date));
+            fixed_ok || user_ok
+        })
+    }
+
+    /// A fixed endpoint, the notes shape, a recently-closed shape, or
+    /// `<prefix><valid login><suffix>` with one query and exactly its three
+    /// fixed parameters.
     fn endpoint_allowed(endpoint: &str) -> bool {
-        if ALLOWED_ENDPOINTS.contains(&endpoint) || notes_endpoint_allowed(endpoint) {
+        if ALLOWED_ENDPOINTS.contains(&endpoint)
+            || notes_endpoint_allowed(endpoint)
+            || closed_endpoint_allowed(endpoint)
+        {
             return true;
         }
         let shape_ok = endpoint.matches('?').count() == 1
@@ -1150,6 +1290,156 @@ mod tests {
         assert_eq!(mrs.name(), "glab:assigned-mrs");
         assert_eq!(issues.tool(), Tool::Glab);
         assert_eq!(mrs.tool(), Tool::Glab);
+    }
+
+    fn example_after() -> UpdatedAfter {
+        UpdatedAfter::new(chrono::NaiveDate::from_ymd_opt(2026, 3, 1).unwrap())
+    }
+
+    #[test]
+    fn closed_calls_have_exact_arguments_names_and_tool() {
+        let after = example_after();
+        assert_eq!(after.render(), "2026-03-01");
+        let cases = [
+            (
+                CliCall::GlabRecentlyClosedIssues(example_host(), None, after),
+                "issues?scope=assigned_to_me&state=closed&updated_after=2026-03-01&per_page=100",
+                "glab:closed-issues",
+            ),
+            (
+                CliCall::GlabRecentlyClosedIssues(example_host(), Some(example_user()), after),
+                "issues?scope=all&state=closed&assignee_username=invented.user&updated_after=2026-03-01&per_page=100",
+                "glab:closed-issues",
+            ),
+            (
+                CliCall::GlabRecentlyClosedMergeRequests(example_host(), None, after),
+                "merge_requests?scope=assigned_to_me&state=all&updated_after=2026-03-01&per_page=100",
+                "glab:closed-mrs",
+            ),
+            (
+                CliCall::GlabRecentlyClosedMergeRequests(
+                    example_host(),
+                    Some(example_user()),
+                    after,
+                ),
+                "merge_requests?scope=all&state=all&assignee_username=invented.user&updated_after=2026-03-01&per_page=100",
+                "glab:closed-mrs",
+            ),
+        ];
+        for (call, endpoint, name) in cases {
+            assert_eq!(
+                call.args(),
+                [
+                    "api",
+                    endpoint,
+                    "--paginate",
+                    "--hostname",
+                    "gitlab.example.invalid"
+                ]
+            );
+            assert_eq!(call.name(), name);
+            assert_eq!(call.tool(), Tool::Glab);
+            assert!(!format!("{call:?}").contains("example.invalid"));
+            assert!(!format!("{call:?}").contains("invented"));
+            assert!(guard_accepts_endpoint(endpoint), "{endpoint}");
+        }
+    }
+
+    #[test]
+    fn guard_accepts_the_closed_shapes_and_rejects_near_misses() {
+        let fixed_issues = "issues?scope=assigned_to_me&state=closed&updated_after=";
+        let fixed_mrs = "merge_requests?scope=assigned_to_me&state=all&updated_after=";
+        let user_issues =
+            "issues?scope=all&state=closed&assignee_username=invented.user&updated_after=";
+        let user_mrs =
+            "merge_requests?scope=all&state=all&assignee_username=invented.user&updated_after=";
+        for prefix in [fixed_issues, fixed_mrs, user_issues, user_mrs] {
+            assert!(guard_accepts_endpoint(&format!(
+                "{prefix}2026-03-01&per_page=100"
+            )));
+            for bad_date in [
+                "2026-03-01T00:00:00Z",
+                "2026-03-01T00%3A00",
+                "2026-03-0",
+                "2026-3-01",
+                "2026/03/01",
+                "2026-03-0a",
+                "20260301xx",
+                "",
+                "2026-03-01 ",
+                "2026-03-01&x=1",
+            ] {
+                assert!(
+                    !guard_accepts_endpoint(&format!("{prefix}{bad_date}&per_page=100")),
+                    "{prefix}{bad_date}"
+                );
+            }
+            // missing or altered tail
+            assert!(!guard_accepts_endpoint(&format!("{prefix}2026-03-01")));
+            assert!(!guard_accepts_endpoint(&format!(
+                "{prefix}2026-03-01&per_page=50"
+            )));
+            assert!(!guard_accepts_endpoint(&format!(
+                "{prefix}2026-03-01&per_page=100&extra=1"
+            )));
+            assert!(!guard_accepts_endpoint(&format!(
+                "{prefix}2026-03-01&extra=1&per_page=100"
+            )));
+        }
+        // missing updated_after
+        assert!(!guard_accepts_endpoint(
+            "issues?scope=assigned_to_me&state=closed&per_page=100"
+        ));
+        // wrong state for the resource, other scope or resource
+        for ep in [
+            "issues?scope=assigned_to_me&state=all&updated_after=2026-03-01&per_page=100",
+            "merge_requests?scope=assigned_to_me&state=closed&updated_after=2026-03-01&per_page=100",
+            "issues?scope=assigned_to_me&state=opened&updated_after=2026-03-01&per_page=100",
+            "issues?scope=created_by_me&state=closed&updated_after=2026-03-01&per_page=100",
+            "projects?scope=assigned_to_me&state=closed&updated_after=2026-03-01&per_page=100",
+            "issues?scope=all&state=closed&updated_after=2026-03-01&per_page=100",
+            "issues?scope=all&state=closed&assignee_username=&updated_after=2026-03-01&per_page=100",
+            "issues?scope=all&state=closed&assignee_username=a&b&updated_after=2026-03-01&per_page=100",
+            "issues?scope=all&state=closed&assignee_username=a:b&updated_after=2026-03-01&per_page=100",
+            "issues?scope=all&state=closed&assignee_username=-a&updated_after=2026-03-01&per_page=100",
+        ] {
+            assert!(!guard_accepts_endpoint(ep), "{ep}");
+        }
+        // The date goes through the guard's own check, not the type's.
+        for flag in WRITE_FLAGS {
+            assert!(
+                check_read_only(&[
+                    "api",
+                    &format!("{fixed_issues}2026-03-01&per_page=100"),
+                    "--paginate",
+                    "--hostname",
+                    "gitlab.example.invalid",
+                    flag
+                ])
+                .is_err(),
+                "{flag}"
+            );
+        }
+    }
+
+    proptest::proptest! {
+        /// Every date the type can render passes the independent guard.
+        #[test]
+        fn every_updated_after_passes_the_guard(
+            y in 1000i32..=9999,
+            m in 1u32..=12,
+            d in 1u32..=28,
+        ) {
+            let after = UpdatedAfter::new(chrono::NaiveDate::from_ymd_opt(y, m, d).unwrap());
+            for call in [
+                CliCall::GlabRecentlyClosedIssues(example_host(), None, after),
+                CliCall::GlabRecentlyClosedMergeRequests(example_host(), Some(example_user()), after),
+            ] {
+                let args = call.args();
+                let args: Vec<&str> = args.iter().map(String::as_str).collect();
+                proptest::prop_assert!(check_read_only(&args).is_ok(), "{:?}", args);
+            }
+        }
     }
 
     #[test]

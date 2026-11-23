@@ -1,10 +1,10 @@
 ---
 change_id: read-only-cli-runner
 title: Read only cli runner
-status: impl_reviewed
+status: archived
 created: 2026-11-23
 updated: 2026-11-23
-archived_at: null
+archived_at: 2026-11-23T08:34:06Z
 ---
 
 ## Notes

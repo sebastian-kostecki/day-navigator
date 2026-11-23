@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { DayEntries, EntryRow, WorkTimeError, WorkTimerStatus } from "./types";
+import type { DayEntries, EntryRow, MonthReport, WorkTimeError, WorkTimerStatus } from "./types";
 
 export { WORK_TIME_CHANGED } from "./types";
 
@@ -32,6 +32,16 @@ export function updateWorkEntry(id: number, start: string, end: string | null): 
 
 export function removeWorkEntry(id: number): Promise<void> {
   return invoke<void>("remove_work_entry", { id });
+}
+
+/** `day` is any `YYYY-MM-DD` within the month. */
+export function workMonthReport(day: string): Promise<MonthReport> {
+  return invoke<MonthReport>("work_month_report", { day });
+}
+
+/** `day` is `YYYY-MM-DD`; a weekend is refused with `NotAWorkday`. */
+export function setDayOff(day: string, off: boolean): Promise<void> {
+  return invoke<void>("set_day_off", { day, off });
 }
 
 export function asWorkTimeError(e: unknown): WorkTimeError | null {
@@ -94,6 +104,8 @@ export function workTimeErrorMessage(e: unknown, entriesById?: Map<number, Entry
       return "Nieprawidłowy lub nieistniejący czas lokalny";
     case "RunningEndEdit":
       return "Trwający wpis nie ma końca — zakończ go przyciskiem STOP";
+    case "NotAWorkday":
+      return "Weekend nie jest dniem roboczym";
     case "Background":
       return "Zadanie w tle nie powiodło się, spróbuj ponownie";
     default:

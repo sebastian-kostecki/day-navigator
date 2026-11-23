@@ -200,7 +200,9 @@ pub fn run() {
             work_time::commands::stop_work,
             work_time::commands::add_work_entry,
             work_time::commands::update_work_entry,
-            work_time::commands::remove_work_entry
+            work_time::commands::remove_work_entry,
+            work_time::commands::work_month_report,
+            work_time::commands::set_day_off
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

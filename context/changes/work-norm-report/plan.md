@@ -351,18 +351,18 @@ A month is at most a few hundred entries and about 23 days-off rows. The report 
 
 #### Automated
 
-- [x] 1.1 `cargo test` passes in `src-tauri/`, including the new unit tests, `tests/work_time.rs` and `tests/days_off_crash.rs`
-- [x] 1.2 Unit tests cover the worked example, last workday, norm met, today off, weekend today, work on day off/Saturday, month-boundary entry, both DST months, running entry from previous month, past/future phases and rounding
-- [x] 1.3 Unit tests prove `set_day_off` is idempotent, refuses a weekend with `NotAWorkday` and leaves no row
-- [x] 1.4 A test proves status `monthDeviationMs` equals the report deviation for the same `now`
-- [x] 1.5 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass
+- [x] 1.1 `cargo test` passes in `src-tauri/`, including the new unit tests, `tests/work_time.rs` and `tests/days_off_crash.rs` — 1146ef5
+- [x] 1.2 Unit tests cover the worked example, last workday, norm met, today off, weekend today, work on day off/Saturday, month-boundary entry, both DST months, running entry from previous month, past/future phases and rounding — 1146ef5
+- [x] 1.3 Unit tests prove `set_day_off` is idempotent, refuses a weekend with `NotAWorkday` and leaves no row — 1146ef5
+- [x] 1.4 A test proves status `monthDeviationMs` equals the report deviation for the same `now` — 1146ef5
+- [x] 1.5 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass — 1146ef5
 
 ### Phase 2: Commands and TS contract
 
 #### Automated
 
-- [ ] 2.1 `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` pass
-- [ ] 2.2 `npm run build`, `npm run lint` and `npm run format:check` pass
+- [x] 2.1 `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` pass
+- [x] 2.2 `npm run build`, `npm run lint` and `npm run format:check` pass
 
 #### Manual
 

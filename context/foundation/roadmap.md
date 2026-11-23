@@ -48,7 +48,7 @@ One developer on one Windows 11 machine works for a company (issues in a work Gi
 | S-02 | gitlab-visibility-filter| choose which assigned GitLab items the list shows                                      | S-01          | FR-002                                    | ready |
 | S-03 | hide-and-resurface      | hide an issue and get it back when its status changes or someone else comments         | S-01, F-01    | FR-003, US-02                             | done        |
 | S-04 | new-assignment-notify   | get a Windows notification for every new assigned issue or MR                          | S-01, F-01    | FR-004, NFR Świeżość, NFR Lekkość w tle    | ready |
-| S-05 | github-assigned-issues  | see open GitHub issues assigned to them from the repositories listed in settings       | F-02          | FR-005, FR-015                            | blocked  |
+| S-05 | github-assigned-issues  | see open GitHub issues assigned to them from the repositories listed in settings       | F-02          | FR-005, FR-015                            | ready |
 | S-06 | own-tasks               | add, edit and complete their own tasks in the Work or Private space                    | F-01          | FR-006, FR-007, FR-008, FR-010            | done     |
 | S-07 | todo-list               | pick today's items from the lists into "To do", tick them, carry the rest to tomorrow  | S-01, S-06    | FR-011, FR-012, US-01                     | done |
 | S-08 | work-timer              | start and stop work time from an always-visible counter and correct entries            | F-01          | FR-013, FR-017, NFR Trwałość czasu pracy  | done |
@@ -152,7 +152,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Parallel with:** S-02, S-03, S-05, S-06, S-07, S-08, S-09, S-10
 - **Blockers:** —
 - **Unknowns:**
-  - Default refresh frequency (must meet ≤ 15 min; PRD Open Question #3) — Owner: user. Block: no.
+  - Resolved 2026-11-23: default background refresh every 10 min (meets ≤ 15 min; the code's fixed 5 min becomes this default). Open Roadmap Question #3.
 - **Risk:** Background refresh is the first always-on work in the app; it must stay light and must not turn a reconnected VPN into a burst of notifications.
 - **Status:** ready
 
@@ -165,9 +165,9 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Parallel with:** F-01, S-01, S-02, S-03, S-04, S-06, S-08, S-09, S-10
 - **Blockers:** —
 - **Unknowns:**
-  - How does the Windows app reach GitHub, given `gh` is installed only in WSL — install it on Windows, or call it through WSL? (PRD Open Question #1) — Owner: user. Block: yes.
-- **Risk:** Kept off the north star path because of the `gh` decision; once that is made, it reuses F-02 and the view pattern from S-01.
-- **Status:** blocked
+  - Resolved 2026-11-23: the app uses `gh` installed on Windows (already installed and logged in), not WSL. Open Roadmap Question #1.
+- **Risk:** Kept off the north star path because of the `gh` decision; now resolved, it reuses F-02 and the view pattern from S-01.
+- **Status:** ready
 
 ### S-06: Own tasks
 
@@ -202,7 +202,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Parallel with:** F-02, S-01, S-02, S-03, S-04, S-05, S-06, S-07
 - **Blockers:** —
 - **Unknowns:**
-  - Record from 2026-12-01 with December entries added by hand until this ships, or start at the first full month after it ships? (PRD Open Question #2) — Owner: user. Block: no.
+  - Resolved 2026-11-23: recording in the app starts right away (end of November as a trial). Open Roadmap Question #2.
 - **Risk:** Can start in parallel with the north star; the 2026-12-01 start date is the reason not to push it late.
 - **Status:** done
 
@@ -227,7 +227,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Parallel with:** F-02, S-01, S-02, S-03, S-04, S-05, S-06, S-07, S-09
 - **Blockers:** —
 - **Unknowns:**
-  - Default hour for the "not running" reminder and default "running too long" threshold (10 h was proposed; PRD Open Question #3) — Owner: user. Block: no.
+  - Resolved 2026-11-23: defaults are "running too long" after 10 h and "not running" after 9:00 on a workday. Open Roadmap Question #3.
 - **Risk:** Reminders depend on the workday rule shared with S-09; if S-09 lands first, they reuse its days-off list.
 - **Status:** ready
 
@@ -241,7 +241,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | S-02       | gitlab-visibility-filter | Filter visible GitLab items                             | yes                   | Run `/10x-plan gitlab-visibility-filter` |
 | S-03       | hide-and-resurface       | Hide issues; resurface on status change or comment      | no                    | Done; archived 2026-11-23 |
 | S-04       | new-assignment-notify    | Notify on new assigned issues and MRs                   | yes                   | Run `/10x-plan new-assignment-notify` |
-| S-05       | github-assigned-issues   | "Projects (GitHub)" view: assigned open issues          | no                    | Blocked on Open Roadmap Question #1 |
+| S-05       | github-assigned-issues   | "Projects (GitHub)" view: assigned open issues          | yes                   | Run `/10x-plan github-assigned-issues`; `gh` on Windows |
 | S-06       | own-tasks                | Own tasks in Work/Private; remove vault task screen     | no                    | Done; archived 2026-11-23 |
 | S-07       | todo-list                | "To do" list with limit and carry-over                  | no                    | Done; archived 2026-11-23 |
 | S-08       | work-timer               | Durable work-time counter with corrections              | no                    | Done; archived 2026-11-23 |
@@ -250,10 +250,10 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 ## Open Roadmap Questions
 
-1. **`gh` w Windows** — narzędzie dostępu do GitHuba jest tylko w WSL; jak aplikacja na Windows ma sięgać do GitHuba (instalacja w Windows czy wywołanie przez WSL)? Owner: użytkownik. Block: S-05.
-2. **Start ewidencji 2026-12-01 a gotowość licznika** — czy wpisy z grudnia do czasu wdrożenia dopisać ręcznie (FR-017), czy przesunąć start ewidencji na pierwszy pełny miesiąc po wdrożeniu? Owner: użytkownik. Block: none (informs S-08).
-3. **Wartości domyślne** — godzina przypomnienia o niebiegnącym liczniku (FR-018); próg „licznik biegnie długo” (propozycja: 10 h); częstotliwość odświeżania (NFR ≤ 15 min). Owner: użytkownik. Block: none (informs S-04, S-10).
-4. **Los PRD v2 i roadmapy** — resolved for the roadmap on 2026-11-23 (this re-decomposition). Still open: does the unused vault layer (previous F-01, `src-tauri/src/vault/`) stay dormant or get removed? And what happens to the orphaned change folders `context/changes/morning-plan-today/` and `context/changes/private-projects-overview/` from the previous decomposition? Owner: użytkownik. Block: none.
+1. ~~**`gh` w Windows**~~ — rozstrzygnięte 2026-11-23: aplikacja używa `gh` zainstalowanego w Windows (jest zainstalowany i zalogowany), nie WSL. Odblokowuje S-05.
+2. ~~**Start ewidencji 2026-12-01 a gotowość licznika**~~ — rozstrzygnięte 2026-11-23: licznik i raport są gotowe, ewidencja w aplikacji startuje od razu (koniec listopada jako próba), bez ręcznego dopisywania grudnia.
+3. ~~**Wartości domyślne**~~ — rozstrzygnięte 2026-11-23: odświeżanie w tle co 10 min (S-04); przypomnienie „licznik biegnie długo” po 10 h i „licznik nie biegnie” po 9:00 w dzień roboczy (S-10). Wszystkie trzy zmienialne w ustawieniach.
+4. ~~**Los PRD v2 i roadmapy**~~ — rozstrzygnięte 2026-11-23: osierocone foldery `context/changes/morning-plan-today/` i `context/changes/private-projects-overview/` usunięte; nieużywana warstwa vaultów (`src-tauri/src/vault/`) do usunięcia w osobnej zmianie poza M-1 (patrz Parked).
 5. **Nazwa produktu** — robocza „Nawigator dnia”. Owner: użytkownik. Block: none.
 
 ## Parked
@@ -263,6 +263,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Work-time automation** — Why parked: PRD Non-Goals; no automatic holiday calendar, idle detection or activity tracking.
 - **MRs where the user is a reviewer; deleting tasks (FR-009)** — Why parked: PRD Non-Goals, from the challenge round ("Poza v1").
 - **The rest of the PRD v2 plan** (breaks and focus blocks, distraction blocker, quick capture and inbox, end-of-day close, week view, morning "plan your day" nudge, autostart) — Why parked: PRD "considered, deliberately NOT excluded"; no FR covers them, so they are not built in this MVP.
+- **Removing the dormant vault layer (`src-tauri/src/vault/`)** — Why parked: user decision 2026-11-23 (Open Roadmap Question #4) to remove it in a separate change; no FR in this milestone covers it, so it runs after M-1 or as its own milestone. Until then AGENTS.md keeps its contract.
 
 ## Milestone History
 

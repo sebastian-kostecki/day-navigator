@@ -317,16 +317,16 @@ No existing data to migrate. The first start after this change creates an empty 
 
 #### Automated
 
-- [x] 2.1 Backup tests pass: `cargo test --test store_backup` in `src-tauri/`
-- [x] 2.2 Full suite, clippy and fmt pass: `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`
+- [x] 2.1 Backup tests pass: `cargo test --test store_backup` in `src-tauri/` — 987ad56
+- [x] 2.2 Full suite, clippy and fmt pass: `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check` — 987ad56
 
 ### Phase 3: Crash-proof tests
 
 #### Automated
 
-- [ ] 3.1 Crash test passes locally and is not ignored in the default run: `cargo test --test store_crash` in `src-tauri/`
-- [ ] 3.2 The writer helper alone is skipped in a normal run (reported as ignored, not failed): `cargo test --test store_crash`
-- [ ] 3.3 Full suite, clippy and fmt pass: `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`
+- [x] 3.1 Crash test passes locally and is not ignored in the default run: `cargo test --test store_crash` in `src-tauri/`
+- [x] 3.2 The writer helper alone is skipped in a normal run (reported as ignored, not failed): `cargo test --test store_crash`
+- [x] 3.3 Full suite, clippy and fmt pass: `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`
 
 #### Manual
 

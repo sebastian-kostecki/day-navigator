@@ -1,6 +1,8 @@
 //! Shared helpers: copy the invented fixture vault into a temp dir and build a registry.
 #![allow(dead_code)]
 
+pub mod crash;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 

@@ -1,7 +1,7 @@
 ---
 change_id: hide-and-resurface
 title: Hide and resurface
-status: planned
+status: plan_reviewed
 created: 2026-11-23
 updated: 2026-11-23
 archived_at: null

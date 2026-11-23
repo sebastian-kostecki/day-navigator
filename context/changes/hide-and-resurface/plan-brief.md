@@ -14,9 +14,9 @@ The S-01 list is fetched by the `gitlab-refresh` thread every 5 minutes and held
 
 - **Hiding:** issue rows have "Ukryj". Hidden issues sit in a collapsed "Ukryte (N)" section with "Pokaż", and survive restarts.
 - **What resurfaces:** a successful round brings a hidden issue back with a reason ("zmiana statusu", "nowy komentarz", "wróciło na listę"):
-  - its open/closed state or a scoped label (`key::value`) changed;
+  - a scoped label (`key::value`) changed;
   - a non-system comment by anyone but `gitlab.user` appeared;
-  - it dropped off the list and came back.
+  - it dropped off the list and came back (a closed issue drops off; a reopen returns it).
 - **The mark** stays until the user presses "OK".
 - **Failures:** a failed check keeps the issue hidden and says so. A store failure shows the full list plus a notice.
 
@@ -24,7 +24,7 @@ The S-01 list is fetched by the `gitlab-refresh` thread every 5 minutes and held
 
 | Decision | Choice | Why (1 sentence) |
 | --- | --- | --- |
-| What "status" means | Open/closed state + scoped labels (`key::value`) | Board moves via workflow labels are how status changes on GitLab, and no settings are needed. |
+| What "status" means | Scoped labels (`key::value`); closing = drop-off, reopening = "returned" | Board moves via workflow labels are how status changes on GitLab; the list holds only open issues, so open/closed is never compared. |
 | Which comments count | Non-system notes by anyone except `gitlab.user`, bots included | Matches "bots count" while GitLab's own activity entries don't turn hiding into noise. |
 | Hideable items | Issues only | FR-003 speaks of issues; MR review threads would resurface constantly. |
 | Hidden issue drops off the list | Keep the record; resurface as "returned" when it reappears; prune after 30 days absent | A reopen is caught without extra calls per round. |
@@ -33,12 +33,12 @@ The S-01 list is fetched by the `gitlab-refresh` thread every 5 minutes and held
 | Who "the user" is | `gitlab.user` from settings; no `glab api user` call | Only one new CLI call; without it every new comment resurfaces and the view says so. |
 | Comment check fails | Issue stays hidden, re-checked next round, view shows the failed count | Surfaces the failure without blanking or flooding the list. |
 | Item key | GitLab global issue `id` + host | `reference` changes when a project moves. |
-| Comment baseline | The issue's `updated_at` as last seen; advanced on own-only checks | Server time, no local clock skew; a comment landing mid-round is still caught next round. |
+| Comment baseline | The issue's `updated_at` as last seen; advanced on own-only checks; one settling check 2 min after each new baseline | Server time, no local clock skew; GitLab skips the `updated_at` bump for a comment within 60 s of the last one, and the settling check catches it. |
 
 ## Scope
 
 **In scope:**
-- Parsing `id`, `iid`, `project_id` and `state`.
+- Parsing `id`, `iid` and `project_id`; reading multi-page `glab --paginate` output (`[...][...]`) for lists and notes.
 - One new guarded read-only call (`glab api projects/<id>/issues/<iid>/notes`) with fake-cli scenarios.
 - Migration v3 `hidden_issues`, pure rules, store ops, crash test.
 - Reconciliation in the refresh round.
@@ -53,7 +53,7 @@ The S-01 list is fetched by the `gitlab-refresh` thread every 5 minutes and held
 
 ## Architecture / Approach
 
-A new Rust module `hidden_issues` holds the pure rules, the store ops (one `write` each) and a `tauri`-free `reconcile_round`. After a successful fetch, the refresh thread:
+A new Rust module `hidden_issues` holds the pure rules, the store ops (one `write` each) and a `tauri`-free pair: `check_round` (records + notes calls, no lock, stops at the first unavailable call) and `commit_round` (one write + partition, under the gate). After a successful fetch, the refresh thread:
 1. reads the hide records;
 2. checks comments only for hidden issues whose `updated_at` moved, with no lock held;
 3. applies every transition in one store write, re-validated against each row;
@@ -66,7 +66,7 @@ The commands change one row and re-partition the in-memory list. A shared mutex 
 
 | Phase | What it delivers | Key risk |
 | --- | --- | --- |
-| 1. Issue identity + notes call | Stable ids/state; guarded `GlabIssueNotes` call; value-free notes parser; fake-cli scenarios | Widening the read-only guard to a path-segment endpoint without opening anything else |
+| 1. Issue identity + notes call | Stable ids; multi-page parsing; guarded `GlabIssueNotes` call; value-free notes parser; fake-cli scenarios | Widening the read-only guard to a path-segment endpoint without opening anything else |
 | 2. Store + rules | Migration v3; unit-tested resurfacing rules; ops; crash test | Getting timestamp, author and 30-day boundaries exactly right |
 | 3. Round wiring + commands | Reconciliation each round; snapshot with hidden/marks/failures; 3 commands; TS mirrors | Race between a round and a user action (handled by re-validation + gate) |
 | 4. UI | Ukryj, mark + OK, "Ukryte (N)" + Pokaż, notices; manual check on real GitLab | Real GitLab label and comment behaviour differing from fake data |
@@ -76,7 +76,7 @@ The commands change one row and re-partition the in-memory list. A shared mutex 
 
 ## Open Risks & Assumptions
 
-- **Scoped labels:** assumes the company GitLab expresses status through scoped labels or open/closed. A board using plain labels for status would not resurface on moves.
+- **Scoped labels:** assumes the company GitLab expresses status through scoped labels (closing drops the issue off the list). A board using plain labels for status would not resurface on moves.
 - **Unrelated scoped labels:** a scoped label unrelated to workflow (e.g. `priority::high`) also resurfaces an issue. Accepted.
 - **Conflict with S-07:** `todo-list` (S-07) is starting in parallel and may also extend `GitlabItem`. This plan adds `id`, which S-07 can reuse; expect a merge in `gitlab/mod.rs` and `types.ts`.
 - **Hiding from a stale list:** with VPN off, the hide uses the last fetched data. The older baseline can resurface the issue earlier than needed. This is conservative and accepted.

@@ -3,9 +3,9 @@
 ## Overview
 
 Roadmap slice S-03 (PRD FR-003, US-02). In "Praca (GitLab)" the user can hide an issue. The app keeps a small snapshot of it in the store. Each successful refresh round compares the snapshot with the current issue. The issue comes back, marked as changed, when one of three things happens:
-- its state or a scoped label changes;
+- a scoped label changes;
 - someone other than the user posts a real comment (bots count);
-- it drops off the assigned list and later returns.
+- it drops off the assigned list and later returns (this also covers close and reopen, because the list holds only open issues).
 
 The mark stays until the user dismisses it. Hidden issues are listed in a collapsed "Ukryte (N)" section with a "Pokaż" (unhide) button.
 
@@ -28,10 +28,10 @@ The UI (`src/gitlab/GitlabView.tsx`) has no per-row actions. `useGitlab.ts` subs
 On the "Praca (GitLab)" view:
 - **Hiding:** every issue row has "Ukryj". A hidden issue leaves the "Zgłoszenia" section and appears in a collapsed "Ukryte (N)" section with "Pokaż". Hidden state survives restarts.
 - **What resurfaces:** a later successful round brings the issue back into "Zgłoszenia", marked with a reason ("zmiana statusu", "nowy komentarz" or "wróciło na listę"), in these cases:
-  - its open/closed state changed;
-  - its set of scoped labels (`key::value`) changed;
+  - its set of scoped labels (`key::value`) changed ("zmiana statusu");
   - a non-system comment by anyone other than `gitlab.user` appeared after the snapshot;
   - it dropped off the list and came back.
+- **Closing:** both list calls use `state=opened` and GitLab issues are only `opened` or `closed`, so a closed issue drops off the list instead of changing state on it. A reopen within 30 days brings it back as "wróciło na listę". The open/closed state is not stored or compared.
 - **What does not resurface:** the user's own comments (when `gitlab.user` is set), GitLab system notes and non-scoped label changes.
 - **The mark:** "OK" on the mark dismisses it. "Ukryj" on a marked issue hides it again with a fresh snapshot.
 - **Failure states:**
@@ -51,6 +51,8 @@ Verify with the Phase success criteria: `cargo test` (rules, fake-cli round, sto
 - Record-module pattern to copy: `src-tauri/src/work_time/` (`mod.rs` ops in one `store.write` each, `rules.rs` pure, `error.rs` value-free, `tests.rs`). Crash harness: `tests/common/crash.rs` as used by `tests/own_tasks_crash.rs`.
 - UI action pattern to copy: `src/own-tasks/useOwnTasks.ts` (`mutate`, busy set, inline `notice` with `role="alert"`). `storeErrorMessage` (`src/own-tasks/api.ts:36-57`) maps store errors to Polish.
 - `glab api` expands placeholders like `:id` from the working directory's repo. Numeric path segments, with `:` still forbidden, avoid that.
+- `glab api --paginate` never merges pages: with stdout piped it writes each page's array in turn, so the output is `[...][...]` (glab `internal/commands/api/api.go`, its tests pin `[{"id":1}][{"id":2}]`). Today's `serde_json::from_str::<Vec<_>>` (`gitlab/mod.rs:174`) fails on a second page. That is a latent S-01 bug for more than 100 assigned items, and a likely one for notes: system notes count toward the 100.
+- GitLab throttles the issue touch (`ThrottledTouch`, 1 minute): a comment posted less than 60 s after the issue's last `updated_at` bump leaves `updated_at` unchanged. Scoped-label changes do bump `updated_at` (subject to the same throttle), but they are not notes. A `updated_at`-only gate can therefore miss a quick reply.
 
 ## What We're NOT Doing
 
@@ -61,18 +63,17 @@ Verify with the Phase success criteria: `cargo test` (rules, fake-cli round, sto
 - Fetching hidden issues that dropped off the list (no per-item state query). Their return is detected when they reappear.
 - Applying the S-02 visibility filter (not built). When S-02 lands, its filter applies after this partition and never to the reconciliation input.
 - Notifying about resurfaced issues (S-04 is separate).
-- Storing titles, URLs, references or comment text. The store row holds ids, state, scoped labels and timestamps only.
+- Storing titles, URLs, references or comment text. The store row holds ids, scoped labels and timestamps only.
 - Writing to GitLab in any form.
 
 ## Implementation Approach
 
 The comparison is a domain rule in Rust (new `hidden_issues` module: pure rules plus store ops). The refresh round drives it after a successful fetch, in this order:
-1. Read the hide records for the host.
-2. Decide which hidden issues need a comment check: only those still listed whose `updated_at` moved past the stored baseline.
-3. Run those notes calls with no lock held.
-4. Apply every resulting transition in one store `write`.
-5. Partition the full issue list into visible (with marks) and hidden.
-6. Publish.
+1. Read the hide records for the host (`check_round`, no lock).
+2. Decide which hidden issues need a comment check: only those still listed whose `updated_at` moved past the stored baseline, or whose settling check is due (see Throttled touch).
+3. Run those notes calls with no lock held, stopping at the first unavailable/logged-out/missing-tool failure.
+4. Under `hidden_gate`: apply every resulting transition in one store `write`, re-read the rows in that write and partition the full issue list from them into visible (with marks) and hidden (`commit_round`); then build and store the snapshot.
+5. Release the gate and publish.
 
 Hide, unhide and dismiss are async commands. They change one row, then re-partition the in-memory full list and publish, without a GitLab round.
 
@@ -83,6 +84,8 @@ The key is GitLab's global issue `id` plus the host. The comment baseline is the
 **State sequencing.** A round reads records before its notes calls, and the user can hide, unhide or dismiss meanwhile. Transitions are therefore re-validated inside the single write against each row as it is then; a row that was removed or re-hidden in the meantime is skipped. Commands and the round's write-partition-store step share one mutex. It is never held across a `glab` call or an `emit`. A late round can therefore never publish a partition older than a command's.
 
 **Baseline advance.** When a check finds only the user's own comments and system notes after the baseline, advance the baseline to the issue's *listed* `updated_at` from this round, not to the newest note time. A comment that lands between the list fetch and the notes fetch is then still newer than the baseline next round.
+
+**Throttled touch.** Because GitLab may not bump `updated_at` for a comment within 60 s of the previous bump, every new baseline gets one settling check. `hide` sets `settle_after_ms = now_ms + 120_000` (local clock: 60 s throttle plus a skew margin). An `AdvanceBaseline` whose listed `updated_at` moved sets it the same way. A check that ran only because settling was due clears it (`settle_after_ms = NULL`), so it runs once. Cost: at most one extra notes call per hide or baseline advance.
 
 **Precedence.** If several reasons apply in one round, the stored reason is `status`, then `comment`, then `returned`. Only one reason is kept.
 
@@ -96,13 +99,14 @@ Parse the fields the comparison needs, and add one guarded read-only `glab api` 
 
 #### 1. Item identity
 
-**File**: `src-tauri/src/gitlab/mod.rs`
+**File**: `src-tauri/src/gitlab/mod.rs` (including the test helpers `item`/`items` at `gitlab/mod.rs:596-609`)
 
-**Intent**: Keep GitLab's global `id`, `project_id`, `iid` and `state` from each listed item, so hide records have a stable key and the notes URL can be built.
+**Intent**: Keep GitLab's global `id`, `project_id` and `iid` from each listed item, so hide records have a stable key and the notes URL can be built. Read multi-page `--paginate` output correctly.
 
 **Contract**:
-- `RawItem` gains `id: u64`, `iid: u64`, `project_id: u64` and `state: String`. A missing field is `ResponseInvalid`, as today.
-- `GitlabItem` gains `id: u64` (serialized as `id`). It also gains `project_id`, `iid` and `state`, which are Rust-only and not serialized; the UI needs only `id`.
+- `RawItem` gains `id: u64`, `iid: u64` and `project_id: u64`. A missing field is `ResponseInvalid`, as today. `state` is not parsed (see Desired End State, "Closing").
+- `GitlabItem` gains `id: u64` (serialized as `id`). It also gains `project_id` and `iid`, which are Rust-only and not serialized; the UI needs only `id`.
+- New shared helper `parse_pages<T: DeserializeOwned>(json) -> Result<Vec<T>, GitlabError>`: reads a stream of JSON arrays with `serde_json::Deserializer::from_str(json).into_iter::<Vec<T>>()` and flattens them. Empty or whitespace-only output and any serde error are `ResponseInvalid` with no content. `parse_items` and the notes parser both use it.
 - Sorting and `checked_url` are unchanged. MRs parse the same fields.
 
 #### 2. Notes call
@@ -128,6 +132,7 @@ Parse the fields the comparison needs, and add one guarded read-only `glab api` 
 **Contract**:
 - `IssueNote { author: String, system: bool, created_at: DateTime<FixedOffset> }`, parsed from `author.username`, `system` and `created_at`.
 - `body` is never deserialized.
+- Parsed through `parse_pages`, so a multi-page (`[...][...]`) response yields all notes.
 - A serde or timestamp error becomes `GitlabError::ResponseInvalid` with no content.
 - `fetch::fetch_issue_notes(runner, &GitlabHost, IssueRef) -> Result<Vec<IssueNote>, GitlabError>`.
 
@@ -138,9 +143,9 @@ Parse the fields the comparison needs, and add one guarded read-only `glab api` 
 **Intent**: Make every notes outcome testable with invented data.
 
 **Contract**:
-- The `gitlab-assigned` issue/MR JSON gains `id`, `iid`, `project_id` and `state`.
+- The `gitlab-assigned` issue/MR JSON gains `id`, `iid` and `project_id`.
 - A new endpoint arm for `projects/…/notes?…`.
-- Scenarios cover: a comment by another user, the configured user's comments only, a system note only, no notes, notes unavailable (no network) while the list succeeds, and invalid notes JSON with a leak marker.
+- Scenarios cover: a comment by another user, the configured user's comments only, a system note only, no notes, notes unavailable (no network) while the list succeeds, invalid notes JSON with a leak marker, and two concatenated pages (`[...][...]`) for both the notes call and the issues list.
 - Each scenario returns notes for a fixed project/iid; any other issue gets an empty array.
 
 ### Success Criteria:
@@ -178,9 +183,9 @@ CREATE TABLE hidden_issues (
   issue_id           INTEGER NOT NULL,
   project_id         INTEGER NOT NULL,
   iid                INTEGER NOT NULL,
-  state              TEXT    NOT NULL,
   scoped_labels      TEXT    NOT NULL,  -- JSON array of `key::value` labels, sorted
   baseline_updated_at TEXT   NOT NULL,  -- RFC 3339 as GitLab sent it
+  settle_after_ms    INTEGER,           -- one settling comment check due (Throttled touch)
   hidden_at_ms       INTEGER NOT NULL,
   absent_since_ms    INTEGER,
   changed_reason     TEXT CHECK (changed_reason IN ('status','comment','returned')),
@@ -200,12 +205,12 @@ A row with `changed_reason IS NULL` is hidden. A row with a reason is a visible 
 
 **Contract**:
 - `scoped_labels(&[String]) -> Vec<String>`: labels containing `::`, sorted and deduplicated.
-- `status_changed(&HiddenRecord, &GitlabItem) -> bool`: the state differs, or the scoped label set differs.
-- `needs_comment_check(&HiddenRecord, &GitlabItem) -> bool`: the issue is hidden (no reason), and the listed `updated_at` is strictly later than the baseline (compared as parsed instants).
+- `status_changed(&HiddenRecord, &GitlabItem) -> bool`: the scoped label set differs.
+- `needs_comment_check(&HiddenRecord, &GitlabItem, now_ms) -> bool`: the issue is hidden (no reason), and either the listed `updated_at` is strictly later than the baseline (compared as parsed instants) or `settle_after_ms` is set and `now_ms >= settle_after_ms`.
 - `comment_verdict(&[IssueNote], baseline, Option<&GitlabUser>) -> CommentVerdict { NewFromOthers, NothingNew }`. A note counts when it is non-system, its `created_at` is strictly later than the baseline, and its author is not the user (ASCII case-insensitive). When the user is `None`, any author counts.
 - `plan_round(records, listed_issues, checks: map issue_id → Result<CommentVerdict, ()>, now_ms) -> Vec<Transition>`, with:
   - `Transition::Resurface { issue_id, reason }`;
-  - `AdvanceBaseline { issue_id, updated_at }` (checked, nothing new);
+  - `AdvanceBaseline { issue_id, updated_at, settle_after_ms: Option<u64> }` (checked, nothing new): `Some(now_ms + 120_000)` when the listed `updated_at` moved past the baseline, `None` when the check ran only because settling was due;
   - `MarkAbsent { issue_id }` (first round missing);
   - `Prune { issue_id }` (absent ≥ 30 days, i.e. `now_ms - absent_since_ms >= 30 * 86_400_000`);
   - `ClearAbsent` only together with `Resurface { reason: returned }` on reappearance.
@@ -221,11 +226,11 @@ A row with `changed_reason IS NULL` is hidden. A row with a reason is a visible 
 
 **Contract**:
 - `list(store, host) -> Vec<HiddenRecord>`.
-- `hide(store, host, &GitlabItem, now_ms)` upserts a fresh hidden row; this replaces a marked row.
+- `hide(store, host, &GitlabItem, now_ms)` upserts a fresh hidden row with `settle_after_ms = now_ms + 120_000`; this replaces a marked row.
 - `unhide(store, host, issue_id)` deletes a hidden row; otherwise `NotFound`.
 - `dismiss(store, host, issue_id)` deletes a marked row; otherwise `NotFound`.
-- `apply_round(store, host, &[Transition], now_ms)`: one `store.write`. It re-reads each target row and skips transitions whose row is gone or no longer in the state the plan assumed.
-- `partition(full_issues, records) -> (visible: Vec<GitlabItem> with marks, hidden: Vec<GitlabItem>)`. Both keep the list's sort order.
+- `apply_round(store, host, &[Transition], now_ms) -> Vec<HiddenRecord>`: one `store.write`. It re-reads each target row and skips transitions whose row is gone or no longer in the state the plan assumed. In the same write it deletes rows of any other host whose `hidden_at_ms` is 30 days or more before `now_ms` (their absence is never judged), then returns the host's rows as they are after the write.
+- `partition(full_issues, records) -> (visible: Vec<GitlabItem> with marks, hidden: Vec<GitlabItem>)`. Both keep the list's sort order. The round always partitions from the rows `apply_round` returned, never from the records read before the notes calls.
 - `HiddenIssueError { Store(StoreError), NotFound, NotInList, ListUnavailable }`, with `thiserror` + `Serialize` and `tag = "kind", content = "detail"`. No variant carries ids, labels or the host.
 
 ### Success Criteria:
@@ -239,7 +244,8 @@ A row with `changed_reason IS NULL` is hidden. A row with a reason is a visible 
   - a system note is ignored;
   - a non-scoped label change is ignored;
   - scoped label add/remove/swap resurfaces;
-  - a state change resurfaces;
+  - a settling check is due at exactly `settle_after_ms` (one ms before: not due) and runs even when `updated_at` did not move (a throttled reply is caught);
+  - a settling-only check that finds nothing new clears `settle_after_ms`, while a check triggered by a moved `updated_at` sets it again;
   - precedence;
   - absent → returned;
   - the 30-day boundary (one ms before: kept; exactly 30 days: pruned);
@@ -251,7 +257,8 @@ A row with `changed_reason IS NULL` is hidden. A row with a reason is a visible 
   - hide/unhide/dismiss round trip;
   - hide over a marked row resets it;
   - data survives close and reopen;
-  - `apply_round` skips stale transitions;
+  - `apply_round` skips stale transitions and returns the rows after the write;
+  - `apply_round` prunes another host's rows hidden 30 days or more ago and keeps younger ones;
   - CHECK constraints back the rules.
   
   Run: `cd src-tauri && cargo test --test hidden_issues`
@@ -273,16 +280,18 @@ Run reconciliation in each successful round, extend the snapshot with hidden iss
 
 #### 1. Round reconciliation
 
-**File**: `src-tauri/src/hidden_issues/round.rs` (new), `src-tauri/src/gitlab_refresh.rs`
+**File**: `src-tauri/src/hidden_issues/round.rs` (new), `src-tauri/src/gitlab_refresh.rs` (including its `snap` test helper at `:230` and the `kept_config` doc comment, which no longer holds once commands read it), `src-tauri/src/health/probe.rs` (the `GitlabSnapshot` test helper at `:289`)
 
 **Intent**: After a successful fetch, compare hidden issues and publish the partitioned list. Failed comment checks never block the list.
 
 **Contract**:
-- `reconcile_round(store_handle, runner, &GitlabConfig, full: &AssignedItems, now_ms) -> RoundOutcome { visible_issues, hidden_issues, check_failed: u32, store_error: Option<HiddenIssueError> }`. It is `tauri`-free, so it is integration-testable with fake-cli and a temp store.
-- It follows the Implementation Approach order. Notes calls run outside any lock.
+- Two `tauri`-free halves, integration-testable with fake-cli and a temp store:
+  - `check_round(store_handle, runner, &GitlabConfig, full: &AssignedItems, now_ms) -> RoundChecks`: reads the records and runs the due notes calls with no lock held. After the first `Unavailable`, `LoggedOut` or `ToolMissing` it starts no further notes call; every remaining due issue counts as a failed check. A store read failure is carried in `RoundChecks` and skips the notes calls.
+  - `commit_round(store_handle, host, full: &AssignedItems, RoundChecks, now_ms) -> RoundOutcome { visible_issues, hidden_issues, check_failed: u32, store_error: Option<HiddenIssueError> }`: plans the transitions, runs `apply_round` and partitions from the rows it returns.
+- `refresh_round` calls `check_round` with no lock, then takes `hidden_gate` and holds it across `commit_round`, `next_snapshot`, the `kept_config`/full-list update and `*state.write()`. It releases the gate, then publishes.
 - `GitlabRefreshState` gains:
   - the last full (unpartitioned) `AssignedItems`, kept with `kept_config` and never serialized;
-  - a `hidden_gate: Mutex<()>` taken around write → partition → snapshot store, never across `glab` or `emit`.
+  - a `hidden_gate: Mutex<()>`, never held across `glab` or `emit`.
 - Unsuccessful rounds keep today's `next_snapshot` behaviour, with no reconciliation and no absence marking.
 - If the store cannot be read or written, the list shows unpartitioned, with `hiddenError` set.
 - Log lines carry kinds and plain counts only.
@@ -338,6 +347,8 @@ Run reconciliation in each successful round, extend the snapshot with hidden iss
   - an own comment advances the baseline and stays hidden;
   - a system note stays hidden;
   - notes unavailable gives `check_failed = 1`, the issue stays hidden and the list is still returned;
+  - with two due issues and notes unavailable, only one notes call runs and `check_failed = 2`;
+  - two concatenated notes pages are read in full (a qualifying comment on the second page resurfaces);
   - a scoped-label change resurfaces without a notes call;
   - drop-off marks absent and return resurfaces with `returned`;
   - with no user configured, any comment resurfaces;
@@ -410,7 +421,7 @@ Row actions, the "changed" mark, the hidden section and the notices.
 
 - `tests/hidden_issues.rs`: migration, ops, reopen durability, stale-transition skip.
 - `tests/hidden_issues_crash.rs`: crash harness over hide/dismiss writes.
-- `tests/hidden_issues_round.rs`: `reconcile_round` with fake-cli scenarios and a temp store.
+- `tests/hidden_issues_round.rs`: `check_round` + `commit_round` with fake-cli scenarios and a temp store.
 - Existing `tests/gitlab_fetch.rs` / `tests/cli_runner.rs` extended for the new fields and call.
 
 ### Manual Testing Steps:
@@ -424,7 +435,7 @@ Row actions, the "changed" mark, the hidden section and the notices.
 
 ## Performance Considerations
 
-Each round makes at most one notes call per hidden issue whose `updated_at` moved, and none when nothing changed. That keeps the background-lightness NFR. Notes are paginated, newest first; typical issues fit in one page.
+Each round makes at most one notes call per hidden issue whose `updated_at` moved or whose single settling check is due, and none when nothing changed. A round stops issuing notes calls at the first unavailable/logged-out/missing-tool failure, so a VPN drop costs one 20 s timeout, not one per issue. That keeps the background-lightness NFR. Notes are paginated, newest first; typical issues fit in one page, and multi-page output is read in full.
 
 ## Migration Notes
 

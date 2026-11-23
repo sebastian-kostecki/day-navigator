@@ -50,9 +50,9 @@ One developer on one Windows 11 machine works for a company (issues in a work Gi
 | S-04 | new-assignment-notify   | get a Windows notification for every new assigned issue or MR                          | S-01, F-01    | FR-004, NFR Świeżość, NFR Lekkość w tle    | ready |
 | S-05 | github-assigned-issues  | see open GitHub issues assigned to them from the repositories listed in settings       | F-02          | FR-005, FR-015                            | blocked  |
 | S-06 | own-tasks               | add, edit and complete their own tasks in the Work or Private space                    | F-01          | FR-006, FR-007, FR-008, FR-010            | done     |
-| S-07 | todo-list               | pick today's items from the lists into "To do", tick them, carry the rest to tomorrow  | S-01, S-06    | FR-011, FR-012, US-01                     | ready |
+| S-07 | todo-list               | pick today's items from the lists into "To do", tick them, carry the rest to tomorrow  | S-01, S-06    | FR-011, FR-012, US-01                     | done |
 | S-08 | work-timer              | start and stop work time from an always-visible counter and correct entries            | F-01          | FR-013, FR-017, NFR Trwałość czasu pracy  | done |
-| S-09 | work-norm-report        | see day and month sums and how far the month is from the norm                          | S-08          | FR-014                                    | ready |
+| S-09 | work-norm-report        | see day and month sums and how far the month is from the norm                          | S-08          | FR-014                                    | done |
 | S-10 | timer-reminders         | get reminded when the counter runs too long or is not running on a workday             | S-08          | FR-018                                    | ready |
 
 ## Streams
@@ -191,7 +191,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** It completes US-01. GitHub items join once S-05 is unblocked, so the GitHub decision does not hold up the daily flow.
-- **Status:** ready
+- **Status:** done
 
 ### S-08: Work-time counter
 
@@ -216,7 +216,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** The core calculation behind a primary success criterion; it lives in the backend and is unit-tested on invented months (holidays, days off, partial weeks).
-- **Status:** ready
+- **Status:** done
 
 ### S-10: Timer reminders
 
@@ -279,4 +279,6 @@ Entries below come from this milestone's previous decomposition (archived at `co
 - **S-01: User can open the "Work (GitLab)" view and see the issues and MRs assigned to them. Without VPN the view says "GitLab unavailable" calmly, with the time of the last successful refresh, and raises no alarm. A logged-out `glab` shows as an error in the tray. The app gets its navigation between views and the fixed header area.** — Archived 2026-11-23 → `context/archive/2026-11-23-gitlab-assigned-list/`. Lesson: —.
 - **S-08: user can start and stop work time from a counter always visible at the top of the window. A running counter survives closing the app, a Windows restart and a crash. The user can correct an entry's start or end time or add a missing entry.** — Archived 2026-11-23 → `context/archive/2026-11-23-work-timer/`. Lesson: —.
 - **S-06: user can add a task in the Work or Private space (default Work while the counter runs, otherwise Private), edit its title and short plain note, set an optional due date and priority, and mark it done. The vault-based task screen from the previous decomposition is removed.** — Archived 2026-11-23 → `context/archive/2026-11-23-own-tasks/`. Lesson: —.
+- **S-07: user can pick today's items from the GitLab list and their own tasks (and from GitHub once S-05 lands) into "To do", up to the limit from settings (default 5). They tick items off; unticked items carry over to the next day; items closed in GitLab or GitHub tick themselves; ticking an own task marks it done.** — Archived 2026-11-23 → `context/archive/2026-11-23-todo-list/`. Lesson: —.
+- **S-09: user can see the day and month sums, how far the month is from the norm so far (8 h × workdays that have passed, Monday–Friday minus days they mark as off), and the average needed per remaining workday to meet the month's norm.** — Archived 2026-11-23 → `context/archive/2026-11-23-work-norm-report/`. Lesson: —.
 - **S-03: user can hide an issue. It comes back, marked as changed, when its status changes or someone other than the user (bots included) comments on it.** — Archived 2026-11-23 → `context/archive/2026-11-23-hide-and-resurface/`. Lesson: —.

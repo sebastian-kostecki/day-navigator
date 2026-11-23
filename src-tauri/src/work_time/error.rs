@@ -28,6 +28,8 @@ pub enum WorkTimeError {
     InvalidLocalTime,
     #[error("a running entry has no end; use stop")]
     RunningEndEdit,
+    #[error("a weekend is not a workday")]
+    NotAWorkday,
     #[error("background task failed")]
     Background,
 }

@@ -7,6 +7,7 @@ use serde::Deserialize;
 
 use crate::cli::{GitlabConfig, GitlabHost, GitlabUser};
 use crate::gitlab::GitlabError;
+use crate::todo::{DEFAULT_TODO_LIMIT, TodoError};
 use crate::vault::{VaultError, VaultPath};
 
 const SUPPORTED_VERSION: u64 = 1;
@@ -131,6 +132,58 @@ fn parse_gitlab_settings(text: &str) -> Result<Option<GitlabConfig>, GitlabError
         Ok(GitlabConfig { host, user })
     })
     .transpose()
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawTodo {
+    #[serde(default)]
+    limit: Option<serde_json::Value>,
+}
+
+const TODO_LIMIT_MAX: u64 = 20;
+
+/// Reads only the top-level `todo` block, on its own, like the GitLab block.
+/// A missing file, an absent or `null` block or an absent `limit` is the
+/// default (5). Anything else that is not an integer 1..=20 is
+/// `SettingsInvalid`, with no detail: serde errors can quote the value.
+pub fn load_todo_limit(path: &Path) -> Result<u32, TodoError> {
+    let bytes = match fs::read(path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(DEFAULT_TODO_LIMIT),
+        Err(_) => return Err(TodoError::SettingsInvalid),
+    };
+    let bytes = bytes
+        .strip_prefix(&[0xEF, 0xBB, 0xBF][..])
+        .unwrap_or(&bytes);
+    let text = std::str::from_utf8(bytes).map_err(|_| TodoError::SettingsInvalid)?;
+    parse_todo_limit(text)
+}
+
+fn parse_todo_limit(text: &str) -> Result<u32, TodoError> {
+    let value: serde_json::Value =
+        serde_json::from_str(text).map_err(|_| TodoError::SettingsInvalid)?;
+    if value.get("version").and_then(|v| v.as_u64()) != Some(SUPPORTED_VERSION) {
+        return Err(TodoError::SettingsInvalid);
+    }
+    let Some(block) = value.get("todo") else {
+        return Ok(DEFAULT_TODO_LIMIT);
+    };
+    if block.is_null() {
+        return Ok(DEFAULT_TODO_LIMIT);
+    }
+    if !block.is_object() {
+        return Err(TodoError::SettingsInvalid);
+    }
+    let raw: RawTodo =
+        serde_json::from_value(block.clone()).map_err(|_| TodoError::SettingsInvalid)?;
+    match raw.limit {
+        None => Ok(DEFAULT_TODO_LIMIT),
+        Some(v) => match v.as_u64() {
+            Some(n) if (1..=TODO_LIMIT_MAX).contains(&n) => Ok(n as u32),
+            _ => Err(TodoError::SettingsInvalid),
+        },
+    }
 }
 
 fn parse_settings(text: &str) -> Result<Settings, VaultError> {
@@ -392,6 +445,103 @@ mod tests {
             assert_eq!(work.excluded.len(), 1);
             assert!(s.private.is_none());
         }
+    }
+
+    fn todo_text(block: &str) -> String {
+        format!(r#"{{"version":1,"spaces":{{}},"todo":{block}}}"#)
+    }
+
+    #[test]
+    fn todo_limit_defaults() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            load_todo_limit(&dir.path().join("settings.json")).unwrap(),
+            DEFAULT_TODO_LIMIT
+        );
+        for text in [
+            r#"{"version":1,"spaces":{}}"#.to_string(),
+            todo_text("null"),
+            todo_text("{}"),
+            todo_text(r#"{"limit":null}"#),
+        ] {
+            assert_eq!(load_todo_limit(&write(&dir, &text)).unwrap(), 5, "{text}");
+        }
+    }
+
+    #[test]
+    fn todo_limit_range_edges() {
+        let dir = tempfile::tempdir().unwrap();
+        for n in [1u32, 7, 20] {
+            let text = todo_text(&format!(r#"{{"limit":{n}}}"#));
+            assert_eq!(load_todo_limit(&write(&dir, &text)).unwrap(), n);
+        }
+    }
+
+    #[test]
+    fn todo_limit_invalid_values_are_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        let blocks = [
+            r#"{"limit":0}"#,
+            r#"{"limit":21}"#,
+            r#"{"limit":-1}"#,
+            r#"{"limit":"5"}"#,
+            r#"{"limit":5.5}"#,
+            r#"{"limit":true}"#,
+            r#"{"limit":5,"extra":1}"#,
+            r#"{"other":1}"#,
+            r#""5""#,
+            r#"[5]"#,
+        ];
+        for block in blocks {
+            let err = load_todo_limit(&write(&dir, &todo_text(block))).unwrap_err();
+            assert!(matches!(err, TodoError::SettingsInvalid), "{block}");
+        }
+        for text in [
+            "{ not json",
+            r#"{"todo":{"limit":5}}"#,
+            r#"{"version":2,"todo":{"limit":5}}"#,
+        ] {
+            let err = load_todo_limit(&write(&dir, text)).unwrap_err();
+            assert!(matches!(err, TodoError::SettingsInvalid), "{text}");
+        }
+        let p = dir.path().join("settings.json");
+        fs::write(&p, [0xFF, 0xFE, 0x00]).unwrap();
+        assert!(matches!(
+            load_todo_limit(&p),
+            Err(TodoError::SettingsInvalid)
+        ));
+    }
+
+    #[test]
+    fn todo_limit_bom_is_stripped() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("settings.json");
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(todo_text(r#"{"limit":3}"#).as_bytes());
+        fs::write(&p, bytes).unwrap();
+        assert_eq!(load_todo_limit(&p).unwrap(), 3);
+    }
+
+    #[test]
+    fn broken_todo_block_leaves_vault_and_gitlab_loaders_green() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = json_path(&dir);
+        for block in [r#"{"limit":0}"#, r#""nope""#, r#"{"bogus":1}"#] {
+            let text = format!(
+                r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":[]}}}},"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{block}}}"#
+            );
+            let p = write(&dir, &text);
+            assert!(load_settings(&p).unwrap().work.is_some(), "{block}");
+            assert!(load_gitlab_settings(&p).unwrap().is_some(), "{block}");
+            assert!(load_todo_limit(&p).is_err(), "{block}");
+        }
+    }
+
+    #[test]
+    fn todo_loader_ignores_a_broken_gitlab_block() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = r#"{"version":1,"spaces":{},"gitlab":"nope","todo":{"limit":4}}"#;
+        assert_eq!(load_todo_limit(&write(&dir, text)).unwrap(), 4);
     }
 
     fn work_with(dir: &tempfile::TempDir, extra: &str) -> String {

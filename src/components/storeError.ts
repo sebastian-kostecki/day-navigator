@@ -1,4 +1,4 @@
-/** Mirrors `store::StoreError`. Shared by every feature whose errors wrap it. */
+/** Mirrors `store::StoreError`. */
 export type StoreError =
   | { kind: "DirUnavailable"; detail: { kind: string } }
   | { kind: "Damaged"; detail: { reason: string } }
@@ -9,7 +9,7 @@ export type StoreError =
   | { kind: "Io"; detail: { kind: string } }
   | { kind: "Sql"; detail: { reason: string } };
 
-/** Polish message for a store failure; never shows the detail values. */
+/** Polish message for a store failure, shared by every feature on the app data store. */
 export function storeErrorMessage(e: StoreError): string {
   switch (e.kind) {
     case "DirUnavailable":

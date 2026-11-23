@@ -13,10 +13,25 @@ use std::cmp::Reverse;
 use chrono::{DateTime, FixedOffset};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::cli::{CliError, GitlabConfig, GitlabHost, Tool};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+/// Opaque, stable key of the account a list comes from: SHA-256 (hex) of the
+/// host and the configured user. Carries neither value in readable form, so it
+/// may be stored with "To do" entries; a changed host or user (or a typo in
+/// the user) gives a different key.
+pub fn account_key(config: &GitlabConfig) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(config.host.as_str().as_bytes());
+    hasher.update(b"\n");
+    if let Some(user) = &config.user {
+        hasher.update(user.as_str().as_bytes());
+    }
+    format!("{:x}", hasher.finalize())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum ItemKind {
     Issue,
@@ -290,6 +305,11 @@ pub struct GitlabSnapshot {
     /// Fixed Polish text when the hidden state could not be read or written;
     /// the list then shows every issue.
     pub hidden_error: Option<String>,
+    /// `account_key` of the config `items` came from; set iff `items` is. Kept
+    /// next to the items so a reader never pairs them with another account.
+    /// Not sent to the webview.
+    #[serde(skip)]
+    pub account: Option<String>,
 }
 
 impl GitlabSnapshot {
@@ -305,6 +325,7 @@ impl GitlabSnapshot {
             hidden_check_failed: 0,
             own_comments_known: false,
             hidden_error: None,
+            account: None,
         }
     }
 }
@@ -334,6 +355,7 @@ pub fn next_snapshot(
         hidden_check_failed: 0,
         own_comments_known: false,
         hidden_error: None,
+        account: None,
     };
     let items = match outcome {
         Ok(items) => {
@@ -342,6 +364,7 @@ pub fn next_snapshot(
             // The round sets `hidden_check_failed` and `hidden_error` after
             // reconciling; they describe this round only.
             next.own_comments_known = config.is_some_and(|c| c.user.is_some());
+            next.account = config.map(account_key);
             return (next, config.cloned());
         }
         Err(e) => e,
@@ -369,6 +392,7 @@ pub fn next_snapshot(
         next.hidden_check_failed = prev.hidden_check_failed;
         next.own_comments_known = prev.own_comments_known;
         next.hidden_error = prev.hidden_error.clone();
+        next.account = prev.account.clone();
         (next, kept.cloned())
     } else {
         (next, None)
@@ -996,6 +1020,59 @@ mod tests {
         );
         assert_eq!(s.items, Some(items("g/p#1")));
         assert_eq!(k, Some(config()));
+    }
+
+    #[test]
+    fn account_key_is_stable_opaque_and_differs_per_host_and_user() {
+        let key = account_key(&config());
+        assert_eq!(key, account_key(&config()));
+        assert_eq!(key.len(), 64);
+        assert!(key.bytes().all(|b| b.is_ascii_hexdigit()));
+        assert!(!key.contains("example") && !key.contains("gitlab"));
+        for other in [other_config(), other_user_config(), no_user_config()] {
+            assert_ne!(account_key(&other), key);
+        }
+    }
+
+    #[test]
+    fn snapshot_account_follows_the_items() {
+        let (ok, kept) = next_snapshot(
+            &GitlabSnapshot::starting(),
+            None,
+            Some(&config()),
+            Ok(items("g/p#1")),
+            1000,
+        );
+        assert_eq!(ok.account, Some(account_key(&config())));
+        // Kept items keep their account.
+        let (s, _) = next_snapshot(
+            &ok,
+            kept.as_ref(),
+            Some(&config()),
+            Err(GitlabError::Unavailable),
+            2000,
+        );
+        assert_eq!(s.account, ok.account);
+        // Dropped items drop it; a success under another user replaces it.
+        let (s, _) = next_snapshot(
+            &ok,
+            kept.as_ref(),
+            Some(&other_user_config()),
+            Err(GitlabError::Unavailable),
+            2000,
+        );
+        assert!(s.items.is_none() && s.account.is_none());
+        let (s, _) = next_snapshot(
+            &ok,
+            kept.as_ref(),
+            Some(&other_user_config()),
+            Ok(items("g/p#2")),
+            3000,
+        );
+        assert_eq!(s.account, Some(account_key(&other_user_config())));
+        // Never sent to the webview.
+        let json = serde_json::to_value(&s).unwrap();
+        assert!(json.get("account").is_none());
     }
 
     #[test]

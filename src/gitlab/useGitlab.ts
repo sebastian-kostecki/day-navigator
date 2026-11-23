@@ -15,7 +15,9 @@ function errorText(e: unknown): string {
   return typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
 }
 
-export function useGitlab() {
+/** `refreshOnMount: false` only reads the stored snapshot and listens, so a view that
+ * just displays it never starts a `glab` round. */
+export function useGitlab({ refreshOnMount = true }: { refreshOnMount?: boolean } = {}) {
   const [snapshot, setSnapshot] = useState<GitlabSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -56,7 +58,7 @@ export function useGitlab() {
           accept(s);
           // At app start the thread's first round already runs; ask for one
           // more only when nothing is loading, so there is no back-to-back round.
-          if (s.state.state !== "starting" && !s.refreshing) {
+          if (refreshOnMount && s.state.state !== "starting" && !s.refreshing) {
             return refreshGitlab().catch((e) => {
               if (!cancelled) setRefreshError(errorText(e));
             });
@@ -71,7 +73,7 @@ export function useGitlab() {
       cancelled = true;
       unlisten?.();
     };
-  }, [attempt]);
+  }, [attempt, refreshOnMount]);
 
   /** Re-runs the subscribe and the load that failed. */
   const retry = useCallback(() => setAttempt((n) => n + 1), []);

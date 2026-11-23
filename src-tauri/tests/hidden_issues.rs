@@ -80,34 +80,36 @@ fn resurface(store: &mut Store, id: u64, reason: ChangeReason) {
 }
 
 #[test]
-fn v3_applies_on_a_fresh_store() {
+fn v6_applies_on_a_fresh_store() {
     let (_tmp, dir) = test_store_dir();
     let store = open(&dir);
     assert_eq!(
         user_version(&store),
         i64::from(schema::MIGRATIONS.last().unwrap().version)
     );
-    assert!(schema::MIGRATIONS.len() >= 3);
+    assert!(schema::MIGRATIONS.len() >= 6);
     assert!(hidden_issues::list(&store, &host()).unwrap().is_empty());
 }
 
+/// `hidden_issues` was planned as v3 and renumbered to v6 when merged after
+/// S-07 (v3, v4) and S-09 (v5): a v5 store with data gets it on open.
 #[test]
-fn v3_applies_on_a_v2_store_with_data() {
+fn v6_applies_on_a_v5_store_with_data() {
     let (_tmp, dir) = test_store_dir();
     {
-        let mut v2 = Store::open(&dir, &schema::MIGRATIONS[..2], today()).unwrap();
+        let mut v5 = Store::open(&dir, &schema::MIGRATIONS[..5], today()).unwrap();
         exec(
-            &mut v2,
+            &mut v5,
             "INSERT INTO own_tasks(space, title, created_at, updated_at) \
              VALUES ('work', 'Zadanie testowe', '2026-11-23T08:00:00', '2026-11-23T08:00:00');
              INSERT INTO work_entries(start_ms, end_ms, created_at_ms, updated_at_ms) \
              VALUES (1000, 2000, 1000, 2000);",
         )
         .unwrap();
-        assert_eq!(user_version(&v2), 2);
+        assert_eq!(user_version(&v5), 5);
     }
     let store = open(&dir);
-    assert_eq!(user_version(&store), 3);
+    assert_eq!(user_version(&store), 6);
     let counts: (i64, i64) = store
         .read::<_, StoreError>(|c| {
             Ok((

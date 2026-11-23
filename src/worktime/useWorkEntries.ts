@@ -5,6 +5,7 @@ import {
   addWorkEntry,
   listWorkEntries,
   removeWorkEntry,
+  setDayOff as setDayOffCall,
   updateWorkEntry,
   workTimeErrorMessage,
 } from "./api";
@@ -23,6 +24,9 @@ export type EntriesState =
 export function useWorkEntries(day: string) {
   const [result, setResult] = useState<{ day: string; value: Result } | null>(null);
   const [busyIds, setBusyIds] = useState<Set<number>>(new Set());
+  // A day-off request stays pending until the reloaded day agrees with it, so
+  // the checkbox neither snaps back nor re-enables before the list catches up.
+  const [dayOffRequest, setDayOffRequest] = useState<{ day: string; off: boolean } | null>(null);
   // Bumped by retry to redo the subscribe and the load together.
   const [attempt, setAttempt] = useState(0);
 
@@ -116,10 +120,37 @@ export function useWorkEntries(day: string) {
     [withBusy],
   );
   const remove = useCallback((id: number) => withBusy(id, () => removeWorkEntry(id)), [withBusy]);
+  const setDayOff = useCallback(
+    async (off: boolean): Promise<unknown> => {
+      setDayOffRequest({ day, off });
+      const err = await withBusy(null, () => setDayOffCall(day, off));
+      if (err) setDayOffRequest(null);
+      return err;
+    },
+    [day, withBusy],
+  );
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   const entries: EntriesState =
     result !== null && result.day === day ? result.value : { state: "loading" };
 
-  return { entries, add, update, remove, busyIds, retry };
+  const storedOff = entries.state === "loaded" && entries.data.dayKind === "dayOff";
+  const pending =
+    dayOffRequest !== null &&
+    dayOffRequest.day === day &&
+    entries.state === "loaded" &&
+    dayOffRequest.off !== storedOff;
+  const dayOffChecked = pending ? dayOffRequest.off : storedOff;
+
+  return {
+    entries,
+    add,
+    update,
+    remove,
+    setDayOff,
+    dayOffChecked,
+    dayOffBusy: pending,
+    busyIds,
+    retry,
+  };
 }

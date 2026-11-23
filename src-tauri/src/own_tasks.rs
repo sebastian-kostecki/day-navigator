@@ -6,7 +6,7 @@
 use std::cmp::Reverse;
 
 use chrono::{NaiveDate, NaiveDateTime};
-use rusqlite::{Connection, Row};
+use rusqlite::{Connection, Row, Transaction};
 use serde::{Deserialize, Serialize};
 
 use crate::space::Space;
@@ -306,19 +306,28 @@ pub fn set_done(
     done: bool,
     now: NaiveDateTime,
 ) -> Result<OwnTask, OwnTaskError> {
-    store.write(|tx| {
-        let ts = stamp(now);
-        let sql = if done {
-            "UPDATE own_tasks SET done_at = coalesce(done_at, ?1), updated_at = ?1 WHERE id = ?2"
-        } else {
-            "UPDATE own_tasks SET done_at = NULL, updated_at = ?1 WHERE id = ?2"
-        };
-        let changed = tx.execute(sql, (&ts, id))?;
-        if changed == 0 {
-            return Err(OwnTaskError::NotFound);
-        }
-        fetch(tx, id)
-    })
+    store.write(|tx| set_done_in(tx, id, done, now))
+}
+
+/// `set_done` inside the caller's transaction, so a caller can change the done
+/// state together with its own records in one write.
+pub fn set_done_in(
+    tx: &Transaction<'_>,
+    id: i64,
+    done: bool,
+    now: NaiveDateTime,
+) -> Result<OwnTask, OwnTaskError> {
+    let ts = stamp(now);
+    let sql = if done {
+        "UPDATE own_tasks SET done_at = coalesce(done_at, ?1), updated_at = ?1 WHERE id = ?2"
+    } else {
+        "UPDATE own_tasks SET done_at = NULL, updated_at = ?1 WHERE id = ?2"
+    };
+    let changed = tx.execute(sql, (&ts, id))?;
+    if changed == 0 {
+        return Err(OwnTaskError::NotFound);
+    }
+    fetch(tx, id)
 }
 
 #[cfg(test)]

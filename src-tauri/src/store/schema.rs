@@ -39,11 +39,72 @@ CREATE INDEX work_entries_start ON work_entries (start_ms);",
   done_at    TEXT
 );",
     },
+    // S-07: "To do" picks. One row per pick; own entries take their ticked
+    // state from `own_tasks.done_at`, GitLab entries keep their own tick and a
+    // reference/title snapshot. `closed_at` is the day roll-over, `removed_at`
+    // the user's removal; at most one live row per item.
+    Migration {
+        version: 3,
+        sql: "CREATE TABLE todo_items (
+  id           INTEGER PRIMARY KEY,
+  source       TEXT NOT NULL CHECK (source IN ('own','gitlab')),
+  own_task_id  INTEGER REFERENCES own_tasks(id),
+  gitlab_kind  TEXT CHECK (gitlab_kind IN ('issue','mergeRequest')),
+  gitlab_ref   TEXT,
+  gitlab_title TEXT,
+  gitlab_url   TEXT,
+  picked_on    TEXT NOT NULL,
+  picked_at    TEXT NOT NULL,
+  ticked_at    TEXT,
+  ticked_by    TEXT CHECK (ticked_by IN ('user','source')),
+  removed_at   TEXT,
+  closed_at    TEXT,
+  CHECK (
+    (source = 'own' AND own_task_id IS NOT NULL
+      AND gitlab_kind IS NULL AND gitlab_ref IS NULL
+      AND gitlab_title IS NULL AND gitlab_url IS NULL
+      AND ticked_at IS NULL AND ticked_by IS NULL)
+    OR
+    (source = 'gitlab' AND own_task_id IS NULL
+      AND gitlab_kind IS NOT NULL AND gitlab_ref IS NOT NULL
+      AND gitlab_title IS NOT NULL
+      AND ((ticked_at IS NULL) = (ticked_by IS NULL)))
+  )
+);
+CREATE UNIQUE INDEX todo_items_live_own
+  ON todo_items (own_task_id)
+  WHERE own_task_id IS NOT NULL AND removed_at IS NULL AND closed_at IS NULL;
+CREATE UNIQUE INDEX todo_items_live_gitlab
+  ON todo_items (gitlab_kind, gitlab_ref)
+  WHERE gitlab_ref IS NOT NULL AND removed_at IS NULL AND closed_at IS NULL;",
+    },
+    // S-07 review fix: the GitLab account a GitLab entry was picked under, as
+    // the opaque key from `gitlab::account_key` (a hash, never a hostname or a
+    // login). Reconcile touches only entries of the account its list came
+    // from. NULL on own entries and on GitLab entries picked before v4, which
+    // any account's list reconciles.
+    Migration {
+        version: 4,
+        sql: "ALTER TABLE todo_items ADD COLUMN gitlab_account TEXT;",
+    },
+    // S-09: days off. One row per local date (`YYYY-MM-DD`); un-marking deletes
+    // the row. A flag, not a user record. (Planned as v3; renumbered to v5 when
+    // merged after S-07's v3/v4.)
+    Migration {
+        version: 5,
+        sql: "CREATE TABLE days_off (
+  day           TEXT PRIMARY KEY
+                CHECK (day GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  created_at_ms INTEGER NOT NULL
+) WITHOUT ROWID;",
+    },
     // S-03: hidden GitLab issues. No titles, URLs, references or comment text:
     // ids, scoped labels and timestamps only. A NULL `changed_reason` is a
     // hidden issue; a reason is a visible issue carrying a "changed" mark.
+    // (Planned as v3; renumbered to v6 when merged after S-07's v3/v4 and
+    // S-09's v5.)
     Migration {
-        version: 3,
+        version: 6,
         sql: "CREATE TABLE hidden_issues (
   host                TEXT    NOT NULL,
   issue_id            INTEGER NOT NULL,

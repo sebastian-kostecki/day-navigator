@@ -336,9 +336,9 @@ No existing data to migrate. The first start after this change creates an empty 
 
 #### Automated
 
-- [x] 4.1 Health and store tests pass: `cargo test` in `src-tauri/`
-- [x] 4.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo audit`
-- [x] 4.3 UI gates still pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 4.1 Health and store tests pass: `cargo test` in `src-tauri/` — 2811847
+- [x] 4.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo audit` — 2811847
+- [x] 4.3 UI gates still pass: `npm run lint`, `npm run format:check`, `npm run build` — 2811847
 
 #### Manual
 

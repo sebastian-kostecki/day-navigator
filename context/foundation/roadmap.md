@@ -45,15 +45,15 @@ One developer on one Windows 11 machine works for a company (issues in a work Gi
 | F-01 | app-data-store          | (foundation) app-owned data survives close, restart and crash                          | —             | NFR Trwałość czasu pracy, Constraints      | done |
 | F-02 | read-only-cli-runner    | (foundation) logged-in `glab`/`gh` run read-only, with classified result states        | —             | Access Control Changes, NFR Nigdy pusta lista | done |
 | S-01 | gitlab-assigned-list    | see assigned GitLab issues and MRs, or a calm "unavailable" state without VPN          | F-02          | FR-001, FR-015, FR-016, US-01              | done |
-| S-02 | gitlab-visibility-filter| choose which assigned GitLab items the list shows                                      | S-01          | FR-002                                    | proposed |
-| S-03 | hide-and-resurface      | hide an issue and get it back when its status changes or someone else comments         | S-01, F-01    | FR-003, US-02                             | proposed |
-| S-04 | new-assignment-notify   | get a Windows notification for every new assigned issue or MR                          | S-01, F-01    | FR-004, NFR Świeżość, NFR Lekkość w tle    | proposed |
+| S-02 | gitlab-visibility-filter| choose which assigned GitLab items the list shows                                      | S-01          | FR-002                                    | ready |
+| S-03 | hide-and-resurface      | hide an issue and get it back when its status changes or someone else comments         | S-01, F-01    | FR-003, US-02                             | ready |
+| S-04 | new-assignment-notify   | get a Windows notification for every new assigned issue or MR                          | S-01, F-01    | FR-004, NFR Świeżość, NFR Lekkość w tle    | ready |
 | S-05 | github-assigned-issues  | see open GitHub issues assigned to them from the repositories listed in settings       | F-02          | FR-005, FR-015                            | blocked  |
 | S-06 | own-tasks               | add, edit and complete their own tasks in the Work or Private space                    | F-01          | FR-006, FR-007, FR-008, FR-010            | done     |
-| S-07 | todo-list               | pick today's items from the lists into "To do", tick them, carry the rest to tomorrow  | S-01, S-06    | FR-011, FR-012, US-01                     | proposed |
+| S-07 | todo-list               | pick today's items from the lists into "To do", tick them, carry the rest to tomorrow  | S-01, S-06    | FR-011, FR-012, US-01                     | ready |
 | S-08 | work-timer              | start and stop work time from an always-visible counter and correct entries            | F-01          | FR-013, FR-017, NFR Trwałość czasu pracy  | done |
-| S-09 | work-norm-report        | see day and month sums and how far the month is from the norm                          | S-08          | FR-014                                    | proposed |
-| S-10 | timer-reminders         | get reminded when the counter runs too long or is not running on a workday             | S-08          | FR-018                                    | proposed |
+| S-09 | work-norm-report        | see day and month sums and how far the month is from the norm                          | S-08          | FR-014                                    | ready |
+| S-10 | timer-reminders         | get reminded when the counter runs too long or is not running on a workday             | S-08          | FR-018                                    | ready |
 
 ## Streams
 
@@ -129,7 +129,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** The filter applies to the list only; notifications deliberately bypass it (FR-004), so S-04 must not reuse the filtered set.
-- **Status:** proposed
+- **Status:** ready
 
 ### S-03: Hide an issue and resurface it on change
 
@@ -141,7 +141,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Needs a stored snapshot of each hidden item to compare against. The user's own comments must not count, which depends on knowing the logged-in identity.
-- **Status:** proposed
+- **Status:** ready
 
 ### S-04: Notification for new assignments
 
@@ -154,7 +154,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - Default refresh frequency (must meet ≤ 15 min; PRD Open Question #3) — Owner: user. Block: no.
 - **Risk:** Background refresh is the first always-on work in the app; it must stay light and must not turn a reconnected VPN into a burst of notifications.
-- **Status:** proposed
+- **Status:** ready
 
 ### S-05: Assigned GitHub issues in "Projects (GitHub)"
 
@@ -191,7 +191,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** It completes US-01. GitHub items join once S-05 is unblocked, so the GitHub decision does not hold up the daily flow.
-- **Status:** proposed
+- **Status:** ready
 
 ### S-08: Work-time counter
 
@@ -216,7 +216,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** The core calculation behind a primary success criterion; it lives in the backend and is unit-tested on invented months (holidays, days off, partial weeks).
-- **Status:** proposed
+- **Status:** ready
 
 ### S-10: Timer reminders
 
@@ -229,24 +229,24 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - Default hour for the "not running" reminder and default "running too long" threshold (10 h was proposed; PRD Open Question #3) — Owner: user. Block: no.
 - **Risk:** Reminders depend on the workday rule shared with S-09; if S-09 lands first, they reuse its days-off list.
-- **Status:** proposed
+- **Status:** ready
 
 ## Backlog Handoff
 
 | Roadmap ID | Change ID                | Suggested issue title                                   | Ready for `/10x-plan` | Notes |
 | ---------- | ------------------------ | ------------------------------------------------------- | --------------------- | ----- |
-| F-01       | app-data-store           | Durable app-owned data store                            | yes                   | Run `/10x-plan app-data-store` |
+| F-01       | app-data-store           | Durable app-owned data store                            | no                    | Done; archived 2026-11-23 |
 | F-02       | read-only-cli-runner     | Read-only runner for glab/gh with result states         | no                    | Done; archived 2026-11-23 |
-| S-01       | gitlab-assigned-list     | "Work (GitLab)" view: assigned issues and MRs           | yes                   | Run `/10x-plan gitlab-assigned-list`; the north star |
-| S-02       | gitlab-visibility-filter | Filter visible GitLab items                             | no                    | Waits on S-01 |
-| S-03       | hide-and-resurface       | Hide issues; resurface on status change or comment      | no                    | Waits on S-01, F-01 |
-| S-04       | new-assignment-notify    | Notify on new assigned issues and MRs                   | no                    | Waits on S-01, F-01 |
+| S-01       | gitlab-assigned-list     | "Work (GitLab)" view: assigned issues and MRs           | no                    | Done; archived 2026-11-23 |
+| S-02       | gitlab-visibility-filter | Filter visible GitLab items                             | yes                   | Run `/10x-plan gitlab-visibility-filter` |
+| S-03       | hide-and-resurface       | Hide issues; resurface on status change or comment      | yes                   | Run `/10x-plan hide-and-resurface` |
+| S-04       | new-assignment-notify    | Notify on new assigned issues and MRs                   | yes                   | Run `/10x-plan new-assignment-notify` |
 | S-05       | github-assigned-issues   | "Projects (GitHub)" view: assigned open issues          | no                    | Blocked on Open Roadmap Question #1 |
-| S-06       | own-tasks                | Own tasks in Work/Private; remove vault task screen     | yes                   | Run `/10x-plan own-tasks` |
-| S-07       | todo-list                | "To do" list with limit and carry-over                  | no                    | Waits on S-01, S-06 |
-| S-08       | work-timer               | Durable work-time counter with corrections              | yes                   | Run `/10x-plan work-timer` |
-| S-09       | work-norm-report         | Work-norm report (sums, deviation, needed per day)      | no                    | Waits on S-08 |
-| S-10       | timer-reminders          | Reminders for a long-running or missing counter         | no                    | Waits on S-08 |
+| S-06       | own-tasks                | Own tasks in Work/Private; remove vault task screen     | no                    | Done; archived 2026-11-23 |
+| S-07       | todo-list                | "To do" list with limit and carry-over                  | yes                   | Run `/10x-plan todo-list` |
+| S-08       | work-timer               | Durable work-time counter with corrections              | no                    | Done; archived 2026-11-23 |
+| S-09       | work-norm-report         | Work-norm report (sums, deviation, needed per day)      | yes                   | Run `/10x-plan work-norm-report` |
+| S-10       | timer-reminders          | Reminders for a long-running or missing counter         | yes                   | Run `/10x-plan timer-reminders` |
 
 ## Open Roadmap Questions
 

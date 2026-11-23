@@ -1,7 +1,7 @@
 ---
 change_id: todo-list
 title: Todo list
-status: implementing
+status: implemented
 created: 2026-11-23
 updated: 2026-11-23
 archived_at: null

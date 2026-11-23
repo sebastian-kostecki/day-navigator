@@ -42,7 +42,7 @@ One developer on one Windows 11 machine works for a company (issues in a work Gi
 
 | ID   | Change ID               | Outcome (user can …)                                                                  | Prerequisites | PRD refs                                  | Status   |
 | ---- | ----------------------- | ------------------------------------------------------------------------------------- | ------------- | ----------------------------------------- | -------- |
-| F-01 | app-data-store          | (foundation) app-owned data survives close, restart and crash                          | —             | NFR Trwałość czasu pracy, Constraints      | in-progress |
+| F-01 | app-data-store          | (foundation) app-owned data survives close, restart and crash                          | —             | NFR Trwałość czasu pracy, Constraints      | done |
 | F-02 | read-only-cli-runner    | (foundation) logged-in `glab`/`gh` run read-only, with classified result states        | —             | Access Control Changes, NFR Nigdy pusta lista | ready |
 | S-01 | gitlab-assigned-list    | see assigned GitLab issues and MRs, or a calm "unavailable" state without VPN          | F-02          | FR-001, FR-015, FR-016, US-01              | proposed |
 | S-02 | gitlab-visibility-filter| choose which assigned GitLab items the list shows                                      | S-01          | FR-002                                    | proposed |
@@ -90,7 +90,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Sequenced first because the quality goal and the "time is never lost" guardrail make every data slice unsafe without it. Kept to the storage contract only; each slice defines its own records.
-- **Status:** in-progress
+- **Status:** done
 
 ### F-02: Read-only CLI runner
 
@@ -274,3 +274,4 @@ Entries below come from this milestone's previous decomposition (archived at `co
 - **F-03: (foundation) a private GitHub repository exists, every change is built and tested in CI against invented data only, and a merge to `main` publishes a Windows installer as a GitHub Release named "Nawigator dnia" only when it bumps the version in `src-tauri/Cargo.toml`; every other merge only runs CI.** — Archived 2026-11-21 → `context/archive/2026-11-20-ci-release-pipeline/`. Lesson: —.
 - **F-02: (foundation) the app lives in the tray with a status icon (OK / source error / not running), and any source failure (missing configured path, failed command, logged-out `glab`/`gh`) is reported there and as a Windows notice within 1 minute; screens show the error instead of an empty list.** — Archived 2026-11-21 → `context/archive/2026-11-20-source-health-status/`. Lesson: —.
 - **S-05: User can create a task from the template in the work vault and change its status from the app.** — Archived 2026-11-21 → `context/archive/2026-11-20-work-tasks-from-template/`. Lesson: —.
+- **F-01: (foundation) the app keeps its own data (own tasks, the "To do" list, hidden-issue snapshots, work-time entries) in its app data dir. A write is never half-applied, and the data survives closing the app, restarting Windows and a crash — proven by tests on invented data.** — Archived 2026-11-23 → `context/archive/2026-11-23-app-data-store/`. Lesson: —.

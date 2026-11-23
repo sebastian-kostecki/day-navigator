@@ -1,10 +1,10 @@
 ---
 change_id: app-data-store
 title: App data store
-status: impl_reviewed
+status: archived
 created: 2026-11-23
 updated: 2026-11-23
-archived_at: null
+archived_at: 2026-11-23T08:00:47Z
 ---
 
 ## Notes

@@ -53,6 +53,30 @@ fn nine_days_keep_the_seven_newest() {
 }
 
 #[test]
+fn future_dated_backups_never_push_out_todays_copy() {
+    let (_tmp, dir) = test_store_dir();
+    let backups = dir.join("backups");
+    fs::create_dir_all(&backups).unwrap();
+    // A clock that was once set forward left seven backups from the future.
+    let future: Vec<String> = (100..107).map(|i| backup_name(day(i))).collect();
+    for name in &future {
+        fs::write(backups.join(name), "invented placeholder").unwrap();
+    }
+    // A database must exist, or the dated backups make it a lost file.
+    Connection::open(dir.join(DB_FILE))
+        .unwrap()
+        .execute_batch("CREATE TABLE seed(x);")
+        .unwrap();
+
+    drop(Store::open(&dir, &[V1], day(0)).unwrap());
+
+    let mut expected = future.clone();
+    expected.push(backup_name(day(0)));
+    expected.sort();
+    assert_eq!(names(&backups), expected);
+}
+
+#[test]
 fn second_call_on_same_date_adds_nothing() {
     let (_tmp, dir) = test_store_dir();
     let mut store = Store::open(&dir, &[V1], day(0)).unwrap();

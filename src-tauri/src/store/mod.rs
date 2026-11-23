@@ -13,6 +13,7 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
 use chrono::NaiveDate;
+use rusqlite::config::DbConfig;
 use rusqlite::{Connection, Transaction, TransactionBehavior};
 
 pub use error::StoreError;
@@ -36,13 +37,9 @@ fn has_dated_backup(dir: &Path) -> bool {
     let Ok(entries) = fs::read_dir(dir.join(BACKUP_DIR)) else {
         return false;
     };
-    entries.flatten().any(|e| {
-        let name = e.file_name();
-        let name = name.to_string_lossy();
-        name.strip_prefix("day-navigator-")
-            .and_then(|r| r.strip_suffix(".db"))
-            .is_some_and(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").is_ok())
-    })
+    entries
+        .flatten()
+        .any(|e| backup::dated(&e.file_name().to_string_lossy()).is_some())
 }
 
 impl Store {
@@ -81,6 +78,9 @@ impl Store {
         }
 
         let conn = Connection::open(&path)?;
+        // Until every check passes, closing must not checkpoint WAL frames
+        // (left by a crash or a newer app) into a file that gets refused.
+        conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, true)?;
         conn.busy_timeout(Duration::from_secs(5))?;
 
         let check: String = conn.query_row("PRAGMA quick_check", [], |r| r.get(0))?;
@@ -99,6 +99,7 @@ impl Store {
             });
         }
 
+        conn.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, false)?;
         let mode: String = conn.query_row("PRAGMA journal_mode=WAL", [], |r| r.get(0))?;
         if !mode.eq_ignore_ascii_case("wal") {
             return Err(StoreError::Io {
@@ -145,7 +146,9 @@ impl Store {
     }
 
     /// Commits only if `f` returns Ok; any Err (or panic) rolls back the whole
-    /// transaction.
+    /// transaction. Release builds use `panic = "abort"`, so there a panic
+    /// kills the process and SQLite discards the uncommitted transaction at
+    /// the next open (proven by `tests/store_crash.rs`).
     pub fn write<T, E: From<StoreError>>(
         &mut self,
         f: impl FnOnce(&Transaction<'_>) -> Result<T, E>,
@@ -172,7 +175,7 @@ impl Store {
 
 /// The store shared by the commands of later slices and the health round.
 /// Holds the open store (opened lazily) and keeps no error: a failed open is
-/// logged (kind only) and the status recomputed on each call.
+/// logged at debug level (kind only) and the status recomputed on each call.
 ///
 /// The health round holds the lock during reopen and backup, so store commands
 /// must be `async` and call `with_store` inside `spawn_blocking`.
@@ -216,7 +219,9 @@ impl StoreHandle {
                 match opened {
                     Ok(store) => Ok(slot.insert(store)),
                     Err(e) => {
-                        log::warn!("store: open failed: {}", e.kind());
+                        // Debug only: the health round retries every 30 s and
+                        // the runtime already logs the state transition.
+                        log::debug!("store: open failed: {}", e.kind());
                         Err(e)
                     }
                 }

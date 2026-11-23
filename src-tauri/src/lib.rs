@@ -182,12 +182,10 @@ pub fn run() {
             app.manage(VaultState::new(state));
             app.manage(TasksState(settings_path.clone()));
             let data_dir = app.path().app_data_dir().ok();
+            // Not opened here: the first health round opens it on the check
+            // thread, so `quick_check`, backup and migrations never delay the
+            // main thread.
             app.manage(store::StoreHandle::new(data_dir));
-            // One open at startup; a failure is logged by the handle, never
-            // fatal, and the health round retries it.
-            let _ = app
-                .state::<store::StoreHandle>()
-                .status(Local::now().date_naive());
             let wake_rx = runtime::build_tray(app)?;
             runtime::start(app.handle(), settings_path, wake_rx);
             Ok(())

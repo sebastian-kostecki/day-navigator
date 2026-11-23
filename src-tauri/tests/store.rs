@@ -6,6 +6,7 @@ use chrono::NaiveDate;
 use common::test_store_dir;
 use day_navigator_lib::store::{DB_FILE, Migration, Store, StoreError, schema};
 use rusqlite::Connection;
+use rusqlite::config::DbConfig;
 use sha2::{Digest, Sha256};
 
 const V1: Migration = Migration {
@@ -133,6 +134,42 @@ fn newer_schema_is_refused_and_file_untouched() {
         })
     ));
     assert_eq!(digest(&path), before);
+}
+
+#[test]
+fn newer_wal_store_with_pending_frames_is_refused_and_file_untouched() {
+    let (_tmp, dir) = test_store_dir();
+    fs::create_dir_all(&dir).unwrap();
+    let path = dir.join(DB_FILE);
+    {
+        // A newer app's WAL file left with frames not yet checkpointed (for
+        // example after Windows killed the app at shutdown).
+        let c = Connection::open(&path).unwrap();
+        c.query_row("PRAGMA journal_mode=WAL", [], |r| r.get::<_, String>(0))
+            .unwrap();
+        c.execute_batch("PRAGMA wal_autocheckpoint=0;").unwrap();
+        c.set_db_config(DbConfig::SQLITE_DBCONFIG_NO_CKPT_ON_CLOSE, true)
+            .unwrap();
+        c.execute_batch("CREATE TABLE items(id INTEGER); PRAGMA user_version = 5;")
+            .unwrap();
+    }
+    let wal = dir.join(format!("{DB_FILE}-wal"));
+    assert!(
+        fs::metadata(&wal).unwrap().len() > 0,
+        "fixture needs WAL frames"
+    );
+    let before = digest(&path);
+
+    let r = Store::open(&dir, &[V1], today());
+    assert!(matches!(
+        r,
+        Err(StoreError::NewerSchema {
+            found: 5,
+            supported: 1
+        })
+    ));
+    drop(r);
+    assert_eq!(digest(&path), before, "refusal must not checkpoint the WAL");
 }
 
 #[test]

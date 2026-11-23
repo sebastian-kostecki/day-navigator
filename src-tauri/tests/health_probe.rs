@@ -191,14 +191,17 @@ fn open_store_is_ok_as_app_data() {
 fn damaged_file_is_an_error_naming_the_data_dir_and_recovers_from_backup() {
     let tmp = tempfile::tempdir().unwrap();
 
-    // A valid database to restore from, made by a first run elsewhere.
+    // A daily backup to restore from, written by a first run elsewhere.
     let good_dir = tmp.path().join("good");
     assert!(
         StoreHandle::new(Some(good_dir.clone()))
             .status(day())
             .is_ok()
     );
-    let good = good_dir.join(DB_FILE);
+    let good = good_dir
+        .join("backups")
+        .join(format!("day-navigator-{}.db", day()));
+    assert!(good.is_file(), "first run must leave today's backup");
 
     let data = tmp.path().join("data");
     fs::create_dir_all(&data).unwrap();
@@ -228,7 +231,8 @@ fn damaged_file_is_an_error_naming_the_data_dir_and_recovers_from_backup() {
     let json = serde_json::to_string(&err).unwrap();
     assert!(!json.contains(&*data.to_string_lossy()), "{json}");
 
-    // Replace the file with a valid one: the next status recovers.
+    // Restore as AGENTS.md says (copy a backup over the file; this data dir
+    // has no -wal/-shm to delete): the next status recovers.
     fs::copy(&good, &db).unwrap();
     assert_eq!(store_status(&handle, day()).state, SourceState::Ok);
 }

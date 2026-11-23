@@ -5,7 +5,7 @@
 
 use std::io::{BufRead, BufReader};
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -22,11 +22,27 @@ pub enum KillAt {
     AfterDelay(Duration),
 }
 
+/// Upper bound for commits a writer makes in one run, so a writer whose
+/// parent died (IDE stop, runner timeout) stops on its own. Far above any
+/// kill point.
+pub const MAX_WRITER_COMMITS: u64 = 2_000;
+
+/// Kills and reaps the writer on every exit path, including a panic or an
+/// early return in the parent.
+struct KillOnDrop(Child);
+
+impl Drop for KillOnDrop {
+    fn drop(&mut self) {
+        self.0.kill().ok();
+        self.0.wait().ok();
+    }
+}
+
 /// Runs `test_name` (an ignored writer test in the current binary) against
 /// `dir`, kills it per `kill` and returns the last reported commit number
 /// (0 if none was reported).
 pub fn run_writer_until(test_name: &str, dir: &Path, kill: KillAt) -> u64 {
-    let mut child = Command::new(std::env::current_exe().unwrap())
+    let child = Command::new(std::env::current_exe().unwrap())
         .args([
             test_name,
             "--exact",
@@ -40,8 +56,9 @@ pub fn run_writer_until(test_name: &str, dir: &Path, kill: KillAt) -> u64 {
         .stderr(Stdio::null())
         .spawn()
         .expect("spawn writer process");
+    let mut child = KillOnDrop(child);
 
-    let stdout = child.stdout.take().unwrap();
+    let stdout = child.0.stdout.take().unwrap();
     let (tx, rx) = mpsc::channel::<u64>();
     let reader = thread::spawn(move || {
         for line in BufReader::new(stdout).lines() {
@@ -77,8 +94,6 @@ pub fn run_writer_until(test_name: &str, dir: &Path, kill: KillAt) -> u64 {
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {
                 if matches!(kill, KillAt::AfterCommits(_)) {
-                    child.kill().ok();
-                    child.wait().ok();
                     panic!("writer reported too few commits within 60 s");
                 }
                 break;
@@ -89,8 +104,8 @@ pub fn run_writer_until(test_name: &str, dir: &Path, kill: KillAt) -> u64 {
         }
     }
 
-    child.kill().ok();
-    child.wait().expect("wait for killed writer");
+    child.0.kill().ok();
+    child.0.wait().expect("wait for killed writer");
     reader.join().ok();
     // Lines printed before the kill but not yet consumed also count.
     while let Ok(n) = rx.try_recv() {

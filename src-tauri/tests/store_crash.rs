@@ -8,7 +8,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use chrono::NaiveDate;
-use common::crash::{KillAt, WRITER_DIR_ENV, run_writer_until};
+use common::crash::{KillAt, MAX_WRITER_COMMITS, WRITER_DIR_ENV, run_writer_until};
 use common::test_store_dir;
 use day_navigator_lib::store::{Migration, Store, StoreError};
 
@@ -39,7 +39,7 @@ fn writer_process() {
         })
         .unwrap();
     let payload = vec![0xA5u8; 64 * 1024];
-    loop {
+    for _ in 0..MAX_WRITER_COMMITS {
         n += 1;
         store
             .write::<_, StoreError>(|tx| {

@@ -5,6 +5,7 @@ import {
   addWorkEntry,
   listWorkEntries,
   removeWorkEntry,
+  setDayOff as setDayOffCall,
   updateWorkEntry,
   workTimeErrorMessage,
 } from "./api";
@@ -23,6 +24,7 @@ export type EntriesState =
 export function useWorkEntries(day: string) {
   const [result, setResult] = useState<{ day: string; value: Result } | null>(null);
   const [busyIds, setBusyIds] = useState<Set<number>>(new Set());
+  const [dayOffBusy, setDayOffBusy] = useState(false);
   // Bumped by retry to redo the subscribe and the load together.
   const [attempt, setAttempt] = useState(0);
 
@@ -116,10 +118,21 @@ export function useWorkEntries(day: string) {
     [withBusy],
   );
   const remove = useCallback((id: number) => withBusy(id, () => removeWorkEntry(id)), [withBusy]);
+  const setDayOff = useCallback(
+    async (off: boolean): Promise<unknown> => {
+      setDayOffBusy(true);
+      try {
+        return await withBusy(null, () => setDayOffCall(day, off));
+      } finally {
+        setDayOffBusy(false);
+      }
+    },
+    [day, withBusy],
+  );
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
   const entries: EntriesState =
     result !== null && result.day === day ? result.value : { state: "loading" };
 
-  return { entries, add, update, remove, busyIds, retry };
+  return { entries, add, update, remove, setDayOff, dayOffBusy, busyIds, retry };
 }

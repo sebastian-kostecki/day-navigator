@@ -1,4 +1,4 @@
-import { formatClock, formatDuration } from "./format";
+import { formatClock, formatDuration, formatSigned } from "./format";
 import { useWorkTimer } from "./useWorkTimer";
 
 export function WorkTimerHeader() {
@@ -31,9 +31,20 @@ export function WorkTimerHeader() {
       ? Math.max(0, Math.min(nowMs, status.dayEndMs) - status.runningFromMs)
       : 0);
 
+  // Same extrapolation from the status's own `asOfMs`, capped at the day end.
+  const deviation =
+    status.monthDeviationMs +
+    (status.running !== null ? Math.max(0, Math.min(nowMs, status.dayEndMs) - status.asOfMs) : 0);
+
   return (
     <div className="work-timer">
       <span className="work-timer-total">Dziś {formatDuration(total)}</span>
+      <span
+        className="work-timer-month"
+        title="Odchylenie miesiąca od normy (8 h × dni robocze do dziś)"
+      >
+        Miesiąc {formatSigned(deviation)}
+      </span>
       <button
         type="button"
         className="work-timer-toggle"

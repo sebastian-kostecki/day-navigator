@@ -415,8 +415,29 @@ fieldset {
   font-variant-numeric: tabular-nums;
 }
 
+.work-timer-month {
+  font-variant-numeric: tabular-nums;
+}
+
 .work-timer-error {
   color: #b00020;
+}
+
+.day-off {
+  margin-bottom: 16px;
+}
+
+.month-report {
+  margin-bottom: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+.month-report p {
+  margin: 4px 0;
+}
+
+.day-off-link {
+  margin-right: 6px;
 }
 
 /* Work-time view */

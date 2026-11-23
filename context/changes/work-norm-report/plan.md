@@ -361,8 +361,8 @@ A month is at most a few hundred entries and about 23 days-off rows. The report 
 
 #### Automated
 
-- [x] 2.1 `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` pass
-- [x] 2.2 `npm run build`, `npm run lint` and `npm run format:check` pass
+- [x] 2.1 `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` pass — 74aabae
+- [x] 2.2 `npm run build`, `npm run lint` and `npm run format:check` pass — 74aabae
 
 #### Manual
 
@@ -372,8 +372,8 @@ A month is at most a few hundred entries and about 23 days-off rows. The report 
 
 #### Automated
 
-- [ ] 3.1 `npm run build`, `npm run lint`, `npm run format:check` pass
-- [ ] 3.2 `cargo test` still passes
+- [x] 3.1 `npm run build`, `npm run lint`, `npm run format:check` pass
+- [x] 3.2 `cargo test` still passes
 
 #### Manual
 

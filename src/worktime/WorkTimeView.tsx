@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { ErrorState } from "../components/ErrorState";
 import { workTimeErrorMessage } from "./api";
 import { formatClock, formatDuration } from "./format";
+import { MonthReport } from "./MonthReport";
 import type { EntryRow } from "./types";
+import { useMonthReport } from "./useMonthReport";
 import { useWorkEntries } from "./useWorkEntries";
 
 function pad(n: number): string {
@@ -188,8 +190,18 @@ function EntryItem(props: {
 
 export default function WorkTimeView() {
   const [day, setDay] = useState(localToday);
-  const { entries, add, update, remove, busyIds, retry } = useWorkEntries(day);
+  const { entries, add, update, remove, setDayOff, dayOffBusy, busyIds, retry } =
+    useWorkEntries(day);
+  const { report, retry: retryReport } = useMonthReport(day);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  // A refusal belongs to the day it happened on.
+  const [dayOffError, setDayOffError] = useState<{ day: string; message: string } | null>(null);
+
+  async function toggleDayOff(off: boolean) {
+    setDayOffError(null);
+    const err = await setDayOff(off);
+    if (err) setDayOffError({ day, message: workTimeErrorMessage(err) });
+  }
 
   // `runningFromMs` is set only while the running entry counts in a day that
   // has not ended, so this ticks on today's view (and on a view left open past
@@ -286,10 +298,37 @@ export default function WorkTimeView() {
     );
   }
 
+  const dayOffControl =
+    entries.state === "loaded" && entries.data.dayKind !== "weekend" ? (
+      <div className="day-off">
+        <label>
+          <input
+            type="checkbox"
+            checked={entries.data.dayKind === "dayOff"}
+            disabled={dayOffBusy}
+            onChange={(e) => void toggleDayOff(e.currentTarget.checked)}
+          />{" "}
+          Dzień wolny
+        </label>
+        {dayOffError?.day === day && (
+          <p className="task-error" role="alert">
+            {dayOffError.message}
+          </p>
+        )}
+      </div>
+    ) : null;
+
   return (
     <main className="container">
       <h1>Czas pracy</h1>
       {picker}
+      {dayOffControl}
+      <MonthReport
+        state={report}
+        month={day.slice(0, 7)}
+        onRetry={retryReport}
+        onPickDay={setDay}
+      />
       {body}
     </main>
   );

@@ -9,7 +9,7 @@ use serde::{Serialize, Serializer};
 
 use crate::vault::Space;
 
-pub use probe::{gitlab_status, probe, store_status, unresolved_config_dir};
+pub use probe::{gitlab_status, probe, reminders_status, store_status, unresolved_config_dir};
 
 /// Longest tooltip the Windows tray accepts, in UTF-16 units (`szTip` holds 128
 /// including the terminator).
@@ -27,6 +27,8 @@ pub enum SourceId {
     AppData,
     /// Assigned GitLab issues and merge requests ("GitLab").
     Gitlab,
+    /// The `reminders` block of `settings.json` ("Przypomnienia").
+    Reminders,
 }
 
 impl SourceId {
@@ -37,6 +39,7 @@ impl SourceId {
             SourceId::Vault(s) => format!("vault:{s}"),
             SourceId::Exclusions(s) => format!("exclusions:{s}"),
             SourceId::AppData => "app-data".to_string(),
+            SourceId::Reminders => "reminders".to_string(),
         }
     }
 }
@@ -410,6 +413,20 @@ mod tests {
             serde_json::to_string(&SourceId::AppData).unwrap(),
             "\"app-data\""
         );
+    }
+
+    #[test]
+    fn reminders_source_key_and_notice_line() {
+        assert_eq!(SourceId::Reminders.key(), "reminders");
+        let ok = vec![st(SourceId::Reminders, "Przypomnienia", SourceState::Ok)];
+        let bad = vec![err(
+            SourceId::Reminders,
+            "Przypomnienia",
+            "SettingsInvalid",
+            "m",
+        )];
+        let n = notice_for(&transitions(&ok, &bad)).unwrap();
+        assert_eq!(n.body, "Przypomnienia: nieprawidłowe ustawienia");
     }
 
     #[test]

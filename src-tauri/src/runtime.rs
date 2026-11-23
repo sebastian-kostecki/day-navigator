@@ -231,12 +231,13 @@ fn publish(app: &AppHandle, state: &HealthState) {
     emit_snapshot(app, &snap);
 }
 
-fn toast(app: &AppHandle, title: &str, body: &str) {
+/// Sends a toast unless notices are gated off. `area` prefixes the log line.
+pub(crate) fn toast(app: &AppHandle, area: &str, title: &str, body: &str) {
     if !health::notices_allowed() {
         return;
     }
     if let Err(e) = app.notification().builder().title(title).body(body).show() {
-        log::warn!("health: toast failed: {e}");
+        log::warn!("{area}: toast failed: {e}");
     }
 }
 
@@ -257,6 +258,10 @@ fn probe_round(
     sources.push(health::store_status(store, today));
     // Absent until the first GitLab round has finished.
     sources.extend(gitlab);
+    // Omitted without a settings path: the Settings source reports that.
+    if let Some(p) = settings_path {
+        sources.push(health::reminders_status(p));
+    }
     (registry, sources)
 }
 
@@ -315,7 +320,7 @@ fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut 
     // Tray and panel first: the reliable channel never lags the toast.
     publish(app, &state);
     if let Some(notice) = health::notice_for(&transitions) {
-        toast(app, &notice.title, &notice.body);
+        toast(app, "health", &notice.title, &notice.body);
     }
     for t in &transitions {
         log::info!(
@@ -369,7 +374,7 @@ fn watchdog_loop(app: AppHandle) {
         publish(&app, &state);
         if stale {
             log::warn!("health: check loop stalled");
-            toast(&app, STALL_TITLE, "");
+            toast(&app, "health", STALL_TITLE, "");
         } else {
             log::info!("health: check loop resumed");
         }

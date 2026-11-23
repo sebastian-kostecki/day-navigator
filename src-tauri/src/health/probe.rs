@@ -7,7 +7,7 @@ use chrono::NaiveDate;
 
 use super::{SourceId, SourceState, SourceStatus};
 use crate::gitlab::{GitlabSnapshot, GitlabState};
-use crate::settings::load_settings;
+use crate::settings::{load_reminder_settings, load_settings};
 use crate::store::{StoreError, StoreHandle};
 use crate::vault::{Space, VaultError, VaultRegistry};
 
@@ -96,6 +96,27 @@ pub fn gitlab_status(snapshot: &GitlabSnapshot) -> Option<SourceStatus> {
         label: "GitLab".to_string(),
         state,
     })
+}
+
+/// Fixed text for an invalid `reminders` block. Names the accepted shape and
+/// never echoes the user's values.
+const REMINDERS_INVALID_PL: &str = "Blok „reminders” w settings.json jest nieprawidłowy: longRunningHours to liczba godzin 1–24 albo false, notRunningAfter to godzina „GG:MM” albo false.";
+
+/// The "Przypomnienia" source: Ok when the `reminders` block parses (also when
+/// it or the file is absent), otherwise `SettingsInvalid` with a fixed message.
+pub fn reminders_status(settings_path: &Path) -> SourceStatus {
+    let state = match load_reminder_settings(settings_path) {
+        Ok(_) => SourceState::Ok,
+        Err(_) => SourceState::Error {
+            kind: "SettingsInvalid".to_string(),
+            message: REMINDERS_INVALID_PL.to_string(),
+        },
+    };
+    SourceStatus {
+        id: SourceId::Reminders,
+        label: "Przypomnienia".to_string(),
+        state,
+    }
 }
 
 /// Polish panel text for a store error. `dir` is the data folder, if known.
@@ -320,6 +341,42 @@ mod tests {
                 message
             }
         );
+    }
+
+    #[test]
+    fn reminders_status_follows_the_block() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("settings.json");
+        // No file yet: defaults.
+        let s = reminders_status(&path);
+        assert_eq!(s.id, SourceId::Reminders);
+        assert_eq!(s.label, "Przypomnienia");
+        assert_eq!(s.state, SourceState::Ok);
+
+        std::fs::write(&path, r#"{"version":1,"spaces":{}}"#).unwrap();
+        assert_eq!(reminders_status(&path).state, SourceState::Ok);
+
+        std::fs::write(
+            &path,
+            r#"{"version":1,"spaces":{},"reminders":{"longRunningHours":2,"notRunningAfter":false}}"#,
+        )
+        .unwrap();
+        assert_eq!(reminders_status(&path).state, SourceState::Ok);
+
+        std::fs::write(
+            &path,
+            r#"{"version":1,"spaces":{},"reminders":{"longRunningHours":99999,"notRunningAfter":"Sekret-Testowy"}}"#,
+        )
+        .unwrap();
+        let bad = reminders_status(&path);
+        assert_eq!(
+            bad.state,
+            SourceState::Error {
+                kind: "SettingsInvalid".to_string(),
+                message: REMINDERS_INVALID_PL.to_string(),
+            }
+        );
+        assert!(!REMINDERS_INVALID_PL.contains("99999"));
     }
 
     #[test]

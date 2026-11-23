@@ -253,19 +253,19 @@ None. There is no schema change. Existing `settings.json` files without a `remin
 
 #### Automated
 
-- [x] 1.1 Settings parsing tests pass for the reminders block
-- [x] 1.2 Reminder rule unit tests pass (slots, midnight, DST, day off, restart, sleep)
-- [x] 1.3 Facts query integration test passes
-- [x] 1.4 cargo fmt --check and cargo clippy pass
+- [x] 1.1 Settings parsing tests pass for the reminders block — 9161d08
+- [x] 1.2 Reminder rule unit tests pass (slots, midnight, DST, day off, restart, sleep) — 9161d08
+- [x] 1.3 Facts query integration test passes — 9161d08
+- [x] 1.4 cargo fmt --check and cargo clippy pass — 9161d08
 
 ### Phase 2: Reminder thread, shared toast and health source
 
 #### Automated
 
-- [ ] 2.1 Health tests pass for the Przypomnienia source
-- [ ] 2.2 Full cargo test suite passes
-- [ ] 2.3 cargo fmt --check and cargo clippy pass
-- [ ] 2.4 npm run lint, format:check and build pass
+- [x] 2.1 Health tests pass for the Przypomnienia source
+- [x] 2.2 Full cargo test suite passes
+- [x] 2.3 cargo fmt --check and cargo clippy pass
+- [x] 2.4 npm run lint, format:check and build pass
 
 #### Manual
 

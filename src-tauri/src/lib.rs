@@ -10,6 +10,7 @@ pub mod space;
 pub mod store;
 pub mod todo;
 pub mod vault;
+pub mod work_reminders;
 pub mod work_time;
 
 use std::sync::{Arc, RwLock};
@@ -182,6 +183,7 @@ pub fn run() {
             let gitlab_rx = gitlab_refresh::manage(app);
             let wake_rx = runtime::build_tray(app)?;
             runtime::start(app.handle(), settings_path.clone(), wake_rx);
+            work_reminders::start(app.handle(), settings_path.clone());
             // After `runtime::start`: the refresh thread wakes `HealthState`.
             gitlab_refresh::start(app.handle(), settings_path, gitlab_rx);
             Ok(())

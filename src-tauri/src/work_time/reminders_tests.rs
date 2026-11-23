@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use chrono::{NaiveDate, NaiveTime};
+use chrono::{NaiveDate, NaiveTime, TimeZone, Utc};
 use chrono_tz::Europe::Warsaw;
 
 use super::DayKind;
@@ -121,6 +121,20 @@ fn a_new_entry_starts_a_fresh_slot_sequence() {
     let second = running("2026-11-24", 2, "2026-11-23T20:00");
     assert!(step(&second, &s, "2026-11-24T05:59", &mut m).is_empty());
     assert_eq!(step(&second, &s, "2026-11-24T06:00", &mut m).len(), 1);
+}
+
+#[test]
+fn a_different_entry_counts_as_new_even_with_an_older_slot() {
+    let s = settings();
+    let mut m = ReminderMemory::default();
+    // Entry 1 sends its slot starting 20:00.
+    let first = running("2026-11-23", 1, "2026-11-23T10:00");
+    assert_eq!(step(&first, &s, "2026-11-23T20:00", &mut m).len(), 1);
+    // Entry 2's current slot started 19:00, before the one remembered for
+    // entry 1, yet it is another entry, so it fires.
+    let second = running("2026-11-23", 2, "2026-11-23T09:00");
+    assert_eq!(step(&second, &s, "2026-11-23T20:30", &mut m).len(), 1);
+    assert!(step(&second, &s, "2026-11-23T20:45", &mut m).is_empty());
 }
 
 #[test]
@@ -326,6 +340,32 @@ fn dst_gap_anchors_at_the_first_instant_after_the_gap() {
     assert_eq!(step(&f, &s, "2026-03-29T03:00", &mut m).len(), 1);
     assert!(step(&f, &s, "2026-03-29T03:59", &mut m).is_empty());
     assert_eq!(step(&f, &s, "2026-03-29T04:00", &mut m).len(), 1);
+}
+
+#[test]
+fn dst_fall_back_anchors_at_the_earlier_of_two_instants() {
+    // 2026-10-25: 02:30 happens twice in Warsaw, 00:30 UTC (CEST) and
+    // 01:30 UTC (CET). UTC instants keep the test free of that ambiguity.
+    let utc = |h: u32, m: u32| {
+        Utc.with_ymd_and_hms(2026, 10, 25, h, m, 0)
+            .unwrap()
+            .timestamp_millis()
+    };
+    let s = ReminderSettings {
+        not_running_after: NaiveTime::from_hms_opt(2, 30, 0),
+        ..settings()
+    };
+    let f = idle("2026-10-25", DayKind::Workday, false);
+    let mut m = ReminderMemory::default();
+    let mut at = |ms: i64| {
+        let (due, next) = due_reminders(&f, &s, ms, &Warsaw, &m);
+        m = next;
+        due.len()
+    };
+    assert_eq!(at(utc(0, 29)), 0);
+    assert_eq!(at(utc(0, 30)), 1);
+    assert_eq!(at(utc(1, 29)), 0);
+    assert_eq!(at(utc(1, 30)), 1);
 }
 
 #[test]

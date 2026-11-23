@@ -175,9 +175,9 @@ pub fn run() {
             };
             app.manage(VaultState::new(state));
             let data_dir = app.path().app_data_dir().ok();
-            // Not opened here: the first health round opens it on the check
-            // thread, so `quick_check`, backup and migrations never delay the
-            // main thread.
+            // Not opened here: the first health or reminder round opens it on
+            // its own thread, so `quick_check`, backup and migrations never
+            // delay the main thread.
             app.manage(store::StoreHandle::new(data_dir));
             // Managed before the health thread starts: its first round reads it.
             let gitlab_rx = gitlab_refresh::manage(app);

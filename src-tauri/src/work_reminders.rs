@@ -2,7 +2,9 @@
 //! block and the store, asks the pure rules in `work_time::reminders` what is
 //! due and sends the toasts. An invalid block skips the round (the health
 //! source "Przypomnienia" reports it); so does a store error ("Dane aplikacji"
-//! reports that). A failed spawn or a panic is only logged.
+//! reports that). A failed spawn is only logged. A panic is not caught: the
+//! release profile sets `panic = "abort"`, so it would end the app; the round
+//! has no known panic path (capped arithmetic, `earliest()` / `_opt` chrono).
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -13,6 +15,7 @@ use tauri::{AppHandle, Manager};
 use crate::runtime;
 use crate::settings::{ReminderSettings, load_reminder_settings};
 use crate::store::StoreHandle;
+use crate::work_time::WorkTimeError;
 use crate::work_time::reminders::{ReminderMemory, due_reminders, reminder_facts};
 
 const REMINDER_INTERVAL: Duration = Duration::from_secs(60);
@@ -55,9 +58,14 @@ fn reminder_round(app: &AppHandle, settings_path: &Option<PathBuf>, memory: &mut
     // The store lock is released here, before any toast.
     let facts = match facts {
         Ok(f) => f,
-        // An unopenable store is reported by the health round.
+        // An unopenable store is reported by the health round; a warning every
+        // minute would only repeat it.
+        Err(e @ WorkTimeError::Store(_)) => {
+            log::debug!("reminders: facts unavailable: {}", e.kind());
+            return;
+        }
         Err(e) => {
-            log::debug!("reminders: facts unavailable: {e}");
+            log::warn!("reminders: facts unavailable: {}", e.kind());
             return;
         }
     };

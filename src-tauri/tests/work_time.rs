@@ -1,5 +1,6 @@
 //! S-08 durability: work-time entries survive closing and reopening the real
-//! store, and removed entries stay as rows.
+//! store, and removed entries stay as rows. S-10: `reminder_facts` against a
+//! real temp store.
 
 mod common;
 
@@ -7,9 +8,10 @@ use chrono::NaiveDate;
 use chrono_tz::Europe::Warsaw;
 use common::test_store_dir;
 use day_navigator_lib::store::{Store, schema};
+use day_navigator_lib::work_time::reminders::reminder_facts;
 use day_navigator_lib::work_time::report;
 use day_navigator_lib::work_time::rules::resolve_local;
-use day_navigator_lib::work_time::{self, WorkTimeError};
+use day_navigator_lib::work_time::{self, DayKind, WorkTimeError};
 
 fn today() -> NaiveDate {
     NaiveDate::from_ymd_opt(2026, 11, 23).unwrap()
@@ -135,9 +137,6 @@ fn history_and_removed_rows_survive_reopening() {
 
 #[test]
 fn reminder_facts_report_the_running_entry_and_counted_work() {
-    use day_navigator_lib::work_time::DayKind;
-    use day_navigator_lib::work_time::reminders::reminder_facts;
-
     let (_tmp, dir) = test_store_dir();
     let now = t("2026-11-23T12:00");
     let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
@@ -173,8 +172,6 @@ fn reminder_facts_report_the_running_entry_and_counted_work() {
 
 #[test]
 fn reminder_facts_count_a_midnight_spanning_portion() {
-    use day_navigator_lib::work_time::reminders::reminder_facts;
-
     let (_tmp, dir) = test_store_dir();
     let now = t("2026-11-23T12:00");
     let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
@@ -198,9 +195,6 @@ fn reminder_facts_count_a_midnight_spanning_portion() {
 
 #[test]
 fn reminder_facts_report_a_day_off_and_a_weekend() {
-    use day_navigator_lib::work_time::DayKind;
-    use day_navigator_lib::work_time::reminders::reminder_facts;
-
     let (_tmp, dir) = test_store_dir();
     let now = t("2026-11-23T12:00");
     let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();

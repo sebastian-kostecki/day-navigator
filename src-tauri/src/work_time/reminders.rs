@@ -3,8 +3,12 @@
 //! No `tauri` import and no clock: `now` and the time zone are parameters.
 //! Repetition uses hourly slots counted from the trigger instant. A reminder
 //! is keyed by the slot's start instant and fires only when that instant is
-//! newer than the one last sent for the same entry or day, so a restart, a
-//! long sleep or a clock moved backwards never produces a backlog or a repeat.
+//! newer than the one last sent for the same entry or day, so a long sleep
+//! never produces a backlog and a clock moved backwards never a repeat. The
+//! memory is in-process: a restart may re-send the current slot once.
+//! Accepted trade-off: a clock that briefly runs ahead (then corrected) leaves
+//! a future slot in memory, which silences that entry's or day's reminder
+//! until real time passes it.
 
 use chrono::{NaiveDate, NaiveDateTime, NaiveTime, TimeZone};
 

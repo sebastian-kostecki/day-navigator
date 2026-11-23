@@ -41,6 +41,7 @@ Worked example (invented data): Monday 2026-11-23, entries 08:00–12:00 and 13:
 - No reminder after a break: "nie biegnie" fires only while today has no counted work.
 - No persistence of sent reminders: the memory is in-process; a restart may re-send the current slot once.
 - No catch-up of missed slots after sleep: one toast for the current slot, not a backlog.
+- No guard against a clock that briefly runs ahead and is then corrected: the remembered future slot silences that entry's or day's reminder until real time passes it (mirror of "a clock moved backwards never repeats"; added in impl review F6).
 - No autostart, no change to `notices_allowed()` (pause/day-off modes stay for later), no wake channel for this thread.
 - No health reporting of a dead reminder thread (a spawn failure or panic is only logged, unlike GitLab's `ThreadDown`); accepted as rare.
 - No change to the norm, days off, or work-time commands and UI; no TS changes.
@@ -168,7 +169,7 @@ Wire the rules into the running app: a background thread that checks every 60 s 
 - on a store error, skips the round and logs at `debug` level, as `reconcile_todo` does (`gitlab_refresh.rs:357-372`), because health already reports "Dane aplikacji";
 - calls `due_reminders`, sends each due reminder through `runtime::toast` after the store lock is released, and keeps `ReminderMemory` in the loop's local state.
 
-A failure to spawn the thread, or a panic in the loop, is logged and does not stop the app. It is not surfaced in the "Przypomnienia" source (accepted risk; see "What We're NOT Doing").
+A failure to spawn the thread is logged and does not stop the app. A panic in the loop is not caught: the release profile sets `panic = "abort"`, so it would end the app (the round has no known panic path). Neither is surfaced in the "Przypomnienia" source (accepted risk; see "What We're NOT Doing"). *(Corrected in impl review F2: the original text said a panic is only logged.)*
 
 **Contract**: `pub fn start(app: &AppHandle, settings_path: Option<PathBuf>)`, called in `lib.rs` `setup` after `runtime::start`. `with_store` opens the store lazily for whichever caller comes first (`store/mod.rs:205-230`: open, daily backup, migrations), so an early reminder round may open it itself. That is harmless, and a failed open just skips the round. `settings_path` is moved into `gitlab_refresh::start` (`lib.rs:186`), so clone it for this call before that line.
 

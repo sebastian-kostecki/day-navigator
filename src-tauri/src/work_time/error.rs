@@ -34,6 +34,25 @@ pub enum WorkTimeError {
     Background,
 }
 
+impl WorkTimeError {
+    /// The variant name, for logs (carries no content).
+    pub fn kind(&self) -> &'static str {
+        match self {
+            WorkTimeError::Store(s) => s.kind(),
+            WorkTimeError::AlreadyRunning => "AlreadyRunning",
+            WorkTimeError::NotRunning => "NotRunning",
+            WorkTimeError::NotFound => "NotFound",
+            WorkTimeError::EndNotAfterStart => "EndNotAfterStart",
+            WorkTimeError::InFuture => "InFuture",
+            WorkTimeError::Overlap { .. } => "Overlap",
+            WorkTimeError::InvalidLocalTime => "InvalidLocalTime",
+            WorkTimeError::RunningEndEdit => "RunningEndEdit",
+            WorkTimeError::NotAWorkday => "NotAWorkday",
+            WorkTimeError::Background => "Background",
+        }
+    }
+}
+
 impl From<crate::BackgroundFailed> for WorkTimeError {
     fn from(_: crate::BackgroundFailed) -> Self {
         WorkTimeError::Background

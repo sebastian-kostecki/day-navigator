@@ -53,7 +53,7 @@ One developer on one Windows 11 machine works for a company (issues in a work Gi
 | S-07 | todo-list               | pick today's items from the lists into "To do", tick them, carry the rest to tomorrow  | S-01, S-06    | FR-011, FR-012, US-01                     | done |
 | S-08 | work-timer              | start and stop work time from an always-visible counter and correct entries            | F-01          | FR-013, FR-017, NFR Trwałość czasu pracy  | done |
 | S-09 | work-norm-report        | see day and month sums and how far the month is from the norm                          | S-08          | FR-014                                    | done |
-| S-10 | timer-reminders         | get reminded when the counter runs too long or is not running on a workday             | S-08          | FR-018                                    | ready |
+| S-10 | timer-reminders         | get reminded when the counter runs too long or is not running on a workday             | S-08          | FR-018                                    | in-progress |
 
 ## Streams
 
@@ -229,7 +229,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - Resolved 2026-11-23: defaults are "running too long" after 10 h and "not running" after 9:00 on a workday. Open Roadmap Question #3.
 - **Risk:** Reminders depend on the workday rule shared with S-09; if S-09 lands first, they reuse its days-off list.
-- **Status:** ready
+- **Status:** in-progress
 
 ## Backlog Handoff
 

@@ -5,11 +5,42 @@ use std::io::Write;
 use std::time::Duration;
 
 const GLAB_NO_NETWORK: &str = "Get \"https://gitlab.example.invalid/api/v4/user\": dial tcp: lookup gitlab.example.invalid: i/o timeout.\nrun glab auth login --hostname gitlab.example.invalid\n";
-const GH_NO_NETWORK: &str = "error connecting to github.example.invalid\ncheck your internet connection or https://githubstatus.com\n";
+const GH_NO_NETWORK: &str = "error connecting to github.example.invalid\ncheck your internet connection or https://status.example.invalid\n";
 
+/// Echoes the received arguments and the working directory as JSON.
 fn echo_argv() -> String {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    serde_json::json!({ "argv": args }).to_string()
+    let cwd = std::env::current_dir()
+        .map(|d| d.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    serde_json::json!({ "argv": args, "cwd": cwd }).to_string()
+}
+
+/// Starts a copy of this program that sleeps a few seconds while holding the
+/// inherited stdout open (stderr is not shared), like a helper process that
+/// outlives the CLI.
+fn spawn_lingering_child() {
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    // Windows hands every inheritable handle to a child, whatever its stdio
+    // says. Real CLIs (Go) restrict inheritance to the listed handles; clear
+    // the flag on our stderr so the grandchild holds stdout only, as theirs would.
+    #[cfg(windows)]
+    {
+        use std::os::windows::io::AsRawHandle;
+        use windows_sys::Win32::Foundation::{HANDLE_FLAG_INHERIT, SetHandleInformation};
+        // SAFETY: the handle is this process's own stderr, valid for its lifetime.
+        unsafe {
+            SetHandleInformation(std::io::stderr().as_raw_handle(), HANDLE_FLAG_INHERIT, 0);
+        }
+    }
+    let _ = std::process::Command::new(exe)
+        .env("FAKE_CLI_SCENARIO", "linger")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::null())
+        .spawn();
 }
 
 fn main() {
@@ -75,6 +106,20 @@ fn main() {
             }
             let _ = out.flush();
             0
+        }
+        "linger" => {
+            std::thread::sleep(Duration::from_secs(5));
+            0
+        }
+        "data-with-lingering-child" => {
+            spawn_lingering_child();
+            println!("{}", echo_argv());
+            0
+        }
+        "no-network-with-lingering-child" => {
+            spawn_lingering_child();
+            eprint!("{GLAB_NO_NETWORK}");
+            1
         }
         "non-utf8" => {
             let mut out = std::io::stdout().lock();

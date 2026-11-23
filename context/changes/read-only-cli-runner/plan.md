@@ -58,6 +58,11 @@ Decisions settled during planning: a timeout of 20 s means `Unavailable`; HTTP 5
 
 **Classification order.** Exit code 0 is data, whatever stderr says (update notices and similar noise). For a non-zero exit: `gh` exit code 4 is logged out regardless of text; then unavailable (network or 5xx text); then logged out (login text); then fall back to `Failed`. Network text goes before login text because both CLIs append login hints to network failures. `glab auth status` adds "run glab auth login --hostname …" whenever the token is stored in plain text in its config, even when the call succeeded (glab 1.124 `internal/commands/auth/status/status.go:251-253`). `gh auth status` reports a refused or unresolved connection, but not a timeout, as "The token … is invalid" plus "To re-authenticate, run: gh auth login" (gh 2.105 `pkg/cmd/auth/status/status.go:505-515`, 142-149; both checked 2026-11-23). A transport failure means auth was never checked, so the network text wins.
 
+**Addendum (implementation review, 2026-11-23).**
+- *Reader join.* One shared 2 s deadline covers both readers. If stderr does not arrive in time, the result is `Failed { exit_code: None }`. If stderr arrives, the result is classified first, so a network failure stays `Unavailable` even when a grandchild holds stdout open. Only an exit 0 whose stdout was read in full, within the cap and valid UTF-8, is data; any other exit 0 is `Failed { exit_code: None }`, except non-UTF-8 output, which stays `Failed { exit_code: Some(0) }`.
+- *Working directory.* The child runs in `std::env::temp_dir()`, not in the app's directory, because both CLIs infer a repository from the git checkout in their working directory. Repo-scoped calls (S-01, S-05) name their repository with `--repo` / `-R` inside the `CliCall` variant.
+- *Reader threads.* Readers start through `thread::Builder` (named `cli-stdout` / `cli-stderr`). If the OS refuses a thread, the child is killed and reaped, and the result is `Failed { exit_code: None }`; the app does not abort.
+
 ## Phase 1: Call contract and classification
 
 ### Overview
@@ -258,6 +263,7 @@ None: new module, no stored data, no settings change.
 ## Open Risks & Assumptions
 
 - Matching CLI text is fragile: a future `glab`/`gh` release may reword errors. Unknown text falls back to `Failed`, which is loud rather than silently calm. The fix is a new pattern plus a table row.
+- On Windows `Child::kill` (`TerminateProcess`) stops only the direct child. After a timeout a grandchild (a helper the CLI started) keeps running, and the detached reader threads stay blocked, each holding up to 16 MiB, until it closes the inherited pipes. Today's calls start no helpers. If a future call can, put the child in a Job Object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` (added by the implementation review, 2026-11-23).
 - `glab auth status` checks every configured host. If a host other than the work GitLab is configured and not logged in, it may exit 1 even with VPN on. The manual smoke test shows this. S-01 chooses its own call (for example `glab api user` on the default host) and does not depend on `auth status`.
 
 ## References

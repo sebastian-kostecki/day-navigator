@@ -137,7 +137,7 @@ mod tests {
                 "gh no network",
                 GH,
                 Some(1),
-                "error connecting to github.example.invalid\ncheck your internet connection or https://githubstatus.com",
+                "error connecting to github.example.invalid\ncheck your internet connection or https://status.example.invalid",
                 unavailable(GH),
             ),
             (

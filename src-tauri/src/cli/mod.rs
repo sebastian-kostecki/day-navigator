@@ -90,8 +90,15 @@ pub enum CliError {
     LoggedOut { tool: Tool },
     #[error("{tool} was not found")]
     ToolMissing { tool: Tool },
-    #[error("{tool} failed (exit code {exit_code:?})")]
+    #[error("{tool} failed ({})", exit_code_text(.exit_code))]
     Failed { tool: Tool, exit_code: Option<i32> },
+}
+
+fn exit_code_text(exit_code: &Option<i32>) -> String {
+    match exit_code {
+        Some(code) => format!("exit code {code}"),
+        None => "no exit code".to_string(),
+    }
 }
 
 impl CliError {
@@ -209,6 +216,16 @@ mod tests {
             serde_json::to_string(&err).unwrap(),
             r#"{"kind":"Failed","detail":{"tool":"glab","exitCode":2}}"#
         );
+    }
+
+    #[test]
+    fn failed_display_shows_a_plain_exit_code() {
+        let failed = |exit_code| CliError::Failed {
+            tool: Tool::Gh,
+            exit_code,
+        };
+        assert_eq!(failed(Some(2)).to_string(), "gh failed (exit code 2)");
+        assert_eq!(failed(None).to_string(), "gh failed (no exit code)");
     }
 
     #[test]

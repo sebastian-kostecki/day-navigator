@@ -53,8 +53,9 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "serd
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 
 [features]
-# Exposes the unguarded write layer (`vault::fsops`, `Vault::apply`) to the
-# integration tests only; production builds never enable it.
+# Exposes the unguarded write layer (`vault::fsops`, `Vault::apply`),
+# `CliRunner::with_programs` and the `fake-cli` bin to the integration tests
+# only; production builds never enable it.
 test-support = []
 
 [dev-dependencies]

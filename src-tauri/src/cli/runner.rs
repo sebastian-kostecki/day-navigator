@@ -3,9 +3,15 @@
 //! Blocking by design: callers wrap `run` in `spawn_blocking`. No shell, fixed
 //! arguments from `CliCall`, no prompt, a time limit, and stderr is dropped as
 //! soon as the classifier has seen it.
+//!
+//! The child runs in a fixed, neutral working directory (the system temp dir),
+//! never in the app's own: both CLIs infer a repository and host from the git
+//! checkout in their working directory. A repo-scoped call names its repository
+//! explicitly (`--repo` / `-R`) inside its `CliCall` variant.
 
+use std::ffi::{OsStr, OsString};
 use std::io::Read;
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
@@ -37,8 +43,8 @@ const FIXED_ENV: &[(&str, &str)] = &[
 ];
 
 pub struct CliRunner {
-    glab: String,
-    gh: String,
+    glab: OsString,
+    gh: OsString,
     timeout: Duration,
     #[cfg(any(test, feature = "test-support"))]
     env: Vec<(String, String)>,
@@ -56,8 +62,8 @@ impl CliRunner {
     /// Programs resolved from `PATH` by `Command::new`.
     pub fn system() -> Self {
         Self {
-            glab: Tool::Glab.program().to_string(),
-            gh: Tool::Gh.program().to_string(),
+            glab: Tool::Glab.program().into(),
+            gh: Tool::Gh.program().into(),
             timeout: Self::TIMEOUT,
             #[cfg(any(test, feature = "test-support"))]
             env: Vec::new(),
@@ -66,6 +72,7 @@ impl CliRunner {
 
     /// Tests only: production code cannot inject a program path or environment.
     #[cfg(any(test, feature = "test-support"))]
+    #[doc(hidden)]
     pub fn with_programs(
         glab: PathBuf,
         gh: PathBuf,
@@ -73,14 +80,14 @@ impl CliRunner {
         env: Vec<(String, String)>,
     ) -> Self {
         Self {
-            glab: glab.to_string_lossy().into_owned(),
-            gh: gh.to_string_lossy().into_owned(),
+            glab: glab.into_os_string(),
+            gh: gh.into_os_string(),
             timeout,
             env,
         }
     }
 
-    fn program(&self, tool: Tool) -> &str {
+    fn program(&self, tool: Tool) -> &OsStr {
         match tool {
             Tool::Glab => &self.glab,
             Tool::Gh => &self.gh,
@@ -105,6 +112,7 @@ impl CliRunner {
         let mut command = Command::new(self.program(tool));
         command
             .args(call.args())
+            .current_dir(std::env::temp_dir())
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -130,8 +138,12 @@ impl CliRunner {
         };
 
         // Drain both pipes from the start so a full pipe buffer cannot block the child.
-        let stdout_rx = spawn_reader(child.stdout.take(), STDOUT_CAP);
-        let stderr_rx = spawn_reader(child.stderr.take(), STDERR_CAP);
+        let stdout_rx = spawn_reader("cli-stdout", child.stdout.take(), STDOUT_CAP);
+        let stderr_rx = spawn_reader("cli-stderr", child.stderr.take(), STDERR_CAP);
+        let (Ok(stdout_rx), Ok(stderr_rx)) = (stdout_rx, stderr_rx) else {
+            stop(&mut child);
+            return Err(failed(None));
+        };
 
         let deadline = Instant::now() + self.timeout;
         let status = loop {
@@ -139,60 +151,87 @@ impl CliRunner {
                 Ok(Some(status)) => break status,
                 Ok(None) => {}
                 Err(_) => {
-                    let _ = child.kill();
-                    let _ = child.wait();
+                    stop(&mut child);
                     return Err(failed(None));
                 }
             }
             if Instant::now() >= deadline {
-                let _ = child.kill();
-                let _ = child.wait();
+                stop(&mut child);
                 return Err(CliError::Unavailable { tool });
             }
             std::thread::sleep(POLL_INTERVAL);
         };
+        let code = status.code();
 
-        // A grandchild holding the pipes open must not hang us: bounded wait.
-        let stdout = stdout_rx.recv_timeout(READER_JOIN_BOUND).ok();
-        let stderr = stderr_rx.recv_timeout(READER_JOIN_BOUND).ok();
-        let (Some(stdout), Some(stderr)) = (stdout, stderr) else {
-            return Err(failed(status.code()));
+        // A grandchild holding a pipe open must not hang us: one shared bound for
+        // both readers.
+        let join_deadline = Instant::now() + READER_JOIN_BOUND;
+        let stdout = recv_until(&stdout_rx, join_deadline);
+        let Some(stderr) = recv_until(&stderr_rx, join_deadline) else {
+            return Err(failed(None));
         };
 
+        // Classify first, so a failure is named even when stdout never finished.
+        let stderr_text = String::from_utf8_lossy(&stderr.bytes);
+        let classified = classify(tool, code, &stderr_text);
+        drop(stderr_text);
+        drop(stderr);
+        classified?;
+
+        // Exit 0 from here on. Data only when stdout was read whole.
+        let Some(stdout) = stdout else {
+            return Err(failed(None));
+        };
         if stdout.overflow {
             return Err(failed(None));
         }
-        let stderr_text = String::from_utf8_lossy(&stderr.bytes);
-        classify(tool, status.code(), &stderr_text)?;
-        drop(stderr_text);
         String::from_utf8(stdout.bytes).map_err(|_| failed(Some(0)))
     }
 }
 
-/// Reads a pipe to the end on its own thread, keeping at most `cap` bytes.
-fn spawn_reader<R: Read + Send + 'static>(pipe: Option<R>, cap: usize) -> mpsc::Receiver<Captured> {
+/// Kills the direct child and reaps it. On Windows this does not reach
+/// grandchildren; see the plan's Open Risks.
+fn stop(child: &mut Child) {
+    let _ = child.kill();
+    let _ = child.wait();
+}
+
+fn recv_until(rx: &mpsc::Receiver<Captured>, deadline: Instant) -> Option<Captured> {
+    rx.recv_timeout(deadline.saturating_duration_since(Instant::now()))
+        .ok()
+}
+
+/// Reads a pipe to the end on its own named thread, keeping at most `cap` bytes.
+/// Fails only when the OS refuses a new thread.
+fn spawn_reader<R: Read + Send + 'static>(
+    name: &str,
+    pipe: Option<R>,
+    cap: usize,
+) -> std::io::Result<mpsc::Receiver<Captured>> {
     let (tx, rx) = mpsc::channel();
-    std::thread::spawn(move || {
-        let mut captured = Captured {
-            bytes: Vec::new(),
-            overflow: false,
-        };
-        if let Some(mut pipe) = pipe {
-            let mut buf = [0u8; 8192];
-            loop {
-                match pipe.read(&mut buf) {
-                    Ok(0) | Err(_) => break,
-                    Ok(n) => {
-                        let room = cap - captured.bytes.len();
-                        if n > room {
-                            captured.overflow = true;
+    std::thread::Builder::new()
+        .name(name.to_string())
+        .spawn(move || {
+            let mut captured = Captured {
+                bytes: Vec::new(),
+                overflow: false,
+            };
+            if let Some(mut pipe) = pipe {
+                let mut buf = [0u8; 8192];
+                loop {
+                    match pipe.read(&mut buf) {
+                        Ok(0) | Err(_) => break,
+                        Ok(n) => {
+                            let room = cap - captured.bytes.len();
+                            if n > room {
+                                captured.overflow = true;
+                            }
+                            captured.bytes.extend_from_slice(&buf[..n.min(room)]);
                         }
-                        captured.bytes.extend_from_slice(&buf[..n.min(room)]);
                     }
                 }
             }
-        }
-        let _ = tx.send(captured);
-    });
-    rx
+            let _ = tx.send(captured);
+        })?;
+    Ok(rx)
 }

@@ -43,6 +43,40 @@ fn data_echoes_exact_arguments_for_every_call() {
 }
 
 #[test]
+fn runs_in_the_neutral_temp_dir_not_the_app_dir() {
+    let out = runner("data").run(CliCall::GlabVersion).expect("data");
+    let v: serde_json::Value = serde_json::from_str(out.trim()).expect("json");
+    let cwd = PathBuf::from(v["cwd"].as_str().expect("cwd"));
+    let canon = |p: &std::path::Path| std::fs::canonicalize(p).expect("canonicalize");
+    assert_eq!(canon(&cwd), canon(&std::env::temp_dir()));
+}
+
+#[test]
+fn lingering_grandchild_on_success_is_failed_without_exit_code_within_bound() {
+    let started = Instant::now();
+    let got = runner("data-with-lingering-child").run(CliCall::GlabVersion);
+    assert_eq!(
+        got,
+        Err(CliError::Failed {
+            tool: Tool::Glab,
+            exit_code: None
+        })
+    );
+    // One shared 2 s bound for both readers, well before the grandchild exits (5 s).
+    assert!(
+        started.elapsed() < Duration::from_millis(4500),
+        "{:?}",
+        started.elapsed()
+    );
+}
+
+#[test]
+fn lingering_grandchild_on_failure_is_still_classified() {
+    let got = runner("no-network-with-lingering-child").run(CliCall::GlabAuthStatus);
+    assert_eq!(got, Err(CliError::Unavailable { tool: Tool::Glab }));
+}
+
+#[test]
 fn exit_zero_with_noise_is_data() {
     assert!(runner("data-with-noise").run(CliCall::GlabVersion).is_ok());
 }
@@ -145,6 +179,7 @@ fn errors_never_leak_stderr_or_hostnames() {
         ("gh-no-network", Tool::Gh),
         ("http-503", Tool::Glab),
         ("unknown-error", Tool::Glab),
+        ("no-network-with-lingering-child", Tool::Glab),
     ];
     for (scenario, tool) in scenarios {
         let err = runner(scenario)

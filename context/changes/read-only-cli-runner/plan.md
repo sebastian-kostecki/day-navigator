@@ -290,9 +290,9 @@ None: new module, no stored data, no settings change.
 
 #### Automated
 
-- [x] 2.1 Integration tests pass: `cargo test --test cli_runner`
-- [x] 2.2 Full pre-commit gate passes
-- [x] 2.3 Release build does not contain the fake
+- [x] 2.1 Integration tests pass: `cargo test --test cli_runner` — 2fe28eb
+- [x] 2.2 Full pre-commit gate passes — 2fe28eb
+- [x] 2.3 Release build does not contain the fake — 2fe28eb
 
 #### Manual
 

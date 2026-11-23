@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 
+use crate::cli::{GitlabConfig, GitlabHost, GitlabUser};
+use crate::gitlab::GitlabError;
 use crate::vault::edit::check_plain;
 use crate::vault::{VaultError, VaultPath};
 
@@ -99,6 +101,57 @@ pub fn load_settings(path: &Path) -> Result<Settings, VaultError> {
     let text =
         std::str::from_utf8(bytes).map_err(|_| invalid("settings file is not valid UTF-8"))?;
     parse_settings(text)
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawGitlab {
+    host: String,
+    #[serde(default)]
+    user: Option<String>,
+}
+
+/// Reads only the top-level `gitlab` block, on its own: a typo there never
+/// breaks the vaults and a vault typo never hides the GitLab list. A missing
+/// file, an absent block or `null` is `Ok(None)`. Every failure is
+/// `SettingsInvalid` with no detail: serde errors can quote the value.
+pub fn load_gitlab_settings(path: &Path) -> Result<Option<GitlabConfig>, GitlabError> {
+    let bytes = match fs::read(path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(_) => return Err(GitlabError::SettingsInvalid),
+    };
+    let bytes = bytes
+        .strip_prefix(&[0xEF, 0xBB, 0xBF][..])
+        .unwrap_or(&bytes);
+    let text = std::str::from_utf8(bytes).map_err(|_| GitlabError::SettingsInvalid)?;
+    parse_gitlab_settings(text)
+}
+
+fn parse_gitlab_settings(text: &str) -> Result<Option<GitlabConfig>, GitlabError> {
+    let value: serde_json::Value =
+        serde_json::from_str(text).map_err(|_| GitlabError::SettingsInvalid)?;
+    if value.get("version").and_then(|v| v.as_u64()) != Some(SUPPORTED_VERSION) {
+        return Err(GitlabError::SettingsInvalid);
+    }
+    let Some(block) = value.get("gitlab") else {
+        return Ok(None);
+    };
+    // serde would also accept a bare array for a struct; only an object is valid.
+    if !block.is_object() && !block.is_null() {
+        return Err(GitlabError::SettingsInvalid);
+    }
+    let raw: Option<RawGitlab> =
+        serde_json::from_value(block.clone()).map_err(|_| GitlabError::SettingsInvalid)?;
+    raw.map(|r| {
+        let host = GitlabHost::parse(&r.host).map_err(|_| GitlabError::SettingsInvalid)?;
+        let user = r
+            .user
+            .map(|u| GitlabUser::parse(&u).map_err(|_| GitlabError::SettingsInvalid))
+            .transpose()?;
+        Ok(GitlabConfig { host, user })
+    })
+    .transpose()
 }
 
 fn parse_settings(text: &str) -> Result<Settings, VaultError> {
@@ -255,6 +308,157 @@ mod tests {
         assert_eq!(s.work.unwrap().excluded.len(), 2);
         let s = load_settings(&write(&dir, r#"{"version":1,"spaces":{}}"#)).unwrap();
         assert!(s.work.is_none() && s.private.is_none());
+    }
+
+    fn gitlab_text(block: &str) -> String {
+        format!(r#"{{"version":1,"spaces":{{}},"gitlab":{block}}}"#)
+    }
+
+    #[test]
+    fn gitlab_valid_block_parses_and_lowercases() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = gitlab_text(r#"{"host":"GitLab.Example.Invalid"}"#);
+        let cfg = load_gitlab_settings(&write(&dir, &text)).unwrap().unwrap();
+        assert_eq!(cfg.host.as_str(), "gitlab.example.invalid");
+        assert!(cfg.user.is_none());
+    }
+
+    #[test]
+    fn gitlab_optional_user_parses_and_null_means_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = gitlab_text(r#"{"host":"gitlab.example.invalid","user":"Invented.User"}"#);
+        let cfg = load_gitlab_settings(&write(&dir, &text)).unwrap().unwrap();
+        // The login keeps its case.
+        assert_eq!(cfg.user.unwrap().as_str(), "Invented.User");
+        let text = gitlab_text(r#"{"host":"gitlab.example.invalid","user":null}"#);
+        let cfg = load_gitlab_settings(&write(&dir, &text)).unwrap().unwrap();
+        assert!(cfg.user.is_none());
+    }
+
+    #[test]
+    fn gitlab_invalid_user_is_refused_without_leaking_it() {
+        const SECRET: &str = "secret-login";
+        let dir = tempfile::tempdir().unwrap();
+        let cases = [
+            r#"{"host":"gitlab.example.invalid","user":""}"#.to_string(),
+            r#"{"host":"gitlab.example.invalid","user":5}"#.to_string(),
+            r#"{"host":"gitlab.example.invalid","user":["x"]}"#.to_string(),
+            format!(r#"{{"host":"gitlab.example.invalid","user":"{SECRET}&x"}}"#),
+            format!(r#"{{"host":"gitlab.example.invalid","user":"{SECRET}/x"}}"#),
+            format!(r#"{{"host":"gitlab.example.invalid","user":"{SECRET} x"}}"#),
+            format!(r#"{{"host":"gitlab.example.invalid","user":"-{SECRET}"}}"#),
+            format!(r#"{{"host":"gitlab.example.invalid","user":".{SECRET}"}}"#),
+            format!(r#"{{"host":"gitlab.example.invalid","user":"{SECRET}","extra":1}}"#),
+        ];
+        for block in cases {
+            let err = load_gitlab_settings(&write(&dir, &gitlab_text(&block))).unwrap_err();
+            assert_eq!(err, GitlabError::SettingsInvalid, "{block}");
+            let shown = [
+                format!("{err:?}"),
+                err.to_string(),
+                serde_json::to_string(&err).unwrap(),
+                err.message_pl(),
+            ];
+            for text in shown {
+                assert!(!text.contains(SECRET), "leak for {block}: {text}");
+            }
+        }
+    }
+
+    #[test]
+    fn gitlab_bom_is_stripped() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("settings.json");
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(gitlab_text(r#"{"host":"gitlab.example.invalid"}"#).as_bytes());
+        fs::write(&p, bytes).unwrap();
+        assert!(load_gitlab_settings(&p).unwrap().is_some());
+    }
+
+    #[test]
+    fn gitlab_missing_file_absent_and_null_block_are_not_configured() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            load_gitlab_settings(&dir.path().join("settings.json")),
+            Ok(None)
+        );
+        let text = r#"{"version":1,"spaces":{}}"#;
+        assert_eq!(load_gitlab_settings(&write(&dir, text)), Ok(None));
+        let text = gitlab_text("null");
+        assert_eq!(load_gitlab_settings(&write(&dir, &text)), Ok(None));
+    }
+
+    #[test]
+    fn gitlab_invalid_blocks_are_refused_without_leaking_the_value() {
+        const SECRET: &str = "secret.example.invalid";
+        let dir = tempfile::tempdir().unwrap();
+        let cases = [
+            format!(r#"{{"host":"{SECRET}","extra":1}}"#),
+            format!(r#""{SECRET}""#),
+            format!(r#"[ "{SECRET}" ]"#),
+            format!(r#"{{"host":5,"x":"{SECRET}"}}"#),
+            r#"{}"#.to_string(),
+            r#"{"host":""}"#.to_string(),
+            format!(r#"{{"host":"https://{SECRET}"}}"#),
+            format!(r#"{{"host":"{SECRET}:8443"}}"#),
+            format!(r#"{{"host":"{SECRET}/path"}}"#),
+            format!(r#"{{"host":" {SECRET}"}}"#),
+            format!(r#"{{"host":"-{SECRET}"}}"#),
+            format!(r#"{{"host":"{}"}}"#, SECRET.split('.').next().unwrap()),
+        ];
+        for block in cases {
+            let err = load_gitlab_settings(&write(&dir, &gitlab_text(&block))).unwrap_err();
+            assert_eq!(err, GitlabError::SettingsInvalid, "{block}");
+            let shown = [
+                format!("{err:?}"),
+                err.to_string(),
+                serde_json::to_string(&err).unwrap(),
+                err.message_pl(),
+            ];
+            for text in shown {
+                assert!(!text.contains("secret"), "leak for {block}: {text}");
+            }
+        }
+    }
+
+    #[test]
+    fn gitlab_broken_file_is_settings_invalid() {
+        let dir = tempfile::tempdir().unwrap();
+        for text in [
+            "{ not json",
+            r#"{"gitlab":{"host":"gitlab.example.invalid"}}"#,
+            r#"{"version":2,"gitlab":{"host":"gitlab.example.invalid"}}"#,
+        ] {
+            assert_eq!(
+                load_gitlab_settings(&write(&dir, text)),
+                Err(GitlabError::SettingsInvalid),
+                "{text}"
+            );
+        }
+        let p = dir.path().join("settings.json");
+        fs::write(&p, [0xFF, 0xFE, 0x00]).unwrap();
+        assert_eq!(load_gitlab_settings(&p), Err(GitlabError::SettingsInvalid));
+        // A directory where the file should be: unreadable, not "missing".
+        assert_eq!(
+            load_gitlab_settings(dir.path()),
+            Err(GitlabError::SettingsInvalid)
+        );
+    }
+
+    #[test]
+    fn vault_settings_ignore_the_gitlab_block_valid_or_not() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = json_path(&dir);
+        for block in [r#"{"host":"gitlab.example.invalid"}"#, r#""not-an-object""#] {
+            let text = format!(
+                r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":["Dostepy"]}}}},"gitlab":{block}}}"#
+            );
+            let s = load_settings(&write(&dir, &text)).unwrap();
+            let work = s.work.unwrap();
+            assert_eq!(work.vault, PathBuf::from(dir.path()));
+            assert_eq!(work.excluded.len(), 1);
+            assert!(s.private.is_none());
+        }
     }
 
     fn tasks_text(dir: &tempfile::TempDir, tasks: &str) -> String {

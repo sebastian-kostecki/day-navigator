@@ -50,6 +50,11 @@ h2 {
   color: #6b6b6b;
 }
 
+.source.unavailable {
+  border-left-color: #9a9a9a;
+  color: #6b6b6b;
+}
+
 .source.error {
   border-left-color: #d13438;
 }
@@ -85,6 +90,120 @@ h2 {
   border-radius: 8px;
   border-left: 4px solid #d13438;
   background-color: #ffffff;
+}
+
+/* Header and navigation */
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #e2e2e2;
+  background-color: #f6f6f6;
+}
+
+.app-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.nav-button[aria-current="page"] {
+  border-color: #396cd8;
+  font-weight: 600;
+}
+
+/* GitLab view */
+
+.gitlab-notice {
+  padding: 8px 12px;
+  border-radius: 6px;
+  border-left: 4px solid #9a9a9a;
+  background-color: #ececec;
+  color: #4a4a4a;
+}
+
+.gitlab-lists.stale {
+  opacity: 0.55;
+}
+
+.gitlab-section {
+  margin: 16px 0;
+}
+
+.gitlab-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.gitlab-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background-color: #ffffff;
+  border: 1px solid #e2e2e2;
+  border-radius: 8px;
+}
+
+.gitlab-ref,
+.gitlab-updated {
+  font-size: 0.85em;
+  color: #666666;
+}
+
+.gitlab-title-line {
+  flex: 1 1 100%;
+  order: 2;
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.gitlab-labels {
+  order: 3;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.gitlab-updated {
+  order: 4;
+  margin-left: auto;
+}
+
+.link-button {
+  border: 0;
+  padding: 0;
+  text-align: left;
+  font-weight: inherit;
+  color: #396cd8;
+  background: none;
+  text-decoration: underline;
+}
+
+.badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  font-weight: 500;
+  background-color: #e8e8e8;
+  color: #4a4a4a;
+}
+
+.gitlab-labels .badge {
+  margin-left: 0;
 }
 
 /* Controls */
@@ -203,21 +322,7 @@ fieldset {
   color: #666666;
 }
 
-/* App shell */
-
-.app-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 16px;
-  padding: 8px 16px;
-  border-bottom: 1px solid #e2e2e2;
-  background-color: #ffffff;
-}
+/* Work-time counter (in the header) */
 
 .work-timer {
   display: flex;
@@ -234,16 +339,6 @@ fieldset {
 
 .work-timer-error {
   color: #b00020;
-}
-
-.view-switch {
-  display: flex;
-  gap: 8px;
-}
-
-.view-switch button[aria-current="page"] {
-  border-color: #396cd8;
-  font-weight: 600;
 }
 
 /* Work-time view */
@@ -324,17 +419,8 @@ fieldset {
     border-color: #4a4a4a;
   }
 
-  .app-header {
-    background-color: #1f1f1f;
-    border-color: #4a4a4a;
-  }
-
   .work-timer-error {
     color: #ff8a9b;
-  }
-
-  .view-switch button[aria-current="page"] {
-    border-color: #6b95f0;
   }
 
   :root {
@@ -347,6 +433,36 @@ fieldset {
     background-color: #1f1f1f;
   }
 
+  .app-header {
+    background-color: #2f2f2f;
+    border-bottom-color: #4a4a4a;
+  }
+
+  .gitlab-notice {
+    background-color: #3a3a3a;
+    color: #cfcfcf;
+  }
+
+  .gitlab-item {
+    background-color: #3a3a3a;
+    border-color: #4a4a4a;
+  }
+
+  .gitlab-ref,
+  .gitlab-updated {
+    color: #b0b0b0;
+  }
+
+  .link-button {
+    color: #7aa2f7;
+    background: none;
+  }
+
+  .badge {
+    background-color: #4a4a4a;
+    color: #dcdcdc;
+  }
+
   input,
   select,
   button {
@@ -356,6 +472,7 @@ fieldset {
   }
 
   .source.notConfigured,
+  .source.unavailable,
   .checked-at,
   .notice {
     color: #a8a8a8;

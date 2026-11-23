@@ -6,6 +6,7 @@ use std::path::Path;
 use chrono::NaiveDate;
 
 use super::{SourceId, SourceState, SourceStatus};
+use crate::gitlab::{GitlabSnapshot, GitlabState};
 use crate::settings::load_settings;
 use crate::store::{StoreError, StoreHandle};
 use crate::vault::{Space, VaultError, VaultRegistry};
@@ -71,6 +72,30 @@ pub fn store_status(handle: &StoreHandle, today: NaiveDate) -> SourceStatus {
         label: "Dane aplikacji".to_string(),
         state,
     }
+}
+
+/// The GitLab source derived from the last snapshot. `None` while the first
+/// round has not finished (`starting`), so the source is absent, not grey.
+/// Messages come from `GitlabError::message_pl` via the snapshot, never from
+/// stderr, hosts or response content.
+pub fn gitlab_status(snapshot: &GitlabSnapshot) -> Option<SourceStatus> {
+    let state = match &snapshot.state {
+        GitlabState::Starting => return None,
+        GitlabState::Ok => SourceState::Ok,
+        GitlabState::NotConfigured => SourceState::NotConfigured,
+        GitlabState::Unavailable { message } => SourceState::Unavailable {
+            message: message.clone(),
+        },
+        GitlabState::Error { kind, message } => SourceState::Error {
+            kind: kind.clone(),
+            message: message.clone(),
+        },
+    };
+    Some(SourceStatus {
+        id: SourceId::Gitlab,
+        label: "GitLab".to_string(),
+        state,
+    })
 }
 
 /// Polish panel text for a store error. `dir` is the data folder, if known.
@@ -256,6 +281,45 @@ mod tests {
             }
             other => panic!("expected Error, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn gitlab_snapshot_maps_to_a_source() {
+        use crate::gitlab::GitlabError;
+        let snap = |state: GitlabState| GitlabSnapshot {
+            state,
+            ..GitlabSnapshot::starting()
+        };
+        assert_eq!(gitlab_status(&GitlabSnapshot::starting()), None);
+
+        let s = gitlab_status(&snap(GitlabState::Ok)).unwrap();
+        assert_eq!(s.id, SourceId::Gitlab);
+        assert_eq!(s.label, "GitLab");
+        assert_eq!(s.state, SourceState::Ok);
+
+        let s = gitlab_status(&snap(GitlabState::NotConfigured)).unwrap();
+        assert_eq!(s.state, SourceState::NotConfigured);
+
+        let message = GitlabError::Unavailable.message_pl();
+        let s = gitlab_status(&snap(GitlabState::Unavailable {
+            message: message.clone(),
+        }))
+        .unwrap();
+        assert_eq!(s.state, SourceState::Unavailable { message });
+
+        let message = GitlabError::LoggedOut.message_pl();
+        let s = gitlab_status(&snap(GitlabState::Error {
+            kind: "LoggedOut".to_string(),
+            message: message.clone(),
+        }))
+        .unwrap();
+        assert_eq!(
+            s.state,
+            SourceState::Error {
+                kind: "LoggedOut".to_string(),
+                message
+            }
+        );
     }
 
     #[test]

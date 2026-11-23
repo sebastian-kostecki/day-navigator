@@ -47,6 +47,7 @@ fn item(n: u64) -> GitlabItem {
         labels: labels(n),
         draft: false,
         changed: None,
+        milestone: None,
     }
 }
 

@@ -36,6 +36,7 @@ fn gitlab_item(n: i64) -> GitlabItem {
         project_id: 1,
         iid: n as u64,
         changed: None,
+        milestone: None,
         reference: format!("invented/project#{n}"),
         title: format!("Pozycja testowa {n}"),
         web_url: Some(format!("https://gitlab.example.invalid/invented/{n}")),

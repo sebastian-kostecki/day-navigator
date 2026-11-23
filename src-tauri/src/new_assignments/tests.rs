@@ -101,6 +101,7 @@ mod notices {
             labels: vec![],
             draft: false,
             changed: None,
+            milestone: None,
         }
     }
 

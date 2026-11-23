@@ -43,6 +43,7 @@ fn issue(id: u64, labels: &[&str]) -> GitlabItem {
         labels: labels.iter().map(|s| s.to_string()).collect(),
         draft: false,
         changed: None,
+        milestone: None,
     }
 }
 

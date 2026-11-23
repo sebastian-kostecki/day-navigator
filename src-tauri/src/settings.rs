@@ -10,6 +10,7 @@ use serde::Deserialize;
 use crate::cli::{GithubConfig, GithubRepo, GitlabConfig, GitlabHost, GitlabUser};
 use crate::github::GithubError;
 use crate::gitlab::GitlabError;
+use crate::gitlab::filter::{DimensionRule, GitlabFilter};
 use crate::todo::{DEFAULT_TODO_LIMIT, TodoError};
 use crate::vault::{VaultError, VaultPath};
 
@@ -424,6 +425,158 @@ fn parse_gitlab_refresh_minutes(text: &str) -> Result<u32, RefreshSettingInvalid
             _ => Err(RefreshSettingInvalid),
         },
     }
+}
+
+/// The top-level `gitlabFilter` block is invalid (not an object, an unknown
+/// key, a bad list or entry, or `closedDays` outside 1..=30). Carries no
+/// detail: serde errors can quote the value and the entries are work data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilterSettingInvalid;
+
+const FILTER_ENTRIES_MAX: usize = 100;
+const FILTER_ENTRY_CHARS_MAX: usize = 255;
+const FILTER_CLOSED_DAYS_MAX: u64 = 30;
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct RawGitlabFilter {
+    #[serde(default)]
+    projects: Option<serde_json::Value>,
+    #[serde(default)]
+    labels: Option<serde_json::Value>,
+    #[serde(default)]
+    milestones: Option<serde_json::Value>,
+    #[serde(default)]
+    closed_days: Option<serde_json::Value>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawDimension {
+    #[serde(default)]
+    include: Option<serde_json::Value>,
+    #[serde(default)]
+    exclude: Option<serde_json::Value>,
+}
+
+/// Reads only the top-level `gitlabFilter` block, on its own, and fails open.
+/// Shape:
+///
+/// ```json
+/// "gitlabFilter": {
+///   "projects":   { "include": ["acme/backend"], "exclude": ["acme/backend/legacy"] },
+///   "labels":     { "exclude": ["blocked"] },
+///   "milestones": { "include": ["Sprint 42"] },
+///   "closedDays": 7
+/// }
+/// ```
+///
+/// - Each dimension has optional `include` and `exclude` lists of strings (at
+///   most 100 entries of at most 255 characters, no control characters,
+///   trimmed and lowercased). An empty or absent list is no constraint.
+/// - A `projects` entry is a project path or a group prefix, with no empty
+///   segment (no leading or trailing `/`).
+/// - `closedDays`: an integer 1..=30, or `null`/absent (off).
+///
+/// A file-level problem (missing, unreadable, bad UTF-8 or JSON, wrong
+/// `version`) is `Ok(default)`: the `gitlab` block already reports the file.
+/// So is an absent or `null` block. Everything else wrong in the block is
+/// `Err(FilterSettingInvalid)`, with no detail.
+pub fn load_gitlab_filter(path: &Path) -> Result<GitlabFilter, FilterSettingInvalid> {
+    let Ok(bytes) = fs::read(path) else {
+        return Ok(GitlabFilter::default());
+    };
+    let bytes = bytes
+        .strip_prefix(&[0xEF, 0xBB, 0xBF][..])
+        .unwrap_or(&bytes);
+    let Ok(text) = std::str::from_utf8(bytes) else {
+        return Ok(GitlabFilter::default());
+    };
+    parse_gitlab_filter(text)
+}
+
+fn parse_gitlab_filter(text: &str) -> Result<GitlabFilter, FilterSettingInvalid> {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(text) else {
+        return Ok(GitlabFilter::default());
+    };
+    if value.get("version").and_then(|v| v.as_u64()) != Some(SUPPORTED_VERSION) {
+        return Ok(GitlabFilter::default());
+    }
+    let Some(block) = value.get("gitlabFilter") else {
+        return Ok(GitlabFilter::default());
+    };
+    if block.is_null() {
+        return Ok(GitlabFilter::default());
+    }
+    if !block.is_object() {
+        return Err(FilterSettingInvalid);
+    }
+    let raw: RawGitlabFilter =
+        serde_json::from_value(block.clone()).map_err(|_| FilterSettingInvalid)?;
+    let closed_days = match raw.closed_days {
+        None | Some(serde_json::Value::Null) => None,
+        Some(v) => match v.as_u64() {
+            Some(n) if (1..=FILTER_CLOSED_DAYS_MAX).contains(&n) => Some(n as u32),
+            _ => return Err(FilterSettingInvalid),
+        },
+    };
+    Ok(GitlabFilter {
+        projects: parse_filter_dimension(raw.projects, true)?,
+        labels: parse_filter_dimension(raw.labels, false)?,
+        milestones: parse_filter_dimension(raw.milestones, false)?,
+        closed_days,
+    })
+}
+
+fn parse_filter_dimension(
+    value: Option<serde_json::Value>,
+    project_paths: bool,
+) -> Result<DimensionRule, FilterSettingInvalid> {
+    let Some(value) = value else {
+        return Ok(DimensionRule::default());
+    };
+    // serde would also accept a bare array for a struct; only an object is valid.
+    if !value.is_object() {
+        return Err(FilterSettingInvalid);
+    }
+    let raw: RawDimension = serde_json::from_value(value).map_err(|_| FilterSettingInvalid)?;
+    Ok(DimensionRule {
+        include: parse_filter_list(raw.include, project_paths)?,
+        exclude: parse_filter_list(raw.exclude, project_paths)?,
+    })
+}
+
+fn parse_filter_list(
+    value: Option<serde_json::Value>,
+    project_paths: bool,
+) -> Result<Vec<String>, FilterSettingInvalid> {
+    let Some(value) = value else {
+        return Ok(Vec::new());
+    };
+    let serde_json::Value::Array(entries) = value else {
+        return Err(FilterSettingInvalid);
+    };
+    if entries.len() > FILTER_ENTRIES_MAX {
+        return Err(FilterSettingInvalid);
+    }
+    let mut out = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let serde_json::Value::String(text) = entry else {
+            return Err(FilterSettingInvalid);
+        };
+        if text.chars().any(char::is_control) {
+            return Err(FilterSettingInvalid);
+        }
+        let text = text.trim();
+        if text.is_empty() || text.chars().count() > FILTER_ENTRY_CHARS_MAX {
+            return Err(FilterSettingInvalid);
+        }
+        if project_paths && text.split('/').any(str::is_empty) {
+            return Err(FilterSettingInvalid);
+        }
+        out.push(text.to_lowercase());
+    }
+    Ok(out)
 }
 
 fn parse_settings(text: &str) -> Result<Settings, VaultError> {
@@ -1164,6 +1317,220 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let text = r#"{"version":1,"spaces":{},"gitlab":"nope","todo":{"limit":0},"gitlabRefresh":{"minutes":6}}"#;
         assert_eq!(load_gitlab_refresh_minutes(&write(&dir, text)), Ok(6));
+    }
+
+    fn filter_text(block: &str) -> String {
+        format!(r#"{{"version":1,"spaces":{{}},"gitlabFilter":{block}}}"#)
+    }
+
+    fn load_filter(
+        dir: &tempfile::TempDir,
+        block: &str,
+    ) -> Result<GitlabFilter, FilterSettingInvalid> {
+        load_gitlab_filter(&write(dir, &filter_text(block)))
+    }
+
+    #[test]
+    fn filter_absent_null_and_file_level_problems_give_the_default() {
+        let dir = tempfile::tempdir().unwrap();
+        let default = GitlabFilter::default();
+        assert_eq!(
+            load_gitlab_filter(&dir.path().join("settings.json")),
+            Ok(default.clone())
+        );
+        for text in [
+            r#"{"version":1,"spaces":{}}"#.to_string(),
+            filter_text("null"),
+            filter_text("{}"),
+            filter_text(r#"{"projects":null,"labels":{"include":null}}"#),
+            "{ not json".to_string(),
+            r#"{"version":2,"gitlabFilter":{"bogus":1}}"#.to_string(),
+            r#"{"gitlabFilter":{"bogus":1}}"#.to_string(),
+        ] {
+            assert_eq!(
+                load_gitlab_filter(&write(&dir, &text)),
+                Ok(default.clone()),
+                "{text}"
+            );
+        }
+        let p = dir.path().join("settings.json");
+        fs::write(&p, [0xFF, 0xFE, 0x00]).unwrap();
+        assert_eq!(load_gitlab_filter(&p), Ok(default.clone()));
+        // A directory where the file should be: unreadable, still the default.
+        assert_eq!(load_gitlab_filter(dir.path()), Ok(default));
+    }
+
+    #[test]
+    fn filter_reads_every_field_trimmed_and_lowercased() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = load_filter(
+            &dir,
+            r#"{
+                "projects": {"include": [" Acme/Backend "], "exclude": ["acme/backend/legacy"]},
+                "labels": {"exclude": ["Blocked", "WIP"]},
+                "milestones": {"include": ["Sprint 42"]},
+                "closedDays": 7
+            }"#,
+        )
+        .unwrap();
+        assert_eq!(f.projects.include, ["acme/backend"]);
+        assert_eq!(f.projects.exclude, ["acme/backend/legacy"]);
+        assert!(f.labels.include.is_empty());
+        assert_eq!(f.labels.exclude, ["blocked", "wip"]);
+        assert_eq!(f.milestones.include, ["sprint 42"]);
+        assert!(f.milestones.exclude.is_empty());
+        assert_eq!(f.closed_days, Some(7));
+        assert!(f.is_active());
+        // Empty lists and null/absent closedDays are no constraint.
+        let f = load_filter(
+            &dir,
+            r#"{"projects":{"include":[]},"labels":{},"closedDays":null}"#,
+        )
+        .unwrap();
+        assert_eq!(f, GitlabFilter::default());
+    }
+
+    #[test]
+    fn filter_closed_days_bounds() {
+        let dir = tempfile::tempdir().unwrap();
+        for (n, ok) in [(0, false), (1, true), (30, true), (31, false)] {
+            let got = load_filter(&dir, &format!(r#"{{"closedDays":{n}}}"#));
+            if ok {
+                assert_eq!(got.unwrap().closed_days, Some(n), "{n}");
+            } else {
+                assert_eq!(got, Err(FilterSettingInvalid), "{n}");
+            }
+        }
+        for bad in ["-1", "7.5", "7.0", r#""7""#, "true", "[7]", "{}"] {
+            assert_eq!(
+                load_filter(&dir, &format!(r#"{{"closedDays":{bad}}}"#)),
+                Err(FilterSettingInvalid),
+                "{bad}"
+            );
+        }
+    }
+
+    #[test]
+    fn filter_invalid_shapes_are_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        for block in [
+            r#""nope""#,
+            "[]",
+            "5",
+            "true",
+            r#"{"projcts":{"include":["a"]}}"#,
+            r#"{"projects":{"includ":["a"]}}"#,
+            r#"{"projects":{"include":["a"],"extra":1}}"#,
+            r#"{"closedDays":3,"extra":1}"#,
+            r#"{"projects":["a"]}"#,
+            r#"{"projects":"a"}"#,
+            r#"{"labels":5}"#,
+            r#"{"labels":{"include":"a"}}"#,
+            r#"{"labels":{"include":{"a":1}}}"#,
+            r#"{"labels":{"include":[1]}}"#,
+            r#"{"labels":{"exclude":["a",null]}}"#,
+            r#"{"milestones":{"include":[["a"]]}}"#,
+            r#"{"labels":{"include":[""]}}"#,
+            r#"{"labels":{"include":["   "]}}"#,
+            r#"{"labels":{"include":["a\u0007b"]}}"#,
+            r#"{"labels":{"include":["a\nb"]}}"#,
+            r#"{"projects":{"include":["/acme"]}}"#,
+            r#"{"projects":{"include":["acme/"]}}"#,
+            r#"{"projects":{"exclude":["acme//api"]}}"#,
+            r#"{"projects":{"include":["/"]}}"#,
+        ] {
+            assert_eq!(
+                load_filter(&dir, block),
+                Err(FilterSettingInvalid),
+                "{block}"
+            );
+        }
+    }
+
+    #[test]
+    fn filter_entry_limits() {
+        let dir = tempfile::tempdir().unwrap();
+        let entry = |n: usize| format!(r#"{{"labels":{{"include":["{}"]}}}}"#, "a".repeat(n));
+        assert!(load_filter(&dir, &entry(255)).is_ok());
+        assert_eq!(load_filter(&dir, &entry(256)), Err(FilterSettingInvalid));
+        // Length is counted after trimming.
+        let padded = format!(r#"{{"labels":{{"include":["  {}  "]}}}}"#, "a".repeat(255));
+        assert!(load_filter(&dir, &padded).is_ok());
+        // Characters, not bytes.
+        let wide = format!(r#"{{"labels":{{"include":["{}"]}}}}"#, "ż".repeat(255));
+        assert!(load_filter(&dir, &wide).is_ok());
+
+        let list = |n: usize| {
+            let items: Vec<String> = (0..n).map(|i| format!(r#""l{i}""#)).collect();
+            format!(r#"{{"milestones":{{"exclude":[{}]}}}}"#, items.join(","))
+        };
+        assert_eq!(
+            load_filter(&dir, &list(100))
+                .unwrap()
+                .milestones
+                .exclude
+                .len(),
+            100
+        );
+        assert_eq!(load_filter(&dir, &list(101)), Err(FilterSettingInvalid));
+    }
+
+    #[test]
+    fn filter_errors_carry_no_value() {
+        const MARKER: &str = "leak-marker-7c1d";
+        let dir = tempfile::tempdir().unwrap();
+        for block in [
+            format!(r#"{{"{MARKER}":1}}"#),
+            format!(r#"{{"projects":{{"{MARKER}":["a"]}}}}"#),
+            format!(r#"{{"labels":{{"include":"{MARKER}"}}}}"#),
+            format!(r#"{{"labels":{{"include":[{{"{MARKER}":1}}]}}}}"#),
+            format!(r#"{{"closedDays":"{MARKER}"}}"#),
+            format!(r#"{{"projects":{{"include":["{MARKER}//x"]}}}}"#),
+            format!(r#""{MARKER}""#),
+        ] {
+            let err = load_filter(&dir, &block).unwrap_err();
+            assert!(!format!("{err:?}").contains(MARKER), "{block}");
+        }
+        // Debug of a loaded filter is opaque.
+        let f = load_filter(&dir, &format!(r#"{{"labels":{{"include":["{MARKER}"]}}}}"#)).unwrap();
+        assert!(!format!("{f:?}").contains(MARKER));
+    }
+
+    #[test]
+    fn filter_bom_is_stripped() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("settings.json");
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(filter_text(r#"{"closedDays":3}"#).as_bytes());
+        fs::write(&p, bytes).unwrap();
+        assert_eq!(load_gitlab_filter(&p).unwrap().closed_days, Some(3));
+    }
+
+    #[test]
+    fn broken_filter_block_leaves_the_other_loaders_green() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = json_path(&dir);
+        for block in [r#"{"closedDays":0}"#, r#""nope""#, r#"{"projcts":{}}"#] {
+            let text = format!(
+                r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":[]}}}},"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{{"limit":4}},"gitlabRefresh":{{"minutes":6}},"gitlabFilter":{block}}}"#
+            );
+            let p = write(&dir, &text);
+            assert!(load_settings(&p).unwrap().work.is_some(), "{block}");
+            assert!(load_gitlab_settings(&p).unwrap().is_some(), "{block}");
+            assert_eq!(load_todo_limit(&p).unwrap(), 4, "{block}");
+            assert_eq!(load_gitlab_refresh_minutes(&p), Ok(6), "{block}");
+            assert!(load_gitlab_filter(&p).is_err(), "{block}");
+        }
+    }
+
+    #[test]
+    fn filter_loader_ignores_broken_neighbouring_blocks() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = r#"{"version":1,"spaces":{},"gitlab":"nope","todo":{"limit":0},"gitlabRefresh":{"minutes":0},"gitlabFilter":{"closedDays":5}}"#;
+        assert_eq!(
+            load_gitlab_filter(&write(&dir, text)).unwrap().closed_days,
+            Some(5)
+        );
     }
 
     fn work_with(dir: &tempfile::TempDir, extra: &str) -> String {

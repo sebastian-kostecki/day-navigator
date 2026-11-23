@@ -177,6 +177,7 @@ mod tests {
             labels: vec![],
             draft: false,
             changed: None,
+            milestone: None,
         }
     }
 

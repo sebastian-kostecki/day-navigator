@@ -6,6 +6,7 @@
 //! `serde_json` error or any other response content.
 
 pub mod fetch;
+pub mod filter;
 pub mod notes;
 
 use std::cmp::Reverse;
@@ -72,6 +73,10 @@ pub struct GitlabItem {
     pub draft: bool,
     /// Set on a visible issue that carries a "changed" mark (S-03).
     pub changed: Option<ChangeReason>,
+    /// Rust-only: the milestone title, matched by the visibility filter. Not
+    /// sent to the UI.
+    #[serde(skip)]
+    pub milestone: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -183,6 +188,11 @@ struct RawRefs {
 }
 
 #[derive(Deserialize)]
+struct RawMilestone {
+    title: String,
+}
+
+#[derive(Deserialize)]
 struct RawItem {
     id: u64,
     iid: u64,
@@ -195,6 +205,8 @@ struct RawItem {
     references: RawRefs,
     #[serde(default)]
     draft: bool,
+    #[serde(default)]
+    milestone: Option<RawMilestone>,
 }
 
 /// Link kept only on `https://<host>/`, with no whitespace or control characters.
@@ -254,6 +266,7 @@ fn parse_items(
             labels: r.labels,
             draft: kind == ItemKind::MergeRequest && r.draft,
             changed: None,
+            milestone: r.milestone.map(|m| m.title),
         };
         keyed.push((stamp, item));
     }
@@ -639,6 +652,56 @@ mod tests {
     }
 
     #[test]
+    fn milestone_title_is_read_when_present_and_not_serialized() {
+        let present = mr_json(
+            "T",
+            &url("a"),
+            "2026-03-02T10:00:00Z",
+            "g/p#1",
+            r#","milestone":{"id":4,"title":"Sprint 42"}"#,
+        );
+        let null = mr_json(
+            "T",
+            &url("a"),
+            "2026-03-02T10:00:00Z",
+            "g/p#1",
+            r#","milestone":null"#,
+        );
+        let absent = mr_json("T", &url("a"), "2026-03-02T10:00:00Z", "g/p#1", "");
+        for (body, want) in [(present, Some("Sprint 42")), (null, None), (absent, None)] {
+            let json = format!("[{body}]");
+            for items in [
+                parse_issues(&json, &host()).unwrap(),
+                parse_merge_requests(&json, &host()).unwrap(),
+            ] {
+                assert_eq!(items[0].milestone.as_deref(), want);
+                let v = serde_json::to_value(&items[0]).unwrap();
+                assert!(v.get("milestone").is_none());
+            }
+        }
+        for wrong in [
+            r#","milestone":"Sprint 42""#,
+            r#","milestone":{"title":5}"#,
+            r#","milestone":{}"#,
+        ] {
+            let json = format!(
+                "[{}]",
+                mr_json("T", &url("a"), "2026-03-02T10:00:00Z", "g/p#1", wrong)
+            );
+            assert_eq!(
+                parse_issues(&json, &host()),
+                Err(GitlabError::ResponseInvalid),
+                "{wrong}"
+            );
+            assert_eq!(
+                parse_merge_requests(&json, &host()),
+                Err(GitlabError::ResponseInvalid),
+                "{wrong}"
+            );
+        }
+    }
+
+    #[test]
     fn invalid_shapes_are_response_invalid() {
         let ok = mr_json("T", &url("a/b"), "2026-03-02T10:00:00Z", "g/p#1", "");
         let cases = [
@@ -796,6 +859,7 @@ mod tests {
             labels: vec![],
             draft: false,
             changed: None,
+            milestone: None,
         }
     }
 

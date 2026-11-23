@@ -181,6 +181,27 @@ h2 {
   margin-left: auto;
 }
 
+.gitlab-actions {
+  order: 5;
+  display: flex;
+  gap: 6px;
+}
+
+.badge-changed {
+  background-color: #fff1c2;
+  color: #5c4500;
+}
+
+.gitlab-hidden {
+  margin: 16px 0;
+}
+
+.gitlab-hidden summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
 .link-button {
   border: 0;
   padding: 0;
@@ -529,6 +550,11 @@ fieldset {
   .gitlab-ref,
   .gitlab-updated {
     color: #b0b0b0;
+  }
+
+  .badge-changed {
+    background-color: #5c4500;
+    color: #ffe9a6;
   }
 
   .link-button {

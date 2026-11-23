@@ -478,17 +478,17 @@ Opening the store applies v3 automatically. An older app build refuses the v3 da
 
 #### Automated
 
-- [x] 3.1 Round integration tests with fake-cli and a temp store pass
-- [x] 3.2 next_snapshot and partition unit tests pass
-- [x] 3.3 All Rust tests, lint and format pass
-- [x] 3.4 Frontend type check and build pass with the new mirrors
+- [x] 3.1 Round integration tests with fake-cli and a temp store pass — 1215f3e
+- [x] 3.2 next_snapshot and partition unit tests pass — 1215f3e
+- [x] 3.3 All Rust tests, lint and format pass — 1215f3e
+- [x] 3.4 Frontend type check and build pass with the new mirrors — 1215f3e
 
 ### Phase 4: UI in "Praca (GitLab)"
 
 #### Automated
 
-- [ ] 4.1 Frontend checks pass
-- [ ] 4.2 The full gate passes before commit
+- [x] 4.1 Frontend checks pass
+- [x] 4.2 The full gate passes before commit
 
 #### Manual
 

@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { getGitlabSnapshot, refreshGitlab } from "./api";
+import {
+  dismissGitlabChange,
+  getGitlabSnapshot,
+  hiddenIssueErrorMessage,
+  hideGitlabIssue,
+  refreshGitlab,
+  unhideGitlabIssue,
+} from "./api";
 import type { GitlabSnapshot } from "./types";
 
 function errorText(e: unknown): string {
@@ -72,5 +79,41 @@ export function useGitlab() {
     }
   }, []);
 
-  return { snapshot, loadError, refresh, refreshError, retry };
+  // Row actions: the new snapshot arrives through `gitlab-changed`, so a
+  // success changes no local list; a failure becomes an inline notice.
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<ReadonlySet<number>>(new Set());
+
+  const act = useCallback(async (id: number, run: (id: number) => Promise<void>) => {
+    setActionError(null);
+    setBusy((b) => new Set(b).add(id));
+    try {
+      await run(id);
+    } catch (e) {
+      setActionError(hiddenIssueErrorMessage(e));
+    } finally {
+      setBusy((b) => {
+        const next = new Set(b);
+        next.delete(id);
+        return next;
+      });
+    }
+  }, []);
+
+  const hide = useCallback((id: number) => act(id, hideGitlabIssue), [act]);
+  const unhide = useCallback((id: number) => act(id, unhideGitlabIssue), [act]);
+  const dismiss = useCallback((id: number) => act(id, dismissGitlabChange), [act]);
+
+  return {
+    snapshot,
+    loadError,
+    refresh,
+    refreshError,
+    retry,
+    actionError,
+    busy,
+    hide,
+    unhide,
+    dismiss,
+  };
 }

@@ -126,8 +126,7 @@ CREATE UNIQUE INDEX todo_items_live_gitlab
     // hostname or a login). A row holds kind, GitLab's numeric id and two
     // instants: no title, reference or URL. `assignment_accounts` is a per-
     // account seeding marker that is never pruned, so an account whose list
-    // was empty for a long time still notifies its next item. (Planned as v7;
-    // renumber at merge if another slice lands first.)
+    // was empty for a long time still notifies its next item. (Shipped as v7.)
     Migration {
         version: 7,
         sql: "CREATE TABLE assignment_accounts (

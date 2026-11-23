@@ -243,6 +243,7 @@ export function GitlabView() {
           lastSuccess={lastSuccess}
         />
       )}
+      {/* "1–14" and "10 min" mirror REFRESH_MINUTES_MAX and DEFAULT_REFRESH_MINUTES in src-tauri/src/settings.rs. */}
       {snapshot.refreshSettingInvalid && (
         <p className="gitlab-notice" role="status">
           Nieprawidłowe ustawienie <code>gitlabRefresh.minutes</code> (dozwolone 1–14) — odświeżam

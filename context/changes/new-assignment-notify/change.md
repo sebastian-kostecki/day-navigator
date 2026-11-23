@@ -1,7 +1,7 @@
 ---
 change_id: new-assignment-notify
 title: New assignment notify
-status: implemented
+status: impl_reviewed
 created: 2026-11-23
 updated: 2026-11-23
 archived_at: null

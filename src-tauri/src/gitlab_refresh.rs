@@ -16,6 +16,7 @@
 //! reference, a URL, a count tied to names or a serde error.
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Duration, Instant};
@@ -28,13 +29,18 @@ use crate::gitlab::fetch::fetch_assigned;
 use crate::gitlab::{self, AssignedItems, GitlabError, GitlabItem, GitlabSnapshot, ItemKind};
 use crate::health;
 use crate::hidden_issues::{HiddenIssueError, HiddenRecord, check_round, commit_round, partition};
-use crate::new_assignments::{ItemKey, SessionSeen, keys_of, notices_for, record_round};
+use crate::new_assignments::{
+    NewAssignmentError, SessionSeen, items_for, keys_of, notices_for, record_round,
+};
 use crate::runtime::{HealthState, now_ms, toast};
 use crate::settings::{DEFAULT_REFRESH_MINUTES, load_gitlab_refresh_minutes, load_gitlab_settings};
-use crate::store::StoreHandle;
+use crate::store::{StoreError, StoreHandle};
 use crate::todo;
 
 const EVENT: &str = "gitlab-changed";
+/// Set after the first seen-set write failure of a session was logged as a
+/// warning; later failures log at debug level.
+static SEEN_SET_WARNED: AtomicBool = AtomicBool::new(false);
 const TODO_EVENT: &str = "todo-changed";
 
 /// Managed state of the GitLab list, shared by the refresh thread, the health
@@ -407,20 +413,24 @@ fn notify_new_assignments(
         record_round(s, account, &current, now_ms() as i64)
     });
     if let Err(e) = &stored {
-        // An unopenable store is reported by the health round.
-        log::debug!("gitlab: seen set failed: {}", e.kind());
+        // The health round reports an unopenable store, not a failing write,
+        // so the first non-busy failure of a session is a warning: until it
+        // clears, toasts run on session memory and repeat after a restart.
+        let busy = matches!(e, NewAssignmentError::Store(StoreError::Busy));
+        if !busy && !SEEN_SET_WARNED.swap(true, Ordering::Relaxed) {
+            log::warn!(
+                "gitlab: seen set failed: {}; using session memory",
+                e.kind()
+            );
+        } else {
+            log::debug!("gitlab: seen set failed: {}", e.kind());
+        }
     }
     let new_keys = session_seen.resolve(account, &current, stored);
     if new_keys.is_empty() {
         return;
     }
-    let items: Vec<&GitlabItem> = full
-        .merge_requests
-        .iter()
-        .chain(&full.issues)
-        .chain(&full.hidden_issues)
-        .filter(|i| new_keys.contains(&ItemKey::new(i.kind, i.id)))
-        .collect();
+    let items = items_for(full, &new_keys);
     log::info!("gitlab: {} new assignments", items.len());
     for notice in notices_for(&items) {
         toast(app, &notice.title, &notice.body);

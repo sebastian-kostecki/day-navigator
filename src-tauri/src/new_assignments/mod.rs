@@ -4,6 +4,15 @@
 //! No `tauri` import and no clock: `now_ms` is a parameter. A round is one
 //! `Store::write`. The seen set holds the opaque account key, kind, numeric id
 //! and two instants: no title, reference, URL or hostname.
+//!
+//! Accepted by design (no replay of suppressed toasts):
+//! - Delivery is at most once: a round's keys are stored before its toasts
+//!   show, so a toast the OS drops, or a quit in between, is not repeated.
+//! - A key the session fallback toasted while the store failed, which leaves
+//!   the list before the store recovers, is never stored; if it returns later
+//!   it notifies again.
+//! - Rows and the seeding marker of an account key no longer in use (after a
+//!   host or `gitlab.user` change) are never pruned; they are a few rows.
 
 pub mod error;
 pub mod notice;
@@ -12,9 +21,12 @@ pub mod rules;
 #[cfg(test)]
 mod tests;
 
+use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 
-use crate::gitlab::{AssignedItems, ItemKind};
+use chrono::DateTime;
+
+use crate::gitlab::{AssignedItems, GitlabItem, ItemKind};
 use crate::store::{Store, StoreError};
 pub use error::NewAssignmentError;
 pub use notice::notices_for;
@@ -35,15 +47,44 @@ fn kind_from_text(text: &str) -> Option<ItemKind> {
     }
 }
 
-/// The full assigned list: merge requests, visible issues and hidden issues.
-pub fn keys_of(items: &AssignedItems) -> Vec<ItemKey> {
+fn all_items(items: &AssignedItems) -> impl Iterator<Item = &GitlabItem> {
     items
         .merge_requests
         .iter()
         .chain(&items.issues)
         .chain(&items.hidden_issues)
+}
+
+/// The full assigned list: merge requests, visible issues and hidden issues.
+/// An id outside `1..=i64::MAX` cannot be stored (a positive SQLite INTEGER):
+/// GitLab never sends one, and skipping it keeps one bad item from failing
+/// the whole round's write.
+pub fn keys_of(items: &AssignedItems) -> Vec<ItemKey> {
+    all_items(items)
+        .filter(|i| i64::try_from(i.id).is_ok_and(|id| id > 0))
         .map(|i| ItemKey::new(i.kind, i.id))
         .collect()
+}
+
+/// The items behind `keys`, one per key even when the fetched list repeats an
+/// item (a paginated list can, when an item changes mid-fetch), newest
+/// `updated_at` first across both kinds; ties keep the order of `keys`.
+pub fn items_for<'a>(items: &'a AssignedItems, keys: &[ItemKey]) -> Vec<&'a GitlabItem> {
+    let mut by_key: HashMap<ItemKey, &GitlabItem> = HashMap::new();
+    for item in all_items(items) {
+        by_key
+            .entry(ItemKey::new(item.kind, item.id))
+            .or_insert(item);
+    }
+    let mut taken = HashSet::new();
+    let mut out: Vec<&GitlabItem> = keys
+        .iter()
+        .filter(|k| taken.insert(**k))
+        .filter_map(|k| by_key.get(k).copied())
+        .collect();
+    // Parsed, not compared as text: GitLab may send different offsets.
+    out.sort_by_key(|i| Reverse(DateTime::parse_from_rfc3339(&i.updated_at).ok()));
+    out
 }
 
 /// Records one successful round for `account` and returns the keys that are

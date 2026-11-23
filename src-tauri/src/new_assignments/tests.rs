@@ -85,7 +85,7 @@ mod notices {
     use crate::gitlab::{GitlabItem, ItemKind};
     use crate::new_assignments::notices_for;
 
-    fn item(kind: ItemKind, id: u64, title: &str) -> GitlabItem {
+    pub(super) fn item(kind: ItemKind, id: u64, title: &str) -> GitlabItem {
         GitlabItem {
             kind,
             id,
@@ -177,6 +177,21 @@ mod notices {
         let first = n[0].body.lines().next().unwrap();
         assert_eq!(first, format!("acme/invented#1 — {}ł…", "b".repeat(39)));
         assert!(n[0].body.ends_with("i 1 więcej"));
+    }
+
+    #[test]
+    fn combined_line_reference_is_cut_at_60_chars() {
+        let long_ref = format!("{}#1", "g/".repeat(40));
+        let mut items = issues(4);
+        items[0].reference = long_ref.clone();
+        let n = notices_for(&refs(&items));
+        let first = n[0].body.lines().next().unwrap();
+        let cut: String = long_ref.chars().take(60).collect();
+        assert_eq!(first, format!("{cut}… — Title 1"));
+        assert_eq!(n[0].body.lines().count(), 4);
+        // A separate notice keeps the whole reference.
+        let n = notices_for(&refs(&items[..1]));
+        assert!(n[0].body.starts_with(&format!("{long_ref} — ")));
     }
 
     #[test]
@@ -282,5 +297,87 @@ mod session {
         assert_eq!(s.resolve("a", &[k(1), k(2)], fail()), vec![k(2)]);
         // b's recovery is unaffected by a's fallback toast.
         assert_eq!(s.resolve("b", &[k(1), k(2)], Ok(vec![k(2)])), vec![k(2)]);
+    }
+}
+
+mod items {
+    use super::notices::item;
+    use crate::gitlab::{AssignedItems, GitlabItem, ItemKind};
+    use crate::new_assignments::{ItemKey, items_for, keys_of};
+
+    fn key(kind: ItemKind, id: u64) -> ItemKey {
+        ItemKey::new(kind, id)
+    }
+
+    fn at(kind: ItemKind, id: u64, updated_at: &str) -> GitlabItem {
+        let mut it = item(kind, id, &format!("Title {id}"));
+        it.updated_at = updated_at.to_string();
+        it
+    }
+
+    #[test]
+    fn a_repeated_item_gives_one_toast_item() {
+        let full = AssignedItems {
+            merge_requests: vec![],
+            issues: vec![
+                at(ItemKind::Issue, 1, "2026-03-03T08:00:00Z"),
+                at(ItemKind::Issue, 1, "2026-03-03T08:00:00Z"),
+            ],
+            hidden_issues: vec![],
+        };
+        let keys = [key(ItemKind::Issue, 1), key(ItemKind::Issue, 1)];
+        assert_eq!(items_for(&full, &keys).len(), 1);
+    }
+
+    #[test]
+    fn items_are_newest_first_across_kinds() {
+        let full = AssignedItems {
+            merge_requests: vec![
+                at(ItemKind::MergeRequest, 7, "2026-03-01T09:00:00Z"),
+                at(ItemKind::MergeRequest, 8, "2026-03-04T09:00:00Z"),
+            ],
+            // The same instant as MR 8 in another offset: a tie keeps key order.
+            issues: vec![at(ItemKind::Issue, 7, "2026-03-04T10:00:00+01:00")],
+            hidden_issues: vec![at(ItemKind::Issue, 9, "2026-03-02T09:00:00Z")],
+        };
+        let keys = [
+            key(ItemKind::MergeRequest, 7),
+            key(ItemKind::MergeRequest, 8),
+            key(ItemKind::Issue, 7),
+            key(ItemKind::Issue, 9),
+        ];
+        let order: Vec<_> = items_for(&full, &keys)
+            .iter()
+            .map(|i| (i.kind, i.id))
+            .collect();
+        assert_eq!(
+            order,
+            vec![
+                (ItemKind::MergeRequest, 8),
+                (ItemKind::Issue, 7),
+                (ItemKind::Issue, 9),
+                (ItemKind::MergeRequest, 7),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_key_without_an_item_is_skipped() {
+        let full = AssignedItems::default();
+        assert!(items_for(&full, &[key(ItemKind::Issue, 1)]).is_empty());
+    }
+
+    #[test]
+    fn ids_that_cannot_be_stored_are_not_keyed() {
+        let max = i64::MAX as u64;
+        let full = AssignedItems {
+            merge_requests: vec![at(ItemKind::MergeRequest, u64::MAX, "2026-03-01T09:00:00Z")],
+            issues: vec![
+                at(ItemKind::Issue, max, "2026-03-01T09:00:00Z"),
+                at(ItemKind::Issue, max + 1, "2026-03-01T09:00:00Z"),
+            ],
+            hidden_issues: vec![],
+        };
+        assert_eq!(keys_of(&full), vec![key(ItemKind::Issue, max)]);
     }
 }

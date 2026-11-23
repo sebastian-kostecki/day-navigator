@@ -359,8 +359,8 @@ None for data. `settings.json` gains an optional `gitlab` block; existing files 
 
 #### Automated
 
-- [x] 3.1 Frontend gate passes: `npm run lint`, `npm run format:check`, `npm run build`
-- [x] 3.2 Full Rust suite still passes: `cargo test`
+- [x] 3.1 Frontend gate passes: `npm run lint`, `npm run format:check`, `npm run build` — 12ecb4a
+- [x] 3.2 Full Rust suite still passes: `cargo test` — 12ecb4a
 
 #### Manual
 

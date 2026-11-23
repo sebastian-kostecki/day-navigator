@@ -460,9 +460,9 @@ Single user, tens to hundreds of rows: list reads the whole table and sorts in R
 
 #### Automated
 
-- [x] 3.1 `cargo test`, `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` pass in `src-tauri/`
-- [x] 3.2 `npm run build`, `npm run lint` and `npm run format:check` pass
-- [x] 3.3 No references remain: searching `src/` and `src-tauri/src/` for `TasksView`, `TaskSettings`, `list_work_tasks` and `mod tasks` returns nothing
+- [x] 3.1 `cargo test`, `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` pass in `src-tauri/` — 5a4627f
+- [x] 3.2 `npm run build`, `npm run lint` and `npm run format:check` pass — 5a4627f
+- [x] 3.3 No references remain: searching `src/` and `src-tauri/src/` for `TasksView`, `TaskSettings`, `list_work_tasks` and `mod tasks` returns nothing — 5a4627f
 
 #### Manual
 

@@ -19,6 +19,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 - `src-tauri/src/lib.rs` — Tauri builder: register plugins and `#[tauri::command]` handlers here. `main.rs` only calls `day_navigator_lib::run()`.
 - `src-tauri/capabilities/default.json` — permissions for the `main` window; add a plugin's permissions here when you add the plugin.
 - `src-tauri/tauri.conf.json` — app identity, window and bundle config.
+- `src-tauri/src/cli/` — the only code that starts `glab` / `gh`. A new call is a new `CliCall` variant with fixed arguments (read-only, covered by the guard test). Tests use the `fake-cli` bin (test-support only), never real work data.
 
 ## Frontend Conventions (React 19, no router)
 

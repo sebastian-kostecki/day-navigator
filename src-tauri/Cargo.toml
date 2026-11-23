@@ -4,8 +4,24 @@ version = "0.1.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2024"
+default-run = "day-navigator"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+# Test-only fake of `glab` / `gh` (see `tests/cli_runner.rs`). Keeping it out of
+# the installer depends on two rules:
+# (a) `path` stays exactly `src/bin/fake_cli.rs`. tauri-cli 2.12.6 builds with
+#     `cargo build --bins`, which skips the fake because its required feature is
+#     off. Its own binary list (`get_binaries`, crates/tauri-cli/src/interface/
+#     rust.rs:937-1023) drops `[[bin]]` entries whose required features are off,
+#     and also drops the matching `src/bin/*` file, matched by path only, since
+#     `fake-cli` != `fake_cli`. The NSIS bundler copies every listed non-main
+#     binary into the installer and fails if one was not built.
+# (b) `test-support` is never added to `default` features.
+[[bin]]
+name = "fake-cli"
+path = "src/bin/fake_cli.rs"
+required-features = ["test-support"]
 
 [lib]
 # The `_lib` suffix may seem redundant but it is necessary
@@ -40,8 +56,9 @@ rusqlite = { version = "0.43", features = ["bundled"] }
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 
 [features]
-# Exposes the unguarded write layer (`vault::fsops`, `Vault::apply`) to the
-# integration tests only; production builds never enable it.
+# Exposes the unguarded write layer (`vault::fsops`, `Vault::apply`),
+# `CliRunner::with_programs` and the `fake-cli` bin to the integration tests
+# only; production builds never enable it.
 test-support = []
 
 [dev-dependencies]

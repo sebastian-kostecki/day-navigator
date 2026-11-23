@@ -1,3 +1,4 @@
+export { AppHeader, type AppHeaderProps } from "./AppHeader/AppHeader";
 export { Button, type ButtonProps } from "./Button/Button";
 export { ErrorState } from "./ErrorState";
 export { Field, type FieldProps } from "./Field/Field";

@@ -2,12 +2,6 @@ body {
   margin: 0;
 }
 
-.container {
-  max-width: 760px;
-  margin: 0 auto;
-  padding: 24px 16px;
-}
-
 :where(h1) {
   margin: 0 0 16px;
 }
@@ -81,33 +75,6 @@ body {
   border-radius: 8px;
   border-left: 4px solid #d13438;
   background-color: #1f1f1f;
-}
-
-/* Header and navigation */
-
-.app-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
-  padding: 8px 16px;
-  border-bottom: 1px solid #4a4a4a;
-  background-color: #2f2f2f;
-}
-
-.app-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.nav-button[aria-current="page"] {
-  border-color: #396cd8;
-  font-weight: 600;
 }
 
 /* GitLab view */
@@ -405,29 +372,6 @@ body {
 /* `.task-error`: the inline error used by the work-time views. */
 .own-task-error,
 .task-error {
-  color: #ff8a9b;
-}
-
-/* Work-time counter (in the header) */
-
-.work-timer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 12px;
-}
-
-.work-timer-total {
-  font-size: 1.2rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.work-timer-month {
-  font-variant-numeric: tabular-nums;
-}
-
-.work-timer-error {
   color: #ff8a9b;
 }
 

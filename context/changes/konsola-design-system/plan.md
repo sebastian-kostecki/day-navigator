@@ -461,9 +461,9 @@ Fonty dodają poniżej 1 MB do instalatora (pełne pliki woff2, sześć grubośc
 
 #### Automated
 
-- [ ] 2.1 Bramki frontendu przechodzą: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 2.2 Bramki Rust przechodzą w `src-tauri/`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [ ] 2.3 `cargo audit` w `src-tauri/` nie zgłasza nowych ostrzeżeń po dodaniu crate'a
+- [x] 2.1 Bramki frontendu przechodzą: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 2.2 Bramki Rust przechodzą w `src-tauri/`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 2.3 `cargo audit` w `src-tauri/` nie zgłasza nowych ostrzeżeń po dodaniu crate'a
 
 #### Manual
 

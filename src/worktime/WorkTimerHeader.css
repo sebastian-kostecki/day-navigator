@@ -1,0 +1,50 @@
+.dn-timer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) 14px;
+  margin-left: auto;
+}
+
+.dn-timer-note {
+  color: var(--ink-faint);
+}
+
+.dn-timer-error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-left: auto;
+  color: var(--danger-ink);
+}
+
+.dn-clock {
+  font-family: var(--font-mono);
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-strong);
+}
+
+.dn-rec {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--danger);
+}
+
+.dn-timer-month {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--info);
+}
+
+.dn-timer-month.is-below {
+  color: var(--warn);
+}
+
+.dn-timer-action-error {
+  color: var(--danger-ink);
+}

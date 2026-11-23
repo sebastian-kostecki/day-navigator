@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { AppHeader } from "./components";
 import { GitlabView } from "./gitlab/GitlabView";
 import { GithubView } from "./github/GithubView";
 import { HealthPanel } from "./health/HealthPanel";
@@ -24,22 +25,12 @@ function App() {
 
   return (
     <>
-      <header className="app-header">
-        <nav className="app-nav" aria-label="Widoki">
-          {VIEWS.map((v) => (
-            <button
-              key={v.id}
-              type="button"
-              className="nav-button"
-              aria-current={view === v.id ? "page" : undefined}
-              onClick={() => setView(v.id)}
-            >
-              {v.label}
-            </button>
-          ))}
-        </nav>
+      <AppHeader
+        items={VIEWS.map((v) => ({ id: v.id, label: v.label, active: view === v.id }))}
+        onSelect={(id) => setView(id as View)}
+      >
         <WorkTimerHeader />
-      </header>
+      </AppHeader>
       {view === "todo" && <TodoView />}
       {view === "gitlab" && <GitlabView />}
       {view === "github" && <GithubView />}

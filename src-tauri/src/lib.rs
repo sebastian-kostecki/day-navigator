@@ -143,6 +143,7 @@ async fn own_task_default_space(app: tauri::AppHandle) -> Result<Space, OwnTaskE
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
+    use tauri_plugin_window_state::StateFlags;
 
     let mut log_targets = vec![Target::new(TargetKind::LogDir { file_name: None })];
     #[cfg(debug_assertions)]
@@ -152,6 +153,11 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             runtime::show_main(app);
         }))
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_state_flags(StateFlags::all() & !StateFlags::VISIBLE)
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(
@@ -191,6 +197,8 @@ pub fn run() {
             // After `runtime::start`: the refresh threads wake `HealthState`.
             gitlab_refresh::start(app.handle(), settings_path.clone(), gitlab_rx);
             github_refresh::start(app.handle(), settings_path, github_rx);
+            // The window starts hidden; show it once the saved size is restored.
+            runtime::show_main(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {

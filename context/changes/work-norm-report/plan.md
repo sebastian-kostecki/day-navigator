@@ -372,8 +372,8 @@ A month is at most a few hundred entries and about 23 days-off rows. The report 
 
 #### Automated
 
-- [x] 3.1 `npm run build`, `npm run lint`, `npm run format:check` pass
-- [x] 3.2 `cargo test` still passes
+- [x] 3.1 `npm run build`, `npm run lint`, `npm run format:check` pass — 656fe1c
+- [x] 3.2 `cargo test` still passes — 656fe1c
 
 #### Manual
 

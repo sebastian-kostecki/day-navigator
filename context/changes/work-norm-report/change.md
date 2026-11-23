@@ -1,7 +1,7 @@
 ---
 change_id: work-norm-report
 title: Work norm report
-status: implementing
+status: implemented
 created: 2026-11-23
 updated: 2026-11-23
 archived_at: null

@@ -72,19 +72,32 @@ fn work_vault(state: &VaultState) -> Result<Vault, TaskError> {
     Ok(registry.vault(Space::Work)?)
 }
 
-/// Runs vault I/O off the main thread, so a slow or cloud-synced vault never
-/// freezes the window. `Vault::apply`'s re-check keeps concurrent writes safe.
-async fn blocking<T: Send + 'static>(
-    work: impl FnOnce() -> Result<T, TaskError> + Send + 'static,
-) -> Result<T, TaskError> {
+/// The blocking task could not run to completion (join error text). Each
+/// command error type maps it to its own variant.
+pub struct BackgroundFailed(pub String);
+
+impl From<BackgroundFailed> for TaskError {
+    fn from(e: BackgroundFailed) -> Self {
+        TaskError::Vault(VaultError::Io {
+            path: String::new(),
+            kind: format!("background task failed: {}", e.0),
+        })
+    }
+}
+
+/// Runs vault or store I/O off the main thread, so a slow or cloud-synced
+/// vault never freezes the window. `Vault::apply`'s re-check keeps concurrent
+/// writes safe.
+pub(crate) async fn blocking<T, E>(
+    work: impl FnOnce() -> Result<T, E> + Send + 'static,
+) -> Result<T, E>
+where
+    T: Send + 'static,
+    E: From<BackgroundFailed> + Send + 'static,
+{
     tauri::async_runtime::spawn_blocking(work)
         .await
-        .map_err(|e| {
-            TaskError::Vault(VaultError::Io {
-                path: String::new(),
-                kind: format!("background task failed: {e}"),
-            })
-        })?
+        .map_err(|e| E::from(BackgroundFailed(e.to_string())))?
 }
 
 #[tauri::command]
@@ -206,7 +219,14 @@ pub fn run() {
             get_work_task_settings,
             list_work_tasks,
             create_work_task,
-            set_work_task_status
+            set_work_task_status,
+            work_time::commands::work_timer_status,
+            work_time::commands::list_work_entries,
+            work_time::commands::start_work,
+            work_time::commands::stop_work,
+            work_time::commands::add_work_entry,
+            work_time::commands::update_work_entry,
+            work_time::commands::remove_work_entry
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -32,6 +32,12 @@ pub enum WorkTimeError {
     Background,
 }
 
+impl From<crate::BackgroundFailed> for WorkTimeError {
+    fn from(_: crate::BackgroundFailed) -> Self {
+        WorkTimeError::Background
+    }
+}
+
 impl From<StoreError> for WorkTimeError {
     fn from(e: StoreError) -> Self {
         WorkTimeError::Store(e)

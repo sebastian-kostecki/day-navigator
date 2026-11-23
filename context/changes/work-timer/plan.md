@@ -377,21 +377,21 @@ At most a few thousand rows a year. The day query is a range scan on `work_entri
 
 #### Automated
 
-- [x] 1.1 `cargo test` passes in `src-tauri/`, including the new unit tests and `tests/work_time.rs` / `tests/work_time_crash.rs`
-- [x] 1.2 Unit tests cover midnight split, DST days, ambiguous/gap times, adjacency, overlaps (closed and running), InFuture, EndNotAfterStart, RunningEndEdit, AlreadyRunning, NotRunning, removed entries ignored, refusal leaves table unchanged
-- [x] 1.3 A test proves the partial unique index rejects a second running row inserted directly
-- [x] 1.4 A test asserts that a serialized `WorkTimeError::Overlap` contains only the entry id
-- [x] 1.5 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass
-- [x] 1.6 `cargo audit` passes with the `chrono-tz` dev-dependency
-- [x] 1.7 Unit tests prove an unchanged minute keeps the stored instant on edit
+- [x] 1.1 `cargo test` passes in `src-tauri/`, including the new unit tests and `tests/work_time.rs` / `tests/work_time_crash.rs` — 0094bd6
+- [x] 1.2 Unit tests cover midnight split, DST days, ambiguous/gap times, adjacency, overlaps (closed and running), InFuture, EndNotAfterStart, RunningEndEdit, AlreadyRunning, NotRunning, removed entries ignored, refusal leaves table unchanged — 0094bd6
+- [x] 1.3 A test proves the partial unique index rejects a second running row inserted directly — 0094bd6
+- [x] 1.4 A test asserts that a serialized `WorkTimeError::Overlap` contains only the entry id — 0094bd6
+- [x] 1.5 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass — 0094bd6
+- [x] 1.6 `cargo audit` passes with the `chrono-tz` dev-dependency — 0094bd6
+- [x] 1.7 Unit tests prove an unchanged minute keeps the stored instant on edit — 0094bd6
 
 ### Phase 2: Commands and event
 
 #### Automated
 
-- [ ] 2.1 `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` pass
-- [ ] 2.2 Existing vault task tests still pass with the generic `blocking`
-- [ ] 2.3 `npm run build`, `npm run lint` and `npm run format:check` pass
+- [x] 2.1 `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` pass
+- [x] 2.2 Existing vault task tests still pass with the generic `blocking`
+- [x] 2.3 `npm run build`, `npm run lint` and `npm run format:check` pass
 
 #### Manual
 

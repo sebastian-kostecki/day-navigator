@@ -8,6 +8,7 @@
 //! a refusal changes nothing. Removed rows (`removed_at_ms` set) are kept but
 //! ignored by every rule and total.
 
+pub mod commands;
 pub mod error;
 pub mod rules;
 

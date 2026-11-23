@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ErrorState } from "../components/ErrorState";
 import { ownTaskDefaultSpace, ownTaskErrorMessage } from "./api";
 import { OwnTaskForm } from "./OwnTaskForm";
@@ -20,8 +20,49 @@ const PRIORITY_LABEL: Record<Priority, string> = {
   low: "Niski",
 };
 
+function lastRefreshLabel(at: Date | null): string {
+  return `Ostatnie udane odświeżenie: ${at ? at.toLocaleTimeString("pl-PL") : "brak"}`;
+}
+
+/** The note clamped to a few lines, with a toggle shown only when it overflows. */
+function NotePreview({ note }: { note: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflows, setOverflows] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || expanded) return;
+    // The observer fires once on observe and again on every resize, never
+    // synchronously inside the effect.
+    const observer = new ResizeObserver(() => {
+      setOverflows(el.scrollHeight > el.clientHeight + 1);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [note, expanded]);
+
+  return (
+    <>
+      <p ref={ref} className={expanded ? "own-task-note expanded" : "own-task-note"}>
+        {note}
+      </p>
+      {(overflows || expanded) && (
+        <button
+          type="button"
+          className="link-button own-task-note-toggle"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((x) => !x)}
+        >
+          {expanded ? "Zwiń notatkę" : "Pokaż całą notatkę"}
+        </button>
+      )}
+    </>
+  );
+}
+
 export default function OwnTasksView() {
-  const { load, lastSuccessAt, reload, add, edit, setDone } = useOwnTasks();
+  const { load, lastSuccessAt, reloadError, retry, refresh, add, edit, setDone } = useOwnTasks();
   const [filter, setFilter] = useState<Filter>("all");
   const [showDone, setShowDone] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -70,14 +111,14 @@ export default function OwnTasksView() {
   }
 
   if (load.state === "error") {
-    const last = lastSuccessAt ? lastSuccessAt.toLocaleTimeString("pl-PL") : "brak";
     return (
       <main className="container">
         <h1>Moje zadania</h1>
         <ErrorState
           title="Nie udało się wczytać zadań"
-          message={`${load.message} Ostatnie udane odświeżenie: ${last}`}
-          onRetry={() => void reload()}
+          message={load.message}
+          onRetry={() => void retry()}
+          lastSuccess={lastRefreshLabel(lastSuccessAt)}
         />
       </main>
     );
@@ -137,9 +178,13 @@ export default function OwnTasksView() {
             {task.due && <span>Termin: {task.due}</span>}
             {task.priority && <span>Priorytet: {PRIORITY_LABEL[task.priority]}</span>}
           </span>
-          {task.note && <p className="own-task-note">{task.note}</p>}
+          {task.note && <NotePreview note={task.note} />}
         </div>
-        <button type="button" onClick={() => setEditingId(task.id)}>
+        <button
+          type="button"
+          aria-label={`Edytuj: ${task.title}`}
+          onClick={() => setEditingId(task.id)}
+        >
           Edytuj
         </button>
       </li>
@@ -194,10 +239,20 @@ export default function OwnTasksView() {
         </p>
       )}
 
+      {reloadError && (
+        <ErrorState
+          title="Nie udało się odświeżyć listy — może być nieaktualna"
+          message={reloadError}
+          onRetry={() => void refresh()}
+          lastSuccess={lastRefreshLabel(lastSuccessAt)}
+        />
+      )}
+
       {emptyMessage && <p className="empty">{emptyMessage}</p>}
       {open.length > 0 && <ul className="own-task-list">{open.map(renderTask)}</ul>}
 
-      {showDone && (
+      {/* With no tasks at all, the single "no tasks yet" message says it all. */}
+      {showDone && tasks.length > 0 && (
         <>
           <h2>Zrobione</h2>
           {done.length === 0 ? (

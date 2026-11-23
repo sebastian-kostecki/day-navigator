@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { addOwnTask, editOwnTask, listOwnTasks, ownTaskErrorMessage, setOwnTaskDone } from "./api";
+import {
+  addOwnTask,
+  editOwnTask,
+  isOwnTaskNotFound,
+  listOwnTasks,
+  ownTaskErrorMessage,
+  setOwnTaskDone,
+} from "./api";
 import type { OwnTask, OwnTaskInput } from "./types";
 
 export type OwnTasksLoad =
@@ -10,35 +17,51 @@ export type OwnTasksLoad =
 /** A mutation resolves to an error message to show inline, or `null` on success. */
 type MutationResult = Promise<string | null>;
 
+type ListResult = { ok: true; tasks: OwnTask[] } | { ok: false; message: string };
+
+/** Fetches the list and never rejects, so callers set state only after it settles. */
+function settleList(): Promise<ListResult> {
+  return listOwnTasks().then(
+    (tasks) => ({ ok: true, tasks }),
+    (e: unknown) => ({ ok: false, message: ownTaskErrorMessage(e) }),
+  );
+}
+
 export function useOwnTasks() {
   const [load, setLoad] = useState<OwnTasksLoad>({ state: "loading" });
   const [lastSuccessAt, setLastSuccessAt] = useState<Date | null>(null);
+  // A failed reload over an already loaded list: the list stays readable but
+  // is stale, and the view must say so.
+  const [reloadError, setReloadError] = useState<string | null>(null);
 
   // Only the latest reload may set the list: an older listing resolving late
   // would bring back stale rows.
   const latestLoad = useRef(0);
-  const reload = useCallback(async () => {
-    const id = ++latestLoad.current;
-    try {
-      const tasks = await listOwnTasks();
-      if (id === latestLoad.current) {
-        setLoad({ state: "loaded", tasks });
-        setLastSuccessAt(new Date());
-      }
-    } catch (e) {
-      // A failed reload never replaces an already loaded list.
-      if (id === latestLoad.current) {
-        setLoad((prev) =>
-          prev.state === "loaded" ? prev : { state: "error", message: ownTaskErrorMessage(e) },
-        );
-      }
+  const applyList = useCallback((id: number, result: ListResult) => {
+    if (id !== latestLoad.current) return;
+    if (result.ok) {
+      setLoad({ state: "loaded", tasks: result.tasks });
+      setLastSuccessAt(new Date());
+      setReloadError(null);
+    } else {
+      const { message } = result;
+      // A failed reload never replaces an already loaded list; it is
+      // surfaced next to it instead (`reloadError`).
+      setLoad((prev) => (prev.state === "loaded" ? prev : { state: "error", message }));
+      setReloadError(message);
     }
   }, []);
 
+  const reload = useCallback(async () => {
+    const id = ++latestLoad.current;
+    applyList(id, await settleList());
+  }, [applyList]);
+
   useEffect(() => {
-    // reload() sets state only after awaiting the backend, never synchronously.
-    void reload();
-  }, [reload]);
+    const id = ++latestLoad.current;
+    // State is set only in the callback, after the backend answers.
+    void settleList().then((result) => applyList(id, result));
+  }, [applyList]);
 
   const retry = useCallback(async () => {
     setLoad({ state: "loading" });
@@ -50,8 +73,12 @@ export function useOwnTasks() {
       try {
         await run();
       } catch (e) {
+        // The task is gone, so the shown list is stale: refresh it.
+        if (isOwnTaskNotFound(e)) void reload();
         return ownTaskErrorMessage(e);
       }
+      // The change is saved even if this reload fails: report success so the
+      // form never invites a duplicate; a failed reload shows `reloadError`.
       await reload();
       return null;
     },
@@ -71,5 +98,5 @@ export function useOwnTasks() {
     [mutate],
   );
 
-  return { load, lastSuccessAt, reload: retry, add, edit, setDone };
+  return { load, lastSuccessAt, reloadError, retry, refresh: reload, add, edit, setDone };
 }

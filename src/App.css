@@ -383,6 +383,16 @@ fieldset {
   font-size: 0.9em;
 }
 
+.own-task-note.expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.own-task-note-toggle {
+  font-size: 0.85em;
+}
+
 .own-task-error {
   color: #b00020;
 }

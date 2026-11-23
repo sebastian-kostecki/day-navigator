@@ -169,22 +169,22 @@ pub fn default_space(counter_running: bool) -> Space {
 /// Open tasks first (due ascending, none last; priority high to low, none
 /// last; creation time; id), then done tasks, newest done first.
 pub fn sort_for_display(tasks: &mut [OwnTask]) {
-    tasks.sort_by(|a, b| {
-        let key = |t: &OwnTask| {
-            (
-                t.done_at.is_some(),
-                t.due.is_none(),
-                t.due.clone(),
-                t.priority.map_or(u8::MAX, Priority::rank),
-                t.created_at.clone(),
-                t.id,
-            )
-        };
-        match (&a.done_at, &b.done_at) {
-            (Some(x), Some(y)) => (Reverse(x), a.id).cmp(&(Reverse(y), b.id)),
-            _ => key(a).cmp(&key(b)),
-        }
+    tasks.sort_by(|a, b| match (&a.done_at, &b.done_at) {
+        (Some(x), Some(y)) => (Reverse(x), a.id).cmp(&(Reverse(y), b.id)),
+        _ => display_key(a).cmp(&display_key(b)),
     });
+}
+
+/// Borrowed sort key, so comparing never allocates.
+fn display_key(t: &OwnTask) -> (bool, bool, Option<&str>, u8, &str, i64) {
+    (
+        t.done_at.is_some(),
+        t.due.is_none(),
+        t.due.as_deref(),
+        t.priority.map_or(u8::MAX, Priority::rank),
+        t.created_at.as_str(),
+        t.id,
+    )
 }
 
 fn stamp(now: NaiveDateTime) -> String {
@@ -192,7 +192,9 @@ fn stamp(now: NaiveDateTime) -> String {
 }
 
 fn corrupt() -> rusqlite::Error {
-    // Fixed label only: never format the stored value.
+    // A stored `space` or `priority` outside the known set (the CHECKs should
+    // make this impossible). `InvalidQuery` is only a carrier: it surfaces as a
+    // value-free `StoreError::Sql`, so the stored value is never formatted.
     rusqlite::Error::InvalidQuery
 }
 

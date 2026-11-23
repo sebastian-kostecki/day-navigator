@@ -28,6 +28,11 @@ function asOwnTaskError(e: unknown): OwnTaskError | null {
   return null;
 }
 
+/** True when the task the user acted on no longer exists, so the list is stale. */
+export function isOwnTaskNotFound(e: unknown): boolean {
+  return asOwnTaskError(e)?.kind === "NotFound";
+}
+
 function storeErrorMessage(e: StoreError): string {
   switch (e.kind) {
     case "DirUnavailable":

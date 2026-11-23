@@ -70,7 +70,6 @@ export function OwnTaskForm({
           onChange={(e) => setTitle(e.currentTarget.value)}
           placeholder="Tytuł"
           aria-label="Tytuł"
-          required
         />
         <span className="own-task-counter">
           {charCount(title)}/{TITLE_MAX}

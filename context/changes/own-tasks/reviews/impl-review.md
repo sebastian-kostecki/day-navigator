@@ -57,7 +57,7 @@ All Manual Progress items are ticked.
   - Tradeoff: Ordering is a Rust domain rule (AGENTS.md), so the client would duplicate `sort_for_display`. A failed reload still needs surfacing.
   - Confidence: MED — it breaks the "UI only displays results" convention.
   - Blind spot: Drift between the TS and Rust sort orders.
-- **Decision**: PENDING
+- **Decision**: FIXED via Fix A. Variant: a save followed by a failed reload still counts as saved, so the form never invites a duplicate. The stale list gets an ErrorState banner with the last-refresh time and a retry, and NotFound triggers a reload.
 
 ### F2 — Branch is behind main: 3 conflicts and an unplanned app shell
 
@@ -76,7 +76,7 @@ All Manual Progress items are ticked.
   - Tradeoff: One more manual UI pass after the merge.
   - Confidence: HIGH — conflicts inspected; no schema collision.
   - Blind spot: S-08 (`work-timer`) is still unmerged and will need the v1/v2 renumbering later.
-- **Decision**: PENDING
+- **Decision**: FIXED. Merged main (7cf94ea). OwnTasksView is the "tasks" entry of the view shell, labelled "Moje zadania". The error state uses the ErrorState lastSuccess prop. Dropped the stale check_plain import from main settings.rs.
 
 ### F3 — AGENTS.md still names the removed `blocking` helper
 
@@ -86,7 +86,7 @@ All Manual Progress items are ticked.
 - **Location**: AGENTS.md:40
 - **Detail**: "call `with_store` inside `spawn_blocking` (the `blocking` helper in `lib.rs`)". This change deleted `blocking` and introduced `on_store` (`src-tauri/src/lib.rs:42-61`), which is now the canonical way to run store commands. Future agents will look for a helper that doesn't exist.
 - **Fix**: Replace "the `blocking` helper" with "the `on_store` helper" on AGENTS.md:40.
-- **Decision**: PENDING
+- **Decision**: FIXED. AGENTS.md:40 now names on_store.
 
 ### F4 — `required` on the title input bypasses the Polish message
 
@@ -96,7 +96,7 @@ All Manual Progress items are ticked.
 - **Location**: src/own-tasks/OwnTaskForm.tsx:73
 - **Detail**: The native `required` bubble blocks an empty title in the WebView's locale, so "Tytuł jest wymagany." never appears for an empty field. It still appears for a whitespace-only title. The plan says Rust is the only limit.
 - **Fix**: Drop `required` so an empty title reaches Rust and shows `TitleEmpty` inline.
-- **Decision**: PENDING
+- **Decision**: FIXED. Removed required from the title input.
 
 ### F5 — `lib.rs` imports `Space` through the vault re-export
 
@@ -106,7 +106,7 @@ All Manual Progress items are ticked.
 - **Location**: src-tauri/src/lib.rs:17
 - **Detail**: `use crate::vault::{Space, VaultError, VaultRegistry};` feeds the new `own_task_default_space` (:93). The plan moved `Space` to `crate::space` so that own tasks don't depend on vault code, and `own_tasks.rs` and the tests already use `crate::space::Space`.
 - **Fix**: Import `crate::space::Space` in lib.rs and drop it from the vault import.
-- **Decision**: PENDING
+- **Decision**: FIXED. lib.rs imports crate::space::Space.
 
 ### F6 — The note preview has no way to expand
 
@@ -116,7 +116,7 @@ All Manual Progress items are ticked.
 - **Location**: src/App.css:259
 - **Detail**: The plan's "collapsed preview" is implemented as `-webkit-line-clamp: 3` with no expand control, so a note longer than 3 lines is readable only through "Edytuj". Line breaks are kept, as planned.
 - **Fix**: Add a per-row "więcej / mniej" toggle that removes the clamp, or record that read-via-edit is intended.
-- **Decision**: PENDING
+- **Decision**: FIXED. NotePreview shows "Pokaż całą notatkę" / "Zwiń notatkę" only when the clamped note overflows (ResizeObserver).
 
 ### F7 — Two empty messages at once with zero tasks and "Pokaż zrobione" on
 
@@ -126,7 +126,7 @@ All Manual Progress items are ticked.
 - **Location**: src/own-tasks/OwnTasksView.tsx:92-93, :204
 - **Detail**: With no tasks at all, "Nie masz jeszcze żadnych zadań." shows, and turning on "Pokaż zrobione" adds "Brak zrobionych zadań." below it. The plan does not cover this combination.
 - **Fix**: Hide the "Zrobione" section (or its empty message) when `tasks.length === 0`.
-- **Decision**: PENDING
+- **Decision**: FIXED. The Zrobione section is hidden when there are no tasks at all.
 
 ### F8 — Every "Edytuj" button has the same accessible name
 
@@ -136,7 +136,7 @@ All Manual Progress items are ticked.
 - **Location**: src/own-tasks/OwnTasksView.tsx:143
 - **Detail**: The row checkbox's `aria-label` includes the task title, but the edit button is a bare "Edytuj" on every row.
 - **Fix**: Add ``aria-label={`Edytuj: ${task.title}`}`` to the edit button.
-- **Decision**: PENDING
+- **Decision**: FIXED. The edit button has aria-label "Edytuj: <title>".
 
 ### F9 — Minor backend nits: sort clones, `corrupt()` label, no `due` CHECK
 
@@ -152,4 +152,4 @@ All Manual Progress items are ticked.
   - Use `as_deref()` / `as_str()` in the sort key.
   - Add a comment on `corrupt()`.
   - Leave `due` to a future migration if it is ever wanted. Never edit v1.
-- **Decision**: PENDING
+- **Decision**: FIXED. Borrowed sort key (display_key), comment on corrupt(). The due CHECK is deferred to a future migration; v1 stays frozen.

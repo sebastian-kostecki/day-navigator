@@ -15,8 +15,9 @@ use chrono::{Local, NaiveDateTime};
 use tauri::Manager;
 
 use crate::own_tasks::{OwnTask, OwnTaskError, OwnTaskInput};
+use crate::space::Space;
 use crate::store::{Store, StoreError, StoreHandle};
-use crate::vault::{Space, VaultError, VaultRegistry};
+use crate::vault::{VaultError, VaultRegistry};
 
 /// Registry (or the error that stopped it) built from `settings.json`, kept in
 /// Tauri managed state. Each health check replaces it, so fixing settings

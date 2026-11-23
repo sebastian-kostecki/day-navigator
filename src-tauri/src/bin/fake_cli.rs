@@ -16,6 +16,79 @@ fn echo_argv() -> String {
     serde_json::json!({ "argv": args, "cwd": cwd }).to_string()
 }
 
+/// Marker inside the truncated `gitlab-bad-json` body; tests assert it never
+/// shows up in an error.
+const BAD_JSON_MARKER: &str = "LEAK-MARKER-TITLE-7c1e";
+
+/// Which assigned-items endpoint was asked for, from the `glab api` arguments.
+#[derive(PartialEq)]
+enum Endpoint {
+    MergeRequests,
+    Issues,
+    Other,
+}
+
+fn endpoint() -> Endpoint {
+    for arg in std::env::args().skip(1) {
+        if arg.starts_with("merge_requests?") {
+            return Endpoint::MergeRequests;
+        }
+        if arg.starts_with("issues?") {
+            return Endpoint::Issues;
+        }
+    }
+    Endpoint::Other
+}
+
+/// Invented assigned items on `gitlab.example.invalid`: a draft MR with labels,
+/// a tie on `updated_at`, an MR with a link on a foreign host.
+fn gitlab_assigned_body(endpoint: &Endpoint) -> Option<String> {
+    let body = match endpoint {
+        Endpoint::MergeRequests => serde_json::json!([
+            {
+                "title": "Fix gizmo rotation",
+                "web_url": "https://other.example.invalid/acme/gizmo/-/merge_requests/7",
+                "updated_at": "2026-03-01T09:00:00.000Z",
+                "labels": [],
+                "draft": false,
+                "references": { "full": "acme/gizmo!7" }
+            },
+            {
+                "title": "Add widget parser",
+                "web_url": "https://gitlab.example.invalid/acme/widgets/-/merge_requests/34",
+                "updated_at": "2026-03-02T10:00:00.000Z",
+                "labels": ["backend", "review"],
+                "draft": true,
+                "references": { "full": "acme/widgets!34" }
+            },
+            {
+                "title": "Rename widget module",
+                "web_url": "https://gitlab.example.invalid/acme/widgets/-/merge_requests/12",
+                "updated_at": "2026-03-02T10:00:00.000Z",
+                "references": { "full": "acme/widgets!12" }
+            }
+        ]),
+        Endpoint::Issues => serde_json::json!([
+            {
+                "title": "Gizmo jitters",
+                "web_url": "https://gitlab.example.invalid/acme/gizmo/-/issues/5",
+                "updated_at": "2026-02-20T08:00:00.000Z",
+                "labels": ["bug"],
+                "references": { "full": "acme/gizmo#5" }
+            },
+            {
+                "title": "Widget crashes on start",
+                "web_url": "https://gitlab.example.invalid/acme/widgets/-/issues/12",
+                "updated_at": "2026-03-03T08:00:00.000Z",
+                "labels": [],
+                "references": { "full": "acme/widgets#12" }
+            }
+        ]),
+        Endpoint::Other => return None,
+    };
+    Some(body.to_string())
+}
+
 /// Starts a copy of this program that sleeps a few seconds while holding the
 /// inherited stdout open (stderr is not shared), like a helper process that
 /// outlives the CLI.
@@ -55,6 +128,34 @@ fn main() {
             eprintln!("A new release is available: 9.9.9 (update notice)");
             0
         }
+        "gitlab-assigned" => match gitlab_assigned_body(&endpoint()) {
+            Some(body) => {
+                println!("{body}");
+                0
+            }
+            None => 98,
+        },
+        "gitlab-empty" => {
+            println!("[]");
+            0
+        }
+        "gitlab-bad-json" => {
+            // A truncated array that holds the marker as a title.
+            println!(
+                "[{{\"title\":\"{BAD_JSON_MARKER}\",\"web_url\":\"https://gitlab.example.invalid/acme/widgets\",\"updated_at\":\"2026-03"
+            );
+            0
+        }
+        "gitlab-mrs-ok-issues-no-network" => match endpoint() {
+            Endpoint::MergeRequests => {
+                println!("[]");
+                0
+            }
+            _ => {
+                eprint!("{GLAB_NO_NETWORK}");
+                1
+            }
+        },
         "glab-logged-out" => {
             eprintln!(
                 "{{\"message\":\"401 Unauthorized\"}}glab: 401 Unauthorized (HTTP 401) at gitlab.example.invalid"

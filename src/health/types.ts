@@ -4,7 +4,11 @@ export type Overall = "starting" | "ok" | "error" | "notRunning";
 
 /** `SourceState` is flattened into the source: `state` is the tag. */
 export type SourceState =
-  { state: "ok" } | { state: "notConfigured" } | { state: "error"; kind: string; message: string };
+  | { state: "ok" }
+  | { state: "notConfigured" }
+  /** Calm "cannot reach it right now" (for example no VPN); not an error. */
+  | { state: "unavailable"; message: string }
+  | { state: "error"; kind: string; message: string };
 
 /** `id` is a stable key such as `settings`, `vault:work`, `exclusions:private`. */
 export type SourceStatus = {

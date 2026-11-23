@@ -1,4 +1,6 @@
 pub mod cli;
+pub mod gitlab;
+pub mod gitlab_refresh;
 pub mod health;
 pub mod own_tasks;
 pub mod runtime;
@@ -136,8 +138,12 @@ pub fn run() {
             // thread, so `quick_check`, backup and migrations never delay the
             // main thread.
             app.manage(store::StoreHandle::new(data_dir));
+            // Managed before the health thread starts: its first round reads it.
+            let gitlab_rx = gitlab_refresh::manage(app);
             let wake_rx = runtime::build_tray(app)?;
-            runtime::start(app.handle(), settings_path, wake_rx);
+            runtime::start(app.handle(), settings_path.clone(), wake_rx);
+            // After `runtime::start`: the refresh thread wakes `HealthState`.
+            gitlab_refresh::start(app.handle(), settings_path, gitlab_rx);
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -151,6 +157,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             runtime::health_status,
             runtime::check_health_now,
+            gitlab_refresh::gitlab_snapshot,
+            gitlab_refresh::refresh_gitlab,
             list_own_tasks,
             add_own_task,
             edit_own_task,

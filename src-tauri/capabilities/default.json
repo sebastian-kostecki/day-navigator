@@ -1,11 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window. Only what the UI uses: listening to app events. No core:tray, so the webview cannot change the health tray; no event emit, so it cannot forge health-changed. The app's own commands need no permission.",
+  "description": "Capability for the main window. Only what the UI uses: listening to app events and opening https links in the default browser (GitLab items; the backend keeps only links on the configured host). No core:tray, so the webview cannot change the health tray; no event emit, so it cannot forge health-changed; no reveal-in-dir and no other URL schemes. The app's own commands need no permission.",
   "windows": ["main"],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
-    "opener:default"
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://*" }]
+    }
   ]
 }

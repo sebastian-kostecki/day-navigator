@@ -8,6 +8,8 @@ function stateText(s: SourceStatus): string {
       return "działa";
     case "notConfigured":
       return "nie skonfigurowano";
+    case "unavailable":
+      return "niedostępny";
     case "error":
       return "błąd";
   }
@@ -60,7 +62,9 @@ export function HealthPanel() {
             <li key={s.id} className={`source ${s.state}`}>
               <span className="source-label">{s.label}</span>
               <span className="source-state">{stateText(s)}</span>
-              {s.state === "error" && <span className="source-message">{s.message}</span>}
+              {(s.state === "error" || s.state === "unavailable") && (
+                <span className="source-message">{s.message}</span>
+              )}
             </li>
           ))}
         </ul>

@@ -29,8 +29,8 @@ fn tool_call(tool: Tool) -> CliCall {
 #[test]
 fn data_echoes_exact_arguments_for_every_call() {
     let r = runner("data");
-    for &call in CliCall::ALL {
-        let out = r.run(call).expect("data");
+    for call in CliCall::examples() {
+        let out = r.run(&call).expect("data");
         let v: serde_json::Value = serde_json::from_str(out.trim()).expect("json");
         let argv: Vec<&str> = v["argv"]
             .as_array()
@@ -44,7 +44,7 @@ fn data_echoes_exact_arguments_for_every_call() {
 
 #[test]
 fn runs_in_the_neutral_temp_dir_not_the_app_dir() {
-    let out = runner("data").run(CliCall::GlabVersion).expect("data");
+    let out = runner("data").run(&CliCall::GlabVersion).expect("data");
     let v: serde_json::Value = serde_json::from_str(out.trim()).expect("json");
     let cwd = PathBuf::from(v["cwd"].as_str().expect("cwd"));
     let canon = |p: &std::path::Path| std::fs::canonicalize(p).expect("canonicalize");
@@ -54,7 +54,7 @@ fn runs_in_the_neutral_temp_dir_not_the_app_dir() {
 #[test]
 fn lingering_grandchild_on_success_is_failed_without_exit_code_within_bound() {
     let started = Instant::now();
-    let got = runner("data-with-lingering-child").run(CliCall::GlabVersion);
+    let got = runner("data-with-lingering-child").run(&CliCall::GlabVersion);
     assert_eq!(
         got,
         Err(CliError::Failed {
@@ -72,13 +72,13 @@ fn lingering_grandchild_on_success_is_failed_without_exit_code_within_bound() {
 
 #[test]
 fn lingering_grandchild_on_failure_is_still_classified() {
-    let got = runner("no-network-with-lingering-child").run(CliCall::GlabAuthStatus);
+    let got = runner("no-network-with-lingering-child").run(&CliCall::GlabAuthStatus);
     assert_eq!(got, Err(CliError::Unavailable { tool: Tool::Glab }));
 }
 
 #[test]
 fn exit_zero_with_noise_is_data() {
-    assert!(runner("data-with-noise").run(CliCall::GlabVersion).is_ok());
+    assert!(runner("data-with-noise").run(&CliCall::GlabVersion).is_ok());
 }
 
 #[test]
@@ -93,7 +93,7 @@ fn logged_out_no_network_and_503_map_to_their_states() {
         ("http-503", Tool::Glab, unavailable(Tool::Glab)),
     ];
     for (scenario, tool, expected) in cases {
-        let got = runner(scenario).run(tool_call(tool));
+        let got = runner(scenario).run(&tool_call(tool));
         assert_eq!(got, expected, "{scenario}");
     }
 }
@@ -101,7 +101,7 @@ fn logged_out_no_network_and_503_map_to_their_states() {
 #[test]
 fn unknown_error_is_failed_with_exit_code() {
     assert_eq!(
-        runner("unknown-error").run(CliCall::GlabAuthStatus),
+        runner("unknown-error").run(&CliCall::GlabAuthStatus),
         Err(CliError::Failed {
             tool: Tool::Glab,
             exit_code: Some(2)
@@ -122,7 +122,7 @@ fn hang_times_out_as_unavailable_and_the_process_is_killed() {
         )],
     );
     let started = Instant::now();
-    let got = r.run(CliCall::GlabAuthStatus);
+    let got = r.run(&CliCall::GlabAuthStatus);
     assert!(started.elapsed() < Duration::from_secs(5));
     assert_eq!(got, Err(CliError::Unavailable { tool: Tool::Glab }));
     std::thread::sleep(Duration::from_secs(6));
@@ -139,11 +139,11 @@ fn missing_program_is_tool_missing() {
         Vec::new(),
     );
     assert_eq!(
-        r.run(CliCall::GlabVersion),
+        r.run(&CliCall::GlabVersion),
         Err(CliError::ToolMissing { tool: Tool::Glab })
     );
     assert_eq!(
-        r.run(CliCall::GhVersion),
+        r.run(&CliCall::GhVersion),
         Err(CliError::ToolMissing { tool: Tool::Gh })
     );
 }
@@ -151,7 +151,7 @@ fn missing_program_is_tool_missing() {
 #[test]
 fn big_output_is_failed_without_exit_code() {
     assert_eq!(
-        runner("big-output").run(CliCall::GlabVersion),
+        runner("big-output").run(&CliCall::GlabVersion),
         Err(CliError::Failed {
             tool: Tool::Glab,
             exit_code: None
@@ -162,7 +162,7 @@ fn big_output_is_failed_without_exit_code() {
 #[test]
 fn non_utf8_output_is_failed_with_exit_zero() {
     assert_eq!(
-        runner("non-utf8").run(CliCall::GhVersion),
+        runner("non-utf8").run(&CliCall::GhVersion),
         Err(CliError::Failed {
             tool: Tool::Gh,
             exit_code: Some(0)
@@ -183,7 +183,7 @@ fn errors_never_leak_stderr_or_hostnames() {
     ];
     for (scenario, tool) in scenarios {
         let err = runner(scenario)
-            .run(tool_call(tool))
+            .run(&tool_call(tool))
             .expect_err("failing scenario");
         let shown = [
             format!("{err:?}"),
@@ -192,6 +192,80 @@ fn errors_never_leak_stderr_or_hostnames() {
             err.message_pl(),
         ];
         for text in shown {
+            assert!(!text.contains("example.invalid"), "{scenario}: {text}");
+        }
+    }
+}
+
+#[test]
+fn gitlab_calls_with_a_user_pass_exactly_these_arguments() {
+    use day_navigator_lib::cli::{GitlabHost, GitlabUser};
+    let host = GitlabHost::parse("gitlab.example.invalid").unwrap();
+    let user = GitlabUser::parse("invented.user").unwrap();
+    let r = runner("data");
+    let cases = [
+        (
+            CliCall::GlabAssignedIssues(host.clone(), Some(user.clone())),
+            "issues?scope=all&state=opened&assignee_username=invented.user&per_page=100",
+        ),
+        (
+            CliCall::GlabAssignedMergeRequests(host.clone(), Some(user.clone())),
+            "merge_requests?scope=all&state=opened&assignee_username=invented.user&per_page=100",
+        ),
+        (
+            CliCall::GlabAssignedIssues(host.clone(), None),
+            "issues?scope=assigned_to_me&state=opened&per_page=100",
+        ),
+        (
+            CliCall::GlabAssignedMergeRequests(host, None),
+            "merge_requests?scope=assigned_to_me&state=opened&per_page=100",
+        ),
+    ];
+    for (call, endpoint) in cases {
+        let out = r.run(&call).expect("data");
+        let v: serde_json::Value = serde_json::from_str(out.trim()).expect("json");
+        let argv: Vec<&str> = v["argv"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a.as_str().unwrap())
+            .collect();
+        assert_eq!(
+            argv,
+            [
+                "api",
+                endpoint,
+                "--paginate",
+                "--hostname",
+                "gitlab.example.invalid"
+            ]
+        );
+    }
+}
+
+#[test]
+fn the_user_never_appears_in_any_cli_error() {
+    use day_navigator_lib::cli::{GitlabHost, GitlabUser};
+    let host = GitlabHost::parse("gitlab.example.invalid").unwrap();
+    let user = GitlabUser::parse("invented.user").unwrap();
+    let call = CliCall::GlabAssignedIssues(host, Some(user));
+    for scenario in [
+        "glab-no-network",
+        "glab-logged-out",
+        "http-503",
+        "unknown-error",
+        "non-utf8",
+        "big-output",
+    ] {
+        let err = runner(scenario).run(&call).unwrap_err();
+        let shown = [
+            format!("{err:?}"),
+            err.to_string(),
+            serde_json::to_string(&err).unwrap(),
+            err.message_pl(),
+        ];
+        for text in shown {
+            assert!(!text.contains("invented"), "{scenario}: {text}");
             assert!(!text.contains("example.invalid"), "{scenario}: {text}");
         }
     }

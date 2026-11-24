@@ -19,7 +19,10 @@ export type SourceStateProps = {
   /** Label of the secondary action button. */
   action?: string;
   onAction?: () => void;
-  /** Disables the action (and marks it busy) when clicking it would change nothing. */
+  /**
+   * Blocks the action while clicking it would change nothing (e.g. a refresh is
+   * running). It stays focusable (aria-disabled), so keyboard focus is not lost.
+   */
   actionDisabled?: boolean;
 };
 
@@ -49,9 +52,9 @@ export function SourceState({
           <Button
             variant="secondary"
             size="lg"
-            onClick={onAction}
-            disabled={actionDisabled}
-            aria-busy={actionDisabled}
+            onClick={actionDisabled ? undefined : onAction}
+            aria-disabled={actionDisabled || undefined}
+            aria-busy={actionDisabled || undefined}
           >
             {action}
           </Button>

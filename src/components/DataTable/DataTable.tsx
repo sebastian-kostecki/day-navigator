@@ -1,28 +1,28 @@
 import type { ReactNode } from "react";
 import "./DataTable.css";
 
-function cx(...parts: (string | false | undefined)[]): string {
-  return parts.filter(Boolean).join(" ");
-}
-
 export type DataTableProps = {
   /** Accessible name of the table. */
   label: string;
-  /** The view sets `--dn-table-cols` (and optionally `--dn-table-pad-x`) here. */
-  className?: string;
+  /**
+   * Required: the view sets `--dn-table-cols` (the grid column template) on this
+   * class, and optionally `--dn-table-pad-x`; without it the rows collapse.
+   */
+  className: string;
   children: ReactNode;
 };
 
 /** A grid table: structure and type only; the column template belongs to the view. */
 export function DataTable({ label, className, children }: DataTableProps) {
   return (
-    <div role="table" aria-label={label} className={cx("dn-table", className)}>
+    <div role="table" aria-label={label} className={`dn-table ${className}`}>
       {children}
     </div>
   );
 }
 
 export type DataTableRowProps = {
+  /** Header row: caps labels, control height, stronger bottom line. */
   head?: boolean;
   className?: string;
   children: ReactNode;
@@ -32,7 +32,9 @@ export function DataTableRow({ head, className, children }: DataTableRowProps) {
   return (
     <div
       role="row"
-      className={cx("dn-table-row", head ? "dn-table-head label-caps" : "dn-table-body", className)}
+      className={["dn-table-row", head ? "dn-table-head label-caps" : "dn-table-body", className]
+        .filter(Boolean)
+        .join(" ")}
     >
       {children}
     </div>
@@ -40,7 +42,9 @@ export function DataTableRow({ head, className, children }: DataTableRowProps) {
 }
 
 export type DataTableCellProps = {
+  /** Column header cell (role=columnheader) instead of a data cell. */
   header?: boolean;
+  /** muted = secondary text; faint = meta text (numbers, dates, labels). */
   tone?: "muted" | "faint";
   /** One line with an ellipsis. */
   truncate?: boolean;
@@ -61,12 +65,14 @@ export function DataTableCell({
     <span
       role={header ? "columnheader" : "cell"}
       title={title}
-      className={cx(
+      className={[
         "dn-table-cell",
         tone && `dn-table-cell-${tone}`,
         truncate && "dn-table-cell-truncate",
         className,
-      )}
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
       {children}
     </span>

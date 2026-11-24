@@ -41,7 +41,7 @@
   font-weight: 600;
 }
 
-.dn-btn-primary:hover:not(:disabled) {
+.dn-btn-primary:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--accent-hover);
   border-color: var(--accent-hover);
 }
@@ -63,13 +63,16 @@
   color: var(--ink-strong);
 }
 
-.dn-btn:disabled {
+/* aria-disabled: looks disabled but keeps focus (busy actions). */
+.dn-btn:disabled,
+.dn-btn[aria-disabled="true"] {
   color: var(--ink-disabled);
   border-color: var(--line);
   cursor: default;
 }
 
-.dn-btn-primary:disabled {
+.dn-btn-primary:disabled,
+.dn-btn-primary[aria-disabled="true"] {
   background: transparent;
 }
 

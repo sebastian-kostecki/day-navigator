@@ -125,9 +125,9 @@ export function HealthPanel() {
           size="sm"
           variant="quiet"
           icon="refresh"
-          onClick={runCheck}
-          disabled={checking}
-          aria-busy={checking}
+          onClick={checking ? undefined : runCheck}
+          aria-disabled={checking || undefined}
+          aria-busy={checking || undefined}
         >
           Sprawdź wszystkie
         </Button>

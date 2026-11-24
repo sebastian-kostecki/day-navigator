@@ -3,6 +3,7 @@ import { SourceState } from "./SourceState/SourceState";
 
 type Props = {
   title: string;
+  /** Inline content only (text, `<code>`, links): it is rendered inside a `<p>`. */
   message: ReactNode;
   onRetry?: () => void;
   /** Time of the last successful refresh, shown under the message as given. */

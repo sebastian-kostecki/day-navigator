@@ -234,10 +234,10 @@ None. No store schema change and no settings format change. Existing `settings.j
 
 #### Automated
 
-- [x] 2.1 `npm run lint`, `npm run format:check` and `npm run build` pass with zero errors
-- [x] 2.2 `cargo test`, `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass in `src-tauri/` (no regression)
-- [x] 2.3 `rg -n "useWorkTimerSource" src` finds it only in `src/worktime/WorkTimerProvider.tsx` and `useWorkTimer.ts` (no second timer subscription)
-- [x] 2.4 `rg -n "#[0-9a-fA-F]{3,8}\b|rgb\(" src/worktime` finds no literal colours
+- [x] 2.1 `npm run lint`, `npm run format:check` and `npm run build` pass with zero errors — 5d439db
+- [x] 2.2 `cargo test`, `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass in `src-tauri/` (no regression) — 5d439db
+- [x] 2.3 `rg -n "useWorkTimerSource" src` finds it only in `src/worktime/WorkTimerProvider.tsx` and `useWorkTimer.ts` (no second timer subscription) — 5d439db
+- [x] 2.4 `rg -n "#[0-9a-fA-F]{3,8}\b|rgb\(" src/worktime` finds no literal colours — 5d439db
 
 #### Manual
 

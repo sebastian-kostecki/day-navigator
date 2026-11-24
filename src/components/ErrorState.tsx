@@ -1,8 +1,9 @@
+import type { ReactNode } from "react";
 import { SourceState } from "./SourceState/SourceState";
 
 type Props = {
   title: string;
-  message: string;
+  message: ReactNode;
   onRetry?: () => void;
   /** Time of the last successful refresh, shown under the message as given. */
   lastSuccess?: string;

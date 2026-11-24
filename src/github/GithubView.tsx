@@ -109,7 +109,12 @@ function SourceError({
     return (
       <ErrorState
         title="GitHub: brak sesji"
-        message="Narzędzie gh nie jest zalogowane na tym komputerze. Zaloguj się w terminalu poleceniem „gh auth login”, potem odśwież."
+        message={
+          <>
+            Narzędzie gh nie jest zalogowane na tym komputerze. Zaloguj się w terminalu poleceniem{" "}
+            <code>gh auth login</code>, potem odśwież.
+          </>
+        }
         onRetry={onRetry}
         lastSuccess={lastSuccess}
       />
@@ -207,6 +212,7 @@ export function GithubView() {
           lastOk={lastSuccess}
           action="Sprawdź teraz"
           onAction={() => void refresh()}
+          actionDisabled={refreshing}
         />
       )}
       {state.state === "error" && (

@@ -275,26 +275,26 @@ Nie dotyczy — brak danych i kontraktów Rust. Usunięty `OwnTaskTabs.tsx` i ek
 
 #### Automated
 
-- [x] 2.1 Pełna bramka z AGENTS.md przechodzi: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [x] 2.2 Brak nadpisań i starych klas: `grep -rn "dn-seg-btn\|own-tab\|own-prio" src` zwraca tylko `src/components/Segmented/`
-- [x] 2.3 `src/own-tasks/OwnTaskTabs.tsx` nie istnieje, a `src/components/index.ts` eksportuje `Tabs`, `Chip`, `DataTable`, `DataTableRow`, `DataTableCell`
+- [x] 2.1 Pełna bramka z AGENTS.md przechodzi: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` — 1bc7d3a
+- [x] 2.2 Brak nadpisań i starych klas: `grep -rn "dn-seg-btn\|own-tab\|own-prio" src` zwraca tylko `src/components/Segmented/` — 1bc7d3a
+- [x] 2.3 `src/own-tasks/OwnTaskTabs.tsx` nie istnieje, a `src/components/index.ts` eksportuje `Tabs`, `Chip`, `DataTable`, `DataTableRow`, `DataTableCell` — 1bc7d3a
 
 #### Manual
 
-- [x] 2.4 „Moje zadania”: zakładki Praca / Prywatne / Zrobione wyglądają jak dotąd (podkreślenie akcentem, liczniki); strzałki, Home i End przełączają i przenoszą fokus; czytnik ekranu ogłasza „Filtr zadań”
-- [x] 2.5 „Moje zadania”: chip priorytetu (wysoki pomarańczowy, normalny, niski) wygląda jak dotąd; „Przestrzeń” w szybkim dodawaniu i w „Edycji” ma wysokość pól obok
-- [x] 2.6 GitLab przy 1280, 900 i 800 px oraz poniżej 600 px: kolumny, nagłówki, ucinanie tytułów i etykiet, ukrywanie kolumn, przyciemnienie ukrytych wierszy i tabela „Zamknięte” bez zmian
-- [x] 2.7 Filtr rodzaju w GitLabie (Segmented) ma dotychczasową wysokość 36 px
+- [x] 2.4 „Moje zadania”: zakładki Praca / Prywatne / Zrobione wyglądają jak dotąd (podkreślenie akcentem, liczniki); strzałki, Home i End przełączają i przenoszą fokus; czytnik ekranu ogłasza „Filtr zadań” — 1bc7d3a
+- [x] 2.5 „Moje zadania”: chip priorytetu (wysoki pomarańczowy, normalny, niski) wygląda jak dotąd; „Przestrzeń” w szybkim dodawaniu i w „Edycji” ma wysokość pól obok — 1bc7d3a
+- [x] 2.6 GitLab przy 1280, 900 i 800 px oraz poniżej 600 px: kolumny, nagłówki, ucinanie tytułów i etykiet, ukrywanie kolumn, przyciemnienie ukrytych wierszy i tabela „Zamknięte” bez zmian — 1bc7d3a
+- [x] 2.7 Filtr rodzaju w GitLabie (Segmented) ma dotychczasową wysokość 36 px — 1bc7d3a
 
 ### Phase 3: Stany źródeł
 
 #### Automated
 
-- [ ] 3.1 Pełna bramka z AGENTS.md przechodzi: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [ ] 3.2 `grep -n "gh auth login" src/github/GithubView.tsx` pokazuje polecenie wewnątrz `<code>`
+- [x] 3.1 Pełna bramka z AGENTS.md przechodzi: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 3.2 `grep -n "gh auth login" src/github/GithubView.tsx` pokazuje polecenie wewnątrz `<code>`
 
 #### Manual
 
-- [ ] 3.3 Wylogowane `gh`: czerwony blok „GitHub: brak sesji” z `gh auth login` w kroju mono; „Spróbuj ponownie” działa
-- [ ] 3.4 GitLab bez VPN: „Sprawdź teraz” jest nieaktywne, dopóki trwa odświeżanie, i wraca po jego końcu; karta pozostaje spokojna (szara, bez czerwieni)
-- [ ] 3.5 Inne błędy (`ErrorState` z tekstem) wyglądają jak dotąd
+- [x] 3.3 Wylogowane `gh`: czerwony blok „GitHub: brak sesji” z `gh auth login` w kroju mono; „Spróbuj ponownie” działa
+- [x] 3.4 GitLab bez VPN: „Sprawdź teraz” jest nieaktywne, dopóki trwa odświeżanie, i wraca po jego końcu; karta pozostaje spokojna (szara, bez czerwieni)
+- [x] 3.5 Inne błędy (`ErrorState` z tekstem) wyglądają jak dotąd

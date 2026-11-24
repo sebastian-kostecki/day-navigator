@@ -19,9 +19,19 @@ export type SourceStateProps = {
   /** Label of the secondary action button. */
   action?: string;
   onAction?: () => void;
+  /** Disables the action (and marks it busy) when clicking it would change nothing. */
+  actionDisabled?: boolean;
 };
 
-export function SourceState({ kind, title, children, lastOk, action, onAction }: SourceStateProps) {
+export function SourceState({
+  kind,
+  title,
+  children,
+  lastOk,
+  action,
+  onAction,
+  actionDisabled,
+}: SourceStateProps) {
   const role = kind === "error" ? "alert" : kind === "calm" ? "status" : undefined;
   return (
     <section className={`dn-state dn-state-${kind}`} role={role}>
@@ -36,7 +46,13 @@ export function SourceState({ kind, title, children, lastOk, action, onAction }:
         {children ? <p className="dn-state-text">{children}</p> : null}
         {lastOk ? <p className="dn-state-last">{lastOk}</p> : null}
         {action ? (
-          <Button variant="secondary" size="lg" onClick={onAction}>
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={onAction}
+            disabled={actionDisabled}
+            aria-busy={actionDisabled}
+          >
             {action}
           </Button>
         ) : null}

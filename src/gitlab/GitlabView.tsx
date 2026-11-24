@@ -502,6 +502,7 @@ export function GitlabView() {
           lastOk={lastSuccess}
           action="Sprawdź teraz"
           onAction={() => void refresh()}
+          actionDisabled={refreshing}
         >
           Brak połączenia z siecią firmową (VPN) albo serwer GitLaba nie odpowiada. To normalny stan
           poza pracą — aplikacja sprawdzi ponownie przy następnym automatycznym odświeżeniu.

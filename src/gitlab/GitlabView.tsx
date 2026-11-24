@@ -11,6 +11,10 @@ import {
   formatAgo,
 } from "../components";
 import { ErrorState } from "../components/ErrorState";
+import { gitlabKey } from "../todo/keys";
+import { TodoAddButton } from "../todo/TodoAddButton";
+import { TodoPicksNotices } from "../todo/TodoPicksNotices";
+import { useTodoPicks, type TodoPicks } from "../todo/useTodoPicks";
 import { openGitlabItem } from "./api";
 import type { ChangeReason, ClosedSection, GitlabItem, GitlabSnapshot } from "./types";
 import { useGitlab } from "./useGitlab";
@@ -72,6 +76,8 @@ function matchesKind(item: GitlabItem, kind: KindFilter): boolean {
 }
 
 type RowActions = {
+  /** The "Do zrobienia" list, for the per-row "+" button. */
+  todo: TodoPicks;
   busy: ReadonlySet<number>;
   hide: (id: number) => void;
   unhide: (id: number) => void;
@@ -143,10 +149,11 @@ function GitlabRow({
 }: {
   row: TableRow;
   now: number;
-  /** Only issue rows get actions; merge request rows stay as they are. */
+  /** Hide/dismiss buttons only on issue rows; every row gets the "Do zrobienia" button. */
   actions?: RowActions;
 }) {
   const { item, hidden = false } = row;
+  const todoFound = actions?.todo.find(gitlabKey(item.kind, item.reference));
   const at = row.at ?? item.updatedAt;
   const { nr, project, path } = splitReference(item.reference);
   const url = item.webUrl;
@@ -183,6 +190,7 @@ function GitlabRow({
           </span>
         )}
         {item.draft && <Flag tone="change">Draft</Flag>}
+        {todoFound && <Flag tone="change">W Do zrobienia</Flag>}
       </span>
       <span role="cell" className="gitlab-cell gitlab-col-project" title={path || undefined}>
         {project}
@@ -196,6 +204,18 @@ function GitlabRow({
       <span role="cell" className="gitlab-cell gitlab-col-actions">
         {actions && item.kind === "issue" && (
           <RowButtons item={item} hidden={hidden} actions={actions} />
+        )}
+        {actions && (todoFound || !hidden) && (
+          <TodoAddButton
+            label={item.title}
+            onList={todoFound !== undefined}
+            atLimit={actions.todo.atLimit}
+            limit={actions.todo.limit}
+            disabled={actions.todo.buttonDisabled}
+            disabledHint={actions.todo.buttonHint}
+            onAdd={() => void actions.todo.addGitlab(item.kind, item.reference)}
+            onRemove={todoFound ? () => void actions.todo.remove(todoFound.id) : undefined}
+          />
         )}
       </span>
     </div>
@@ -399,6 +419,7 @@ export function GitlabView() {
     unhide,
     dismiss,
   } = useGitlab();
+  const todo = useTodoPicks();
   const [kind, setKind] = useState<KindFilter>("all");
   const [showHidden, setShowHidden] = useState(false);
   const [now, setNow] = useState(() => Date.now());
@@ -432,7 +453,7 @@ export function GitlabView() {
   const { state, items, lastSuccessMs, refreshing, hiddenCheckFailed, ownCommentsKnown } = snapshot;
   // The tick can lag a fresh snapshot; never show a refresh "in the future".
   const nowMs = Math.max(now, lastSuccessMs ?? 0);
-  const actions: RowActions = { busy, hide, unhide, dismiss };
+  const actions: RowActions = { todo, busy, hide, unhide, dismiss };
   // Filtered-out hidden issues are still checked for comments, so they count.
   const hasHidden = (items?.hiddenIssues.length ?? 0) + snapshot.filteredOut.hiddenIssues > 0;
   const lastSuccess =
@@ -531,6 +552,7 @@ export function GitlabView() {
         </Notice>
       )}
       {actionError && <Notice tone="error">{actionError}</Notice>}
+      <TodoPicksNotices todo={todo} />
       {items && state.state !== "notConfigured" && !offline && (
         <Lists
           snapshot={{ ...snapshot, items }}

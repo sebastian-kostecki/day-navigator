@@ -237,9 +237,9 @@ Brak: bez zmian schematu i danych.
 
 #### Automated
 
-- [x] 2.1 `npm run lint` przechodzi
-- [x] 2.2 `npm run format:check` przechodzi
-- [x] 2.3 `npm run build` przechodzi bez błędów
+- [x] 2.1 `npm run lint` przechodzi — 6db27d5
+- [x] 2.2 `npm run format:check` przechodzi — 6db27d5
+- [x] 2.3 `npm run build` przechodzi bez błędów — 6db27d5
 
 #### Manual
 
@@ -249,10 +249,10 @@ Brak: bez zmian schematu i danych.
 
 #### Automated
 
-- [ ] 3.1 `npm run lint` przechodzi
-- [ ] 3.2 `npm run format:check` przechodzi
-- [ ] 3.3 `npm run build` przechodzi bez błędów
-- [ ] 3.4 `cargo test` w `src-tauri/` nadal przechodzi
+- [x] 3.1 `npm run lint` przechodzi
+- [x] 3.2 `npm run format:check` przechodzi
+- [x] 3.3 `npm run build` przechodzi bez błędów
+- [x] 3.4 `cargo test` w `src-tauri/` nadal przechodzi
 
 #### Manual
 

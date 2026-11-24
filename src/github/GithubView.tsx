@@ -10,6 +10,10 @@ import {
   formatAgo,
 } from "../components";
 import { ErrorState } from "../components/ErrorState";
+import { githubKey } from "../todo/keys";
+import { TodoAddButton } from "../todo/TodoAddButton";
+import { TodoPicksNotices } from "../todo/TodoPicksNotices";
+import { useTodoPicks, type TodoPicks } from "../todo/useTodoPicks";
 import { openGithubIssue } from "./api";
 import type { GithubIssue, GithubState, RepoView } from "./types";
 import { useGithub } from "./useGithub";
@@ -36,16 +40,29 @@ function formatUpdated(iso: string): string {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("pl-PL");
 }
 
-function IssueRow({ issue, now }: { issue: GithubIssue; now: number }) {
+function IssueRow({ issue, now, todo }: { issue: GithubIssue; now: number; todo: TodoPicks }) {
   const url = issue.webUrl;
+  const found = todo.find(githubKey(issue.reference));
   return (
     <ItemRow
       refId={`#${issue.number}`}
       title={issue.title}
+      flag={found ? "W Do zrobienia" : undefined}
+      flagTone={found ? "change" : undefined}
       meta={
         <span title={formatUpdated(issue.updatedAt)}>{formatIssueAge(issue.updatedAt, now)}</span>
       }
     >
+      <TodoAddButton
+        label={issue.title}
+        onList={found !== undefined}
+        atLimit={todo.atLimit}
+        limit={todo.limit}
+        disabled={todo.buttonDisabled}
+        disabledHint={todo.buttonHint}
+        onAdd={() => void todo.addGithub(issue.reference)}
+        onRemove={found ? () => void todo.remove(found.id) : undefined}
+      />
       {url && (
         <Button
           variant="quiet"
@@ -61,7 +78,7 @@ function IssueRow({ issue, now }: { issue: GithubIssue; now: number }) {
   );
 }
 
-function RepoGroup({ repo, now }: { repo: RepoView; now: number }) {
+function RepoGroup({ repo, now, todo }: { repo: RepoView; now: number; todo: TodoPicks }) {
   return (
     <Panel
       title={
@@ -79,7 +96,9 @@ function RepoGroup({ repo, now }: { repo: RepoView; now: number }) {
       ) : repo.issues.length === 0 ? (
         <p className="github-repo-empty">Brak otwartych zgłoszeń przypisanych do Ciebie.</p>
       ) : (
-        repo.issues.map((issue) => <IssueRow key={issue.reference} issue={issue} now={now} />)
+        repo.issues.map((issue) => (
+          <IssueRow key={issue.reference} issue={issue} now={now} todo={todo} />
+        ))
       )}
     </Panel>
   );
@@ -117,6 +136,7 @@ function SourceError({
 
 export function GithubView() {
   const { snapshot, loadError, refresh, refreshError, retry } = useGithub();
+  const todo = useTodoPicks();
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const handle = setInterval(() => setNow(Date.now()), NOW_TICK_MS);
@@ -205,6 +225,7 @@ export function GithubView() {
       {state.state === "error" && (
         <SourceError state={state} lastSuccess={lastSuccess} onRetry={() => void refresh()} />
       )}
+      <TodoPicksNotices todo={todo} />
       {showList && allEmpty && (
         <SourceState kind="empty" title="Nic przypisanego">
           Brak otwartych zgłoszeń przypisanych do Ciebie w {repos.length}{" "}
@@ -215,7 +236,7 @@ export function GithubView() {
         <div className={state.state !== "ok" ? "dn-columns github-stale" : "dn-columns"}>
           <div className="dn-col-main github-repos">
             {repos.map((repo) => (
-              <RepoGroup key={repo.repo} repo={repo} now={nowMs} />
+              <RepoGroup key={repo.repo} repo={repo} now={nowMs} todo={todo} />
             ))}
           </div>
           <aside className="dn-col-side">

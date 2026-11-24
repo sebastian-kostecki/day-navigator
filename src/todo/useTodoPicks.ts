@@ -30,6 +30,7 @@ export function useTodoPicks() {
   const find = useCallback((key: string): TodoItem | undefined => byKey?.get(key), [byKey]);
 
   const limit = list?.limit ?? null;
+  const ready = list !== null;
   return {
     load,
     reloadError,
@@ -37,8 +38,11 @@ export function useTodoPicks() {
     refresh,
     lastSuccessAt,
     /** The list is loaded; until then `find` knows nothing and buttons should be disabled. */
-    ready: list !== null,
+    ready,
     find,
+    /** `disabled` / `disabledHint` for a row's `TodoAddButton`. */
+    buttonDisabled: busy || !ready,
+    buttonHint: ready ? undefined : "Lista Do zrobienia niewczytana",
     /** Same rule as `TodoView`; an unloaded list counts as at the limit. */
     atLimit: list === null || list.limit === null || list.openCount >= list.limit,
     limit,
@@ -50,3 +54,5 @@ export function useTodoPicks() {
     remove: (id: number) => act(() => remove(id)),
   };
 }
+
+export type TodoPicks = ReturnType<typeof useTodoPicks>;

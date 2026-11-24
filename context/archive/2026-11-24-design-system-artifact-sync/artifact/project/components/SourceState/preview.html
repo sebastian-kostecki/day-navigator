@@ -1,0 +1,19 @@
+<!-- @dsCard group="Stany" height=700 subtitle="pusto / niedostępny / błąd / akcja zajęta" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>SourceState — preview</title></head>
+<body>
+<div id="root" class="dn-demo-col"></div>
+<script>
+  var D = window.DayNav, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(D.SourceState, { kind: 'empty', title: 'Nic przypisanego' }, 'Brak otwartych zgłoszeń przypisanych do Ciebie w 3 repozytoriach z ustawień.'),
+    h(D.SourceState, { kind: 'calm', title: 'GitLab niedostępny', lastOk: 'ostatnio OK 08:52', action: 'Sprawdź teraz', onAction: function () {} },
+      'Brak połączenia z siecią firmową (VPN). To normalny stan poza pracą — aplikacja sprawdza ponownie co 5 minut.'),
+    h(D.SourceState, { kind: 'calm', title: 'GitLab niedostępny', lastOk: 'ostatnio OK 08:52', action: 'Sprawdź teraz', actionDisabled: true },
+      'Akcja zajęta: etykieta zostaje, przycisk jest aria-disabled + aria-busy i nic nie robi.'),
+    h(D.SourceState, { kind: 'error', title: 'GitHub: brak sesji', lastOk: 'ostatnio OK wczoraj 22:10' },
+      'Narzędzie gh nie jest zalogowane na tym komputerze. Zaloguj się w terminalu poleceniem gh auth login, potem odśwież.')));
+</script>
+</body>
+</html>

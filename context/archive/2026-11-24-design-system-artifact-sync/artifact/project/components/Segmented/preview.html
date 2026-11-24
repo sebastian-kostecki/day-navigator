@@ -1,0 +1,23 @@
+<!-- @dsCard group="Nawigacja" height=170 subtitle="sm (domyślny) i md obok pola 40px" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Segmented — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.DayNav, h = React.createElement;
+  function Demo() {
+    var a = React.useState('all'), b = React.useState('Praca');
+    return h(React.Fragment, null,
+      h('div', { className: 'dn-demo' },
+        h(D.Segmented, { label: 'Typ', value: a[0], onChange: a[1], options: [{ value: 'all', label: 'Wszystko' }, { value: 'iss', label: 'Zgłoszenia' }, { value: 'mr', label: 'MR-y' }] }),
+        h(D.Segmented, { label: 'Przestrzeń (sm)', value: b[0], onChange: b[1], options: [{ value: 'Praca', label: 'Praca' }, { value: 'Prywatne', label: 'Prywatne' }] })),
+      h('div', { className: 'dn-demo', style: { alignItems: 'flex-end' } },
+        h(D.Field, { id: 'sg-title', label: 'Nowe zadanie', placeholder: 'Tytuł', style: { width: 200 } }),
+        h('div', { className: 'dn-field' }, h('span', { className: 'dn-field-label' }, 'Przestrzeń'),
+          h(D.Segmented, { label: 'Przestrzeń (md)', size: 'md', value: b[0], onChange: b[1], options: [{ value: 'Praca', label: 'Praca' }, { value: 'Prywatne', label: 'Prywatne' }] }))));
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+</script>
+</body>
+</html>

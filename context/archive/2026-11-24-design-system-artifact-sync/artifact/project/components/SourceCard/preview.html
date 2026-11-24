@@ -1,0 +1,43 @@
+<!-- @dsCard group="Wzorce widoków" height=420 page subtitle="Dane aplikacji: OK i przeterminowana kopia" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>SourceCard — preview</title></head>
+<body>
+<div id="root" style="padding: 16px"></div>
+<script>
+  var D = window.DayNav, h = React.createElement;
+  var GLYPH = { ok: '●', calm: '○', error: '▲' };
+
+  function Card(p) {
+    var tone = p.tone;
+    return h('section', { className: 'health-card is-' + tone, 'aria-labelledby': p.id },
+      h('div', { className: 'health-card-head' },
+        h('span', { className: 'health-glyph health-card-glyph is-' + tone, 'aria-hidden': 'true' }, GLYPH[tone]),
+        h('div', { className: 'health-card-title' },
+          h('h2', { id: p.id, className: 'health-card-name' }, p.name),
+          h('div', { className: 'health-card-kind' }, p.kind)),
+        h(D.StatusPill, { state: tone, glyph: false }, p.pill)),
+      h('p', { className: 'health-card-message' }, p.message),
+      p.note ? h('p', { className: 'health-card-note' }, p.note) : null,
+      p.facts.length > 0
+        ? h('dl', { className: 'health-card-facts' }, p.facts.map(function (f) {
+            return h('div', { key: f[0], className: 'health-card-fact' },
+              h('dt', null, f[0]),
+              h('dd', { className: f[2] ? 'is-warn' : undefined }, f[1]));
+          }))
+        : null,
+      h('div', { className: 'health-card-actions' },
+        h(D.Button, { size: 'sm', variant: 'quiet', icon: 'folder' }, 'Otwórz folder kopii')));
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h('div', { className: 'health-cards' },
+      h(Card, { id: 'sc-ok', tone: 'ok', name: 'Dane aplikacji', kind: 'SQLite · kopie dzienne', pill: 'OK',
+        message: 'Baza otwarta i sprawdzona.',
+        facts: [['Sprawdzono', '2 min temu'], ['Ostatnia kopia', 'wczoraj'], ['Kopie', '5 z 7'], ['Schemat', 'v11']] }),
+      h(Card, { id: 'sc-stale', tone: 'ok', name: 'Dane aplikacji', kind: 'SQLite · kopie dzienne', pill: 'OK',
+        message: 'Baza otwarta i sprawdzona.',
+        facts: [['Sprawdzono', '2 min temu'], ['Ostatnia kopia', '8 dni temu', true], ['Kopie', '5 z 7'], ['Schemat', 'v11']] })));
+</script>
+</body>
+</html>

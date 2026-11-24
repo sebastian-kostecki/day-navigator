@@ -1,0 +1,26 @@
+<!-- @dsCard group="Oznaczenia" height=130 subtitle="Priorytet: warn, soft, faint, bez tonu" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Chip — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.DayNav, h = React.createElement;
+  function label(text) {
+    return h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-faint)' } }, text);
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h('div', { className: 'dn-demo' },
+      h(D.Chip, { tone: 'warn' }, 'wysoki'),
+      h(D.Chip, { tone: 'soft' }, 'normalny'),
+      h(D.Chip, { tone: 'faint' }, 'niski'),
+      h(D.Chip, null, 'bez tonu')),
+    h('div', { className: 'dn-demo' },
+      label('Filtr:'),
+      h(D.Chip, null, 'backend'),
+      h(D.Chip, null, 'faktury'),
+      label('bez:'),
+      h(D.Chip, { tone: 'faint' }, 'wstrzymane'))));
+</script>
+</body>
+</html>

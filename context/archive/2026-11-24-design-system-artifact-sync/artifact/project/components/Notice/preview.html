@@ -1,0 +1,20 @@
+<!-- @dsCard group="Stany" height=600 subtitle="Tony, akcja, compact, inset" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Notice — preview</title></head>
+<body>
+<div id="root" class="dn-demo-col"></div>
+<script>
+  var D = window.DayNav, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(D.Notice, { tone: 'calm' }, 'GitLab niedostępny — brak VPN. Pokazuję ostatnie dane.'),
+    h(D.Notice, { tone: 'info' }, 'Zapisano. Pozycja wróci do listy po zmianie statusu.'),
+    h(D.Notice, { tone: 'warn', title: 'Brak wpisu w ustawieniach' }, 'Dodaj klucz ', h('code', null, 'github'), ' do pliku ustawień, żeby włączyć to źródło.'),
+    h(D.Notice, { tone: 'error', action: 'Spróbuj ponownie', onAction: function () {} }, 'Nie udało się zapisać zadania: baza jest zajęta.'),
+    h(D.Notice, { tone: 'error', action: 'Spróbuj ponownie', actionDisabled: true }, 'Nie udało się zapisać zadania: baza jest zajęta.'),
+    h(D.Notice, { tone: 'warn', compact: true }, 'Termin w przeszłości.'),
+    h(D.Panel, { title: 'Przykład inset', meta: '2 pozycje' },
+      h(D.Notice, { tone: 'warn', inset: true }, 'Trzy zgłoszenia pominięto: repozytorium nie odpowiada.'))));
+</script>
+</body>
+</html>

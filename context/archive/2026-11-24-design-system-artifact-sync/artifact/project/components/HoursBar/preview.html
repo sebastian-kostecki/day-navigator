@@ -1,0 +1,27 @@
+<!-- @dsCard group="Dane" height=240 subtitle="norm i label jawnie; dzień wolny norm=0" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>HoursBar — preview</title></head>
+<body>
+<div id="root" class="dn-demo-col" style="max-width: 560px"></div>
+<script>
+  var D = window.DayNav, h = React.createElement;
+  // [dzień, godziny, norma, suma, odchylenie, ton odchylenia, dziś]
+  var rows = [
+    ['19.11 cz', 8.9, 8, '8:54', '+0:54', 'info'],
+    ['20.11 pt', 7.5, 8, '7:30', '−0:30', 'warn'],
+    ['21.11 sb', 2.0, 0, '2:00', '', ''],
+    ['23.11 pn', 5.2, 8, '5:12', 'trwa', '', true]
+  ];
+  function hm(n) { return Math.floor(n) + ':' + ('0' + Math.round((n % 1) * 60)).slice(-2); }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null, rows.map(function (r) {
+    var label = r[2] > 0 ? hm(r[1]) + ' na tle normy ' + hm(r[2]) : hm(r[1]) + ', bez normy';
+    return h('div', { key: r[0], style: { display: 'grid', gridTemplateColumns: '84px minmax(0, 1fr) 48px 56px', gap: 12, alignItems: 'center', fontFamily: 'var(--font-mono)', fontSize: 12 } },
+      h('span', null, r[0]),
+      h(D.HoursBar, { hours: r[1], norm: r[2], label: label, today: !!r[6] }),
+      h('span', { style: { textAlign: 'right' } }, r[3]),
+      h('span', { style: { textAlign: 'right', color: r[5] ? 'var(--' + r[5] + ')' : 'var(--ink-faint)' } }, r[4]));
+  })));
+</script>
+</body>
+</html>

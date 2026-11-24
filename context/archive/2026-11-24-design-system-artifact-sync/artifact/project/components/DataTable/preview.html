@@ -1,0 +1,42 @@
+<!-- @dsCard group="Dane" height=330 subtitle="Dni miesiąca: current, hatched, tony" -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"><title>DataTable — preview</title>
+<style>
+  .pv-days { --dn-table-cols: 72px minmax(0, 1fr) 52px 60px; }
+  .pv-num { text-align: right; }
+</style>
+</head>
+<body>
+<div id="root" style="padding: 16px"></div>
+<script>
+  var D = window.DayNav, h = React.createElement;
+  var days = [
+    { day: '19.11 cz', hours: 8.9, norm: 8, sum: '8:54', dev: '+0:54', tone: 'info' },
+    { day: '20.11 pt', hours: 7.5, norm: 8, sum: '7:30', dev: '−0:30', tone: 'warn' },
+    { day: '21.11 sb', hours: 0, norm: 0, sum: '—', dev: '—', tone: 'faint', hatched: true, muted: true },
+    { day: '23.11 pn', hours: 5.2, norm: 8, sum: '5:12', dev: '−2:48', tone: 'warn', current: true }
+  ];
+  function hm(n) { return Math.floor(n) + ':' + ('0' + Math.round((n % 1) * 60)).slice(-2); }
+  function Row(d) {
+    var tone = d.muted ? 'muted' : undefined;
+    var label = d.norm > 0 ? hm(d.hours) + ' na tle normy ' + hm(d.norm) : hm(d.hours) + ', bez normy';
+    return h(D.DataTableRow, { key: d.day, current: d.current, hatched: d.hatched },
+      h(D.DataTableCell, { tone: tone, className: 'code' }, d.day),
+      h(D.DataTableCell, null, d.hours > 0 ? h(D.HoursBar, { hours: d.hours, norm: d.norm, today: d.current, label: label }) : null),
+      h(D.DataTableCell, { tone: d.sum === '—' ? 'faint' : tone, className: 'code pv-num' }, d.sum),
+      h(D.DataTableCell, { tone: d.tone, className: 'code pv-num' }, d.dev));
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h(D.Panel, { title: 'Listopad', meta: '4 dni' },
+      h(D.DataTable, { label: 'Dni miesiąca', className: 'pv-days' },
+        h(D.DataTableRow, { head: true },
+          h(D.DataTableCell, { header: true }, 'Dzień'),
+          h(D.DataTableCell, { header: true }, 'Godziny'),
+          h(D.DataTableCell, { header: true, className: 'pv-num' }, 'Suma'),
+          h(D.DataTableCell, { header: true, className: 'pv-num' }, 'Odch.')),
+        days.map(Row))));
+</script>
+</body>
+</html>

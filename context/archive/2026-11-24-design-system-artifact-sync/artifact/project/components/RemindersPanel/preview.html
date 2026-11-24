@@ -1,0 +1,39 @@
+<!-- @dsCard group="Wzorce widoków" height=420 page subtitle="Przypomnienia: wartości, stopka, błąd otwarcia" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>RemindersPanel — preview</title></head>
+<body>
+<div id="root" class="dn-demo" style="align-items: flex-start"></div>
+<script>
+  var D = window.DayNav, h = React.createElement;
+
+  function Row(p) {
+    var on = p.value !== null;
+    return h('div', { className: 'wt-reminder' },
+      h('dt', null, p.label),
+      h('dd', { className: 'wt-reminder-value' },
+        h('span', { className: 'code' }, on ? p.value : '—'),
+        h(D.StatusPill, { state: on ? 'ok' : 'calm', glyph: false }, on ? 'WŁ.' : 'WYŁ.'),
+        p.fromFile ? null : h('span', { className: 'meta' }, 'domyślnie')),
+      h('dd', { className: 'meta wt-reminder-hint' }, p.hint));
+  }
+
+  function Reminders(props) {
+    return h(D.Panel, {
+      title: 'Przypomnienia',
+      style: { flex: '1 1 340px' },
+      footer: h(React.Fragment, null,
+        h(D.Button, { variant: 'quiet', size: 'sm', icon: 'external', title: 'Otwórz plik ustawień w domyślnym edytorze' }, 'Ustawienia'),
+        props.error ? h(D.Notice, { tone: 'error', compact: true }, props.error) : null)
+    },
+      h('dl', { className: 'wt-reminders' },
+        h(Row, { label: 'Licznik biegnie dłużej niż', value: '9:00', fromFile: true, hint: 'potem co godzinę, dopóki licznik biegnie' }),
+        h(Row, { label: 'Brak START-u w dzień roboczy po', value: null, fromFile: false, hint: 'gdy dziś nie ma jeszcze wpisu; potem co godzinę' })));
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(Reminders, null),
+    h(Reminders, { error: 'Nie udało się otworzyć pliku ustawień: brak domyślnego edytora.' })));
+</script>
+</body>
+</html>

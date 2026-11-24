@@ -1,0 +1,15 @@
+<!-- @dsCard group="Stany" height=340 subtitle="title, message, onRetry, lastSuccess" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>ErrorState — preview</title></head>
+<body>
+<div id="root" class="dn-demo-col"></div>
+<script>
+  var D = window.DayNav, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
+    h(D.ErrorState, { title: 'GitHub: brak sesji', lastSuccess: 'ostatnio OK 08:52', onRetry: function () {} },
+      'Narzędzie gh nie jest zalogowane. Zaloguj się w terminalu poleceniem ', h('code', null, 'gh auth login'), ', potem spróbuj ponownie.'),
+    h(D.ErrorState, { title: 'Nie udało się wczytać przypomnień', message: 'Plik ustawień jest nieczytelny.' })));
+</script>
+</body>
+</html>

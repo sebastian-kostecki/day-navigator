@@ -62,7 +62,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | S-05 | worktime-days-table         | see a table of the month's days against 8 h and mark days off there                     | F-01, F-02    | FR-020          | done |
 | S-06 | worktime-reminders-panel    | see the reminder thresholds and whether reminders are on                                | —             | FR-021          | ready    |
 | S-07 | app-data-details            | see the last backup, kept backups and schema version, and open the backups folder       | F-03          | FR-022          | ready    |
-| S-08 | event-log                   | see today's events in a "Dziennik zdarzeń" panel on the dashboard                       | F-03          | FR-019          | in-progress |
+| S-08 | event-log                   | see today's events in a "Dziennik zdarzeń" panel on the dashboard                       | F-03          | FR-019          | done     |
 | S-09 | release-notes               | see in each release what changed since the previous one                                 | —             | MS-14, FR-016   | done     |
 | S-10 | app-metadata                | see the real description and author in the exe and installer properties                 | —             | MS-15           | done     |
 | S-11 | installer-signing           | install a release without a SmartScreen warning                                         | S-09          | MS-13, FR-016   | blocked  |
@@ -256,7 +256,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - How long events are kept (today only, or longer with cleanup)? — Owner: user. Block: no (settled in `/10x-plan`).
 - **Risk:** The only new domain record in M-2 (a new migration); events hold only what the UI already shows, and nothing from them goes to the app log.
-- **Status:** in-progress
+- **Status:** done
 
 ### S-09: Release notes from changes
 
@@ -366,3 +366,4 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-02: user can see a NEW flag on GitLab items that appeared since the last check, and the date next to hidden rows ("ukryte 18.11").** — Archived 2026-11-24 → `context/archive/2026-11-24-gitlab-new-and-hidden-date/`. Lesson: —.
 - **S-03: user can see the active filter values above the GitLab list with a link to settings, and in the "GitLab unavailable" card the refresh interval and when the next try happens.** — Archived 2026-11-24 → `context/archive/2026-11-24-gitlab-filter-bar-retry/`. Lesson: —.
 - **S-05: user can see a table of the month's days — entries, a bar against 8 h, the sum, the deviation and a "day off" switch — with today highlighted and days off hatched, and mark a day off from the table.** — Archived 2026-11-24 → `context/archive/2026-11-24-worktime-days-table/`. Lesson: —.
+- **S-08: user can see a "Dziennik zdarzeń" panel under "Stan źródeł" on the dashboard with today's events: new assignments, ticking or removing "To do" items, START/STOP, a source going into error and back.** — Archived 2026-11-24 → `context/archive/2026-11-24-event-log/`. Lesson: —.

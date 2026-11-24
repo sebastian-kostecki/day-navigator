@@ -1,9 +1,10 @@
 ---
 change_id: event-log
 title: Dziennik zdarzeń na dashboardzie
-status: impl_reviewed
+status: archived
 created: 2026-11-24
 updated: 2026-11-24
+archived_at: 2026-11-24T12:27:54Z
 ---
 
 ## Notes

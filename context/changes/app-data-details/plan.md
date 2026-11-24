@@ -259,7 +259,7 @@ Brak migracji danych. `HealthSnapshot` zyskuje pole; jedyny konsument to UI w ty
 
 #### Manual
 
-- [ ] 2.4 Karta pokazuje „Sprawdzono”, „Ostatnia kopia”, „Kopie N z 7” zgodne z `backups/` i „Schemat v10” (lub aktualną wersję)
-- [ ] 2.5 „Otwórz folder kopii” otwiera Eksploratora dokładnie w `<app data dir>/backups/`
-- [ ] 2.6 Bez folderu `backups/`: „Ostatnia kopia: brak” z ostrzeżeniem, „Kopie 0 z 7”, przycisk pokazuje „Folder kopii nie istnieje.” i nie tworzy folderu; po przywróceniu wartości wracają
-- [ ] 2.7 Pozostałe karty, wiersze „Pozostałe źródła”, zasobnik i toasty bez zmian
+- [x] 2.4 Karta pokazuje „Sprawdzono”, „Ostatnia kopia”, „Kopie N z 7” zgodne z `backups/` i „Schemat v10” (lub aktualną wersję)
+- [x] 2.5 „Otwórz folder kopii” otwiera Eksploratora dokładnie w `<app data dir>/backups/`
+- [x] 2.6 Bez folderu `backups/`: „Ostatnia kopia: brak” z ostrzeżeniem, „Kopie 0 z 7”, przycisk pokazuje „Folder kopii nie istnieje.” i nie tworzy folderu; po przywróceniu wartości wracają
+- [x] 2.7 Pozostałe karty, wiersze „Pozostałe źródła”, zasobnik i toasty bez zmian

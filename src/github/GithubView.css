@@ -1,25 +1,61 @@
 /* Layout only: the rows, panels and states come from src/components. */
 
-.github-lists {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-}
-
-.github-lists.is-stale {
+.github-stale {
   opacity: 0.55;
 }
 
-.github-last-ok {
+.github-repos {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.github-repo-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2h);
+  min-width: 0;
+}
+
+.github-repo-icon {
   color: var(--ink-faint);
 }
 
-.github-repo {
+.github-repo-name {
   font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.github-repo-count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+
+.github-repo-empty {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--ink-faint);
 }
 
 .github-repo-error {
   margin: 0;
   padding: var(--space-3) var(--space-4);
   color: var(--danger-ink);
+}
+
+.github-scope {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2h);
+  padding: var(--space-4);
+  color: var(--ink-muted);
+}
+
+.github-scope > p {
+  margin: 0;
 }

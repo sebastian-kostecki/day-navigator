@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import "./AppHeader.css";
 
 export type AppHeaderProps = {
-  items: { id: string; label: string; active: boolean }[];
+  /** key: the shortcut shown before the label ("1"…"6"), also set as aria-keyshortcuts. */
+  items: { id: string; label: string; active: boolean; key?: string }[];
   onSelect: (id: string) => void;
   /** Right-hand slot (the work-time counter). */
   children?: ReactNode;
@@ -19,8 +20,15 @@ export function AppHeader({ items, onSelect, children }: AppHeaderProps) {
             type="button"
             className={`dn-nav-item${item.active ? " is-active" : ""}`}
             aria-current={item.active ? "page" : undefined}
+            aria-keyshortcuts={item.key}
+            data-view={item.id}
             onClick={() => onSelect(item.id)}
           >
+            {item.key ? (
+              <span className="dn-nav-key" aria-hidden="true">
+                {item.key}
+              </span>
+            ) : null}
             {item.label}
           </button>
         ))}

@@ -1,5 +1,14 @@
-import { useEffect, useState } from "react";
-import { Button, Flag, ItemRow, Panel, SourceState, type SourceKind } from "../components";
+import { useEffect, useState, type ReactNode } from "react";
+import {
+  Button,
+  Flag,
+  ItemRow,
+  Panel,
+  SourceState,
+  StatStrip,
+  type FlagProps,
+  type SourceKind,
+} from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { openGitlabItem } from "../gitlab/api";
 import { openGithubIssue } from "../github/api";
@@ -7,27 +16,80 @@ import type { GithubIssue } from "../github/types";
 import { useGithub } from "../github/useGithub";
 import type { GitlabItem } from "../gitlab/types";
 import { useGitlab } from "../gitlab/useGitlab";
+import { useHealth } from "../health/useHealth";
 import { listOwnTasks, ownTaskErrorMessage } from "../own-tasks/api";
 import type { OwnTask, Space } from "../own-tasks/types";
+import { useMonthReport } from "../worktime/useMonthReport";
+import { useWorkTimer } from "../worktime/useWorkTimer";
 import { todoErrorMessage } from "./api";
+import { SourcesPanel } from "./SourcesPanel";
+import { plural, summaryStats } from "./summary";
 import type { TodoEntry, TodoItem, TodoList } from "./types";
 import { useTodo } from "./useTodo";
 import "./TodoView.css";
 
-const SPACE_LABEL: Record<Space, string> = { work: "Praca", private: "Prywatne" };
+/** Lowercase, for the ref column of an own task. */
+const SPACE_REF: Record<Space, string> = { work: "praca", private: "prywatne" };
 
-function lastRefreshLabel(at: Date | null): string {
-  return `Ostatnie udane odświeżenie: ${at ? at.toLocaleTimeString("pl-PL") : "brak"}`;
+/** "z <dnia>" per `Date.getDay()`; the Flag shows it uppercase. */
+const FROM_WEEKDAY = [
+  "z niedzieli",
+  "z poniedziałku",
+  "z wtorku",
+  "ze środy",
+  "z czwartku",
+  "z piątku",
+  "z soboty",
+];
+
+const DAY_MS = 86_400_000;
+
+function lastRefreshLabel(at: Date | number | null): string {
+  if (at === null) return "Ostatnie udane odświeżenie: brak";
+  return `Ostatnie udane odświeżenie: ${new Date(at).toLocaleTimeString("pl-PL")}`;
 }
 
 function formatClock(ms: number): string {
   return new Date(ms).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
 }
 
+/** The GitLab/GitHub variant: `HH:MM` of the source's last successful round. */
+function clockLabel(ms: number | null): string {
+  return ms === null ? lastRefreshLabel(null) : `Ostatnie udane odświeżenie: ${formatClock(ms)}`;
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+/** Local `YYYY-MM-DD` of an instant. */
+function localDay(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+/** Local midnight of a `YYYY-MM-DD`. */
+function dayStart(day: string): Date {
+  const [y, m, d] = day.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 /** `YYYY-MM-DD` to `DD.MM`. */
 function dayMonth(day: string): string {
   const [, month, date] = day.split("-");
   return `${date}.${month}`;
+}
+
+/** Carry-over flag: the weekday it was picked on within the last 6 days, else its date. */
+function carriedLabel(pickedOn: string, today: string): string {
+  const from = dayStart(pickedOn);
+  const days = Math.round((dayStart(today).getTime() - from.getTime()) / DAY_MS);
+  return days >= 1 && days <= 6 ? FROM_WEEKDAY[from.getDay()] : `z ${dayMonth(pickedOn)}`;
+}
+
+/** `!418` / `#27` out of `group/project!418` or `owner/name#27`. */
+function shortRef(reference: string): string {
+  const at = Math.max(reference.lastIndexOf("#"), reference.lastIndexOf("!"));
+  return at < 0 ? reference : reference.slice(at);
 }
 
 // Picker keys carry the source, so a GitHub `owner/repo#N` can never collide
@@ -57,10 +119,24 @@ function repoOf(reference: string): string {
   return (at < 0 ? reference : reference.slice(0, at)).toLowerCase();
 }
 
+/** "N wolne miejsce · …"; without a limit only the rules are shown. */
+function footerText(list: TodoList): string {
+  const rules = "nieodhaczone → jutro · zamknięte w źródle odhaczają się same";
+  if (list.limit === null) return rules;
+  const free = Math.max(0, list.limit - list.openCount);
+  const head =
+    free === 0
+      ? "limit osiągnięty"
+      : `${free} ${plural(free, "wolne miejsce", "wolne miejsca", "wolnych miejsc")}`;
+  return `${head} · ${rules}`;
+}
+
 type OwnLoad =
   | { state: "loading" }
   | { state: "error"; message: string }
   | { state: "loaded"; tasks: OwnTask[] };
+
+type RowFlag = { text: string; tone: FlagProps["tone"] };
 
 export default function TodoView() {
   const {
@@ -87,6 +163,13 @@ export default function TodoView() {
     loadError: githubLoadError,
     retry: retryGithub,
   } = useGithub({ refreshOnMount: false });
+  // Summary strip and source panel: read-only status calls and event
+  // listeners; START/STOP and "check now" stay in the header and "Źródła".
+  const { timer, nowMs } = useWorkTimer();
+  const { report: month, retry: retryMonth } = useMonthReport(
+    load.state === "loaded" ? load.list.day : localDay(new Date()),
+  );
+  const { snapshot: health, loadError: healthError, retry: retryHealth } = useHealth();
   const [ownLoad, setOwnLoad] = useState<OwnLoad>({ state: "loading" });
   const [ownLoadedAt, setOwnLoadedAt] = useState<Date | null>(null);
   // Bumped by the own-task error's retry button.
@@ -121,9 +204,24 @@ export default function TodoView() {
     setBusy(false);
   }
 
+  const summary: ReactNode = (
+    <>
+      <StatStrip items={summaryStats({ timer, nowMs, month, health, healthError })} />
+      {month.state === "error" && (
+        <ErrorState
+          title="Nie udało się wczytać raportu miesiąca"
+          message={month.message}
+          onRetry={retryMonth}
+          lastSuccess={lastRefreshLabel(month.lastOkAt)}
+        />
+      )}
+    </>
+  );
+
   if (load.state === "loading") {
     return (
       <main className="container">
+        {summary}
         <h1>Do zrobienia</h1>
         <p className="dn-loading">Ładowanie…</p>
       </main>
@@ -133,6 +231,7 @@ export default function TodoView() {
   if (load.state === "error") {
     return (
       <main className="container">
+        {summary}
         <h1>Do zrobienia</h1>
         <ErrorState
           title="Nie udało się wczytać listy"
@@ -145,13 +244,24 @@ export default function TodoView() {
   }
 
   const { list } = load;
-  const open = list.items.filter((i) => !i.ticked);
-  const done = list.items.filter((i) => i.ticked);
   const atLimit = list.limit === null || list.openCount >= list.limit;
 
   const onList = new Set<string>();
   for (const item of list.items) {
     onList.add(entryKey(item.entry));
+  }
+
+  // "ZMIENIONE" and "DZIŚ" come from data this view already holds: the stored
+  // GitLab snapshot's change marks and the own tasks' due dates.
+  const changedGitlab = new Set<string>();
+  for (const i of snapshot?.items?.issues ?? []) {
+    if (i.changed !== null) changedGitlab.add(gitlabKey(i.kind, i.reference));
+  }
+  const dueToday = new Set<number>();
+  if (ownLoad.state === "loaded") {
+    for (const t of ownLoad.tasks) {
+      if (t.doneAt === null && t.due === list.day) dueToday.add(t.id);
+    }
   }
 
   const gitlabState = snapshot?.state.state ?? null;
@@ -188,27 +298,25 @@ export default function TodoView() {
     const title = entry.title;
     const url = entry.kind === "own" ? null : entry.webUrl;
     const openUrl = entry.kind === "github" ? openGithubIssue : openGitlabItem;
-    const closedLabel =
-      entry.kind === "gitlab" && entry.closedInSource
-        ? "zamknięte w GitLabie"
-        : entry.kind === "github" && entry.closedInSource
-          ? "zamknięte w GitHubie"
-          : null;
-    const source: SourceKind =
-      entry.kind === "own"
-        ? "my"
-        : entry.kind === "github"
-          ? "gh"
-          : entry.itemKind === "mergeRequest"
-            ? "mr"
-            : "iss";
-    const meta =
-      closedLabel || entry.kind === "own" ? (
-        <>
-          {closedLabel && <Flag tone="info">{closedLabel}</Flag>}
-          {entry.kind === "own" && SPACE_LABEL[entry.space]}
-        </>
-      ) : undefined;
+    const source: SourceKind = entry.kind === "own" ? "my" : entry.kind === "github" ? "gh" : "gl";
+
+    const flags: RowFlag[] = [];
+    if (item.carriedOver) {
+      flags.push({ text: carriedLabel(item.pickedOn, list.day), tone: "change" });
+    }
+    if (!item.ticked && entry.kind === "gitlab" && changedGitlab.has(entryKey(entry))) {
+      flags.push({ text: "zmienione", tone: "change" });
+    }
+    if (!item.ticked && entry.kind === "own" && dueToday.has(entry.taskId)) {
+      flags.push({ text: "dziś", tone: "change" });
+    }
+    if (entry.kind === "gitlab" && entry.closedInSource) {
+      flags.push({ text: "zamknięte w GitLabie", tone: "info" });
+    } else if (entry.kind === "github" && entry.closedInSource) {
+      flags.push({ text: "zamknięte w GitHubie", tone: "info" });
+    }
+    const [first, ...rest] = flags;
+
     return (
       <ItemRow
         key={item.id}
@@ -218,36 +326,52 @@ export default function TodoView() {
         checkboxDisabled={busy}
         checkboxLabel={item.ticked ? `Odznacz: ${title}` : `Zrobione: ${title}`}
         source={source}
-        refId={entry.kind === "own" ? undefined : entry.reference}
+        refId={entry.kind === "own" ? SPACE_REF[entry.space] : shortRef(entry.reference)}
         title={
           url ? (
-            <button type="button" className="link-button" onClick={() => void openUrl(url)}>
+            <button
+              type="button"
+              className="link-button"
+              title={entry.kind === "own" ? undefined : entry.reference}
+              onClick={() => void openUrl(url)}
+            >
               {title}
             </button>
           ) : (
-            title
+            <span title={entry.kind === "own" ? undefined : entry.reference}>{title}</span>
           )
         }
-        flag={item.carriedOver ? `od ${dayMonth(item.pickedOn)}` : undefined}
-        flagTone="change"
-        meta={meta}
+        flag={first?.text}
+        flagTone={first?.tone}
+        meta={
+          rest.length > 0 ? (
+            <span className="todo-flags">
+              {rest.map((f) => (
+                <Flag key={f.text} tone={f.tone}>
+                  {f.text}
+                </Flag>
+              ))}
+            </span>
+          ) : undefined
+        }
       >
         <Button
           variant="quiet"
           size="sm"
+          iconOnly
+          icon="close"
           disabled={busy}
           aria-label={`Zdejmij: ${title}`}
+          title="Zdejmij"
           onClick={() => void act(() => remove(item.id))}
-        >
-          Zdejmij
-        </Button>
+        />
       </ItemRow>
     );
   }
 
   return (
     <main className="container">
-      <h1>Do zrobienia</h1>
+      {summary}
 
       {list.limitError && (
         <p className="todo-error" role="alert">
@@ -289,27 +413,24 @@ export default function TodoView() {
       )}
 
       <div className="dn-columns">
-        <div className="dn-col-main todo-stack">
+        <div className="dn-col-main">
           <Panel
             title="Do zrobienia"
+            headingLevel={1}
             meta={
               <span role="status">
-                {list.limit !== null
-                  ? `Otwarte ${list.openCount}/${list.limit}`
-                  : `Otwarte ${list.openCount}`}
+                <span className="dn-sr-only">Otwarte </span>
+                {list.limit !== null ? `[${list.openCount}/${list.limit}]` : `[${list.openCount}]`}
               </span>
             }
+            footer={footerText(list)}
           >
-            {open.length === 0 && done.length === 0 && (
-              <p className="dn-empty">Nic na dziś — dodaj z list obok</p>
-            )}
-            {open.map(renderRow)}
+            {list.items.length === 0 && <p className="dn-empty">Nic na dziś — dodaj z list obok</p>}
+            {list.items.map(renderRow)}
           </Panel>
-
-          {done.length > 0 && <Panel title="Zrobione dziś">{done.map(renderRow)}</Panel>}
         </div>
 
-        <div className="dn-col-side">
+        <div className="todo-col-pick">
           <Picker
             list={list}
             onList={onList}
@@ -319,6 +440,7 @@ export default function TodoView() {
             gitlabItems={
               snapshot?.items ? [...snapshot.items.mergeRequests, ...snapshot.items.issues] : []
             }
+            gitlabHidden={snapshot?.items?.hiddenIssues.length ?? 0}
             gitlabOk={gitlabState === "ok"}
             gitlabFilteredOut={
               snapshot?.filterActive
@@ -326,11 +448,7 @@ export default function TodoView() {
                 : null
             }
             gitlabLoadError={gitlabLoadError}
-            gitlabLastSuccess={
-              snapshot?.lastSuccessMs != null
-                ? `Ostatnie udane odświeżenie: ${formatClock(snapshot.lastSuccessMs)}`
-                : lastRefreshLabel(null)
-            }
+            gitlabLastSuccess={clockLabel(snapshot?.lastSuccessMs ?? null)}
             onRetryGitlab={retryGitlab}
             ownLastSuccess={lastRefreshLabel(ownLoadedAt)}
             onRetryOwn={() => setOwnAttempt((n) => n + 1)}
@@ -362,11 +480,7 @@ export default function TodoView() {
                 : "none"
             }
             githubLoadError={githubLoadError}
-            githubLastSuccess={
-              githubSnapshot?.lastSuccessMs != null
-                ? `Ostatnie udane odświeżenie: ${formatClock(githubSnapshot.lastSuccessMs)}`
-                : lastRefreshLabel(null)
-            }
+            githubLastSuccess={clockLabel(githubSnapshot?.lastSuccessMs ?? null)}
             onRetryGithub={retryGithub}
             githubStatus={
               githubLoadError
@@ -387,6 +501,16 @@ export default function TodoView() {
             onAddOwn={(id) => void act(() => addOwn(id))}
             onAddGitlab={(item) => void act(() => addGitlab(item.kind, item.reference))}
             onAddGithub={(issue) => void act(() => addGithub(issue.reference))}
+          />
+        </div>
+
+        <div className="todo-col-side">
+          <SourcesPanel
+            snapshot={health}
+            loadError={healthError}
+            onRetry={retryHealth}
+            gitlabLastSuccessMs={snapshot?.lastSuccessMs ?? null}
+            githubLastSuccessMs={githubSnapshot?.lastSuccessMs ?? null}
           />
         </div>
       </div>
@@ -416,11 +540,12 @@ function SourceStatusView({ status }: { status: SourceStatus }) {
   return <SourceState kind={status.kind} title={status.text} />;
 }
 
-function GroupHead({ name, count }: { name: string; count: number | null }) {
+/** Caps name on the left, mono count on the right ("7 · 2 ukryte"). */
+function GroupHead({ name, count }: { name: string; count: string | null }) {
   return (
     <h3 className="label-caps todo-group-head">
-      {name}
-      {count !== null && <span> · {count}</span>}
+      <span>{name}</span>
+      {count !== null && <span className="todo-group-count">{count}</span>}
     </h3>
   );
 }
@@ -432,6 +557,7 @@ function Picker({
   busy,
   ownLoad,
   gitlabItems,
+  gitlabHidden,
   gitlabOk,
   gitlabFilteredOut,
   gitlabLoadError,
@@ -457,6 +583,8 @@ function Picker({
   busy: boolean;
   ownLoad: OwnLoad;
   gitlabItems: GitlabItem[];
+  /** Issues the user has hidden in the GitLab view (never offered here). */
+  gitlabHidden: number;
   gitlabOk: boolean;
   /** Items the filter removed from the GitLab list; null when no filter is active. */
   gitlabFilteredOut: number | null;
@@ -483,6 +611,7 @@ function Picker({
     ownLoad.state === "loaded"
       ? ownLoad.tasks.filter((t) => t.doneAt === null && !onList.has(`own:${t.id}`))
       : [];
+  const total = gitlabCandidates.length + githubCandidates.length + ownCandidates.length;
   const disabled = busy || atLimit;
   const disabledHint =
     list.limit !== null && atLimit ? `Limit ${list.limit} otwartych pozycji` : undefined;
@@ -494,6 +623,7 @@ function Picker({
         size="sm"
         iconOnly
         icon="plus"
+        className="todo-add"
         disabled={disabled}
         title={disabledHint}
         aria-label={`Dodaj: ${label}`}
@@ -503,8 +633,19 @@ function Picker({
   }
 
   return (
-    <Panel title="Do wyboru">
-      <GroupHead name="GitLab" count={gitlabCandidates.length} />
+    <Panel
+      title="Do wyboru"
+      className="todo-pick"
+      meta={`${total} ${plural(total, "pozycja", "pozycje", "pozycji")}`}
+    >
+      <GroupHead
+        name="GitLab"
+        count={
+          gitlabHidden > 0
+            ? `${gitlabCandidates.length} · ${gitlabHidden} ukryte`
+            : String(gitlabCandidates.length)
+        }
+      />
       {gitlabLoadError && (
         <ErrorState
           title="Nie udało się wczytać listy z GitLaba"
@@ -528,18 +669,13 @@ function Picker({
         )
       ) : (
         gitlabCandidates.map((item) => (
-          <ItemRow
-            key={gitlabKey(item.kind, item.reference)}
-            source={item.kind === "mergeRequest" ? "mr" : "iss"}
-            refId={item.reference}
-            title={item.title}
-          >
+          <ItemRow key={gitlabKey(item.kind, item.reference)} title={item.title}>
             {addButton(item.title, () => onAddGitlab(item))}
           </ItemRow>
         ))
       )}
 
-      <GroupHead name="GitHub" count={githubCandidates.length} />
+      <GroupHead name="GitHub" count={String(githubCandidates.length)} />
       {githubLoadError && (
         <ErrorState
           title="Nie udało się wczytać listy z GitHuba"
@@ -572,12 +708,7 @@ function Picker({
         )
       ) : (
         githubCandidates.map((issue) => (
-          <ItemRow
-            key={githubKey(issue.reference)}
-            source="gh"
-            refId={issue.reference}
-            title={issue.title}
-          >
+          <ItemRow key={githubKey(issue.reference)} title={issue.title}>
             {addButton(issue.title, () => onAddGithub(issue))}
           </ItemRow>
         ))
@@ -585,7 +716,7 @@ function Picker({
 
       <GroupHead
         name="Moje zadania"
-        count={ownLoad.state === "loaded" ? ownCandidates.length : null}
+        count={ownLoad.state === "loaded" ? String(ownCandidates.length) : null}
       />
       {ownLoad.state === "loading" && <p className="dn-loading todo-group-note">Ładowanie…</p>}
       {ownLoad.state === "error" && (
@@ -601,7 +732,7 @@ function Picker({
           <p className="dn-empty">Brak otwartych zadań do dodania.</p>
         ) : (
           ownCandidates.map((task) => (
-            <ItemRow key={task.id} source="my" title={task.title} meta={SPACE_LABEL[task.space]}>
+            <ItemRow key={task.id} title={task.title}>
               {addButton(task.title, () => onAddOwn(task.id))}
             </ItemRow>
           ))

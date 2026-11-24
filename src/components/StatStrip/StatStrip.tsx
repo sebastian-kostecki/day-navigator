@@ -4,7 +4,8 @@ export type Stat = {
   label: string;
   value: string;
   sub?: string;
-  tone?: "info" | "warn" | "muted";
+  /** Value colour: info (blue, above norm / OK), warn (orange, below norm), soft (ink-soft); muted = soft. */
+  tone?: "info" | "warn" | "soft" | "muted";
 };
 
 export type StatStripProps = { items: Stat[] };

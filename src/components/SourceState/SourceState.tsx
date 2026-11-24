@@ -6,7 +6,7 @@ import "./SourceState.css";
 const STATE_ICON: Record<"empty" | "calm" | "error", IconName> = {
   empty: "check-circle",
   calm: "wifi-off",
-  error: "alert",
+  error: "alert-triangle",
 };
 
 export type SourceStateProps = {

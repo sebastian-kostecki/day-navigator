@@ -1,18 +1,97 @@
 /* Layout only: the rows, panels and states come from src/components. */
 
-.todo-stack {
+/* Columns as in the mock: Do zrobienia 3 (dn-col-main), Do wyboru 2, side 1. */
+.todo-col-pick {
+  flex: 2 1 320px;
+  min-width: 0;
+}
+
+.todo-col-side {
+  flex: 1 1 260px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
 }
 
+/* Extra flags after the first one, inside the row meta. */
+.todo-flags {
+  display: inline-flex;
+  gap: var(--space-1h);
+}
+
+/* "Do wyboru": compact rows without a divider, 44×36 add button. */
+.todo-pick .dn-row {
+  min-height: var(--size-touch);
+  gap: var(--space-2);
+  padding-right: var(--space-2);
+  border-bottom: 0;
+}
+
+.dn-btn-icon.todo-add {
+  width: var(--size-touch);
+}
+
 .todo-group-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
   margin: 0;
-  padding: var(--space-3) var(--space-4) var(--space-1);
+  padding: var(--space-2h) var(--space-4) var(--space-1);
+}
+
+.todo-group-count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 .todo-group-note {
   padding: var(--space-2) var(--space-4);
+}
+
+/* Mini "Stan źródeł". */
+.todo-sources {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.todo-source {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2h);
+  padding: var(--space-2h) var(--space-4);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.todo-source-glyph {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.todo-source-glyph.is-ok {
+  color: var(--info);
+}
+
+.todo-source-glyph.is-error {
+  color: var(--danger);
+}
+
+.todo-source-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.todo-source-detail {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-faint);
+  word-break: break-word;
+}
+
+.todo-source-detail.is-error {
+  color: var(--danger-soft);
 }
 
 .todo-notice {

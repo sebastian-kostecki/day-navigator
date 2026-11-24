@@ -1,5 +1,5 @@
-import { Button } from "../components";
-import { formatClock, formatDuration, formatSigned } from "./format";
+import { Button, formatHms } from "../components";
+import { formatClock } from "./format";
 import { useWorkTimer } from "./useWorkTimer";
 import "./WorkTimerHeader.css";
 
@@ -25,36 +25,34 @@ export function WorkTimerHeader() {
   }
 
   const { status } = timer;
+  const running = status.running !== null;
   // Capped at the day end (a late refetch must not count into tomorrow) and
   // clamped at zero (a clock moved back must not shrink the closed total).
   const total =
     status.todayClosedMs +
-    (status.running !== null && status.runningFromMs !== null
+    (running && status.runningFromMs !== null
       ? Math.max(0, Math.min(nowMs, status.dayEndMs) - status.runningFromMs)
       : 0);
-
-  // Same extrapolation from the status's own `asOfMs`, capped at the day end.
-  const deviation =
-    status.monthDeviationMs +
-    (status.running !== null ? Math.max(0, Math.min(nowMs, status.dayEndMs) - status.asOfMs) : 0);
+  // HH:MM:SS, as in the mock: a fixed width while the day grows.
+  const clock = formatHms(total).padStart(8, "0");
 
   return (
     <div className="dn-timer">
-      <span className="dn-clock">Dziś {formatDuration(total)}</span>
-      {status.running !== null && <span className="dn-rec">● REC</span>}
-      <span
-        className={`dn-timer-month${Math.trunc(deviation / 60000) < 0 ? " is-below" : ""}`}
-        title="Odchylenie miesiąca od normy (8 h × dni robocze do dziś)"
-      >
-        Miesiąc {formatSigned(deviation)}
+      <span className={running ? "dn-rec" : "dn-rec is-stopped"}>
+        <span aria-hidden="true">{running ? "●" : "○"}</span> {running ? "REC" : "STOP"}
+      </span>
+      <span className="clock dn-clock">
+        <span className="dn-sr-only">Dziś: </span>
+        {clock}
       </span>
       <Button
-        variant={status.running ? "secondary" : "primary"}
+        variant={running ? "secondary" : "primary"}
         size="lg"
-        onClick={status.running ? stop : start}
+        className="dn-btn-mono"
+        onClick={running ? stop : start}
         disabled={busy}
       >
-        {status.running ? "STOP" : "START"}
+        {running ? "STOP" : "START"}
       </Button>
       {actionError && (
         <span className="dn-timer-action-error" role="alert">

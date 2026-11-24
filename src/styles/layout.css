@@ -38,7 +38,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-4);
+  gap: var(--space-3) var(--space-5);
 }
 
 .dn-view-head > h1 {
@@ -46,6 +46,35 @@
   font-size: 18px;
   line-height: 24px;
   font-weight: 600;
+}
+
+/* Summary next to the title ("7 otwartych · 2 ukryte") and the note before
+   the actions ("odświeżone 2 min temu"). */
+.dn-view-head-summary,
+.dn-view-head-note {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
+/* Pushes what follows to the right edge of a flex row. */
+.dn-spacer {
+  flex: 1;
+}
+
+/* Read by screen readers, not shown. */
+.dn-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* A title that opens a URL: looks like text, underlined on hover. */

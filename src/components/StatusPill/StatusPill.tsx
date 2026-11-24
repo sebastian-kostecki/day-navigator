@@ -14,6 +14,7 @@ export type StatusPillProps = {
   state: PillState;
   /** Defaults to OK / NIEDOSTĘPNY / BŁĄD. */
   children?: ReactNode;
+  /** Show the ●/○/▲ glyph before the text; false renders the text only. Default true. */
   glyph?: boolean;
   className?: string;
 };

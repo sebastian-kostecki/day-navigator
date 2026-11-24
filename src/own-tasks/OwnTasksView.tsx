@@ -1,85 +1,35 @@
-import { useEffect, useRef, useState } from "react";
-import { Button, ItemRow, Panel, Segmented } from "../components";
+import { useEffect, useId, useState } from "react";
+import { Button, ItemRow, Panel } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { ownTaskDefaultSpace, ownTaskErrorMessage } from "./api";
+import { formatDue, PRIORITY_LABEL, SPACE_LABEL, todayIso } from "./labels";
+import { OwnTaskEditPanel } from "./OwnTaskEditPanel";
 import { OwnTaskForm } from "./OwnTaskForm";
-import type { OwnTask, Priority, Space } from "./types";
+import { OwnTaskTabs, type OwnTaskTab } from "./OwnTaskTabs";
+import type { OwnTask, OwnTaskInput, Space } from "./types";
 import { useOwnTasks } from "./useOwnTasks";
 import "./OwnTasks.css";
 
-type Filter = "all" | Space;
-
-const FILTERS: { value: Filter; label: string }[] = [
-  { value: "all", label: "Wszystkie" },
-  { value: "work", label: "Praca" },
-  { value: "private", label: "Prywatne" },
-];
-
-const SPACE_LABEL: Record<Space, string> = { work: "Praca", private: "Prywatne" };
-const PRIORITY_LABEL: Record<Priority, string> = {
-  high: "Wysoki",
-  medium: "Średni",
-  low: "Niski",
+/** `own_task_default_space` is Work exactly while the work-time counter runs. */
+const SPACE_REASON: Record<Space, string> = {
+  work: "Licznik biegnie, więc domyślnie Praca.",
+  private: "Licznik stoi, więc domyślnie Prywatne.",
 };
 
 function lastRefreshLabel(at: Date | null): string {
   return `Ostatnie udane odświeżenie: ${at ? at.toLocaleTimeString("pl-PL") : "brak"}`;
 }
 
-/** Today as a local `YYYY-MM-DD`, comparable with a task's `due`. */
-function todayIso(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
-/** The note clamped to a few lines, with a toggle shown only when it overflows. */
-function NotePreview({ note }: { note: string }) {
-  const ref = useRef<HTMLParagraphElement>(null);
-  const [expanded, setExpanded] = useState(false);
-  const [overflows, setOverflows] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || expanded) return;
-    // The observer fires once on observe and again on every resize, never
-    // synchronously inside the effect.
-    const observer = new ResizeObserver(() => {
-      setOverflows(el.scrollHeight > el.clientHeight + 1);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [note, expanded]);
-
-  return (
-    <div className="own-note-wrap">
-      <p ref={ref} className={expanded ? "own-note is-expanded" : "own-note"}>
-        {note}
-      </p>
-      {(overflows || expanded) && (
-        <Button
-          variant="quiet"
-          size="sm"
-          className="own-note-toggle"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((x) => !x)}
-        >
-          {expanded ? "Zwiń notatkę" : "Pokaż całą notatkę"}
-        </Button>
-      )}
-    </div>
-  );
-}
-
 export default function OwnTasksView() {
   const { load, lastSuccessAt, reloadError, retry, refresh, add, edit, setDone } = useOwnTasks();
-  const [filter, setFilter] = useState<Filter>("all");
-  const [showDone, setShowDone] = useState(false);
-  const [editingId, setEditingId] = useState<number | null>(null);
+  // `null` until the user picks a tab: the list then follows the default space.
+  const [pickedTab, setPickedTab] = useState<OwnTaskTab | null>(null);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState<Set<number>>(new Set());
   const [defaultSpace, setDefaultSpace] = useState<Space | null>(null);
   const [defaultSpaceError, setDefaultSpaceError] = useState<string | null>(null);
+  const idPrefix = useId();
 
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +61,13 @@ export default function OwnTasksView() {
     });
   }
 
+  async function addTask(input: OwnTaskInput) {
+    const result = await add(input);
+    // Show the list the new task landed in.
+    if (result === null) setPickedTab(input.space);
+    return result;
+  }
+
   if (load.state === "loading") {
     return (
       <main className="container">
@@ -135,80 +92,86 @@ export default function OwnTasksView() {
   }
 
   const { tasks } = load;
-  const inFilter = tasks.filter((t) => filter === "all" || t.space === filter);
-  const open = inFilter.filter((t) => t.doneAt === null);
-  const done = inFilter.filter((t) => t.doneAt !== null);
+  const tab: OwnTaskTab = pickedTab ?? defaultSpace ?? "work";
+  const isOpenIn = (space: Space) => (t: OwnTask) => t.doneAt === null && t.space === space;
+  const doneTasks = tasks.filter((t) => t.doneAt !== null);
+  const tabs = [
+    { value: "work" as const, label: "Praca", count: tasks.filter(isOpenIn("work")).length },
+    {
+      value: "private" as const,
+      label: "Prywatne",
+      count: tasks.filter(isOpenIn("private")).length,
+    },
+    { value: "done" as const, label: "Zrobione", count: doneTasks.length },
+  ];
+  const shown = tab === "done" ? doneTasks : tasks.filter(isOpenIn(tab));
+  const selected = tasks.find((t) => t.id === selectedId) ?? null;
 
   let emptyMessage: string | null = null;
   if (tasks.length === 0) {
     emptyMessage = "Nie masz jeszcze żadnych zadań.";
-  } else if (open.length === 0) {
+  } else if (shown.length === 0) {
     emptyMessage =
-      filter === "all" ? "Brak otwartych zadań." : "Brak otwartych zadań w tej przestrzeni.";
+      tab === "done" ? "Brak zrobionych zadań." : "Brak otwartych zadań w tej przestrzeni.";
   }
 
   const today = todayIso();
+  const panelId = `${idPrefix}-panel`;
 
   function renderTask(task: OwnTask) {
-    if (editingId === task.id) {
-      return (
-        <div key={task.id} className="own-item is-editing">
-          <OwnTaskForm
-            heading="Edycja zadania"
-            initial={{
-              space: task.space,
-              title: task.title,
-              note: task.note,
-              due: task.due,
-              priority: task.priority,
-            }}
-            submitLabel="Zapisz"
-            onSubmit={async (input) => {
-              const result = await edit(task.id, input);
-              if (result === null) setEditingId(null);
-              return result;
-            }}
-            onCancel={() => setEditingId(null)}
-          />
-        </div>
-      );
-    }
     const isDone = task.doneAt !== null;
     const overdue = !isDone && task.due !== null && task.due < today;
     const dueToday = !isDone && task.due === today;
+    const dueClass = ["own-due", overdue && "is-overdue", dueToday && "is-today"]
+      .filter(Boolean)
+      .join(" ");
     return (
-      <div key={task.id} className="own-item">
-        <ItemRow
-          id={`own-${task.id}`}
-          done={isDone}
-          onToggle={() => void toggleDone(task)}
-          checkboxDisabled={busy.has(task.id)}
-          checkboxLabel={isDone ? `Otwórz ponownie: ${task.title}` : `Zrobione: ${task.title}`}
-          source="my"
-          title={task.title}
-          flag={dueToday ? "dziś" : undefined}
-          flagTone="change"
-          meta={
-            <span className="own-meta">
-              <span>{SPACE_LABEL[task.space]}</span>
-              {task.due && (
-                <span className={overdue ? "own-overdue" : undefined}>Termin: {task.due}</span>
+      <ItemRow
+        key={task.id}
+        id={`own-${task.id}`}
+        selected={task.id === selectedId}
+        done={isDone}
+        onToggle={() => void toggleDone(task)}
+        checkboxDisabled={busy.has(task.id)}
+        checkboxLabel={isDone ? `Otwórz ponownie: ${task.title}` : `Zrobione: ${task.title}`}
+        title={
+          <>
+            <span className="own-row-title">{task.title}</span>
+            {task.note && <span className="own-row-note">{task.note}</span>}
+          </>
+        }
+        meta={
+          <span className="own-row-meta">
+            {task.priority && (
+              <span className={`own-prio own-prio-${task.priority}`}>
+                <span className="dn-sr-only">Priorytet: </span>
+                {PRIORITY_LABEL[task.priority]}
+              </span>
+            )}
+            <span className={dueClass}>
+              <span className="dn-sr-only">Termin: </span>
+              {task.due ? (
+                formatDue(task.due, today)
+              ) : (
+                <>
+                  <span aria-hidden="true">—</span>
+                  <span className="dn-sr-only">brak</span>
+                </>
               )}
-              {task.priority && <span>Priorytet: {PRIORITY_LABEL[task.priority]}</span>}
+              {overdue && <span className="dn-sr-only">, po terminie</span>}
             </span>
-          }
-        >
-          <Button
-            variant="quiet"
-            size="sm"
-            iconOnly
-            icon="edit"
-            aria-label={`Edytuj: ${task.title}`}
-            onClick={() => setEditingId(task.id)}
-          />
-        </ItemRow>
-        {task.note && <NotePreview note={task.note} />}
-      </div>
+          </span>
+        }
+      >
+        <Button
+          variant="quiet"
+          size="sm"
+          iconOnly
+          icon="edit"
+          aria-label={`Edytuj: ${task.title}`}
+          onClick={() => setSelectedId(task.id)}
+        />
+      </ItemRow>
     );
   }
 
@@ -217,38 +180,17 @@ export default function OwnTasksView() {
       <h1>Moje zadania</h1>
 
       {defaultSpace !== null && (
-        <div className="own-form-card">
-          <OwnTaskForm
-            heading="Dodaj zadanie"
-            initial={{ space: defaultSpace, title: "", note: "", due: null, priority: null }}
-            submitLabel="Dodaj"
-            onSubmit={add}
-            resetOnSuccess
-          />
-        </div>
+        <OwnTaskForm
+          initialSpace={defaultSpace}
+          spaceReason={defaultSpaceError === null ? SPACE_REASON[defaultSpace] : undefined}
+          onSubmit={addTask}
+        />
       )}
       {defaultSpaceError && (
         <p className="own-error" role="alert">
           {defaultSpaceError}
         </p>
       )}
-
-      <div className="own-controls">
-        <Segmented
-          label="Filtr przestrzeni"
-          options={FILTERS}
-          value={filter}
-          onChange={(value) => setFilter(value as Filter)}
-        />
-        <label className="own-show-done">
-          <input
-            type="checkbox"
-            checked={showDone}
-            onChange={(e) => setShowDone(e.currentTarget.checked)}
-          />
-          Pokaż zrobione
-        </label>
-      </div>
 
       {notice && (
         <p className="own-error" role="alert">
@@ -265,21 +207,44 @@ export default function OwnTasksView() {
         />
       )}
 
-      <Panel title="Otwarte" meta={open.length}>
-        {emptyMessage && <p className="dn-empty">{emptyMessage}</p>}
-        {open.map(renderTask)}
-      </Panel>
+      <div className="dn-columns">
+        <div className="dn-col-main own-list-col">
+          <Panel>
+            <OwnTaskTabs
+              tabs={tabs}
+              value={tab}
+              onChange={setPickedTab}
+              panelId={panelId}
+              idPrefix={idPrefix}
+            />
+            <div id={panelId} role="tabpanel" aria-labelledby={`${idPrefix}-${tab}`}>
+              {emptyMessage && <p className="dn-empty">{emptyMessage}</p>}
+              {shown.map(renderTask)}
+            </div>
+          </Panel>
+        </div>
 
-      {/* With no tasks at all, the single "no tasks yet" message says it all. */}
-      {showDone && tasks.length > 0 && (
-        <Panel title="Zrobione" meta={done.length}>
-          {done.length === 0 ? (
-            <p className="dn-empty">Brak zrobionych zadań.</p>
-          ) : (
-            done.map(renderTask)
-          )}
-        </Panel>
-      )}
+        <div className="dn-col-side own-edit-col">
+          <Panel
+            title="Edycja"
+            meta={
+              selected ? <span className="own-space-tag">{SPACE_LABEL[selected.space]}</span> : null
+            }
+          >
+            {selected ? (
+              <OwnTaskEditPanel
+                key={selected.id}
+                task={selected}
+                onSave={(input) => edit(selected.id, input)}
+                onToggleDone={() => void toggleDone(selected)}
+                toggleBusy={busy.has(selected.id)}
+              />
+            ) : (
+              <p className="dn-empty">Wybierz zadanie ikoną edycji, aby je zmienić.</p>
+            )}
+          </Panel>
+        </div>
+      </div>
     </main>
   );
 }

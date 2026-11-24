@@ -1,6 +1,6 @@
 .dn-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 1px;
   background: var(--line);
   border: 1px solid var(--line);
@@ -41,11 +41,13 @@
   color: var(--warn);
 }
 
+.dn-stat-value.is-soft,
 .dn-stat-value.is-muted {
   color: var(--ink-soft);
 }
 
 .dn-stat-sub {
   font-size: 11px;
+  line-height: 16px;
   color: var(--ink-faint);
 }

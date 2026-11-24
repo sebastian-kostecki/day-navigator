@@ -1,62 +1,24 @@
 import { useState } from "react";
 import { Button, Field, Segmented } from "../components";
+import { PRIORITY_OPTIONS, SPACE_OPTIONS, priorityFromLabel, priorityToLabel } from "./labels";
 import type { OwnTaskInput, Priority, Space } from "./types";
 import "./OwnTasks.css";
 
 type Props = {
-  heading?: string;
-  initial: OwnTaskInput;
-  submitLabel: string;
+  /** The preselected space; changing it here never resets it after an add. */
+  initialSpace: Space;
+  /** Why the space is preselected, shown before the hint; omitted when unknown. */
+  spaceReason?: string;
   /** Resolves to an error message to show inline, or `null` on success. */
   onSubmit: (input: OwnTaskInput) => Promise<string | null>;
-  /** Clear the fields after a successful submit (add form). */
-  resetOnSuccess?: boolean;
-  onCancel?: () => void;
 };
 
-const TITLE_MAX = 200;
-const NOTE_MAX = 2000;
-
-const SPACE_OPTIONS: { value: Space; label: string }[] = [
-  { value: "work", label: "Praca" },
-  { value: "private", label: "Prywatne" },
-];
-
-// `Field` renders select options with the label as the value, so the
-// priority select works on labels and these maps translate to the domain value.
-const NO_PRIORITY = "—";
-const PRIORITY_LABELS: Record<Priority, string> = {
-  high: "Wysoki",
-  medium: "Średni",
-  low: "Niski",
-};
-const PRIORITY_OPTIONS = [NO_PRIORITY, ...Object.values(PRIORITY_LABELS)];
-
-function priorityFromLabel(label: string): Priority | "" {
-  const found = (Object.keys(PRIORITY_LABELS) as Priority[]).find(
-    (p) => PRIORITY_LABELS[p] === label,
-  );
-  return found ?? "";
-}
-
-// No `maxLength` on purpose: the browser would silently cut pasted text and
-// counts UTF-16 units, not characters. Rust is the only limit; the counters
-// below count characters the same way.
-const charCount = (value: string) => [...value].length;
-
-export function OwnTaskForm({
-  heading,
-  initial,
-  submitLabel,
-  onSubmit,
-  resetOnSuccess = false,
-  onCancel,
-}: Props) {
-  const [space, setSpace] = useState<Space>(initial.space);
-  const [title, setTitle] = useState(initial.title);
-  const [note, setNote] = useState(initial.note);
-  const [due, setDue] = useState(initial.due ?? "");
-  const [priority, setPriority] = useState<Priority | "">(initial.priority ?? "");
+/** The quick-add bar: a title is enough; the note is set later in Edycja. */
+export function OwnTaskForm({ initialSpace, spaceReason, onSubmit }: Props) {
+  const [space, setSpace] = useState<Space>(initialSpace);
+  const [title, setTitle] = useState("");
+  const [due, setDue] = useState("");
+  const [priority, setPriority] = useState<Priority | "">("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,7 +29,7 @@ export function OwnTaskForm({
     const result = await onSubmit({
       space,
       title,
-      note,
+      note: "",
       due: due || null,
       priority: priority || null,
     });
@@ -75,20 +37,31 @@ export function OwnTaskForm({
     if (result !== null) {
       // Keep the typed input so the user can fix it.
       setError(result);
-    } else if (resetOnSuccess) {
+    } else {
+      // The space stays: several tasks in a row usually go to the same one.
       setTitle("");
-      setNote("");
       setDue("");
       setPriority("");
     }
   }
 
+  const hint = [spaceReason, "Termin i priorytet są opcjonalne."].filter(Boolean).join(" ");
+
   return (
-    <form className="own-form" onSubmit={submit}>
-      {heading && <h2 className="panel-title">{heading}</h2>}
-      <fieldset className="own-form-fields" disabled={pending}>
-        <div className="own-form-space">
-          <span className="label-caps">Przestrzeń</span>
+    <form className="own-quick" aria-label="Dodaj zadanie" onSubmit={submit}>
+      <fieldset className="own-quick-fields" disabled={pending}>
+        <Field
+          grow
+          label="Nowe zadanie"
+          value={title}
+          onChange={(e) => setTitle(e.currentTarget.value)}
+          placeholder="Tytuł — wystarczy sam tytuł"
+        />
+        <div className="own-space-field">
+          {/* The group itself is named by Segmented's aria-label. */}
+          <span className="label-caps" aria-hidden="true">
+            Przestrzeń
+          </span>
           <Segmented
             label="Przestrzeń"
             options={SPACE_OPTIONS}
@@ -97,48 +70,24 @@ export function OwnTaskForm({
           />
         </div>
         <Field
-          grow
-          label="Tytuł"
-          value={title}
-          onChange={(e) => setTitle(e.currentTarget.value)}
-          placeholder="Tytuł"
-        />
-        <Field
+          className="own-quick-due"
           label="Termin"
           type="date"
           value={due}
           onChange={(e) => setDue(e.currentTarget.value)}
         />
         <Field
+          className="own-quick-prio"
           label="Priorytet"
           options={PRIORITY_OPTIONS}
-          value={priority === "" ? NO_PRIORITY : PRIORITY_LABELS[priority]}
+          value={priorityToLabel(priority)}
           onChange={(e) => setPriority(priorityFromLabel(e.currentTarget.value))}
         />
-        <Field
-          multiline
-          className="own-form-note"
-          label="Notatka"
-          value={note}
-          onChange={(e) => setNote(e.currentTarget.value)}
-          placeholder="Notatka (opcjonalnie)"
-          rows={3}
-        />
-        <p className="meta own-form-counters">
-          <span>
-            Tytuł {charCount(title)}/{TITLE_MAX}
-          </span>
-          <span>
-            Notatka {charCount(note)}/{NOTE_MAX}
-          </span>
-        </p>
-        <div className="own-form-actions">
-          <Button type="submit" variant="primary">
-            {submitLabel}
-          </Button>
-          {onCancel && <Button onClick={onCancel}>Anuluj</Button>}
-        </div>
+        <Button type="submit" variant="primary">
+          Dodaj
+        </Button>
       </fieldset>
+      <p className="meta own-hint">{hint}</p>
       {error && (
         <p className="own-error" role="alert">
           {error}

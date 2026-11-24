@@ -19,30 +19,21 @@
   color: var(--danger-ink);
 }
 
+/* Type comes from the `clock` text style. */
 .dn-clock {
-  font-family: var(--font-mono);
-  font-size: 26px;
-  line-height: 32px;
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
   color: var(--ink-strong);
 }
 
 .dn-rec {
   font-family: var(--font-mono);
   font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
   color: var(--danger);
 }
 
-.dn-timer-month {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  color: var(--info);
-}
-
-.dn-timer-month.is-below {
-  color: var(--warn);
+.dn-rec.is-stopped {
+  color: var(--ink-faint);
 }
 
 .dn-timer-action-error {

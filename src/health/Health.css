@@ -1,36 +1,191 @@
-/* Layout only: the panel, pills and states come from src/components. */
+/* Layout and the source-card tones; panel, pills, buttons and states come
+   from src/components. Values only from src/styles/tokens.css. */
 
-.health-checked-at {
+/* Glyphs: ● ok, ○ unavailable or not configured, ▲ error. */
+.health-glyph {
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+
+.health-glyph.is-ok {
+  color: var(--info);
+}
+
+.health-glyph.is-calm {
   color: var(--ink-faint);
 }
 
-.health-sources {
+.health-glyph.is-error {
+  color: var(--danger);
+}
+
+/* Big cards: GitLab, GitHub, Dane aplikacji. */
+
+.health-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-5);
+}
+
+.health-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  /* Bottom space for whichever block ends the card (message, note or facts). */
+  padding-bottom: var(--space-3);
+}
+
+.health-card.is-error {
+  background: var(--danger-bg);
+  border-color: var(--danger-line);
+}
+
+.health-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  /* 14px: the mock's card head, between the space-3 and space-4 steps. */
+  padding: calc(var(--space-3) + var(--space-hair)) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.health-card.is-error .health-card-head {
+  border-bottom-color: var(--danger-line);
+}
+
+.health-card-glyph {
+  font-size: 16px;
+}
+
+.health-card-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.health-card-name {
+  margin: 0;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.health-card-kind {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-faint);
+}
+
+.health-card-message {
+  margin: 0;
+  padding: var(--space-3) var(--space-4) var(--space-1);
+  color: var(--ink-muted);
+  word-break: break-word;
+}
+
+.health-card.is-error .health-card-message {
+  color: var(--danger-soft);
+}
+
+.health-card-note {
+  margin: 0;
+  padding: var(--space-1) var(--space-4) 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-faint);
+}
+
+.health-card-facts {
+  margin: 0;
+  padding: var(--space-2) var(--space-4) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1h);
+}
+
+.health-card-fact {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.health-card-fact dt {
+  color: var(--ink-faint);
+}
+
+.health-card-fact dd {
+  margin: 0;
+  min-width: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Other sources: compact rows. */
+
+.health-rows {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.health-source {
+.health-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-1) var(--space-3);
   padding: var(--space-2h) var(--space-4);
   border-bottom: 1px solid var(--line-subtle);
 }
 
-.health-source-label {
+.health-row:last-child {
+  border-bottom: none;
+}
+
+.health-row-name {
   min-width: 0;
   font-size: 14px;
   line-height: 20px;
 }
 
-.health-source-message {
-  grid-column: 1 / -1;
+.health-row-message {
+  grid-column: 2 / -1;
   color: var(--ink-faint);
   word-break: break-word;
 }
 
-.health-source-message.is-error {
+.health-row-message.is-error {
   color: var(--danger-soft);
+}
+
+/* "Co znaczą stany". */
+
+.health-legend {
+  margin: 0;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.health-legend-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.health-legend-row dt {
+  flex: none;
+}
+
+.health-legend-row dd {
+  margin: 0;
+  color: var(--ink-muted);
 }

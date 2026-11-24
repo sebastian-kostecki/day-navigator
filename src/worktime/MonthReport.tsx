@@ -1,37 +1,41 @@
 import { Button, StatStrip, type Stat } from "../components";
 import { ErrorState } from "../components/ErrorState";
-import { formatClock, formatHm, formatMonth, formatSigned, formatWorkdays } from "./format";
+import { formatClock, formatHm, formatSigned, formatWorkdays } from "./format";
 import type { MonthReport as Report } from "./types";
 import type { MonthReportState } from "./useMonthReport";
+import { shortDay } from "./WorkTimeEntries";
 
-function shortDay(day: string): string {
-  return `${day.slice(8, 10)}.${day.slice(5, 7)}`;
-}
-
-/** The tiles that fit the month's phase (the same figures the text lines showed). */
+/** The month tiles that fit the month's phase, after the "Dziś" tile. */
 function stats(report: Report): Stat[] {
   const worked: Stat = {
-    label: "Przepracowane",
+    label: "Miesiąc",
     value: formatHm(report.workedMs),
-    sub: `z ${formatHm(report.normMs)} normy (${formatWorkdays(report.workdays)})`,
+    sub: `z ${formatHm(report.normMs)} normy`,
   };
-  if (report.phase === "future") return [worked];
+  const daysOff: Stat = {
+    label: "Dni wolne",
+    value: String(report.daysOff.length),
+    sub: "oznaczone ręcznie",
+    tone: "soft",
+  };
+  if (report.phase === "future") return [worked, daysOff];
 
   const deviation: Stat = {
     label: "Odchylenie",
     value: formatSigned(report.deviationMs),
-    sub: report.phase === "past" ? "miesiąc zamknięty" : "do dziś",
+    sub: report.phase === "past" ? "miesiąc zamknięty" : "do dziś włącznie",
     tone: report.deviationMs < 0 ? "warn" : "info",
   };
-  if (report.phase === "past") return [worked, deviation];
+  if (report.phase === "past") return [worked, deviation, daysOff];
 
   // `neededPerDayMs` is null exactly when no workday is left after today.
-  const done = report.remainingMs === 0;
-  let neededSub: string | undefined;
-  if (done) {
+  let neededSub: string;
+  if (report.remainingMs === 0) {
     neededSub = "norma miesiąca wyrobiona";
   } else if (report.neededPerDayMs === null) {
     neededSub = `brak dni roboczych, brakuje ${formatHm(report.remainingMs)}`;
+  } else {
+    neededSub = `przez ${formatWorkdays(report.workdaysAfterToday)}`;
   }
   return [
     worked,
@@ -41,41 +45,18 @@ function stats(report: Report): Stat[] {
       value: report.neededPerDayMs === null ? "—" : formatHm(report.neededPerDayMs),
       sub: neededSub,
     },
-    {
-      label: "Dni robocze po dziś",
-      value: String(report.workdaysAfterToday),
-      sub: "bez dzisiejszego dnia",
-    },
+    daysOff,
   ];
-}
-
-function Lines({ report, onPickDay }: { report: Report; onPickDay: (day: string) => void }) {
-  return (
-    <>
-      <StatStrip items={stats(report)} />
-      {report.daysOff.length === 0 ? (
-        <p className="meta wt-muted">Brak dni wolnych</p>
-      ) : (
-        <p className="meta wt-days-off">
-          <span className="label-caps">Dni wolne:</span>
-          {report.daysOff.map((d) => (
-            <Button key={d} variant="quiet" size="sm" onClick={() => onPickDay(d)}>
-              {shortDay(d)}
-            </Button>
-          ))}
-        </p>
-      )}
-    </>
-  );
 }
 
 export function MonthReport(props: {
   state: MonthReportState;
-  month: string;
+  /** Today's total, shown first whatever month is shown. */
+  today: Stat;
   onRetry: () => void;
   onPickDay: (day: string) => void;
 }) {
-  const { state, month, onRetry, onPickDay } = props;
+  const { state, today, onRetry, onPickDay } = props;
   let content: React.ReactNode;
   if (state.state === "loading") {
     content = <p className="dn-loading">Ładowanie…</p>;
@@ -83,20 +64,39 @@ export function MonthReport(props: {
     content = (
       <ErrorState
         title="Nie udało się wczytać raportu miesiąca"
-        message={
-          state.lastOkAt === null
-            ? state.message
-            : `${state.message} (ostatnio OK ${formatClock(state.lastOkAt)})`
+        message={state.message}
+        lastSuccess={
+          state.lastOkAt === null ? undefined : `ostatnio OK ${formatClock(state.lastOkAt)}`
         }
         onRetry={onRetry}
       />
     );
   } else {
-    content = <Lines report={state.report} onPickDay={onPickDay} />;
+    const { report } = state;
+    content = (
+      <>
+        <StatStrip items={[today, ...stats(report)]} />
+        {report.daysOff.length > 0 && (
+          <p className="meta wt-days-off">
+            <span className="label-caps">Dni wolne:</span>
+            {report.daysOff.map((d) => (
+              <Button
+                key={d}
+                variant="quiet"
+                size="sm"
+                aria-label={`Pokaż dzień wolny ${shortDay(d)}`}
+                onClick={() => onPickDay(d)}
+              >
+                {shortDay(d)}
+              </Button>
+            ))}
+          </p>
+        )}
+      </>
+    );
   }
   return (
-    <section className="wt-month">
-      <h2 className="panel-title">Miesiąc: {formatMonth(month)}</h2>
+    <section className="wt-month" aria-label="Raport miesiąca">
       {content}
     </section>
   );

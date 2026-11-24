@@ -1,40 +1,79 @@
-import { Button, Panel, StatusPill, type PillState } from "../components";
+import { useEffect, useState, useTransition } from "react";
+import { Button, Panel, StatusPill, formatAgo, type PillState } from "../components";
 import { ErrorState } from "../components/ErrorState";
+import { SourceCard, type SourceFact } from "./SourceCard";
+import {
+  CARD_IDS,
+  CARD_SOURCES,
+  GLYPH,
+  pillState,
+  pillText,
+  rowMessage,
+  summaryText,
+  toneOf,
+} from "./sourceView";
 import type { SourceStatus } from "./types";
 import { useHealth } from "./useHealth";
 import "./Health.css";
 
-function pillState(s: SourceStatus): PillState {
-  switch (s.state) {
-    case "ok":
-      return "ok";
-    case "notConfigured":
-    case "unavailable":
-      return "calm";
-    case "error":
-      return "error";
-  }
+/** Re-render often enough for "N min temu" notes to stay right. */
+const NOW_TICK_MS = 30_000;
+
+function useNow(intervalMs: number): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const handle = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(handle);
+  }, [intervalMs]);
+  return now;
 }
 
-function pillText(s: SourceStatus): string {
-  switch (s.state) {
-    case "ok":
-      return "OK";
-    case "notConfigured":
-      return "NIESKONFIGUROWANE";
-    case "unavailable":
-      return "NIEDOSTĘPNY";
-    case "error":
-      return "BŁĄD";
-  }
-}
+const LEGEND: { state: PillState; text: string; label: string }[] = [
+  { state: "ok", label: "OK", text: "Źródło działa i odpowiada." },
+  {
+    state: "calm",
+    label: "NIEDOSTĘPNY",
+    text: "Spokojny stan, np. brak VPN do GitLaba. Bez alarmu i bez powiadomień.",
+  },
+  {
+    state: "calm",
+    label: "NIESKONFIGUROWANE",
+    text: "Brak wpisu w settings.json — źródło jest pominięte.",
+  },
+  {
+    state: "error",
+    label: "BŁĄD",
+    text: "Wymaga działania, np. wylogowane CLI, uszkodzona baza, błędne ustawienia. Czerwona ikona w zasobniku i powiadomienie.",
+  },
+];
 
-function formatTime(ms: number): string {
-  return new Date(ms).toLocaleTimeString("pl-PL");
+function SourceRow({ source }: { source: SourceStatus }) {
+  const tone = toneOf(source);
+  const message = rowMessage(source);
+  return (
+    <li className="health-row">
+      <span className={`health-glyph is-${tone}`} aria-hidden="true">
+        {GLYPH[tone]}
+      </span>
+      <span className="health-row-name">{source.label}</span>
+      <StatusPill state={pillState(source)} glyph={false}>
+        {pillText(source)}
+      </StatusPill>
+      {message ? (
+        <span className={`meta health-row-message${tone === "error" ? " is-error" : ""}`}>
+          {message}
+        </span>
+      ) : null}
+    </li>
+  );
 }
 
 export function HealthPanel() {
   const { snapshot, loadError, checkError, checkNow, retry } = useHealth();
+  const now = useNow(NOW_TICK_MS);
+  const [checking, startCheck] = useTransition();
+
+  const runCheck = () => startCheck(() => checkNow());
 
   if (loadError) {
     return (
@@ -54,70 +93,113 @@ export function HealthPanel() {
         <ErrorState
           title="Sprawdzanie stanu nie działa"
           message={checkError ?? "Pierwsze sprawdzenie źródeł nie zakończyło się."}
-          onRetry={checkNow}
+          onRetry={runCheck}
         />
       </main>
     );
   }
 
   const starting = !snapshot || snapshot.overall === "starting";
+  const checkedAtMs = snapshot?.checkedAtMs ?? null;
+  const lastCheck =
+    checkedAtMs != null ? `Ostatnie sprawdzenie: ${formatAgo(checkedAtMs, now)}` : undefined;
+
+  const cardFacts = (id: string): SourceFact[] =>
+    // The store is opened and checked by the health round itself, so the
+    // round's time is this source's check time. GitLab and GitHub are read
+    // from their own refresh rounds, whose time is not in the snapshot.
+    id === "app-data" && checkedAtMs != null
+      ? [{ label: "Sprawdzono", value: formatAgo(checkedAtMs, now) }]
+      : [];
+
+  const others = snapshot?.sources.filter((s) => !CARD_IDS.has(s.id)) ?? [];
 
   return (
     <main className="container">
       <div className="dn-view-head">
         <h1>Stan źródeł</h1>
-        {snapshot?.checkedAtMs != null && (
-          <span className="meta health-checked-at">
-            Ostatnie sprawdzenie: {formatTime(snapshot.checkedAtMs)}
-          </span>
-        )}
-        <Button size="sm" onClick={checkNow}>
-          Sprawdź teraz
+        {!starting ? (
+          <span className="dn-view-head-summary">{summaryText(snapshot.sources)}</span>
+        ) : null}
+        <div className="dn-spacer" />
+        {checkedAtMs != null ? (
+          <span className="dn-view-head-note">sprawdzone {formatAgo(checkedAtMs, now)}</span>
+        ) : null}
+        <Button
+          size="sm"
+          variant="quiet"
+          icon="refresh"
+          onClick={runCheck}
+          disabled={checking}
+          aria-busy={checking}
+        >
+          Sprawdź wszystkie
         </Button>
       </div>
       {snapshot?.overall === "notRunning" && (
         <ErrorState
           title="Sprawdzanie stanu nie działa."
           message="Wyniki poniżej mogą być nieaktualne."
-          onRetry={checkNow}
-          lastSuccess={
-            snapshot.checkedAtMs != null
-              ? `Ostatnie sprawdzenie: ${formatTime(snapshot.checkedAtMs)}`
-              : undefined
-          }
+          onRetry={runCheck}
+          lastSuccess={lastCheck}
         />
-      )}
-      {starting ? (
-        <p className="dn-loading">Sprawdzam…</p>
-      ) : (
-        <Panel title="Źródła" meta={snapshot.sources.length}>
-          <ul className="health-sources">
-            {snapshot.sources.map((s) => (
-              <li key={s.id} className="health-source">
-                <span className="health-source-label">{s.label}</span>
-                <StatusPill state={pillState(s)}>{pillText(s)}</StatusPill>
-                {(s.state === "error" || s.state === "unavailable") && (
-                  <span
-                    className={
-                      s.state === "error"
-                        ? "meta health-source-message is-error"
-                        : "meta health-source-message"
-                    }
-                  >
-                    {s.message}
-                  </span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </Panel>
       )}
       {checkError && (
         <ErrorState
           title="Nie udało się uruchomić sprawdzenia"
           message={checkError}
-          onRetry={checkNow}
+          onRetry={runCheck}
+          lastSuccess={lastCheck}
         />
+      )}
+      {starting ? (
+        <p className="dn-loading" role="status">
+          Sprawdzam…
+        </p>
+      ) : (
+        <>
+          <div className="health-cards">
+            {CARD_SOURCES.map((spec) => (
+              <SourceCard
+                key={spec.id}
+                spec={spec}
+                source={snapshot.sources.find((s) => s.id === spec.id)}
+                facts={cardFacts(spec.id)}
+              />
+            ))}
+          </div>
+          <div className="dn-columns">
+            <div className="dn-col-main">
+              <Panel title="Pozostałe źródła" meta={others.length}>
+                {others.length > 0 ? (
+                  <ul className="health-rows">
+                    {others.map((s) => (
+                      <SourceRow key={s.id} source={s} />
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="dn-empty">Brak innych źródeł w ostatnim sprawdzeniu.</p>
+                )}
+              </Panel>
+            </div>
+            <aside className="dn-col-side" aria-label="Co znaczą stany">
+              <Panel title="Co znaczą stany">
+                <dl className="health-legend">
+                  {LEGEND.map((g) => (
+                    <div key={g.label} className="health-legend-row">
+                      <dt>
+                        <StatusPill state={g.state} glyph={false}>
+                          {g.label}
+                        </StatusPill>
+                      </dt>
+                      <dd>{g.text}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </Panel>
+            </aside>
+          </div>
+        </>
       )}
     </main>
   );

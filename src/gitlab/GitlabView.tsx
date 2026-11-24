@@ -1,24 +1,55 @@
-import type { ReactNode } from "react";
-import { Button, Flag, ItemRow, Panel, SourceState } from "../components";
+import { useEffect, useState } from "react";
+import {
+  Button,
+  Flag,
+  Panel,
+  Segmented,
+  SourceChip,
+  SourceState,
+  formatAge,
+  formatAgo,
+} from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { openGitlabItem } from "./api";
-import type {
-  AssignedItems,
-  ChangeReason,
-  ClosedSection,
-  GitlabItem,
-  GitlabSnapshot,
-} from "./types";
+import type { ChangeReason, ClosedSection, GitlabItem, GitlabSnapshot } from "./types";
 import { useGitlab } from "./useGitlab";
 import "./GitlabView.css";
 
-function formatClock(ms: number): string {
-  return new Date(ms).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
-}
+/** How often the relative labels ("2 min temu", "3 dni") are recomputed. */
+const NOW_TICK_MS = 30_000;
 
 function formatUpdated(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("pl-PL");
+}
+
+/** Today: "12 min temu" / "2 godz. temu"; older: "1 dzień", "3 dni", "tydz.". */
+function formatChange(iso: string, now: number): string {
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return "—";
+  return formatAge(ms, now) === "dziś" ? formatAgo(ms, now) : formatAge(ms, now);
+}
+
+/** Polish count form: 1, 2–4 (not 12–14), everything else. */
+function plural(n: number, one: string, few: string, many: string): string {
+  if (n === 1) return one;
+  const d = n % 10;
+  const h = n % 100;
+  return d >= 2 && d <= 4 && (h < 12 || h > 14) ? few : many;
+}
+
+/** `group/sub/project#12` → nr `#12`, project `project`, path `group/sub/project`. */
+function splitReference(reference: string): { nr: string; project: string; path: string } {
+  const at = Math.max(reference.lastIndexOf("#"), reference.lastIndexOf("!"));
+  if (at <= 0) return { nr: reference, project: "", path: "" };
+  const path = reference.slice(0, at);
+  return { nr: reference.slice(at), project: path.slice(path.lastIndexOf("/") + 1), path };
+}
+
+/** Newest first, ties by reference: the order the backend uses inside each list. */
+function byUpdated(a: GitlabItem, b: GitlabItem): number {
+  const diff = (Date.parse(b.updatedAt) || 0) - (Date.parse(a.updatedAt) || 0);
+  return diff !== 0 ? diff : a.reference.localeCompare(b.reference);
 }
 
 const CHANGE_LABEL: Record<ChangeReason, string> = {
@@ -27,6 +58,18 @@ const CHANGE_LABEL: Record<ChangeReason, string> = {
   returned: "wróciło na listę",
 };
 
+type KindFilter = "all" | "issue" | "mergeRequest";
+
+const KIND_OPTIONS = [
+  { value: "all", label: "Wszystko" },
+  { value: "issue", label: "Zgłoszenia" },
+  { value: "mergeRequest", label: "MR-y" },
+];
+
+function matchesKind(item: GitlabItem, kind: KindFilter): boolean {
+  return kind === "all" || item.kind === kind;
+}
+
 type RowActions = {
   busy: ReadonlySet<number>;
   hide: (id: number) => void;
@@ -34,208 +77,310 @@ type RowActions = {
   dismiss: (id: number) => void;
 };
 
-function GitlabRow({
-  item,
-  actions,
-  hidden = false,
-  at,
-}: {
+type TableRow = {
   item: GitlabItem;
-  /** Only issue rows get actions; merge request rows stay as they are. */
-  actions?: RowActions;
   hidden?: boolean;
   /** The time the row shows; the last update when not given. */
   at?: string;
+};
+
+function RowButtons({
+  item,
+  hidden,
+  actions,
+}: {
+  item: GitlabItem;
+  hidden: boolean;
+  actions: RowActions;
 }) {
-  const url = item.webUrl;
-  const working = actions?.busy.has(item.id) ?? false;
+  const working = actions.busy.has(item.id);
   return (
-    <ItemRow
-      source={item.kind === "mergeRequest" ? "mr" : "iss"}
-      refId={item.reference}
-      title={
-        <span className="gitlab-title">
-          {url ? (
-            <button
-              type="button"
-              className="link-button gitlab-title-text"
-              onClick={() => void openGitlabItem(url)}
-            >
-              {item.title}
-            </button>
-          ) : (
-            <span className="gitlab-title-text">{item.title}</span>
-          )}
-          {item.draft && <Flag tone="change">Draft</Flag>}
-          {item.labels.map((l) => (
-            <span key={l} className="gitlab-label">
-              {l}
-            </span>
-          ))}
-        </span>
-      }
-      flag={item.changed ? `Zmienione: ${CHANGE_LABEL[item.changed]}` : undefined}
-      flagTone="change"
-      meta={formatUpdated(at ?? item.updatedAt)}
-    >
-      {actions && (
-        <>
-          {item.changed && (
-            <Button
-              variant="quiet"
-              size="sm"
-              disabled={working}
-              aria-label={`OK, zauważone: ${item.title}`}
-              onClick={() => actions.dismiss(item.id)}
-            >
-              OK
-            </Button>
-          )}
-          {hidden ? (
-            <Button
-              variant="quiet"
-              size="sm"
-              disabled={working}
-              aria-label={`Pokaż: ${item.title}`}
-              onClick={() => actions.unhide(item.id)}
-            >
-              Pokaż
-            </Button>
-          ) : (
-            <Button
-              variant="quiet"
-              size="sm"
-              disabled={working}
-              aria-label={`Ukryj: ${item.title}`}
-              onClick={() => actions.hide(item.id)}
-            >
-              Ukryj
-            </Button>
-          )}
-        </>
+    <>
+      {item.changed && (
+        <Button
+          variant="quiet"
+          size="sm"
+          iconOnly
+          icon="check-circle"
+          disabled={working}
+          aria-label={`OK, zauważone: ${item.title}`}
+          title="OK, zauważone"
+          onClick={() => actions.dismiss(item.id)}
+        />
       )}
-    </ItemRow>
+      {hidden ? (
+        <Button
+          variant="quiet"
+          size="sm"
+          iconOnly
+          icon="eye"
+          disabled={working}
+          aria-label={`Pokaż: ${item.title}`}
+          title="Pokaż na liście"
+          onClick={() => actions.unhide(item.id)}
+        />
+      ) : (
+        <Button
+          variant="quiet"
+          size="sm"
+          iconOnly
+          icon="eye-off"
+          disabled={working}
+          aria-label={`Ukryj: ${item.title}`}
+          title="Ukryj do zmiany"
+          onClick={() => actions.hide(item.id)}
+        />
+      )}
+    </>
   );
 }
 
-function filteredNote(count: number): ReactNode {
-  return count > 0 ? `Ukryte filtrem: ${count}` : undefined;
-}
-
-function Section({
-  title,
-  items,
-  emptyText,
-  filteredOut,
+function GitlabRow({
+  row,
+  now,
   actions,
 }: {
-  title: string;
-  items: GitlabItem[];
-  emptyText: string;
-  filteredOut: number;
+  row: TableRow;
+  now: number;
+  /** Only issue rows get actions; merge request rows stay as they are. */
+  actions?: RowActions;
+}) {
+  const { item, hidden = false } = row;
+  const at = row.at ?? item.updatedAt;
+  const { nr, project, path } = splitReference(item.reference);
+  const url = item.webUrl;
+  const labels = item.labels.join(", ");
+  return (
+    <div
+      role="row"
+      className={hidden ? "gitlab-grid gitlab-row is-hidden" : "gitlab-grid gitlab-row"}
+    >
+      <span role="cell" className="gitlab-cell">
+        <SourceChip source={item.kind === "mergeRequest" ? "mr" : "iss"} />
+      </span>
+      <span role="cell" className="gitlab-cell gitlab-col-nr code">
+        {nr}
+      </span>
+      <span role="cell" className="gitlab-cell gitlab-col-title">
+        {url ? (
+          <button
+            type="button"
+            className="link-button gitlab-title-text"
+            onClick={() => void openGitlabItem(url)}
+          >
+            {item.title}
+          </button>
+        ) : (
+          <span className="gitlab-title-text">{item.title}</span>
+        )}
+        {hidden && <span className="dn-sr-only"> (ukryte)</span>}
+        {item.changed && (
+          <span className="gitlab-flag" title={CHANGE_LABEL[item.changed]}>
+            <Flag tone="change">
+              Zmienione<span className="dn-sr-only">: {CHANGE_LABEL[item.changed]}</span>
+            </Flag>
+          </span>
+        )}
+        {item.draft && <Flag tone="change">Draft</Flag>}
+      </span>
+      <span role="cell" className="gitlab-cell gitlab-col-project" title={path || undefined}>
+        {project}
+      </span>
+      <span role="cell" className="gitlab-cell gitlab-col-labels code" title={labels || undefined}>
+        {labels}
+      </span>
+      <span role="cell" className="gitlab-cell gitlab-col-when code" title={formatUpdated(at)}>
+        {formatChange(at, now)}
+      </span>
+      <span role="cell" className="gitlab-cell gitlab-col-actions">
+        {actions && item.kind === "issue" && (
+          <RowButtons item={item} hidden={hidden} actions={actions} />
+        )}
+      </span>
+    </div>
+  );
+}
+
+function GitlabTable({
+  label,
+  rows,
+  now,
+  whenHeader = "Zmiana",
+  actions,
+}: {
+  label: string;
+  rows: TableRow[];
+  now: number;
+  whenHeader?: string;
   actions?: RowActions;
 }) {
   return (
-    <Panel title={title} meta={items.length} footer={filteredNote(filteredOut)}>
-      {items.length === 0 ? (
-        <p className="dn-empty">{emptyText}</p>
-      ) : (
-        items.map((item) => (
-          <GitlabRow key={`${item.kind}:${item.reference}`} item={item} actions={actions} />
-        ))
-      )}
-    </Panel>
-  );
-}
-
-function HiddenSection({
-  items,
-  filteredOut,
-  actions,
-}: {
-  items: GitlabItem[];
-  filteredOut: number;
-  actions: RowActions;
-}) {
-  if (items.length === 0 && filteredOut <= 0) return null;
-  const note = filteredNote(filteredOut);
-  return (
-    <details className="gitlab-hidden">
-      <summary>Ukryte ({items.length})</summary>
-      {note && <p className="meta gitlab-hidden-note">{note}</p>}
-      {items.map((item) => (
-        <GitlabRow key={`${item.kind}:${item.reference}`} item={item} actions={actions} hidden />
+    <div role="table" aria-label={label} className="gitlab-table">
+      <div role="row" className="gitlab-grid gitlab-head label-caps">
+        <span role="columnheader">Typ</span>
+        <span role="columnheader" className="gitlab-col-nr">
+          Nr
+        </span>
+        <span role="columnheader">Tytuł</span>
+        <span role="columnheader" className="gitlab-col-project">
+          Projekt
+        </span>
+        <span role="columnheader" className="gitlab-col-labels">
+          Etykiety
+        </span>
+        <span role="columnheader" className="gitlab-col-when">
+          {whenHeader}
+        </span>
+        <span role="columnheader" className="gitlab-col-actions">
+          {actions ? "Akcje" : ""}
+        </span>
+      </div>
+      {rows.map((row) => (
+        <GitlabRow
+          key={`${row.item.kind}:${row.item.reference}`}
+          row={row}
+          now={now}
+          actions={actions}
+        />
       ))}
-    </details>
+    </div>
   );
 }
 
-function ClosedBlock({ closed }: { closed: ClosedSection }) {
+function filteredNote(count: number): string | undefined {
+  return count > 0 ? `Ukryte filtrem: ${count}` : undefined;
+}
+
+function emptyText(kind: KindFilter, filterActive: boolean): string {
+  if (kind === "issue") {
+    return filterActive ? "Brak zgłoszeń pasujących do filtra." : "Brak przypisanych zgłoszeń.";
+  }
+  if (kind === "mergeRequest") {
+    return filterActive
+      ? "Brak merge requestów pasujących do filtra."
+      : "Brak przypisanych merge requestów.";
+  }
+  return filterActive
+    ? "Brak zgłoszeń i merge requestów pasujących do filtra."
+    : "Brak przypisanych zgłoszeń i merge requestów.";
+}
+
+function ClosedBlock({
+  closed,
+  kind,
+  now,
+}: {
+  closed: ClosedSection;
+  kind: KindFilter;
+  now: number;
+}) {
   const oneDay = closed.days === 1;
+  const items = closed.items.filter((i) => matchesKind(i, kind));
   return (
     <Panel
       title={oneDay ? "Zamknięte (ostatni dzień)" : `Zamknięte (ostatnie ${closed.days} dni)`}
-      meta={closed.error ? undefined : closed.items.length}
+      meta={closed.error ? undefined : items.length}
       footer={filteredNote(closed.filteredOut)}
     >
       {closed.error ? (
-        <p className="gitlab-note" role="status">
+        <p className="gitlab-note gitlab-note-inset" role="status">
           {closed.error}
         </p>
-      ) : closed.items.length === 0 ? (
+      ) : items.length === 0 ? (
         <p className="dn-empty">
           {oneDay
             ? "Brak zamkniętych w ostatnim dniu."
             : `Brak zamkniętych w ostatnich ${closed.days} dniach.`}
         </p>
       ) : (
-        closed.items.map((item) => (
-          <GitlabRow key={`${item.kind}:${item.reference}`} item={item} at={item.closedAt} />
-        ))
+        <GitlabTable
+          label="Zamknięte w GitLabie"
+          rows={items.map((item) => ({ item, at: item.closedAt }))}
+          now={now}
+          whenHeader="Zamknięte"
+        />
       )}
     </Panel>
   );
 }
 
+/** UI-only list state, kept in the view so it survives the list being hidden offline. */
+type ListView = {
+  kind: KindFilter;
+  setKind: (kind: KindFilter) => void;
+  showHidden: boolean;
+  setShowHidden: (update: (on: boolean) => boolean) => void;
+};
+
 function Lists({
-  items,
   snapshot,
   stale,
   actions,
+  now,
+  view,
 }: {
-  items: AssignedItems;
-  snapshot: GitlabSnapshot;
+  snapshot: GitlabSnapshot & { items: NonNullable<GitlabSnapshot["items"]> };
   stale: boolean;
   actions: RowActions;
+  now: number;
+  view: ListView;
 }) {
-  const { filterActive, filteredOut, closed } = snapshot;
+  const { kind, setKind, showHidden, setShowHidden } = view;
+  const { items, filterActive, filteredOut, closed } = snapshot;
+
+  const visible = [...items.mergeRequests, ...items.issues]
+    .filter((i) => matchesKind(i, kind))
+    .sort(byUpdated);
+  const hidden = showHidden ? items.hiddenIssues.filter((i) => matchesKind(i, kind)) : [];
+  const rows: TableRow[] = [
+    ...visible.map((item) => ({ item })),
+    ...hidden.map((item) => ({ item, hidden: true })),
+  ];
+  const outByFilter =
+    (kind !== "issue" ? filteredOut.mergeRequests : 0) +
+    (kind !== "mergeRequest" ? filteredOut.issues : 0) +
+    (showHidden && kind !== "mergeRequest" ? filteredOut.hiddenIssues : 0);
+  const hiddenCount = items.hiddenIssues.length;
+
   return (
     <div className={stale ? "gitlab-lists is-stale" : "gitlab-lists"}>
-      <Section
-        title="Merge requesty"
-        items={items.mergeRequests}
-        emptyText={
-          filterActive
-            ? "Brak merge requestów pasujących do filtra."
-            : "Brak przypisanych merge requestów."
-        }
-        filteredOut={filteredOut.mergeRequests}
-      />
-      <Section
-        title="Zgłoszenia"
-        items={items.issues}
-        emptyText={
-          filterActive ? "Brak zgłoszeń pasujących do filtra." : "Brak przypisanych zgłoszeń."
-        }
-        filteredOut={filteredOut.issues}
-        actions={actions}
-      />
-      <HiddenSection
-        items={items.hiddenIssues}
-        filteredOut={filteredOut.hiddenIssues}
-        actions={actions}
-      />
-      {closed && <ClosedBlock closed={closed} />}
+      <div className="gitlab-toolbar">
+        <h2 className="dn-sr-only">Przypisane</h2>
+        <span className="dn-spacer" />
+        <Segmented
+          label="Typ"
+          options={KIND_OPTIONS}
+          value={kind}
+          onChange={(v) => setKind(v as KindFilter)}
+        />
+        <Button
+          size="sm"
+          variant="quiet"
+          pressed={showHidden}
+          disabled={hiddenCount === 0 && !showHidden}
+          onClick={() => setShowHidden((s) => !s)}
+        >
+          Pokaż ukryte ({hiddenCount})
+        </Button>
+      </div>
+      <div className="gitlab-main">
+        <Panel footer={filteredNote(outByFilter)}>
+          {rows.length === 0 ? (
+            <p className="dn-empty">{emptyText(kind, filterActive)}</p>
+          ) : (
+            <GitlabTable label="Przypisane z GitLaba" rows={rows} now={now} actions={actions} />
+          )}
+        </Panel>
+        <p className="meta gitlab-footnote">
+          {/* Mirrors plan_round in src-tauri/src/hidden_issues/rules.rs. */}
+          Ukryte zgłoszenie wraca samo, gdy zmieni się jego status (etykieta z „::”),{" "}
+          {snapshot.ownCommentsKnown
+            ? "ktoś inny doda komentarz"
+            : "pojawi się nowy komentarz"}{" "}
+          albo zgłoszenie wróci na listę po zniknięciu z niej.
+        </p>
+      </div>
+      {closed && <ClosedBlock closed={closed} kind={kind} now={now} />}
     </div>
   );
 }
@@ -253,6 +398,13 @@ export function GitlabView() {
     unhide,
     dismiss,
   } = useGitlab();
+  const [kind, setKind] = useState<KindFilter>("all");
+  const [showHidden, setShowHidden] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const handle = setInterval(() => setNow(Date.now()), NOW_TICK_MS);
+    return () => clearInterval(handle);
+  }, []);
 
   if (loadError) {
     return (
@@ -277,24 +429,44 @@ export function GitlabView() {
   }
 
   const { state, items, lastSuccessMs, refreshing, hiddenCheckFailed, ownCommentsKnown } = snapshot;
+  // The tick can lag a fresh snapshot; never show a refresh "in the future".
+  const nowMs = Math.max(now, lastSuccessMs ?? 0);
   const actions: RowActions = { busy, hide, unhide, dismiss };
   // Filtered-out hidden issues are still checked for comments, so they count.
   const hasHidden = (items?.hiddenIssues.length ?? 0) + snapshot.filteredOut.hiddenIssues > 0;
   const lastSuccess =
     lastSuccessMs != null
-      ? `Ostatnie udane odświeżenie: ${formatClock(lastSuccessMs)}`
-      : "Brak udanego odświeżenia od uruchomienia aplikacji";
+      ? `ostatnie udane odświeżenie: ${formatAgo(lastSuccessMs, nowMs)}`
+      : "brak udanego odświeżenia od uruchomienia aplikacji";
+  const offline = state.state === "unavailable";
+
+  let summary: string | null = null;
+  if (offline) {
+    summary = "źródło niedostępne";
+  } else if (items && state.state !== "notConfigured") {
+    const shown = items.mergeRequests.length + items.issues.length;
+    const hid = items.hiddenIssues.length;
+    summary = `${shown} ${plural(shown, "widoczne", "widoczne", "widocznych")} · ${hid} ${plural(hid, "ukryte", "ukryte", "ukrytych")}`;
+  } else if (state.state === "error") {
+    summary = "błąd źródła";
+  }
 
   return (
     <main className="container">
       <div className="dn-view-head">
         <h1>Praca (GitLab)</h1>
-        {lastSuccessMs != null && state.state !== "error" && (
-          <span className="meta gitlab-last-ok">
-            Ostatnie udane odświeżenie: {formatClock(lastSuccessMs)}
-          </span>
+        {summary && <span className="dn-view-head-summary">{summary}</span>}
+        <span className="dn-spacer" />
+        {lastSuccessMs != null && (
+          <span className="dn-view-head-note">odświeżone {formatAgo(lastSuccessMs, nowMs)}</span>
         )}
-        <Button size="sm" disabled={refreshing} onClick={() => void refresh()}>
+        <Button
+          size="sm"
+          variant="quiet"
+          icon="refresh"
+          disabled={refreshing}
+          onClick={() => void refresh()}
+        >
           {refreshing ? "Odświeżam…" : "Odśwież"}
         </Button>
       </div>
@@ -308,16 +480,17 @@ export function GitlabView() {
           zalogowany na konto serwisowe).
         </SourceState>
       )}
-      {state.state === "unavailable" && (
+      {offline && (
         <SourceState
           kind="calm"
-          title="GitLab niedostępny (brak VPN lub sieci)"
-          lastOk={
-            lastSuccessMs != null
-              ? `Lista z ${formatClock(lastSuccessMs)}`
-              : "Brak udanego odświeżenia od uruchomienia aplikacji"
-          }
-        />
+          title="GitLab niedostępny"
+          lastOk={lastSuccess}
+          action="Sprawdź teraz"
+          onAction={() => void refresh()}
+        >
+          Brak połączenia z siecią firmową (VPN) albo serwer GitLaba nie odpowiada. To normalny stan
+          poza pracą — aplikacja sprawdzi ponownie przy następnym automatycznym odświeżeniu.
+        </SourceState>
       )}
       {state.state === "error" && (
         <ErrorState
@@ -361,8 +534,14 @@ export function GitlabView() {
           {actionError}
         </p>
       )}
-      {items && state.state !== "notConfigured" && (
-        <Lists items={items} snapshot={snapshot} stale={state.state !== "ok"} actions={actions} />
+      {items && state.state !== "notConfigured" && !offline && (
+        <Lists
+          snapshot={{ ...snapshot, items }}
+          stale={state.state !== "ok"}
+          actions={actions}
+          now={nowMs}
+          view={{ kind, setKind, showHidden, setShowHidden }}
+        />
       )}
       {refreshError && (
         <ErrorState

@@ -5,6 +5,7 @@ import "./ItemRow.css";
 
 type RowBase = {
   title: ReactNode;
+  /** Source chip before the ref; no chip when absent. */
   source?: SourceKind;
   /** Issue / MR number: "!418", "#27". */
   refId?: string;
@@ -20,7 +21,10 @@ type RowBase = {
 type WithCheckbox = RowBase & {
   /** Required with a checkbox: links the label to it. */
   id: string;
-  done: boolean;
+  /** Ticked: checkbox checked, title struck through and dimmed. */
+  done?: boolean;
+  /** Same as `done` (either one ticks the row). */
+  checked?: boolean;
   onToggle: () => void;
   /** Accessible name of the checkbox. */
   checkboxLabel?: string;
@@ -30,6 +34,7 @@ type WithCheckbox = RowBase & {
 type WithoutCheckbox = RowBase & {
   id?: string;
   done?: undefined;
+  checked?: undefined;
   onToggle?: undefined;
   checkboxLabel?: undefined;
   checkboxDisabled?: undefined;
@@ -39,7 +44,7 @@ export type ItemRowProps = WithCheckbox | WithoutCheckbox;
 
 export function ItemRow(props: ItemRowProps) {
   const { title, source, refId, flag, flagTone, meta, selected, children } = props;
-  const done = props.done === true;
+  const done = props.done === true || props.checked === true;
   const classes = ["dn-row", selected && "is-selected", done && "is-done"]
     .filter(Boolean)
     .join(" ");

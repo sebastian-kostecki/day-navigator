@@ -5,27 +5,44 @@ export type IconName =
   | "close"
   | "refresh"
   | "edit"
-  | "hide"
-  | "show"
+  | "eye"
+  | "eye-off"
   | "external"
   | "chevron-left"
   | "chevron-right"
   | "wifi-off"
-  | "alert"
+  | "alert-triangle"
   | "check-circle"
-  | "repo";
+  | "repo"
+  | "clock"
+  | "folder"
+  /** Older aliases: hide = eye-off, show = eye, alert = alert-triangle. */
+  | "hide"
+  | "show"
+  | "alert";
+
+// Paths copied from the Konsola mockups (clock and folder drawn to match).
+const EYE = [
+  "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z",
+  "M15 12a3 3 0 1 1-6 0a3 3 0 1 1 6 0",
+];
+const EYE_OFF = [
+  "M3 3l18 18",
+  "M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6",
+  "M9.9 9.9a3 3 0 0 0 4.2 4.2",
+];
+const ALERT_TRIANGLE = [
+  "M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z",
+  "M12 9v4M12 17h.01",
+];
 
 const PATHS: Record<IconName, string[]> = {
   plus: ["M12 5v14M5 12h14"],
   close: ["M6 6l12 12M18 6L6 18"],
   refresh: ["M20 11a8 8 0 1 0-2.3 5.7", "M20 4v7h-7"],
   edit: ["M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"],
-  hide: [
-    "M3 3l18 18",
-    "M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.8 8.4 2 12 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6",
-    "M9.9 9.9a3 3 0 0 0 4.2 4.2",
-  ],
-  show: ["M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z", "M15 12a3 3 0 1 1-6 0a3 3 0 1 1 6 0"],
+  eye: EYE,
+  "eye-off": EYE_OFF,
   external: ["M14 4h6v6", "M20 4l-9 9", "M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"],
   "chevron-left": ["M15 6l-6 6 6 6"],
   "chevron-right": ["M9 6l6 6-6 6"],
@@ -36,12 +53,14 @@ const PATHS: Record<IconName, string[]> = {
     "M12 19h.01",
     "M3 3l18 18",
   ],
-  alert: [
-    "M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z",
-    "M12 9v4M12 17h.01",
-  ],
+  "alert-triangle": ALERT_TRIANGLE,
   "check-circle": ["M21 12a9 9 0 1 1-18 0a9 9 0 1 1 18 0", "M8 12l3 3 5-6"],
   repo: ["M4 4h12a4 4 0 0 1 4 4v12H8a4 4 0 0 1-4-4z", "M4 16a4 4 0 0 1 4-4h12"],
+  clock: ["M21 12a9 9 0 1 1-18 0a9 9 0 1 1 18 0", "M12 7v5l3 2"],
+  folder: ["M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"],
+  hide: EYE_OFF,
+  show: EYE,
+  alert: ALERT_TRIANGLE,
 };
 
 export type IconProps = {

@@ -57,7 +57,8 @@ export function reminderSettings(): Promise<ReminderThresholds> {
   return invoke<ReminderThresholds>("reminder_settings");
 }
 
-// Same wording as the "Przypomnienia" health source (`REMINDERS_INVALID_PL`).
+// Same wording as the "Przypomnienia" health source (`REMINDERS_INVALID_PL` in
+// src-tauri/src/health/probe.rs); a Rust test there keeps the two equal.
 const REMINDERS_INVALID_PL =
   "Blok „reminders” w settings.json jest nieprawidłowy: longRunningHours to liczba godzin 1–24 albo false, notRunningAfter to godzina „GG:MM” albo false.";
 

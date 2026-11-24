@@ -1,7 +1,7 @@
 ---
 change_id: worktime-reminders-panel
 title: Panel „Przypomnienia” w „Czas pracy” (progi i stan, tylko odczyt)
-status: implemented
+status: impl_reviewed
 created: 2026-11-24
 updated: 2026-11-24
 ---

@@ -170,6 +170,12 @@ pub async fn reminder_settings(
     .await;
     match result {
         Ok((settings, origin)) => Ok(thresholds(&settings, origin)),
+        // An invalid block is reported by the health source; the panel refetches
+        // on every focus, so a warning each time would only repeat it.
+        Err(e @ ReminderSettingsQueryError::SettingsInvalid) => {
+            log::debug!("reminders: settings unavailable: {}", e.kind());
+            Err(e)
+        }
         Err(e) => {
             log::warn!("reminders: settings unavailable: {}", e.kind());
             Err(e)

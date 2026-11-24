@@ -1,7 +1,7 @@
 ---
 change_id: remove-vault-layer
 title: Usunięcie nieużywanej warstwy vaultów i źródeł vault/exclusions z „Stanu źródeł”
-status: implementing
+status: implemented
 created: 2026-11-24
 updated: 2026-11-24
 archived_at: null

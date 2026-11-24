@@ -221,9 +221,9 @@ Stary `settings.json` wczytuje się bez zmian, a `spaces` jest ignorowany. Klucz
 
 #### Automated
 
-- [x] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [x] 2.2 `git grep` vault w AGENTS.md pokazuje tylko zasadę nieczytania i niezapisywania vaultów
+- [x] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą — 9a9660d
+- [x] 2.2 `git grep` vault w AGENTS.md pokazuje tylko zasadę nieczytania i niezapisywania vaultów — 9a9660d
 
 #### Manual
 
-- [x] 2.3 AGENTS.md i wpis w `## Parked` spójne z PRD Non-Goals
+- [x] 2.3 AGENTS.md i wpis w `## Parked` spójne z PRD Non-Goals — 9a9660d

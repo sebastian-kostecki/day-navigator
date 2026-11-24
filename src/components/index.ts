@@ -24,4 +24,5 @@ export { StatusPill, type PillState, type StatusPillProps } from "./StatusPill/S
 export { Tabs, type TabsProps } from "./Tabs/Tabs";
 export { plural } from "./plural";
 export { formatAge, formatAgo, formatDay, formatHm, formatHms } from "./time";
+export { formatClock } from "./time";
 export { RELATIVE_TICK_MS, useNow } from "./useNow";

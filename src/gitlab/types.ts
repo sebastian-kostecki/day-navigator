@@ -67,6 +67,17 @@ export type ClosedSection = {
   error: string | null;
 };
 
+/** Include and exclude entries of one filter dimension, lowercased. */
+export type FilterRule = { include: string[]; exclude: string[] };
+
+/** Mirrors `gitlab::filter::GitlabFilter`. */
+export type GitlabFilterValues = {
+  projects: FilterRule;
+  labels: FilterRule;
+  milestones: FilterRule;
+  closedDays: number | null;
+};
+
 export type GitlabSnapshot = {
   state: GitlabState;
   /** Last successful list in this session (memory only). */
@@ -86,6 +97,12 @@ export type GitlabSnapshot = {
   refreshSettingInvalid: boolean;
   /** True when a `gitlabFilter` with at least one constraint is in effect. */
   filterActive: boolean;
+  /** The filter that shaped `items`; belongs to the items. */
+  filter: GitlabFilterValues;
+  /** The interval (minutes) the last round used. */
+  refreshMinutes: number;
+  /** When the wait after the last round ends (UTC ms); null before the first round. */
+  nextRefreshAtMs: number | null;
   /** True when the `gitlabFilter` block is invalid and everything is shown. */
   filterInvalid: boolean;
   filteredOut: FilteredOut;
@@ -99,3 +116,7 @@ export type HiddenIssueError =
   | { kind: "NotFound" }
   | { kind: "NotInList" }
   | { kind: "ListUnavailable" };
+
+/** Mirrors `settings_file::OpenSettingsError`. */
+export type OpenSettingsError =
+  { kind: "ConfigDirUnresolved" } | { kind: "Missing" } | { kind: "OpenFailed" };

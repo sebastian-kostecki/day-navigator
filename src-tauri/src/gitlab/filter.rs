@@ -3,15 +3,19 @@
 //! other consumer keeps the full list.
 //!
 //! Privacy: entries are work data (project paths, labels, milestone titles),
-//! so `Debug` is opaque and nothing here formats a value.
+//! so `Debug` is opaque and nothing here formats a value. The values leave the
+//! module only through serde, to the UI.
 
 use std::fmt;
+
+use serde::Serialize;
 
 use super::{GitlabItem, ItemKind};
 
 /// Include and exclude entries of one dimension, lowercased. An empty list is
 /// no constraint.
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DimensionRule {
     pub include: Vec<String>,
     pub exclude: Vec<String>,
@@ -43,7 +47,8 @@ impl DimensionRule {
 
 /// Which assigned items the list shows, and whether recently closed ones are
 /// listed too (`closed_days`, off by default).
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GitlabFilter {
     pub projects: DimensionRule,
     pub labels: DimensionRule,

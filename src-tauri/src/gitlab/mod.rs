@@ -17,6 +17,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::cli::{CliError, GitlabConfig, GitlabHost, Tool};
+use crate::settings::DEFAULT_REFRESH_MINUTES;
+
+use self::filter::GitlabFilter;
 
 /// Opaque, stable key of the account a list comes from: SHA-256 (hex) of the
 /// host and the configured user. Carries neither value in readable form, so it
@@ -415,6 +418,13 @@ pub struct GitlabSnapshot {
     pub refresh_setting_invalid: bool,
     /// True when the visibility filter narrows `items`. Belongs to the items.
     pub filter_active: bool,
+    /// The filter that shaped `items`. Belongs to the items. Values are work
+    /// data: `Debug` stays opaque and they only travel to the UI through serde.
+    pub filter: GitlabFilter,
+    /// The interval (minutes) the last round used. A round flag: set on every round.
+    pub refresh_minutes: u32,
+    /// When the wait after the last round ends (UTC ms); `None` before the first round.
+    pub next_refresh_at_ms: Option<u64>,
     /// True when the `gitlabFilter` block is invalid and everything is shown.
     /// A round flag like `refresh_setting_invalid`: set on every round.
     pub filter_invalid: bool,
@@ -445,6 +455,9 @@ impl GitlabSnapshot {
             hidden_error: None,
             refresh_setting_invalid: false,
             filter_active: false,
+            filter: GitlabFilter::default(),
+            refresh_minutes: DEFAULT_REFRESH_MINUTES,
+            next_refresh_at_ms: None,
             filter_invalid: false,
             filtered_out: FilteredOut::default(),
             closed: None,
@@ -481,6 +494,10 @@ pub fn next_snapshot(
         // A round flag, not tied to the list: carried over, the round sets it.
         refresh_setting_invalid: prev.refresh_setting_invalid,
         filter_active: false,
+        filter: GitlabFilter::default(),
+        // Round flags, carried over: the round sets them.
+        refresh_minutes: prev.refresh_minutes,
+        next_refresh_at_ms: prev.next_refresh_at_ms,
         filter_invalid: prev.filter_invalid,
         filtered_out: FilteredOut::default(),
         closed: None,
@@ -523,6 +540,7 @@ pub fn next_snapshot(
         next.hidden_error = prev.hidden_error.clone();
         // The filter state belongs to the kept list too.
         next.filter_active = prev.filter_active;
+        next.filter = prev.filter.clone();
         next.filtered_out = prev.filtered_out;
         next.closed = prev.closed.clone();
         next.account = prev.account.clone();
@@ -1715,6 +1733,101 @@ mod tests {
         assert!(!s.filter_invalid);
     }
 
+    fn invented_filter() -> GitlabFilter {
+        let mut filter = GitlabFilter::default();
+        filter.projects.include = vec!["acme/invented-project".to_string()];
+        filter.closed_days = Some(5);
+        filter
+    }
+
+    #[test]
+    fn snapshot_keeps_the_filter_with_the_list_and_resets_it_without() {
+        let prev = GitlabSnapshot {
+            items: Some(items("g/p#1")),
+            last_success_ms: Some(1000),
+            filter: invented_filter(),
+            ..GitlabSnapshot::starting()
+        };
+        let (s, _) = next_snapshot(
+            &prev,
+            Some(&config()),
+            Some(&config()),
+            Err(GitlabError::Unavailable),
+            2000,
+        );
+        assert_eq!(s.filter, invented_filter());
+        for (cfg, err) in [
+            (Some(other_user_config()), GitlabError::Unavailable),
+            (None, GitlabError::NotConfigured),
+        ] {
+            let (s, _) = next_snapshot(&prev, Some(&config()), cfg.as_ref(), Err(err), 2000);
+            assert_eq!(s.items, None);
+            assert_eq!(s.filter, GitlabFilter::default());
+        }
+    }
+
+    #[test]
+    fn snapshot_carries_the_refresh_interval_fields_across_rounds() {
+        let prev = GitlabSnapshot {
+            items: Some(items("g/p#1")),
+            refresh_minutes: 3,
+            next_refresh_at_ms: Some(123_456),
+            ..GitlabSnapshot::starting()
+        };
+        let (kept, _) = next_snapshot(
+            &prev,
+            Some(&config()),
+            Some(&config()),
+            Err(GitlabError::Unavailable),
+            2000,
+        );
+        let (dropped, _) = next_snapshot(
+            &prev,
+            Some(&config()),
+            None,
+            Err(GitlabError::NotConfigured),
+            2000,
+        );
+        for s in [kept, dropped] {
+            assert_eq!(s.refresh_minutes, 3);
+            assert_eq!(s.next_refresh_at_ms, Some(123_456));
+        }
+        let start = GitlabSnapshot::starting();
+        assert_eq!(start.refresh_minutes, DEFAULT_REFRESH_MINUTES);
+        assert_eq!(start.next_refresh_at_ms, None);
+    }
+
+    #[test]
+    fn snapshot_debug_does_not_show_filter_values() {
+        let s = GitlabSnapshot {
+            filter: invented_filter(),
+            ..GitlabSnapshot::starting()
+        };
+        assert!(!format!("{s:?}").contains("invented-project"));
+    }
+
+    #[test]
+    fn snapshot_serializes_the_filter_and_the_interval_fields() {
+        let s = GitlabSnapshot {
+            filter: invented_filter(),
+            refresh_minutes: 7,
+            next_refresh_at_ms: Some(42),
+            ..GitlabSnapshot::starting()
+        };
+        let v = serde_json::to_value(&s).unwrap();
+        assert_eq!(
+            v["filter"]["projects"]["include"],
+            serde_json::json!(["acme/invented-project"])
+        );
+        assert_eq!(v["filter"]["projects"]["exclude"], serde_json::json!([]));
+        assert_eq!(v["filter"]["closedDays"], 5);
+        assert_eq!(v["refreshMinutes"], 7);
+        assert_eq!(v["nextRefreshAtMs"], 42);
+        let v = serde_json::to_value(GitlabSnapshot::starting()).unwrap();
+        assert_eq!(v["filter"]["closedDays"], serde_json::Value::Null);
+        assert_eq!(v["nextRefreshAtMs"], serde_json::Value::Null);
+    }
+
     #[test]
     fn snapshot_success_reports_whether_own_comments_are_known() {
         let prev = GitlabSnapshot::starting();
@@ -1729,7 +1842,7 @@ mod tests {
         let mut s = GitlabSnapshot::starting();
         assert_eq!(
             serde_json::to_string(&s).unwrap(),
-            r#"{"state":{"state":"starting"},"items":null,"lastSuccessMs":null,"checkedAtMs":null,"refreshing":false,"seq":0,"hiddenCheckFailed":0,"ownCommentsKnown":false,"hiddenError":null,"refreshSettingInvalid":false,"filterActive":false,"filterInvalid":false,"filteredOut":{"mergeRequests":0,"issues":0,"hiddenIssues":0},"closed":null}"#
+            r#"{"state":{"state":"starting"},"items":null,"lastSuccessMs":null,"checkedAtMs":null,"refreshing":false,"seq":0,"hiddenCheckFailed":0,"ownCommentsKnown":false,"hiddenError":null,"refreshSettingInvalid":false,"filterActive":false,"filter":{"projects":{"include":[],"exclude":[]},"labels":{"include":[],"exclude":[]},"milestones":{"include":[],"exclude":[]},"closedDays":null},"refreshMinutes":10,"nextRefreshAtMs":null,"filterInvalid":false,"filteredOut":{"mergeRequests":0,"issues":0,"hiddenIssues":0},"closed":null}"#
         );
         s.closed = Some(ClosedSection {
             days: 7,

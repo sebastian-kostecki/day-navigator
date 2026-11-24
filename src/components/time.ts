@@ -13,6 +13,11 @@ function clock(d: Date): string {
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
+/** Local `HH:MM` of an instant given in UTC ms. */
+export function formatClock(ms: number): string {
+  return clock(new Date(ms));
+}
+
 /** Whole local calendar days from `ms` to `nowMs` (DST-safe; negative when `ms` is later). */
 function calendarDays(ms: number, nowMs: number): number {
   const a = new Date(ms);

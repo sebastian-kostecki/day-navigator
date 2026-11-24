@@ -19,15 +19,8 @@ use crate::github_refresh::GithubRefreshState;
 use crate::gitlab::{AssignedItems, GitlabItem, ItemKind};
 use crate::gitlab_refresh::GitlabRefreshState;
 use crate::settings::load_todo_limit;
+use crate::settings_file::settings_path;
 use crate::store::{Store, StoreHandle};
-
-/// `settings.json` in the app config dir, or `None` when the dir is unresolved.
-fn settings_path(app: &AppHandle) -> Option<PathBuf> {
-    app.path()
-        .app_config_dir()
-        .ok()
-        .map(|dir| dir.join("settings.json"))
-}
 
 fn limit_from(path: Option<&PathBuf>) -> Result<u32, TodoError> {
     match path {

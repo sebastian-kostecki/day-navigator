@@ -1,269 +1,335 @@
 ---
 project: "Nawigator dnia"
-version: 3
+version: 4
 status: draft
 created: 2026-11-20
-updated: 2026-11-23
-prd_version: 1
+updated: 2026-11-24
+prd_version: 2
 main_goal: quality
-top_blocker: decisions
-milestone_id: full-day-flow
-milestone_seq: 1
-milestone_status: done
+top_blocker: none
+milestone_id: konsola-gaps-and-cleanup
+milestone_seq: 2
+milestone_status: open
 ---
 
 # Roadmap: Nawigator dnia
 
-> Derived from `context/foundation/prd.md` (brownfield, v1 of 2026-11-22) + auto-researched codebase baseline.
+> Derived from GitHub issues #1–#16 (2026-11-24), `context/foundation/prd.md` (v2, FR-019–FR-026) + the codebase baseline.
 > Edit-in-place; the next milestone continues this file. Archive only when an independent roadmap replaces it.
 > Slices below are listed in dependency order. The "At a glance" table is the index.
-> Re-decomposed on 2026-11-23 for the narrowed MVP; the previous decomposition of this milestone is archived at `context/foundation/archive/2026-11-23-roadmap-full-day-flow.md`.
+> M-1's decomposition (F-01/F-02, S-01–S-10, all done) was replaced in place by M-2; M-1 is recorded in `## Milestone History` and its archived changes in `## Done`.
 
 ## Milestone
 
-**M-1: The narrowed day flow runs in the app** — Status: done
+**M-2: Konsola mockup gaps closed and the codebase cleaned up** — Status: open
 
-- **Intent:** The PRD's day flow 1–8 runs in the app: assigned GitLab issues and MRs with hiding and notifications, assigned GitHub issues, own tasks, a "To do" list picked from the three lists, and a work-time counter with a monthly-norm report. It holds the guardrails throughout: time is never lost, no VPN is not an empty list, work data never leaks, vaults stay untouched.
-- **Source materials:** `context/foundation/prd.md` (v1, brownfield, 2026-11-22)
-- **Done when:** every F-NN and S-NN below is `done`, and the preserved behaviour (FR-016: CI green, an installer only on a version bump) still holds.
-- **Scope anchors:** FR-001–FR-008, FR-010–FR-018 (all must-have; FR-009 was removed in the PRD), US-01, US-02, all five NFRs under `## Constraints & Compatibility`, and the `[removed] S-05` item of `## Scope of Change`.
+- **Intent:** The app shows what the Konsola mockups show and 0.2.0 left out (event log, days table, reminders panel, app-data details, GitLab NEW flag and filter bar, GitHub labels, "+" to "To do"), on a cleaner base (shared UI tools and timer state, no vault layer), verified by hand, with releases that say what changed, carry real metadata and, once a signing method is chosen, are signed.
+- **Source materials:** GitHub issues #1–#16 (open on 2026-11-24; #17–#19 are decision questions and stay outside); `context/foundation/prd.md` v2 for #1–#8.
+- **Done when:** every F-NN and S-NN below is `done`, and the preserved behaviour still holds: FR-016 (CI green, an installer only on a version bump) and the read-only `glab`/`gh` rule.
+- **Scope anchors:** FR-019–FR-026 in the PRD (issues #1–#8). Issues #9–#16 have no FR and are anchored here; each `MS-NN` number matches its issue number:
+  - MS-09: One shared work-timer state in the UI used by the header, the dashboard and "Work time", with no change in behaviour or in Rust commands (issue #9).
+  - MS-10: Shared UI tools moved from the views into `src/components/`: `useNow`, `plural`, `Tabs`, a table/grid component, a `Segmented` size for 40 px fields, a priority chip, `ErrorState.message` as a node, `disabled` for `SourceState` actions (issue #10).
+  - MS-11: The unused vault layer removed, together with its health sources, tests and fixtures; AGENTS.md and the roadmap updated (issue #11).
+  - MS-12: The open Manual rows of the Konsola design-system plan checked by hand, then the change archived (issue #12).
+  - MS-13: The NSIS installer signed in CI without secrets in the repo, after a signing method is chosen; the release text updated (issue #13).
+  - MS-14: The release description generated from the changes since the previous `app-v*` tag, keeping the unsigned-installer note until signing exists (issue #14).
+  - MS-15: Real `description` and `authors` in `src-tauri/Cargo.toml`, checked in the exe and installer properties (issue #15).
+  - MS-16: The "Day Navigator — Konsola" design-system artifact brought in line with the app (Flag tone `new`, `ItemRow` id, numbered navigation with shortcuts, `Notice`, START/STOP confirmation, app and tray icons) (issue #16).
 
 ## Vision recap
 
-One developer on one Windows 11 machine works for a company (issues in a work GitLab that is reachable only over VPN, work time settled monthly) and on private projects (issues on GitHub). The previous plan was too big. The narrowed MVP needs to be usable quickly: one window with three sources (GitLab, GitHub, own tasks), a "To do" list picked from them, and a work-time counter that says how far the month is from the 8 h/day norm. The app only shows what needs attention, reads from GitLab and GitHub without writing there, and does not touch Obsidian vaults.
+One developer on one Windows 11 machine uses the app every day for their work GitLab, their private GitHub projects, their own tasks, a "To do" list and a work-time counter. M-1 delivered that day flow. The Konsola mockups show more than the 0.2.0 release has, and building it left duplicated UI code and a dormant vault layer. M-2 closes those mockup gaps, cleans the base they are built on, and makes releases tell what they contain.
 
 ## North star
 
-**S-01: User can see their assigned GitLab issues and MRs in the "Work (GitLab)" view** — the user named GitLab as the most urgent source, and this slice proves the whole source path end to end: logged-in CLI → list → a calm "GitLab unavailable" state without VPN.
+**S-01: User can add an item to "To do" with "+" straight from the GitLab and GitHub views** — the change that most shortens the daily flow from US-01 (picking today's work where you see it). It has no prerequisites, so it goes first.
 
-> The north star is the smallest end-to-end slice whose delivery proves the product works. It is placed as early as its prerequisites allow, because everything else matters only if this works.
+> The north star is the smallest end-to-end slice whose delivery proves the milestone works. It is placed as early as its prerequisites allow, because the rest of the milestone matters most if this one works.
 
 ## At a glance
 
-| ID   | Change ID               | Outcome (user can …)                                                                  | Prerequisites | PRD refs                                  | Status   |
-| ---- | ----------------------- | ------------------------------------------------------------------------------------- | ------------- | ----------------------------------------- | -------- |
-| F-01 | app-data-store          | (foundation) app-owned data survives close, restart and crash                          | —             | NFR Trwałość czasu pracy, Constraints      | done |
-| F-02 | read-only-cli-runner    | (foundation) logged-in `glab`/`gh` run read-only, with classified result states        | —             | Access Control Changes, NFR Nigdy pusta lista | done |
-| S-01 | gitlab-assigned-list    | see assigned GitLab issues and MRs, or a calm "unavailable" state without VPN          | F-02          | FR-001, FR-015, FR-016, US-01              | done |
-| S-02 | gitlab-visibility-filter| choose which assigned GitLab items the list shows                                      | S-01          | FR-002                                    | done |
-| S-03 | hide-and-resurface      | hide an issue and get it back when its status changes or someone else comments         | S-01, F-01    | FR-003, US-02                             | done        |
-| S-04 | new-assignment-notify   | get a Windows notification for every new assigned issue or MR                          | S-01, F-01    | FR-004, NFR Świeżość, NFR Lekkość w tle    | done        |
-| S-05 | github-assigned-issues  | see open GitHub issues assigned to them from the repositories listed in settings       | F-02          | FR-005, FR-015                            | done        |
-| S-06 | own-tasks               | add, edit and complete their own tasks in the Work or Private space                    | F-01          | FR-006, FR-007, FR-008, FR-010            | done     |
-| S-07 | todo-list               | pick today's items from the lists into "To do", tick them, carry the rest to tomorrow  | S-01, S-06    | FR-011, FR-012, US-01                     | done |
-| S-08 | work-timer              | start and stop work time from an always-visible counter and correct entries            | F-01          | FR-013, FR-017, NFR Trwałość czasu pracy  | done |
-| S-09 | work-norm-report        | see day and month sums and how far the month is from the norm                          | S-08          | FR-014                                    | done |
-| S-10 | timer-reminders         | get reminded when the counter runs too long or is not running on a workday             | S-08          | FR-018                                    | done |
+| ID   | Change ID                   | Outcome (user can …)                                                                   | Prerequisites | PRD refs        | Status   |
+| ---- | --------------------------- | -------------------------------------------------------------------------------------- | ------------- | --------------- | -------- |
+| F-01 | shared-ui-tools             | (foundation) shared UI tools live in `src/components/`, not copied across views         | —             | MS-10           | ready    |
+| F-02 | shared-work-timer-state     | (foundation) one work-timer state feeds the header, dashboard and "Work time"           | —             | MS-09           | ready    |
+| F-03 | remove-vault-layer          | (foundation) the vault layer and its health sources are gone                            | —             | MS-11           | ready    |
+| F-04 | konsola-design-system       | (foundation) the Konsola design system is checked by hand and its change archived       | —             | MS-12           | ready    |
+| F-05 | design-system-artifact-sync | (foundation) the design-system artifact matches the app                                 | F-04          | MS-16           | proposed |
+| S-01 | todo-add-from-sources       | add an item to "To do" with "+" from the GitLab and GitHub views                        | —             | FR-026, US-01   | ready    |
+| S-02 | gitlab-new-and-hidden-date  | see a NEW flag on fresh GitLab items and the date a row was hidden                      | —             | FR-023          | ready    |
+| S-03 | gitlab-filter-bar-retry     | see the active filter values and when GitLab will be tried again                        | F-01          | FR-024          | proposed |
+| S-04 | github-issue-labels         | see labels on GitHub issues                                                             | —             | FR-025          | ready    |
+| S-05 | worktime-days-table         | see a table of the month's days against 8 h and mark days off there                     | F-01, F-02    | FR-020          | proposed |
+| S-06 | worktime-reminders-panel    | see the reminder thresholds and whether reminders are on                                | —             | FR-021          | ready    |
+| S-07 | app-data-details            | see the last backup, kept backups and schema version, and open the backups folder       | F-03          | FR-022          | proposed |
+| S-08 | event-log                   | see today's events in a "Dziennik zdarzeń" panel on the dashboard                       | F-03          | FR-019          | proposed |
+| S-09 | release-notes               | see in each release what changed since the previous one                                 | —             | MS-14, FR-016   | ready    |
+| S-10 | app-metadata                | see the real description and author in the exe and installer properties                 | —             | MS-15           | ready    |
+| S-11 | installer-signing           | install a release without a SmartScreen warning                                         | S-09          | MS-13, FR-016   | blocked  |
 
 ## Streams
 
 Navigation aid — groups items that share a Prerequisites chain. Canonical ordering still lives in the dependency graph below; this table is the proposed reading order across parallel tracks.
 
-| Stream | Theme              | Chain                                                       | Note                                                                                              |
-| ------ | ------------------ | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| A      | Issue sources      | `F-02` → `S-01` → `S-02` → `S-03` → `S-04`, plus `S-05`      | The north star first; `S-05` branches off `F-02` and waits on the `gh` decision; `S-03`/`S-04` also need `F-01`. |
-| B      | Own data and "To do" | `F-01` → `S-06` → `S-07`                                  | Durable store first (quality goal); `S-07` joins Stream A at `S-01`.                              |
-| C      | Work time          | `S-08` → `S-09` → `S-10`                                     | Starts from `F-01` in Stream B; can run alongside Stream A from the start.                         |
+| Stream | Theme                   | Chain                                          | Note                                                                                                   |
+| ------ | ----------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| A      | Source views            | `S-01`, `S-02`, `S-04`; `F-01` → `S-03`         | The north star first; `F-01` lands before the first view slice that would add another local copy.       |
+| B      | Work time               | `F-02` → `S-05`; `S-06`                         | `S-05` also needs `F-01` (joins Stream A at `F-01`); `S-06` shares the view, so plan it after `S-05`.    |
+| C      | App data and events     | `F-03` → `S-07`, `S-08`                         | Quality goal: the health source set is settled before new health details and source-error events.     |
+| D      | Releases                | `S-10`; `S-09` → `S-11`                         | Must keep FR-016; `S-11` waits on the signing decision.                                                 |
+| E      | Design system           | `F-04` → `F-05`                                 | Manual check of the current UI first, then the artifact follows the checked app.                        |
 
 ## Baseline
 
-What's already in place in the codebase as of `2026-11-23` (auto-researched + user-confirmed).
+What's already in place in the codebase as of `2026-11-24` (researched + user-confirmed).
 Foundations below assume these are present and do NOT re-scaffold them.
 
-- **Frontend:** partial — React 19 + Vite; `src/App.tsx` stacks `TasksView` (S-05 of the previous decomposition) and `HealthPanel`; no navigation, no header counter, none of the MVP views. Conventions documented in `AGENTS.md`.
-- **Backend / API:** partial — Tauri commands for vault tasks and health (`src-tauri/src/lib.rs`); tray, notifications, single instance and log (`src-tauri/src/runtime.rs`); no `glab`/`gh` invocation anywhere.
-- **Data:** partial — `settings.json` in the app config dir (vault paths, task settings); the vault layer exists but the MVP does not use it; no app-owned data store for tasks, "To do", hidden issues or work time.
-- **Auth:** not applicable — single user, no login; GitLab and GitHub are reached through the logged-in CLIs, not wired yet.
-- **Deploy / infra:** present — CI with secret scan, audits, lint/format, build and tests, plus the installer published on a version bump (`.github/workflows/ci.yml`).
-- **Observability:** present — tray status icon and Windows notices on source failure (previous F-02), app log; the probes cover settings and vault paths only, not `glab`/`gh`.
+- **Frontend:** present — React 19 views per feature (`src/gitlab/`, `src/github/`, `src/own-tasks/`, `src/todo/`, `src/worktime/`, `src/health/`), shared components in `src/components/`. Gaps from the issues: `useWorkTimer` subscribed in three places, no shared `useNow`/`plural`/`Tabs`/table component, no `HoursBar`.
+- **Backend / API:** present — Tauri commands in `src-tauri/src/lib.rs`, the read-only CLI runner in `src-tauri/src/cli/`, GitLab/GitHub refresh, reminders. The dormant vault layer `src-tauri/src/vault/` is still there.
+- **Data:** present — app data store in `src-tauri/src/store/` (SQLite, 4 migrations, daily backups); no event records.
+- **Auth:** not applicable — single user; `glab`/`gh` sessions only.
+- **Deploy / infra:** present — `.github/workflows/ci.yml` publishes the NSIS installer on a version bump with a fixed `releaseBody`, unsigned; `src-tauri/Cargo.toml` still has template `description` and `authors`.
+- **Observability:** present — tray status icon, Windows notices, app log, "Stan źródeł" view.
 
 ## Foundations
 
-### F-01: App-owned data store
+### F-01: Shared UI tools
 
-- **Outcome:** (foundation) the app keeps its own data (own tasks, the "To do" list, hidden-issue snapshots, work-time entries) in its app data dir. A write is never half-applied, and the data survives closing the app, restarting Windows and a crash — proven by tests on invented data.
-- **Change ID:** app-data-store
-- **PRD refs:** NFR "Trwałość czasu pracy", Constraints & Compatibility ("Vaulty Obsidian: MVP ich nie czyta i nie zapisuje"), Guardrail "Czas pracy nie ginie"
-- **Unlocks:** S-03, S-04, S-06, S-07, S-08; verification path: crash/restart durability tests every data slice reuses.
+- **Outcome:** (foundation) the tools that grew locally in views — `useNow`, `plural`, `Tabs`, a table/grid component, a `Segmented` size for 40 px fields, a priority chip, `ErrorState.message` as a node, `disabled` for `SourceState` actions — live in `src/components/` and the existing views use them, with no visible change.
+- **Change ID:** shared-ui-tools
+- **PRD refs:** MS-10
+- **Unlocks:** S-03 (next-try time needs `useNow`), S-05 (days table needs the table component and `plural`); new view slices reuse them instead of adding more copies.
 - **Prerequisites:** —
-- **Parallel with:** F-02, S-01, S-02, S-05
+- **Parallel with:** F-02, F-03, F-04, F-05, S-01, S-02, S-04, S-06, S-09, S-10
 - **Blockers:** —
 - **Unknowns:** —
-- **Risk:** Sequenced first because the quality goal and the "time is never lost" guardrail make every data slice unsafe without it. Kept to the storage contract only; each slice defines its own records.
-- **Status:** done
+- **Risk:** Touches most views at once; it lands before the view slices so they build on the shared pieces, and it must not change what the user sees.
+- **Status:** ready
 
-### F-02: Read-only CLI runner
+### F-02: Shared work-timer state
 
-- **Outcome:** (foundation) the app runs the logged-in `glab`/`gh` with a fixed program and fixed arguments, read-only, and reports each call as one of: data, unavailable (no VPN/network), logged out, tool missing, error. A fake CLI makes these states testable without any work data.
-- **Change ID:** read-only-cli-runner
-- **PRD refs:** Access Control Changes (sessions only, zero own secrets), Constraints & Compatibility ("Aplikacja tylko czyta z GitLaba i GitHuba"), NFR "Nigdy pusta lista zamiast błędu", NFR "Dane pracy i vaulty"
-- **Unlocks:** S-01, S-05; reduces Open Roadmap Question #1 (`gh` on Windows); verification path: fake-CLI tests for every source slice.
+- **Outcome:** (foundation) one work-timer state in the UI feeds the header, the dashboard and "Work time" (one listener, one tick), with no change in behaviour or in Rust commands.
+- **Change ID:** shared-work-timer-state
+- **PRD refs:** MS-09
+- **Unlocks:** S-05 (the days table's live "today" row reads the shared state instead of a fourth subscription).
 - **Prerequisites:** —
-- **Parallel with:** F-01, S-06, S-08, S-09, S-10
+- **Parallel with:** F-01, F-03, F-04, F-05, S-01, S-02, S-04, S-06, S-09, S-10
 - **Blockers:** —
 - **Unknowns:** —
-- **Risk:** Placed before the north star because a read-only, no-shell call path and invented-data tests are hard rules. Building them inside the first slice would mix the security contract with the view. This foundation does not cover listing issues; that is S-01.
-- **Status:** done
+- **Risk:** The counter is the always-visible header and a guardrail ("time is never lost"); the change must be behaviour-neutral, so START/STOP and the confirmation are re-checked by hand.
+- **Status:** ready
+
+### F-03: Remove the vault layer
+
+- **Outcome:** (foundation) `src-tauri/src/vault/`, the `vault:*` / `exclusions:*` health sources and their tests and fixtures are gone; AGENTS.md no longer carries the vault contract; the roadmap's parked item is resolved.
+- **Change ID:** remove-vault-layer
+- **PRD refs:** MS-11
+- **Unlocks:** S-07 (app-data details extend a health card set without vault sources), S-08 (source-error events are recorded only for sources that still exist).
+- **Prerequisites:** —
+- **Parallel with:** F-01, F-02, F-04, F-05, S-01, S-02, S-04, S-06, S-09, S-10
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** Removes a hard rule from AGENTS.md ("Vaults are out of scope … existing vault code keeps its contract"); the rule about not touching vaults stays, only the dormant code goes.
+- **Status:** ready
+
+### F-04: Manual check of the Konsola design system
+
+- **Outcome:** (foundation) the open Manual rows of `context/changes/konsola-design-system/plan.md` are checked by the user on the real machine (offline fonts, layout at 1280 and 800 px, window state, GitLab with and without VPN, logged-out `gh`, own tasks, work time, keyboard-only navigation) and the change is archived.
+- **Change ID:** konsola-design-system
+- **PRD refs:** MS-12
+- **Unlocks:** verification path — every UI slice in this milestone starts from a hand-checked 0.2.0 UI; F-05 syncs the artifact to the checked app.
+- **Prerequisites:** —
+- **Parallel with:** F-01, F-02, F-03, S-01, S-02, S-04, S-06, S-09, S-10
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** Only the user can run it (VPN, logged-out `gh`, real window); the plan already exists, so this needs no new `/10x-plan`.
+- **Status:** ready
+
+### F-05: Design-system artifact in line with the app
+
+- **Outcome:** (foundation) the "Day Navigator — Konsola" artifact's README and components match the app: Flag tone `new`, `ItemRow` id, numbered navigation with shortcuts, `Notice`, START/STOP confirmation, app and tray icons.
+- **Change ID:** design-system-artifact-sync
+- **PRD refs:** MS-16
+- **Unlocks:** verification path — UI reviews of the M-2 slices (the `new` flag tone in S-01/S-02, panels in S-05–S-08) check against a current design source instead of an outdated one.
+- **Prerequisites:** F-04
+- **Parallel with:** F-01, F-02, F-03, S-01, S-02, S-04, S-06, S-09, S-10
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** It edits a published artifact outside the repo; if the manual check (F-04) changes the UI, syncing first would document a state that does not ship.
+- **Status:** proposed
 
 ## Slices
 
-### S-01: Assigned GitLab issues and MRs in "Work (GitLab)"
+### S-01: "+" to "To do" from the source views
 
-- **Outcome:** user can open the "Work (GitLab)" view and see the issues and MRs assigned to them. Without VPN the view says "GitLab unavailable" calmly, with the time of the last successful refresh, and raises no alarm. A logged-out `glab` shows as an error in the tray. The app gets its navigation between views and the fixed header area.
-- **Change ID:** gitlab-assigned-list
-- **PRD refs:** FR-001, FR-015, FR-016 (preserved — the north star ships through the existing release path), US-01 (first half), NFR "Nigdy pusta lista zamiast błędu"
-- **Prerequisites:** F-02
-- **Parallel with:** F-01, S-05, S-06, S-08, S-09, S-10
+- **Outcome:** user can add an item to "To do" with a "+" button in each row of "Work (GitLab)" and "Projects (GitHub)", blocked at the limit with the same hint as the picker; an item already added shows the IN TO DO flag and a filled button.
+- **Change ID:** todo-add-from-sources
+- **PRD refs:** FR-026, US-01
+- **Prerequisites:** —
+- **Parallel with:** F-01, F-02, F-03, F-04, F-05, S-02, S-04, S-06, S-09, S-10
 - **Blockers:** —
 - **Unknowns:** —
-- **Risk:** The north star; it is the first time real work data passes through the app, so the guardrail that no work data reaches logs or tests is exercised here first.
-- **Status:** done
+- **Risk:** The source views must learn the "To do" state without a new poller (e.g. a list-change event); the limit and carry-over rules stay in Rust.
+- **Status:** ready
 
-### S-02: Visibility filter for GitLab items
+### S-02: GitLab NEW flag and hidden date
 
-- **Outcome:** user can set in settings which assigned items the list shows — by project, labels, milestone and state.
-- **Change ID:** gitlab-visibility-filter
-- **PRD refs:** FR-002
-- **Prerequisites:** S-01
-- **Parallel with:** S-03, S-04, S-05, S-06, S-07, S-08, S-09, S-10
-- **Blockers:** —
-- **Unknowns:** —
-- **Risk:** The filter applies to the list only; notifications deliberately bypass it (FR-004), so S-04 must not reuse the filtered set.
-- **Status:** done
-
-### S-03: Hide an issue and resurface it on change
-
-- **Outcome:** user can hide an issue. It comes back, marked as changed, when its status changes or someone other than the user (bots included) comments on it.
-- **Change ID:** hide-and-resurface
-- **PRD refs:** FR-003, US-02
-- **Prerequisites:** S-01, F-01
-- **Parallel with:** S-02, S-04, S-05, S-06, S-07, S-08, S-09, S-10
-- **Blockers:** —
-- **Unknowns:** —
-- **Risk:** Needs a stored snapshot of each hidden item to compare against. The user's own comments must not count, which depends on knowing the logged-in identity.
-- **Status:** done
-
-### S-04: Notification for new assignments
-
-- **Outcome:** user gets a Windows notification for every new issue or MR assigned to them, whatever the filter says, within 15 minutes while on VPN; more than 3 at once arrive as one combined notification.
-- **Change ID:** new-assignment-notify
-- **PRD refs:** FR-004, NFR "Świeżość", NFR "Lekkość w tle"
-- **Prerequisites:** S-01, F-01
-- **Parallel with:** S-02, S-03, S-05, S-06, S-07, S-08, S-09, S-10
+- **Outcome:** user can see a NEW flag on GitLab items that appeared since the last check, and the date next to hidden rows ("ukryte 18.11").
+- **Change ID:** gitlab-new-and-hidden-date
+- **PRD refs:** FR-023
+- **Prerequisites:** —
+- **Parallel with:** F-01, F-02, F-03, F-04, F-05, S-01, S-04, S-06, S-09, S-10
 - **Blockers:** —
 - **Unknowns:**
-  - Resolved 2026-11-23: default background refresh every 10 min (meets ≤ 15 min; the code's fixed 5 min becomes this default). Open Roadmap Question #3.
-- **Risk:** Background refresh is the first always-on work in the app; it must stay light and must not turn a reconnected VPN into a burst of notifications.
-- **Status:** done
+  - What counts as "the last check" for NEW — the last refresh or the last time the user opened the view? — Owner: user. Block: no (settled in `/10x-plan`).
+- **Risk:** Reuses the seen-assignment keys and hidden-issue snapshots from M-1; they hold only opaque keys, so the "hidden since" date must be added without storing work content.
+- **Status:** ready
 
-### S-05: Assigned GitHub issues in "Projects (GitHub)"
+### S-03: GitLab filter bar and next retry
 
-- **Outcome:** user can open the "Projects (GitHub)" view and see the open issues assigned to them from the repositories listed in settings; a logged-out or missing `gh` shows as an error, not an empty list.
-- **Change ID:** github-assigned-issues
-- **PRD refs:** FR-005, FR-015
-- **Prerequisites:** F-02
-- **Parallel with:** F-01, S-01, S-02, S-03, S-04, S-06, S-08, S-09, S-10
-- **Blockers:** —
-- **Unknowns:**
-  - Resolved 2026-11-23: the app uses `gh` installed on Windows (already installed and logged in), not WSL. Open Roadmap Question #1.
-- **Risk:** Kept off the north star path because of the `gh` decision; now resolved, it reuses F-02 and the view pattern from S-01.
-- **Status:** done
-
-### S-06: Own tasks
-
-- **Outcome:** user can add a task in the Work or Private space (default Work while the counter runs, otherwise Private), edit its title and short plain note, set an optional due date and priority, and mark it done. The vault-based task screen from the previous decomposition is removed.
-- **Change ID:** own-tasks
-- **PRD refs:** FR-006, FR-007, FR-008, FR-010, Scope of Change `[removed] S-05`
+- **Outcome:** user can see the active filter values above the GitLab list with a link to settings, and in the "GitLab unavailable" card the refresh interval and when the next try happens.
+- **Change ID:** gitlab-filter-bar-retry
+- **PRD refs:** FR-024
 - **Prerequisites:** F-01
-- **Parallel with:** F-02, S-01, S-02, S-03, S-04, S-05, S-08, S-09, S-10
+- **Parallel with:** F-02, F-03, F-04, F-05, S-01, S-02, S-04, S-06, S-07, S-08, S-09, S-10
 - **Blockers:** —
 - **Unknowns:** —
-- **Risk:** The space default reads the counter's state; until S-08 lands the default falls back to Private, so the slice does not depend on S-08.
-- **Status:** done
+- **Risk:** Filter values are work data (project names, labels); they may be shown in the UI but must not reach logs.
+- **Status:** proposed
 
-### S-07: "To do" list
+### S-04: GitHub issue labels
 
-- **Outcome:** user can pick today's items from the GitLab list and their own tasks (and from GitHub once S-05 lands) into "To do", up to the limit from settings (default 5). They tick items off; unticked items carry over to the next day; items closed in GitLab or GitHub tick themselves; ticking an own task marks it done.
-- **Change ID:** todo-list
-- **PRD refs:** FR-011, FR-012, US-01 (second half)
-- **Prerequisites:** S-01, S-06
-- **Parallel with:** S-02, S-03, S-04, S-05, S-08, S-09, S-10
+- **Outcome:** user can see the labels of each GitHub issue as text in its row, as in GitLab.
+- **Change ID:** github-issue-labels
+- **PRD refs:** FR-025
+- **Prerequisites:** —
+- **Parallel with:** F-01, F-02, F-03, F-04, F-05, S-01, S-02, S-06, S-09, S-10
 - **Blockers:** —
 - **Unknowns:** —
-- **Risk:** It completes US-01. GitHub items join once S-05 is unblocked, so the GitHub decision does not hold up the daily flow.
-- **Status:** done
+- **Risk:** Changes the fixed `gh issue list` call; it stays read-only and covered by the guard test.
+- **Status:** ready
 
-### S-08: Work-time counter
+### S-05: Days table in "Work time"
 
-- **Outcome:** user can start and stop work time from a counter always visible at the top of the window. A running counter survives closing the app, a Windows restart and a crash. The user can correct an entry's start or end time or add a missing entry.
-- **Change ID:** work-timer
-- **PRD refs:** FR-013, FR-017, NFR "Trwałość czasu pracy"
-- **Prerequisites:** F-01
-- **Parallel with:** F-02, S-01, S-02, S-03, S-04, S-05, S-06, S-07
+- **Outcome:** user can see a table of the month's days — entries, a bar against 8 h, the sum, the deviation and a "day off" switch — with today highlighted and days off hatched, and mark a day off from the table.
+- **Change ID:** worktime-days-table
+- **PRD refs:** FR-020
+- **Prerequisites:** F-01, F-02
+- **Parallel with:** F-03, F-04, F-05, S-01, S-02, S-03, S-04, S-07, S-08, S-09, S-10
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** Needs a per-day report from Rust; the norm rule stays in Rust and is unit-tested there, and the UI only displays it.
+- **Status:** proposed
+
+### S-06: Reminders panel in "Work time"
+
+- **Outcome:** user can see a "Przypomnienia" panel with the reminder thresholds and whether reminders are on; no editing, the settings stay in the file.
+- **Change ID:** worktime-reminders-panel
+- **PRD refs:** FR-021
+- **Prerequisites:** —
+- **Parallel with:** F-01, F-02, F-03, F-04, F-05, S-01, S-02, S-04, S-07, S-08, S-09, S-10
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** Shares the "Work time" layout with S-05; planned after it so the two do not edit the same view at once.
+- **Status:** ready
+
+### S-07: App-data details in "Stan źródeł"
+
+- **Outcome:** user can see in the "Dane aplikacji" card the time of the last backup, the number of kept backups ("7 z 7"), the schema version, and open the backups folder.
+- **Change ID:** app-data-details
+- **PRD refs:** FR-022
+- **Prerequisites:** F-03
+- **Parallel with:** F-01, F-02, F-04, F-05, S-01, S-02, S-03, S-04, S-05, S-06, S-09, S-10
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** Store errors must still carry no paths or row values; the folder action opens only the app data dir.
+- **Status:** proposed
+
+### S-08: Event log on the dashboard
+
+- **Outcome:** user can see a "Dziennik zdarzeń" panel under "Stan źródeł" on the dashboard with today's events: new assignments, ticking or removing "To do" items, START/STOP, a source going into error and back.
+- **Change ID:** event-log
+- **PRD refs:** FR-019
+- **Prerequisites:** F-03
+- **Parallel with:** F-01, F-02, F-04, F-05, S-01, S-02, S-03, S-04, S-05, S-06, S-09, S-10
 - **Blockers:** —
 - **Unknowns:**
-  - Resolved 2026-11-23: recording in the app starts right away (end of November as a trial). Open Roadmap Question #2.
-- **Risk:** Can start in parallel with the north star; the 2026-12-01 start date is the reason not to push it late.
-- **Status:** done
+  - How long events are kept (today only, or longer with cleanup)? — Owner: user. Block: no (settled in `/10x-plan`).
+- **Risk:** The only new domain record in M-2 (a new migration); events hold only what the UI already shows, and nothing from them goes to the app log.
+- **Status:** proposed
 
-### S-09: Work-norm report
+### S-09: Release notes from changes
 
-- **Outcome:** user can see the day and month sums, how far the month is from the norm so far (8 h × workdays that have passed, Monday–Friday minus days they mark as off), and the average needed per remaining workday to meet the month's norm.
-- **Change ID:** work-norm-report
-- **PRD refs:** FR-014
-- **Prerequisites:** S-08
-- **Parallel with:** F-02, S-01, S-02, S-03, S-04, S-05, S-06, S-07, S-10
-- **Blockers:** —
-- **Unknowns:** —
-- **Risk:** The core calculation behind a primary success criterion; it lives in the backend and is unit-tested on invented months (holidays, days off, partial weeks).
-- **Status:** done
-
-### S-10: Timer reminders
-
-- **Outcome:** user gets a reminder when the counter has been running longer than the threshold from settings ("are you still working?") and when it is not running after the set hour on a workday.
-- **Change ID:** timer-reminders
-- **PRD refs:** FR-018
-- **Prerequisites:** S-08
-- **Parallel with:** F-02, S-01, S-02, S-03, S-04, S-05, S-06, S-07, S-09
+- **Outcome:** user can see in each GitHub Release what changed since the previous `app-v*` tag; the unsigned-installer note stays until signing exists.
+- **Change ID:** release-notes
+- **PRD refs:** MS-14, FR-016 (preserved)
+- **Prerequisites:** —
+- **Parallel with:** F-01, F-02, F-03, F-04, F-05, S-01, S-02, S-04, S-06, S-10
 - **Blockers:** —
 - **Unknowns:**
-  - Resolved 2026-11-23: defaults are "running too long" after 10 h and "not running" after 9:00 on a workday. Open Roadmap Question #3.
-- **Risk:** Reminders depend on the workday rule shared with S-09; if S-09 lands first, they reuse its days-off list.
-- **Status:** done
+  - Commits since the previous tag or a CHANGELOG file? — Owner: user. Block: no (settled in `/10x-plan`).
+- **Risk:** Edits the release job; a release must still happen only on a version bump.
+- **Status:** ready
+
+### S-10: App metadata
+
+- **Outcome:** user can see the real description and author in the exe and installer properties instead of "A Tauri App" / "you".
+- **Change ID:** app-metadata
+- **PRD refs:** MS-15
+- **Prerequisites:** —
+- **Parallel with:** F-01, F-02, F-03, F-04, F-05, S-01, S-02, S-04, S-06, S-09
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** `Cargo.toml` is the only version source; the change must not bump the version by accident and publish a release.
+- **Status:** ready
+
+### S-11: Signed installer
+
+- **Outcome:** user can install a release without a Windows SmartScreen warning; signing runs in CI with GitHub Actions secrets only, and the release text drops the "Run anyway" note.
+- **Change ID:** installer-signing
+- **PRD refs:** MS-13, FR-016 (preserved)
+- **Prerequisites:** S-09
+- **Parallel with:** F-01, F-02, F-03, F-04, F-05, S-01–S-08, S-10
+- **Blockers:** a code-signing certificate or an Azure Trusted Signing account, with its identity check, from the provider.
+- **Unknowns:**
+  - Which signing method (code-signing certificate or Azure Trusted Signing), at what cost? — Owner: user. Block: yes.
+- **Risk:** The first secret in CI; it lives only in GitHub Actions secrets, never in the repo, and the pre-push and secret-scan gates stay.
+- **Status:** blocked
 
 ## Backlog Handoff
 
-| Roadmap ID | Change ID                | Suggested issue title                                   | Ready for `/10x-plan` | Notes |
-| ---------- | ------------------------ | ------------------------------------------------------- | --------------------- | ----- |
-| F-01       | app-data-store           | Durable app-owned data store                            | no                    | Done; archived 2026-11-23 |
-| F-02       | read-only-cli-runner     | Read-only runner for glab/gh with result states         | no                    | Done; archived 2026-11-23 |
-| S-01       | gitlab-assigned-list     | "Work (GitLab)" view: assigned issues and MRs           | no                    | Done; archived 2026-11-23 |
-| S-02       | gitlab-visibility-filter | Filter visible GitLab items                             | yes                   | Run `/10x-plan gitlab-visibility-filter` |
-| S-03       | hide-and-resurface       | Hide issues; resurface on status change or comment      | no                    | Done; archived 2026-11-23 |
-| S-04       | new-assignment-notify    | Notify on new assigned issues and MRs                   | yes                   | Run `/10x-plan new-assignment-notify` |
-| S-05       | github-assigned-issues   | "Projects (GitHub)" view: assigned open issues          | yes                   | Run `/10x-plan github-assigned-issues`; `gh` on Windows |
-| S-06       | own-tasks                | Own tasks in Work/Private; remove vault task screen     | no                    | Done; archived 2026-11-23 |
-| S-07       | todo-list                | "To do" list with limit and carry-over                  | no                    | Done; archived 2026-11-23 |
-| S-08       | work-timer               | Durable work-time counter with corrections              | no                    | Done; archived 2026-11-23 |
-| S-09       | work-norm-report         | Work-norm report (sums, deviation, needed per day)      | no                    | Done; archived 2026-11-23 |
-| S-10       | timer-reminders          | Reminders for a long-running or missing counter         | yes                   | Run `/10x-plan timer-reminders` |
+| Roadmap ID | Change ID                   | Suggested issue title                                   | Ready for `/10x-plan` | Notes |
+| ---------- | --------------------------- | ------------------------------------------------------- | --------------------- | ----- |
+| F-01       | shared-ui-tools             | Shared UI tools extracted from views                    | yes                   | Issue #10 |
+| F-02       | shared-work-timer-state     | Shared work-timer state in the UI                       | yes                   | Issue #9 |
+| F-03       | remove-vault-layer          | Remove the unused vault layer                           | yes                   | Issue #11 |
+| F-04       | konsola-design-system       | Manual check of the Konsola design system               | no                    | Issue #12; plan exists — user runs the Manual rows, then `/10x-archive konsola-design-system` |
+| F-05       | design-system-artifact-sync | Sync the design-system artifact with the app            | no                    | Issue #16; after F-04 |
+| S-01       | todo-add-from-sources       | "+" to "To do" in the GitLab and GitHub views           | yes                   | Issue #8; north star |
+| S-02       | gitlab-new-and-hidden-date  | GitLab: NEW flag and hidden date                        | yes                   | Issue #5 |
+| S-03       | gitlab-filter-bar-retry     | GitLab: filter bar and refresh interval                 | no                    | Issue #6; after F-01 |
+| S-04       | github-issue-labels         | GitHub: issue labels                                    | yes                   | Issue #7 |
+| S-05       | worktime-days-table         | Days table in "Work time" (8 h bar)                     | no                    | Issue #2; after F-01, F-02 |
+| S-06       | worktime-reminders-panel    | Reminders panel in "Work time"                          | yes                   | Issue #3; best after S-05 |
+| S-07       | app-data-details            | App-data details in "Stan źródeł"                       | no                    | Issue #4; after F-03 |
+| S-08       | event-log                   | Event log on the dashboard                              | no                    | Issue #1; after F-03 |
+| S-09       | release-notes               | Release description with the list of changes            | yes                   | Issue #14 |
+| S-10       | app-metadata                | App metadata in Cargo.toml                              | yes                   | Issue #15 |
+| S-11       | installer-signing           | Sign the installer                                      | no                    | Issue #13; blocked on the signing method |
 
 ## Open Roadmap Questions
 
-1. ~~**`gh` w Windows**~~ — rozstrzygnięte 2026-11-23: aplikacja używa `gh` zainstalowanego w Windows (jest zainstalowany i zalogowany), nie WSL. Odblokowuje S-05.
-2. ~~**Start ewidencji 2026-12-01 a gotowość licznika**~~ — rozstrzygnięte 2026-11-23: licznik i raport są gotowe, ewidencja w aplikacji startuje od razu (koniec listopada jako próba), bez ręcznego dopisywania grudnia.
-3. ~~**Wartości domyślne**~~ — rozstrzygnięte 2026-11-23: odświeżanie w tle co 10 min (S-04); przypomnienie „licznik biegnie długo” po 10 h i „licznik nie biegnie” po 9:00 w dzień roboczy (S-10). Wszystkie trzy zmienialne w ustawieniach.
-4. ~~**Los PRD v2 i roadmapy**~~ — rozstrzygnięte 2026-11-23: osierocone foldery `context/changes/morning-plan-today/` i `context/changes/private-projects-overview/` usunięte; nieużywana warstwa vaultów (`src-tauri/src/vault/`) do usunięcia w osobnej zmianie poza M-1 (patrz Parked).
-5. **Nazwa produktu** — robocza „Nawigator dnia”. Owner: użytkownik. Block: none.
+1. **Nazwa produktu** — robocza „Nawigator dnia”. Owner: użytkownik. Block: none.
+2. **Decyzje #17–#19 (autostart z Windows, widok tygodnia, zamknięcie dnia)** — poza M-2; jeśli zapadną na „tak”, trafiają do PRD i otwierają kolejny milestone. Owner: użytkownik. Block: none.
 
 ## Parked
 
 - **Writing to GitLab and GitHub** — Why parked: PRD Non-Goals; read-only (no closing, status changes, comments or assignment).
-- **Obsidian vault access** — Why parked: PRD Non-Goals; no reading or writing (daily plan, journal, `Tasks/`, `Issues/`) — vault writes come "later".
+- **Obsidian vault access** — Why parked: PRD Non-Goals; no reading or writing. Removing the dormant code (F-03) does not change this.
 - **Work-time automation** — Why parked: PRD Non-Goals; no automatic holiday calendar, idle detection or activity tracking.
-- **MRs where the user is a reviewer; deleting tasks (FR-009)** — Why parked: PRD Non-Goals, from the challenge round ("Poza v1").
-- **The rest of the PRD v2 plan** (breaks and focus blocks, distraction blocker, quick capture and inbox, end-of-day close, week view, morning "plan your day" nudge, autostart) — Why parked: PRD "considered, deliberately NOT excluded"; no FR covers them, so they are not built in this MVP.
-- **Removing the dormant vault layer (`src-tauri/src/vault/`)** — Why parked: user decision 2026-11-23 (Open Roadmap Question #4) to remove it in a separate change; no FR in this milestone covers it, so it runs after M-1 or as its own milestone. Until then AGENTS.md keeps its contract.
+- **MRs where the user is a reviewer; deleting tasks (FR-009)** — Why parked: PRD Non-Goals ("Poza v1").
+- **Editing reminder settings in the app** — Why parked: issue #3 scopes the panel as read-only; the settings stay in the file.
+- **Autostart, week view, end-of-day close and the rest of the PRD v2 plan** — Why parked: open decision issues #17–#19 and PRD "considered, deliberately NOT excluded"; no FR covers them.
 
 ## Milestone History
 
@@ -271,7 +337,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 ## Done
 
-Entries below come from this milestone's previous decomposition (archived at `context/foundation/archive/2026-11-23-roadmap-full-day-flow.md`); their IDs refer to that decomposition, not to the F-NN/S-NN above.
+Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to its earlier decomposition, archived at `context/foundation/archive/2026-11-23-roadmap-full-day-flow.md`), not to the F-NN/S-NN above. New entries for M-2 are appended below them.
 
 - **F-01: (foundation) the app reads and writes only inside vault folders configured per space (Work, Private), never sees excluded paths, changes only the targeted line or section of a note (rest of the file byte-identical), and sends deletions to the vault trash — proven against a small invented test vault.** — Archived 2026-11-20 → `context/archive/2026-11-20-safe-vault-access/`. Lesson: —.
 - **F-03: (foundation) a private GitHub repository exists, every change is built and tested in CI against invented data only, and a merge to `main` publishes a Windows installer as a GitHub Release named "Nawigator dnia" only when it bumps the version in `src-tauri/Cargo.toml`; every other merge only runs CI.** — Archived 2026-11-21 → `context/archive/2026-11-20-ci-release-pipeline/`. Lesson: —.

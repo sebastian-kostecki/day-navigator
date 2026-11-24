@@ -1,8 +1,9 @@
 ---
 project: "Nawigator dnia"
-version: 1
+version: 2
 status: draft
 created: 2026-11-22
+updated: 2026-11-24
 context_type: brownfield
 product_type: desktop
 target_scale:
@@ -18,6 +19,8 @@ timeline_budget:
 # Nawigator dnia — PRD (zawężone MVP)
 
 Źródło: `context/foundation/shape-notes.md` (sesja 2026-11-22, brownfield). Zastępuje PRD v2 z 2026-11-20 (greenfield, 12 tygodni, 25 FR), które pozostaje w historii git.
+
+Wersja 2 tego PRD (2026-11-24): dopisane FR-019–FR-026 z GitHub issues #1–#8 (uzupełnienia z makiet Konsoli, milestone M-2), patrz `### Uzupełnienia z makiet Konsoli (M-2)`. Nie mylić z dawnym greenfield PRD v2.
 
 ## Current System Overview
 
@@ -164,6 +167,19 @@ Aktor: Użytkownik (jedyny). Wszystkie pozycje są must-have — użytkownik św
 
 ### Usunięte
 - [removed] S-05: tworzenie zadań z szablonu w `Tasks/` vaultu pracy i zmiana ich statusu — własne zadania żyją w aplikacji, a MVP nie dotyka vaultów.
+
+### Uzupełnienia z makiet Konsoli (M-2)
+
+Źródło: GitHub issues #1–#8 (2026-11-24), opisujące elementy makiet „Konsola”, których nie ma w wydaniu 0.2.0. Priorytet must-have oznacza „w zakresie M-2” (użytkownik wziął wszystkie do zrobienia). Bez rundy Sokratesa; treść za issue.
+
+- [new] FR-019: Użytkownik widzi na dashboardzie („Do zrobienia”) panel „Dziennik zdarzeń” z dzisiejszymi zdarzeniami: nowe przypisanie, odhaczenie lub zdjęcie pozycji, START/STOP, przejście źródła w błąd i powrót. Zdarzenia trzymają tylko to, co UI i tak pokazuje. Priority: must-have (issue #1)
+- [new] FR-020: Użytkownik widzi w „Czas pracy” tabelę dni miesiąca: wpisy, pasek na tle 8 h, sumę, odchylenie od normy dnia i przełącznik dnia wolnego; dziś jest wyróżniony, a dni wolne zakreskowane. Priority: must-have (issue #2)
+- [new] FR-021: Użytkownik widzi w „Czas pracy” panel „Przypomnienia” z progami przypomnień i informacją, czy są włączone; bez edycji, ustawienia zostają w pliku. Priority: must-have (issue #3)
+- [modified] FR-022: Użytkownik widzi w „Stanie źródeł” przy „Dane aplikacji” czas ostatniej kopii, liczbę zachowanych kopii i wersję schematu oraz może otworzyć folder kopii. Priority: must-have. Było: karta pokazywała tylko stan bazy. (issue #4)
+- [modified] FR-023: Użytkownik widzi w „Praca (GitLab)” flagę NOWE przy pozycjach, które pojawiły się od ostatniego sprawdzenia, oraz datę ukrycia przy ukrytych wierszach. Priority: must-have. Było: lista bez tych informacji (FR-001, FR-003). (issue #5)
+- [modified] FR-024: Użytkownik widzi nad listą „Praca (GitLab)” wartości aktywnego filtra z linkiem do ustawień, a w karcie „GitLab niedostępny” interwał odświeżania i czas następnej próby. Priority: must-have. Było: tylko informacja, że filtr jest aktywny (FR-002, FR-015). (issue #6)
+- [modified] FR-025: Użytkownik widzi etykiety przy zgłoszeniach w „Projekty (GitHub)”, tak jak w GitLabie. Priority: must-have. Było: zgłoszenia bez etykiet (FR-005). (issue #7)
+- [modified] FR-026: Użytkownik może dodać pozycję do „Do zrobienia” przyciskiem „+” prosto z wiersza w „Praca (GitLab)” i „Projekty (GitHub)”, z blokadą limitu i podpowiedzią jak w pickerze; pozycja już dodana ma flagę W DO ZROBIENIA. Priority: must-have. Było: wybór tylko w widoku „Do zrobienia” (FR-011). (issue #8)
 
 ## Constraints & Compatibility
 

@@ -478,8 +478,8 @@ Fonty dodają poniżej 1 MB do instalatora (pełne pliki woff2, sześć grubośc
 
 #### Automated
 
-- [x] 3.1 Bramki frontendu przechodzą: `npm run lint`, `npm run format:check`, `npm run build`
-- [x] 3.2 Ani widok, ani `App.css` nie zawierają starych klas widoku: `git grep --untracked -nE "todo-row|todo-meta|todo-closed|todo-picker" -- src` nic nie zwraca
+- [x] 3.1 Bramki frontendu przechodzą: `npm run lint`, `npm run format:check`, `npm run build` — 3573a54
+- [x] 3.2 Ani widok, ani `App.css` nie zawierają starych klas widoku: `git grep --untracked -nE "todo-row|todo-meta|todo-closed|todo-picker" -- src` nic nie zwraca — 3573a54
 
 #### Manual
 

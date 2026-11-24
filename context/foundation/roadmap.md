@@ -52,7 +52,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | ---- | --------------------------- | -------------------------------------------------------------------------------------- | ------------- | --------------- | -------- |
 | F-01 | shared-ui-tools             | (foundation) shared UI tools live in `src/components/`, not copied across views         | —             | MS-10           | ready    |
 | F-02 | shared-work-timer-state     | (foundation) one work-timer state feeds the header, dashboard and "Work time"           | —             | MS-09           | ready    |
-| F-03 | remove-vault-layer          | (foundation) the vault layer and its health sources are gone                            | —             | MS-11           | in-progress |
+| F-03 | remove-vault-layer          | (foundation) the vault layer and its health sources are gone                            | —             | MS-11           | done        |
 | F-04 | konsola-design-system       | (foundation) the Konsola design system is checked by hand and its change archived       | —             | MS-12           | ready    |
 | F-05 | design-system-artifact-sync | (foundation) the design-system artifact matches the app                                 | F-04          | MS-16           | proposed |
 | S-01 | todo-add-from-sources       | add an item to "To do" with "+" from the GitLab and GitHub views                        | —             | FR-026, US-01   | done     |
@@ -130,7 +130,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Removes a hard rule from AGENTS.md ("Vaults are out of scope … existing vault code keeps its contract"); the rule about not touching vaults stays, only the dormant code goes.
-- **Status:** in-progress
+- **Status:** done
 
 ### F-04: Manual check of the Konsola design system
 
@@ -356,3 +356,4 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-05: user can open the "Projects (GitHub)" view and see the open issues assigned to them from the repositories listed in settings; a logged-out or missing `gh` shows as an error, not an empty list.** — Archived 2026-11-23 → `context/archive/2026-11-23-github-assigned-issues/`. Lesson: —.
 - **S-02: user can set in settings which assigned items the list shows — by project, labels, milestone and state.** — Archived 2026-11-23 → `context/archive/2026-11-23-gitlab-visibility-filter/`. Lesson: —.
 - **S-01: user can add an item to "To do" with a "+" button in each row of "Work (GitLab)" and "Projects (GitHub)", blocked at the limit with the same hint as the picker; an item already added shows the IN TO DO flag and a filled button.** — Archived 2026-11-24 → `context/archive/2026-11-24-todo-add-from-sources/`. Lesson: —.
+- **F-03: (foundation) `src-tauri/src/vault/`, the `vault:*` / `exclusions:*` health sources and their tests and fixtures are gone; AGENTS.md no longer carries the vault contract; the roadmap's parked item is resolved.** — Archived 2026-11-24 → `context/archive/2026-11-24-remove-vault-layer/`. Lesson: —.

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createContext, use, useCallback, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   WORK_TIME_CHANGED,
@@ -19,7 +19,29 @@ export type TimerState =
 /** Slack after the day end so the backend already reports the new day. */
 const DAY_END_SLACK_MS = 500;
 
-export function useWorkTimer() {
+export type WorkTimer = {
+  timer: TimerState;
+  nowMs: number;
+  busy: boolean;
+  actionError: string | null;
+  start: () => Promise<void>;
+  stop: () => Promise<void>;
+  retry: () => void;
+};
+
+export const WorkTimerContext = createContext<WorkTimer | null>(null);
+
+/** The shared timer state; needs a `WorkTimerProvider` above it. */
+export function useWorkTimer(): WorkTimer {
+  const value = use(WorkTimerContext);
+  if (value === null) {
+    throw new Error("useWorkTimer must be used inside a WorkTimerProvider");
+  }
+  return value;
+}
+
+/** The one source of the timer state: called only by `WorkTimerProvider`. */
+export function useWorkTimerSource(): WorkTimer {
   const [timer, setTimer] = useState<TimerState>({ state: "loading" });
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [busy, setBusy] = useState(false);

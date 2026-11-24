@@ -51,7 +51,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | ID   | Change ID                   | Outcome (user can …)                                                                   | Prerequisites | PRD refs        | Status   |
 | ---- | --------------------------- | -------------------------------------------------------------------------------------- | ------------- | --------------- | -------- |
 | F-01 | shared-ui-tools             | (foundation) shared UI tools live in `src/components/`, not copied across views         | —             | MS-10           | done     |
-| F-02 | shared-work-timer-state     | (foundation) one work-timer state feeds the header, dashboard and "Work time"           | —             | MS-09           | ready    |
+| F-02 | shared-work-timer-state     | (foundation) one work-timer state feeds the header, dashboard and "Work time"           | —             | MS-09           | in-progress |
 | F-03 | remove-vault-layer          | (foundation) the vault layer and its health sources are gone                            | —             | MS-11           | done     |
 | F-04 | konsola-design-system       | (foundation) the Konsola design system is checked by hand and its change archived       | —             | MS-12           | done     |
 | F-05 | design-system-artifact-sync | (foundation) the design-system artifact matches the app                                 | F-04          | MS-16           | ready    |
@@ -117,7 +117,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** The counter is the always-visible header and a guardrail ("time is never lost"); the change must be behaviour-neutral, so START/STOP and the confirmation are re-checked by hand.
-- **Status:** ready
+- **Status:** in-progress
 
 ### F-03: Remove the vault layer
 

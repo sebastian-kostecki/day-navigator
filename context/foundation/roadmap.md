@@ -9,7 +9,7 @@ main_goal: quality
 top_blocker: none
 milestone_id: konsola-gaps-and-cleanup
 milestone_seq: 2
-milestone_status: open
+milestone_status: done
 ---
 
 # Roadmap: Nawigator dnia
@@ -21,7 +21,7 @@ milestone_status: open
 
 ## Milestone
 
-**M-2: Konsola mockup gaps closed and the codebase cleaned up** — Status: open
+**M-2: Konsola mockup gaps closed and the codebase cleaned up** — Status: done
 
 - **Intent:** The app shows what the Konsola mockups show and 0.2.0 left out (event log, days table, reminders panel, app-data details, GitLab NEW flag and filter bar, GitHub labels, "+" to "To do"), on a cleaner base (shared UI tools and timer state, no vault layer), verified by hand, with releases that say what changed and carry real metadata. Installer signing (MS-13) was parked on 2026-11-24 (see `## Parked`).
 - **Source materials:** GitHub issues #1–#16 (open on 2026-11-24; #17–#19 are decision questions and stay outside); `context/foundation/prd.md` v2 for #1–#8.
@@ -320,6 +320,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 ## Milestone History
 
 - **M-1: The narrowed day flow runs in the app** (`full-day-flow`) — closed 2026-11-23. The day flow from PRD v1 runs in the app: GitLab issues and MRs (filter, hiding, notifications), GitHub issues, own tasks, the "To do" list, and the work-time counter with its norm report and reminders. FR-001–FR-008 and FR-010–FR-018 are covered.
+- **M-2: Konsola mockup gaps closed and the codebase cleaned up** (`konsola-gaps-and-cleanup`) — closed 2026-11-24. The Konsola mockup gaps are now in the app: the event log, the days table, the reminders panel, the app-data details, the GitLab NEW flag, hidden date and filter bar, GitHub labels, and "+" to "To do". They sit on a cleaner base (shared UI tools and timer state, no vault layer), and the design-system artifact matches the app. Releases carry a changelog and real metadata (0.2.1, 0.3.0). FR-019–FR-026 and MS-09–MS-12 and MS-14–MS-16 are covered. MS-13 (installer signing) was parked.
 
 ## Done
 

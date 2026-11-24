@@ -25,6 +25,8 @@ import { useMonthReport } from "../worktime/useMonthReport";
 import { useWorkTimer } from "../worktime/useWorkTimer";
 import { todoErrorMessage } from "./api";
 import { entryKey, githubKey, gitlabKey } from "./keys";
+import { EventLogPanel } from "./EventLogPanel";
+import { shortRef } from "./shortRef";
 import { SourcesPanel } from "./SourcesPanel";
 import { summaryStats } from "./summary";
 import { TodoAddButton } from "./TodoAddButton";
@@ -88,12 +90,6 @@ function carriedLabel(pickedOn: string, today: string): string {
   const from = dayStart(pickedOn);
   const days = Math.round((dayStart(today).getTime() - from.getTime()) / DAY_MS);
   return days >= 1 && days <= 6 ? FROM_WEEKDAY[from.getDay()] : `z ${dayMonth(pickedOn)}`;
-}
-
-/** `!418` / `#27` out of `group/project!418` or `owner/name#27`. */
-function shortRef(reference: string): string {
-  const at = Math.max(reference.lastIndexOf("#"), reference.lastIndexOf("!"));
-  return at < 0 ? reference : reference.slice(at);
 }
 
 /** `owner/name` part of a `owner/name#N` reference. */
@@ -489,6 +485,7 @@ export default function TodoView() {
             gitlabLastSuccessMs={snapshot?.lastSuccessMs ?? null}
             githubLastSuccessMs={githubSnapshot?.lastSuccessMs ?? null}
           />
+          <EventLogPanel />
         </div>
       </div>
     </main>

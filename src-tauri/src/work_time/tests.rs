@@ -196,7 +196,7 @@ fn overlap_with_a_closed_entry_is_refused_by_id() {
 #[test]
 fn overlap_with_the_running_entry_is_refused() {
     let (_tmp, mut store) = open();
-    let running = start(&mut store, t("2026-11-23T09:00")).unwrap();
+    let running = start(&mut store, t("2026-11-23T09:00"), &Warsaw).unwrap();
     let before = snapshot(&store);
     // The running entry counts as [start, +inf): even a past-but-after-start
     // closed entry collides with it.
@@ -285,26 +285,26 @@ fn end_not_after_start_is_refused() {
 fn start_and_stop_rules() {
     let (_tmp, mut store) = open();
     let before = snapshot(&store);
-    let r = stop(&mut store, now());
+    let r = stop(&mut store, now(), &Warsaw);
     refused(&store, &before, r, |e| {
         matches!(e, WorkTimeError::NotRunning)
     });
 
-    let id = start(&mut store, now()).unwrap();
+    let id = start(&mut store, now(), &Warsaw).unwrap();
     assert!(is_running(&store).unwrap());
     let before = snapshot(&store);
     // A double click: the second START must not create a second row.
-    let r = start(&mut store, now() + 1);
+    let r = start(&mut store, now() + 1, &Warsaw);
     refused(&store, &before, r, |e| {
         matches!(e, WorkTimeError::AlreadyRunning)
     });
     // Stop within the same millisecond as start.
-    let r = stop(&mut store, now());
+    let r = stop(&mut store, now(), &Warsaw);
     refused(&store, &before, r, |e| {
         matches!(e, WorkTimeError::EndNotAfterStart)
     });
 
-    stop(&mut store, now() + HOUR).unwrap();
+    stop(&mut store, now() + HOUR, &Warsaw).unwrap();
     assert!(!is_running(&store).unwrap());
     let rows = snapshot(&store);
     assert_eq!(rows.len(), 1);
@@ -319,7 +319,7 @@ fn start_inside_a_closed_entry_is_refused() {
     let (_tmp, mut store) = open();
     let id = add_entry(&mut store, "2026-11-23T08:00", "2026-11-23T11:00");
     let before = snapshot(&store);
-    let r = start(&mut store, t("2026-11-23T10:00"));
+    let r = start(&mut store, t("2026-11-23T10:00"), &Warsaw);
     refused(
         &store,
         &before,
@@ -327,13 +327,13 @@ fn start_inside_a_closed_entry_is_refused() {
         |e| matches!(e, WorkTimeError::Overlap { entry_id } if *entry_id == id),
     );
     // Starting exactly when the last entry ended is allowed.
-    start(&mut store, t("2026-11-23T11:00")).unwrap();
+    start(&mut store, t("2026-11-23T11:00"), &Warsaw).unwrap();
 }
 
 #[test]
 fn running_entry_rejects_an_end_edit_and_allows_a_start_edit() {
     let (_tmp, mut store) = open();
-    let id = start(&mut store, t("2026-11-23T10:00")).unwrap();
+    let id = start(&mut store, t("2026-11-23T10:00"), &Warsaw).unwrap();
     let before = snapshot(&store);
     let r = update(
         &mut store,
@@ -398,19 +398,19 @@ fn removed_entries_are_ignored_by_totals_and_overlap_checks() {
 #[test]
 fn removing_the_running_entry_stops_counting_and_allows_a_new_start() {
     let (_tmp, mut store) = open();
-    let id = start(&mut store, t("2026-11-23T09:00")).unwrap();
+    let id = start(&mut store, t("2026-11-23T09:00"), &Warsaw).unwrap();
     remove(&mut store, id, now()).unwrap();
     assert!(!is_running(&store).unwrap());
     let s = status(&store, now(), &Warsaw).unwrap();
     assert!(s.running.is_none());
     assert_eq!(s.today_closed_ms, 0);
-    start(&mut store, now()).unwrap();
+    start(&mut store, now(), &Warsaw).unwrap();
 }
 
 #[test]
 fn unique_index_rejects_a_second_running_row() {
     let (_tmp, mut store) = open();
-    start(&mut store, now()).unwrap();
+    start(&mut store, now(), &Warsaw).unwrap();
     let r = store.write::<_, WorkTimeError>(|tx| {
         tx.execute(
             "INSERT INTO work_entries(start_ms, end_ms, created_at_ms, updated_at_ms) \
@@ -469,7 +469,7 @@ fn status_counts_only_todays_closed_entries() {
 fn running_entry_from_before_midnight_counts_only_from_midnight() {
     let (_tmp, mut store) = open();
     let started = t("2026-11-22T23:00");
-    start(&mut store, started).unwrap();
+    start(&mut store, started, &Warsaw).unwrap();
     let late = t("2026-11-23T01:00");
     let s = status(&store, late, &Warsaw).unwrap();
     let (day_start, _) = day_bounds(day("2026-11-23"), &Warsaw).unwrap();
@@ -497,8 +497,8 @@ fn editing_only_the_end_keeps_the_start_milliseconds() {
     let (_tmp, mut store) = open();
     let s = t("2026-11-23T09:00") + 15_123;
     let e = t("2026-11-23T09:30") + 45_000;
-    let id = start(&mut store, s).unwrap();
-    stop(&mut store, e).unwrap();
+    let id = start(&mut store, s, &Warsaw).unwrap();
+    stop(&mut store, e, &Warsaw).unwrap();
     // The form re-sends both fields; only the end differs.
     update(
         &mut store,
@@ -542,10 +542,10 @@ fn editing_only_the_end_keeps_the_start_milliseconds() {
 #[test]
 fn entry_started_right_after_a_stop_in_the_same_minute_stays_editable() {
     let (_tmp, mut store) = open();
-    let first = start(&mut store, t("2026-11-23T11:00")).unwrap();
+    let first = start(&mut store, t("2026-11-23T11:00"), &Warsaw).unwrap();
     // STOP 12:00:30, START 12:00:40.
-    stop(&mut store, now() + 30_000).unwrap();
-    let second = start(&mut store, now() + 40_000).unwrap();
+    stop(&mut store, now() + 30_000, &Warsaw).unwrap();
+    let second = start(&mut store, now() + 40_000, &Warsaw).unwrap();
     let later = now() + 5 * MIN;
 
     // Re-sending the untouched start must not resolve to 12:00:00 and collide.

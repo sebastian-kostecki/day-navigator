@@ -1,4 +1,5 @@
 pub mod cli;
+pub mod events;
 pub mod github;
 pub mod github_refresh;
 pub mod gitlab;
@@ -183,6 +184,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            events::commands::list_events_today,
             runtime::health_status,
             runtime::check_health_now,
             gitlab_refresh::gitlab_snapshot,

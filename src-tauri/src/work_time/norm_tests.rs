@@ -270,7 +270,7 @@ fn dst_months_have_their_real_lengths() {
 #[test]
 fn a_running_entry_from_the_previous_month_counts_only_its_part_here() {
     let (_tmp, mut store) = open();
-    start(&mut store, t("2026-10-31T22:00")).unwrap();
+    start(&mut store, t("2026-10-31T22:00"), &Warsaw).unwrap();
     let at = t("2026-11-02T06:00");
     let nov = report_at(&store, "2026-11-02", at);
     // 2026-11-01 00:00 to 2026-11-02 06:00.
@@ -317,7 +317,7 @@ fn status_month_deviation_equals_the_report_deviation() {
     assert_eq!(s.as_of_ms, now());
 
     // With a running entry the two still come from the same instant.
-    start(&mut store, t("2026-11-23T13:00")).unwrap();
+    start(&mut store, t("2026-11-23T13:00"), &Warsaw).unwrap();
     let later = t("2026-11-23T15:30");
     let s = status(&store, later, &Warsaw).unwrap();
     let r = report_at(&store, "2026-11-23", later);

@@ -70,17 +70,19 @@ pub async fn list_work_entries(app: AppHandle, day: String) -> Result<DayEntries
 #[tauri::command]
 pub async fn start_work(app: AppHandle) -> Result<WorkTimerStatus, WorkTimeError> {
     run(&app, "start", |store, now| {
-        super::start(store, now).map(|_| ())
+        super::start(store, now, &Local).map(|_| ())
     })
     .await?;
     notify(&app);
+    crate::events::commands::notify(&app);
     work_timer_status(app).await
 }
 
 #[tauri::command]
 pub async fn stop_work(app: AppHandle) -> Result<WorkTimerStatus, WorkTimeError> {
-    run(&app, "stop", super::stop).await?;
+    run(&app, "stop", |store, now| super::stop(store, now, &Local)).await?;
     notify(&app);
+    crate::events::commands::notify(&app);
     work_timer_status(app).await
 }
 

@@ -22,10 +22,11 @@ mod reminders_tests;
 #[cfg(test)]
 mod tests;
 
-use chrono::{NaiveDate, TimeZone};
+use chrono::{NaiveDate, NaiveDateTime, TimeZone};
 use rusqlite::Connection;
 use serde::Serialize;
 
+use crate::events::{self, NewEvent};
 use crate::store::Store;
 pub use error::WorkTimeError;
 pub use report::DayKind;
@@ -245,8 +246,18 @@ pub fn is_running(store: &Store) -> Result<bool, WorkTimeError> {
     store.read(|c| Ok(running_entry(c)?.is_some()))
 }
 
-/// Starts a running entry at `now`; returns its id.
-pub fn start(store: &mut Store, now: i64) -> Result<i64, WorkTimeError> {
+/// The local wall-clock form of `now` in `tz`, for the event log.
+fn local_now<Tz: TimeZone>(now: i64, tz: &Tz) -> Result<NaiveDateTime, WorkTimeError> {
+    tz.timestamp_millis_opt(now)
+        .earliest()
+        .map(|d| d.naive_local())
+        .ok_or(WorkTimeError::InvalidLocalTime)
+}
+
+/// Starts a running entry at `now`; returns its id. The event is stored in the
+/// same write, stamped with `now` in `tz`.
+pub fn start<Tz: TimeZone>(store: &mut Store, now: i64, tz: &Tz) -> Result<i64, WorkTimeError> {
+    let local = local_now(now, tz)?;
     store.write(|tx| {
         if running_entry(tx)?.is_some() {
             return Err(WorkTimeError::AlreadyRunning);
@@ -258,12 +269,16 @@ pub fn start(store: &mut Store, now: i64) -> Result<i64, WorkTimeError> {
              VALUES (?1, NULL, ?2, ?2)",
             (now, now),
         )?;
-        Ok(tx.last_insert_rowid())
+        let id = tx.last_insert_rowid();
+        events::record_in(tx, local.date(), local, &NewEvent::WorkStarted)?;
+        Ok(id)
     })
 }
 
-/// Closes the running entry at `now`.
-pub fn stop(store: &mut Store, now: i64) -> Result<(), WorkTimeError> {
+/// Closes the running entry at `now`. The event is stored in the same write,
+/// stamped with `now` in `tz`.
+pub fn stop<Tz: TimeZone>(store: &mut Store, now: i64, tz: &Tz) -> Result<(), WorkTimeError> {
+    let local = local_now(now, tz)?;
     store.write(|tx| {
         let running = running_entry(tx)?.ok_or(WorkTimeError::NotRunning)?;
         if now <= running.start {
@@ -273,6 +288,7 @@ pub fn stop(store: &mut Store, now: i64) -> Result<(), WorkTimeError> {
             "UPDATE work_entries SET end_ms = ?1, updated_at_ms = ?2 WHERE id = ?3",
             (now, now, running.id),
         )?;
+        events::record_in(tx, local.date(), local, &NewEvent::WorkStopped)?;
         Ok(())
     })
 }

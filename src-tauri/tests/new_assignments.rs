@@ -226,7 +226,7 @@ fn view_marks_migration_keeps_seen_assignment_rows() {
         assert_eq!(count(&old, ACCOUNT_A), 2);
     }
     let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
-    assert_eq!(user_version(&store), 9);
+    assert_eq!(user_version(&store), schema::MIGRATIONS.len() as i64);
     assert_eq!(count(&store, ACCOUNT_A), 2);
     assert_eq!(mark_of(&store, ACCOUNT_A), None);
     // No mark yet after the upgrade: nothing is fresh, and the old rows seed

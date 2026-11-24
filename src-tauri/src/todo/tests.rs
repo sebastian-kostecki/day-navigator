@@ -4,6 +4,7 @@ use chrono::{NaiveDate, NaiveDateTime};
 use tempfile::TempDir;
 
 use super::*;
+use crate::events::EventView;
 use crate::own_tasks::{self, OwnTaskInput};
 use crate::store::schema;
 
@@ -923,4 +924,153 @@ fn errors_never_contain_titles_or_references() {
             assert!(!shown.contains(leak), "leaked {leak} in {shown}");
         }
     }
+}
+
+// --- event log (S-08) ---
+
+fn evs(store: &Store, d: &str) -> Vec<EventView> {
+    events::list_today(store, day(d))
+        .unwrap()
+        .events
+        .into_iter()
+        .rev()
+        .map(|e| e.event)
+        .collect()
+}
+
+fn subject(source: ItemSource, reference: Option<&str>, title: &str) -> Subject {
+    Subject {
+        source,
+        reference: reference.map(String::from),
+        title: title.into(),
+    }
+}
+
+#[test]
+fn ticking_gitlab_stores_one_event_and_repeats_or_unticks_store_none() {
+    let (_t, mut s) = open();
+    let id = pick_gl(&mut s, &gl(ItemKind::Issue, 1), D1, 8, 5).unwrap();
+    tick(&mut s, id, true, D1, 9).unwrap();
+    tick(&mut s, id, true, D1, 10).unwrap();
+    tick(&mut s, id, false, D1, 11).unwrap();
+    assert_eq!(
+        evs(&s, D1),
+        [EventView::Ticked(subject(
+            ItemSource::Gitlab,
+            Some("invented/project#1"),
+            "Pozycja testowa 1"
+        ))]
+    );
+    // Ticking again after an untick is a new change.
+    tick(&mut s, id, true, D1, 12).unwrap();
+    assert_eq!(evs(&s, D1).len(), 2);
+}
+
+#[test]
+fn ticking_github_stores_reference_and_title() {
+    let (_t, mut s) = open();
+    let id = pick_gh(&mut s, &gh("Octo-Test/Alpha", 1), D1, 8, 5).unwrap();
+    tick(&mut s, id, true, D1, 9).unwrap();
+    assert_eq!(
+        evs(&s, D1),
+        [EventView::Ticked(subject(
+            ItemSource::Github,
+            Some("octo-test/alpha#1"),
+            "Zgloszenie testowe 1"
+        ))]
+    );
+}
+
+#[test]
+fn ticking_own_stores_title_without_reference_and_not_when_already_done() {
+    let (_t, mut s) = open();
+    let task = own(&mut s, "Zadanie wlasne");
+    let id = pick_own(&mut s, task, D1, 8, 5).unwrap();
+    tick(&mut s, id, true, D1, 9).unwrap();
+    tick(&mut s, id, true, D1, 10).unwrap();
+    assert_eq!(
+        evs(&s, D1),
+        [EventView::Ticked(subject(
+            ItemSource::Own,
+            None,
+            "Zadanie wlasne"
+        ))]
+    );
+    tick(&mut s, id, false, D1, 11).unwrap();
+    assert_eq!(evs(&s, D1).len(), 1);
+}
+
+#[test]
+fn removing_stores_removed_and_a_refusal_stores_nothing() {
+    let (_t, mut s) = open();
+    let id = pick_gl(&mut s, &gl(ItemKind::MergeRequest, 3), D1, 8, 5).unwrap();
+    assert!(matches!(
+        remove(&mut s, 999, day(D1), at(D1, 9, 0)),
+        Err(TodoError::NotFound)
+    ));
+    assert!(matches!(
+        set_ticked(&mut s, 999, true, day(D1), at(D1, 9, 0)),
+        Err(TodoError::NotFound)
+    ));
+    assert!(evs(&s, D1).is_empty());
+    remove(&mut s, id, day(D1), at(D1, 9, 0)).unwrap();
+    assert!(matches!(
+        remove(&mut s, id, day(D1), at(D1, 9, 5)),
+        Err(TodoError::NotFound)
+    ));
+    assert_eq!(
+        evs(&s, D1),
+        [EventView::Removed(subject(
+            ItemSource::Gitlab,
+            Some("invented/project!3"),
+            "Pozycja testowa 3"
+        ))]
+    );
+}
+
+#[test]
+fn reconcile_gitlab_stores_closed_in_source_but_not_for_a_refresh() {
+    let (_t, mut s) = open();
+    let kept = gl(ItemKind::MergeRequest, 1);
+    let gone = gl(ItemKind::Issue, 2);
+    pick_gl(&mut s, &kept, D1, 8, 5).unwrap();
+    pick_gl(&mut s, &gone, D1, 9, 5).unwrap();
+    let mut renamed = kept.clone();
+    renamed.title = "Nowy tytul testowy".into();
+    reconcile_gitlab(&mut s, ACC, &assigned(&[&renamed]), day(D1), at(D1, 10, 0)).unwrap();
+    assert_eq!(
+        evs(&s, D1),
+        [EventView::ClosedInSource(subject(
+            ItemSource::Gitlab,
+            Some("invented/project#2"),
+            "Pozycja testowa 2"
+        ))]
+    );
+}
+
+#[test]
+fn reconcile_github_stores_closed_in_source_but_not_for_a_refresh() {
+    let (_t, mut s) = open();
+    let kept = gh("octo-test/alpha", 1);
+    let gone = gh("octo-test/alpha", 2);
+    pick_gh(&mut s, &kept, D1, 8, 5).unwrap();
+    pick_gh(&mut s, &gone, D1, 9, 5).unwrap();
+    let mut renamed = kept.clone();
+    renamed.title = "Nowy tytul testowy".into();
+    let issues = [renamed];
+    reconcile_github(
+        &mut s,
+        &[loaded("octo-test/alpha", &issues)],
+        day(D1),
+        at(D1, 10, 0),
+    )
+    .unwrap();
+    assert_eq!(
+        evs(&s, D1),
+        [EventView::ClosedInSource(subject(
+            ItemSource::Github,
+            Some("octo-test/alpha#2"),
+            "Zgloszenie testowe 2"
+        ))]
+    );
 }

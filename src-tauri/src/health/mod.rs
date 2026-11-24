@@ -176,7 +176,7 @@ pub fn baseline(prev_baseline: &[SourceStatus], next: &[SourceStatus]) -> Vec<So
 
 /// Fixed Polish phrase for an error kind. Never the status message, which can
 /// hold paths or settings details.
-fn short_reason(kind: &str) -> &'static str {
+pub(crate) fn short_reason(kind: &str) -> &'static str {
     match kind {
         "SettingsInvalid" => "nieprawidłowe ustawienia",
         "NotConfigured" => "brak pliku ustawień",

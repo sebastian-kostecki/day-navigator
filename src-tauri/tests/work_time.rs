@@ -41,7 +41,7 @@ fn running_entry_survives_dropping_and_reopening_the_store() {
     let started = t("2026-11-23T08:00") + 12_345;
     let id = {
         let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
-        work_time::start(&mut store, started).unwrap()
+        work_time::start(&mut store, started, &Warsaw).unwrap()
     };
 
     let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
@@ -54,7 +54,7 @@ fn running_entry_survives_dropping_and_reopening_the_store() {
     // Downtime counts: the live total is measured from the stored start.
     assert_eq!(later - s.running_from_ms.unwrap(), later - started);
     assert!(matches!(
-        work_time::start(&mut store, later),
+        work_time::start(&mut store, later, &Warsaw),
         Err(WorkTimeError::AlreadyRunning)
     ));
 }
@@ -103,8 +103,8 @@ fn history_and_removed_rows_survive_reopening() {
             &Warsaw,
         )
         .unwrap();
-        let kept = work_time::start(&mut store, t("2026-11-23T09:00")).unwrap();
-        work_time::stop(&mut store, t("2026-11-23T10:00")).unwrap();
+        let kept = work_time::start(&mut store, t("2026-11-23T09:00"), &Warsaw).unwrap();
+        work_time::stop(&mut store, t("2026-11-23T10:00"), &Warsaw).unwrap();
         work_time::remove(&mut store, removed, now).unwrap();
         (kept, removed)
     };
@@ -162,7 +162,7 @@ fn reminder_facts_report_the_running_entry_and_counted_work() {
 
     // The running entry keeps its true start.
     let started = t("2026-11-23T11:00") + 12_345;
-    let id = work_time::start(&mut store, started).unwrap();
+    let id = work_time::start(&mut store, started, &Warsaw).unwrap();
     let running = reminder_facts(&store, now, &Warsaw)
         .unwrap()
         .running
@@ -206,4 +206,35 @@ fn reminder_facts_report_a_day_off_and_a_weekend() {
     let f = reminder_facts(&store, saturday, &Warsaw).unwrap();
     assert_eq!(f.day_kind, DayKind::Weekend);
     assert_eq!(f.today, NaiveDate::from_ymd_opt(2026, 11, 28).unwrap());
+}
+
+#[test]
+fn start_and_stop_store_events_in_local_time_and_refusals_store_none() {
+    use day_navigator_lib::events::{self, EventView};
+    let (_tmp, dir) = test_store_dir();
+    let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+    let list = |s: &Store| events::list_today(s, today()).unwrap().events;
+
+    assert!(matches!(
+        work_time::stop(&mut store, t("2026-11-23T08:00"), &Warsaw),
+        Err(WorkTimeError::NotRunning)
+    ));
+    assert!(list(&store).is_empty());
+
+    let started = t("2026-11-23T08:15") + 7_000;
+    work_time::start(&mut store, started, &Warsaw).unwrap();
+    assert!(matches!(
+        work_time::start(&mut store, started + 1_000, &Warsaw),
+        Err(WorkTimeError::AlreadyRunning)
+    ));
+    assert_eq!(list(&store).len(), 1);
+
+    let stopped = t("2026-11-23T11:40") + 3_000;
+    work_time::stop(&mut store, stopped, &Warsaw).unwrap();
+    let events = list(&store);
+    assert_eq!(events.len(), 2);
+    assert_eq!(events[0].event, EventView::WorkStopped);
+    assert_eq!(events[0].at, "2026-11-23T11:40:03");
+    assert_eq!(events[1].event, EventView::WorkStarted);
+    assert_eq!(events[1].at, "2026-11-23T08:15:07");
 }

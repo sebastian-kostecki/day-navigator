@@ -218,6 +218,28 @@ CREATE UNIQUE INDEX todo_items_live_github
   seen_until_ms INTEGER NOT NULL
 ) WITHOUT ROWID;",
     },
+    // S-08: today's event log. Only the current day's rows are shown; every
+    // write deletes past days. Holds only what the UI shows: the item's
+    // reference and title, the source key and label, the error kind. No URL,
+    // hostname or message text. `at` is local `YYYY-MM-DDTHH:MM:SS`.
+    Migration {
+        version: 10,
+        sql: "CREATE TABLE events (
+  id           INTEGER PRIMARY KEY,
+  at           TEXT    NOT NULL,
+  kind         TEXT    NOT NULL CHECK (kind IN
+    ('assigned','ticked','removed','closedInSource',
+     'workStarted','workStopped','sourceError','sourceRecovered')),
+  item_source  TEXT    CHECK (item_source IN ('own','gitlab','github')),
+  item_kind    TEXT    CHECK (item_kind IN ('issue','mergeRequest')),
+  reference    TEXT,
+  title        TEXT    CHECK (title IS NULL OR length(title) <= 300),
+  source_id    TEXT    CHECK (source_id IN
+    ('settings','app-data','gitlab','github','reminders')),
+  source_label TEXT,
+  error_kind   TEXT
+);",
+    },
 ];
 
 /// Versions must start at 1 and rise by exactly 1.

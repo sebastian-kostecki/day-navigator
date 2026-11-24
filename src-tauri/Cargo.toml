@@ -41,10 +41,7 @@ tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
-dunce = "1"
 sha2 = "0.10"
-tempfile = "3"
-unicode-normalization = "0.1"
 tauri-plugin-notification = "2.8"
 tauri-plugin-single-instance = "2.5"
 tauri-plugin-window-state = "2"
@@ -54,24 +51,20 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "serd
 rusqlite = { version = "0.43", features = ["bundled"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation"] }
 
 [features]
-# Exposes the unguarded write layer (`vault::fsops`, `Vault::apply`),
-# `CliRunner::with_programs` and the `fake-cli` bin to the integration tests
-# only; production builds never enable it.
+# Exposes `CliRunner::with_programs` and the `fake-cli` bin to the integration
+# tests only; production builds never enable it.
 test-support = []
 
 [dev-dependencies]
 proptest = "1"
+tempfile = "3"
 # Real Europe/Warsaw rules for the midnight and DST tests; never in production.
 chrono-tz = "0.10"
 # Self dev-dependency: turns on `test-support` for `cargo test` alone.
 day-navigator = { path = ".", features = ["test-support"] }
-
-[target.'cfg(windows)'.dev-dependencies]
-junction = "1"
-
 
 # Line numbers in backtraces, without full debug info: keeps every test binary
 # (each links the whole app) and its .pdb small.

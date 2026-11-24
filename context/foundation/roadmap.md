@@ -52,7 +52,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | ---- | --------------------------- | -------------------------------------------------------------------------------------- | ------------- | --------------- | -------- |
 | F-01 | shared-ui-tools             | (foundation) shared UI tools live in `src/components/`, not copied across views         | —             | MS-10           | ready    |
 | F-02 | shared-work-timer-state     | (foundation) one work-timer state feeds the header, dashboard and "Work time"           | —             | MS-09           | ready    |
-| F-03 | remove-vault-layer          | (foundation) the vault layer and its health sources are gone                            | —             | MS-11           | ready    |
+| F-03 | remove-vault-layer          | (foundation) the vault layer and its health sources are gone                            | —             | MS-11           | in-progress |
 | F-04 | konsola-design-system       | (foundation) the Konsola design system is checked by hand and its change archived       | —             | MS-12           | ready    |
 | F-05 | design-system-artifact-sync | (foundation) the design-system artifact matches the app                                 | F-04          | MS-16           | proposed |
 | S-01 | todo-add-from-sources       | add an item to "To do" with "+" from the GitLab and GitHub views                        | —             | FR-026, US-01   | done     |
@@ -130,7 +130,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Removes a hard rule from AGENTS.md ("Vaults are out of scope … existing vault code keeps its contract"); the rule about not touching vaults stays, only the dormant code goes.
-- **Status:** ready
+- **Status:** in-progress
 
 ### F-04: Manual check of the Konsola design system
 
@@ -325,7 +325,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 ## Parked
 
 - **Writing to GitLab and GitHub** — Why parked: PRD Non-Goals; read-only (no closing, status changes, comments or assignment).
-- **Obsidian vault access** — Why parked: PRD Non-Goals; no reading or writing. Removing the dormant code (F-03) does not change this.
+- **Obsidian vault access** — Why parked: PRD Non-Goals; no reading or writing. The dormant vault code was removed in F-03 (`remove-vault-layer`); any future vault access starts from a new plan, and the PRD Non-Goal is unchanged.
 - **Work-time automation** — Why parked: PRD Non-Goals; no automatic holiday calendar, idle detection or activity tracking.
 - **MRs where the user is a reviewer; deleting tasks (FR-009)** — Why parked: PRD Non-Goals ("Poza v1").
 - **Editing reminder settings in the app** — Why parked: issue #3 scopes the panel as read-only; the settings stay in the file.

@@ -1,4 +1,2 @@
-# Fixture vault files must stay byte-exact (CRLF, BOM).
-src-tauri/tests/fixtures/** -text
 .githooks/* text eol=lf
 *.sh text eol=lf

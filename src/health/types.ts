@@ -10,7 +10,7 @@ export type SourceState =
   | { state: "unavailable"; message: string }
   | { state: "error"; kind: string; message: string };
 
-/** `id` is a stable key such as `settings`, `vault:work`, `exclusions:private`. */
+/** `id` is a stable key such as `settings`, `app-data`, `gitlab`. */
 export type SourceStatus = {
   id: string;
   label: string;

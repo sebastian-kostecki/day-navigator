@@ -1,7 +1,7 @@
 ---
 change_id: design-system-artifact-sync
 title: Artefakt design systemu Konsola zgodny z aplikacją po S-01–S-08
-status: implementing
+status: implemented
 created: 2026-11-24
 updated: 2026-11-24
 archived_at: null

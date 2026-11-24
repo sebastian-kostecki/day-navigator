@@ -475,8 +475,8 @@ There are no data migrations. The publish replaces files in place. The previous 
 
 #### Automated
 
-- [x] 5.1 render-local.mjs builds every preview
-- [x] 5.2 Published listing has every path, fonts and the icon group
+- [x] 5.1 render-local.mjs builds every preview — 801bbe6
+- [x] 5.2 Published listing has every path, fonts and the icon group — 801bbe6
 
 #### Manual
 

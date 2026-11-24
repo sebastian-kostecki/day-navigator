@@ -1,5 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { DayEntries, EntryRow, MonthReport, WorkTimeError, WorkTimerStatus } from "./types";
+import type {
+  DayEntries,
+  EntryRow,
+  MonthReport,
+  ReminderSettingsError,
+  ReminderThresholds,
+  WorkTimeError,
+  WorkTimerStatus,
+} from "./types";
 
 export { WORK_TIME_CHANGED } from "./types";
 
@@ -42,6 +50,31 @@ export function workMonthReport(day: string): Promise<MonthReport> {
 /** `day` is `YYYY-MM-DD`; a weekend is refused with `NotAWorkday`. */
 export function setDayOff(day: string, off: boolean): Promise<void> {
   return invoke<void>("set_day_off", { day, off });
+}
+
+/** Read-only: the reminder thresholds and whether `settings.json` set them. */
+export function reminderSettings(): Promise<ReminderThresholds> {
+  return invoke<ReminderThresholds>("reminder_settings");
+}
+
+// Same wording as the "Przypomnienia" health source (`REMINDERS_INVALID_PL`).
+const REMINDERS_INVALID_PL =
+  "Blok „reminders” w settings.json jest nieprawidłowy: longRunningHours to liczba godzin 1–24 albo false, notRunningAfter to godzina „GG:MM” albo false.";
+
+/** Polish message for anything thrown by `reminderSettings`. */
+export function reminderSettingsErrorMessage(e: unknown): string {
+  if (typeof e === "object" && e !== null && "kind" in e) {
+    const err = e as ReminderSettingsError;
+    switch (err.kind) {
+      case "SettingsInvalid":
+        return `${REMINDERS_INVALID_PL} Przypomnienia są wstrzymane, dopóki go nie poprawisz.`;
+      case "Background":
+        return "Nie udało się wczytać ustawień przypomnień, spróbuj ponownie";
+      default:
+        return `Nieoczekiwany błąd (${(err as { kind: string }).kind})`;
+    }
+  }
+  return `Nieoczekiwany błąd (${String(e)})`;
 }
 
 export function asWorkTimeError(e: unknown): WorkTimeError | null {

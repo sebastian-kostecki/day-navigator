@@ -3,15 +3,16 @@
 //!
 //! Each command runs on the blocking pool, reaches the store through an
 //! `AppHandle` clone, reads the limit from `settings.json` on every call (an
-//! edit takes effect without a restart) and returns the fresh list. Failures
+//! edit takes effect without a restart) and returns the fresh list. A
+//! successful mutation emits `CHANGED_EVENT`; `list_todo` never does. Failures
 //! are logged by kind only.
 
 use std::path::PathBuf;
 
 use chrono::Local;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
-use super::{TodoError, TodoList};
+use super::{CHANGED_EVENT, TodoError, TodoList};
 use crate::blocking;
 use crate::github::{GithubIssue, GithubSnapshot};
 use crate::github_refresh::GithubRefreshState;
@@ -63,11 +64,22 @@ fn find_github_issue(snapshot: &GithubSnapshot, reference: &str) -> Option<Githu
         .cloned()
 }
 
+/// Whether a command changes the list. Only a mutation emits `CHANGED_EVENT`,
+/// so a listener that reloads through `list_todo` cannot loop.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Call {
+    Read,
+    Mutation,
+}
+
 /// Runs `f(store, today, now, limit)` off the main thread, then returns the
-/// fresh list from the same blocking closure.
+/// fresh list from the same blocking closure. After a mutation whose `f`
+/// succeeded, emits `CHANGED_EVENT` even when the list read then failed: `f`
+/// committed in its own write.
 async fn run(
     app: &AppHandle,
     name: &'static str,
+    call: Call,
     f: impl FnOnce(
         &mut Store,
         chrono::NaiveDate,
@@ -81,14 +93,22 @@ async fn run(
     let path = settings_path(app);
     let now = Local::now().naive_local();
     let today = now.date();
-    let result = blocking(move || {
+    // Outer `Ok`: `f` succeeded; the inner result is the list read after it.
+    let outcome = blocking(move || {
         let limit = limit_from(path.as_ref());
         handle.state::<StoreHandle>().with_store(today, |store| {
             f(store, today, now, &limit)?;
-            super::list(store, today, now, limit)
+            Ok::<_, TodoError>(super::list(store, today, now, limit))
         })
     })
     .await;
+    if call == Call::Mutation
+        && outcome.is_ok()
+        && let Err(e) = app.emit(CHANGED_EVENT, ())
+    {
+        log::warn!("todo: emit failed: {e}");
+    }
+    let result = outcome.and_then(|list| list);
     if let Err(e) = &result {
         match e {
             TodoError::Store(_) | TodoError::Background => {
@@ -102,14 +122,19 @@ async fn run(
 
 #[tauri::command]
 pub async fn list_todo(app: AppHandle) -> Result<TodoList, TodoError> {
-    run(&app, "list", |_, _, _, _| Ok(())).await
+    run(&app, "list", Call::Read, |_, _, _, _| Ok(())).await
 }
 
 #[tauri::command]
 pub async fn add_todo_own_task(app: AppHandle, task_id: i64) -> Result<TodoList, TodoError> {
-    run(&app, "add own", move |store, today, now, limit| {
-        super::add_own(store, task_id, today, now, limit.clone()).map(|_| ())
-    })
+    run(
+        &app,
+        "add own",
+        Call::Mutation,
+        move |store, today, now, limit| {
+            super::add_own(store, task_id, today, now, limit.clone()).map(|_| ())
+        },
+    )
     .await
 }
 
@@ -124,10 +149,15 @@ pub async fn add_todo_gitlab_item(
     let snapshot = app.state::<GitlabRefreshState>().snapshot();
     let item = find_gitlab_item(snapshot.items.as_ref(), item_kind, &reference);
     let account = snapshot.account;
-    run(&app, "add gitlab", move |store, today, now, limit| {
-        let (item, account) = item.zip(account).ok_or(TodoError::NotInGitlabList)?;
-        super::add_gitlab(store, &account, &item, today, now, limit.clone()).map(|_| ())
-    })
+    run(
+        &app,
+        "add gitlab",
+        Call::Mutation,
+        move |store, today, now, limit| {
+            let (item, account) = item.zip(account).ok_or(TodoError::NotInGitlabList)?;
+            super::add_gitlab(store, &account, &item, today, now, limit.clone()).map(|_| ())
+        },
+    )
     .await
 }
 
@@ -137,16 +167,21 @@ pub async fn add_todo_github_item(
     reference: String,
 ) -> Result<TodoList, TodoError> {
     let issue = find_github_issue(&app.state::<GithubRefreshState>().snapshot(), &reference);
-    run(&app, "add github", move |store, today, now, limit| {
-        let issue = issue.ok_or(TodoError::NotInGithubList)?;
-        super::add_github(store, &issue, today, now, limit.clone()).map(|_| ())
-    })
+    run(
+        &app,
+        "add github",
+        Call::Mutation,
+        move |store, today, now, limit| {
+            let issue = issue.ok_or(TodoError::NotInGithubList)?;
+            super::add_github(store, &issue, today, now, limit.clone()).map(|_| ())
+        },
+    )
     .await
 }
 
 #[tauri::command]
 pub async fn set_todo_ticked(app: AppHandle, id: i64, ticked: bool) -> Result<TodoList, TodoError> {
-    run(&app, "tick", move |store, today, now, _| {
+    run(&app, "tick", Call::Mutation, move |store, today, now, _| {
         super::set_ticked(store, id, ticked, today, now)
     })
     .await
@@ -154,9 +189,12 @@ pub async fn set_todo_ticked(app: AppHandle, id: i64, ticked: bool) -> Result<To
 
 #[tauri::command]
 pub async fn remove_todo(app: AppHandle, id: i64) -> Result<TodoList, TodoError> {
-    run(&app, "remove", move |store, today, now, _| {
-        super::remove(store, id, today, now)
-    })
+    run(
+        &app,
+        "remove",
+        Call::Mutation,
+        move |store, today, now, _| super::remove(store, id, today, now),
+    )
     .await
 }
 

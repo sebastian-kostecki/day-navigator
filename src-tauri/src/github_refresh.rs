@@ -28,7 +28,6 @@ use crate::store::StoreHandle;
 use crate::todo;
 
 const EVENT: &str = "github-changed";
-const TODO_EVENT: &str = "todo-changed";
 const REFRESH_INTERVAL: Duration = Duration::from_secs(10 * 60);
 
 /// Managed state of the GitHub list, shared by the refresh thread, the health
@@ -198,7 +197,7 @@ fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliR
     let todo_changed = reconcile_todo(app, &next);
     *state.write() = next;
     publish(app, &state);
-    if todo_changed && let Err(e) = app.emit(TODO_EVENT, ()) {
+    if todo_changed && let Err(e) = app.emit(todo::CHANGED_EVENT, ()) {
         log::warn!("todo: emit failed: {e}");
     }
 

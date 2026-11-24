@@ -50,7 +50,6 @@ const EVENT: &str = "gitlab-changed";
 /// Set after the first seen-set write failure of a session was logged as a
 /// warning; later failures log at debug level.
 static SEEN_SET_WARNED: AtomicBool = AtomicBool::new(false);
-const TODO_EVENT: &str = "todo-changed";
 
 /// Managed state of the GitLab list, shared by the refresh thread, the health
 /// round and the commands.
@@ -546,7 +545,7 @@ fn refresh_round(
     *state.write() = next;
     drop(gate);
     publish(app, &state);
-    if todo_changed && let Err(e) = app.emit(TODO_EVENT, ()) {
+    if todo_changed && let Err(e) = app.emit(todo::CHANGED_EVENT, ()) {
         log::warn!("todo: emit failed: {e}");
     }
     // After the gate and the publish: no lock is held while a toast shows.

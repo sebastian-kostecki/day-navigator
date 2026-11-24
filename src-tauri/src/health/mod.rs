@@ -7,8 +7,6 @@ use std::time::Duration;
 
 use serde::{Serialize, Serializer};
 
-use crate::vault::Space;
-
 pub use probe::{
     github_status, gitlab_status, probe, reminders_status, store_status, unresolved_config_dir,
 };
@@ -19,12 +17,11 @@ const TOOLTIP_MAX_UTF16: usize = 127;
 pub(crate) const MAX_NOTICE_LINES: usize = 3;
 pub(crate) const APP_NAME: &str = "Nawigator dnia";
 
-/// A checked source. Serialised as its stable key (`settings`, `vault:work`).
+/// A checked source. Serialised as its stable key (`settings`, `app-data`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SourceId {
+    /// The `settings.json` file as a whole ("Ustawienia").
     Settings,
-    Vault(Space),
-    Exclusions(Space),
     /// The app-owned data store ("Dane aplikacji").
     AppData,
     /// Assigned GitLab issues and merge requests ("GitLab").
@@ -41,8 +38,6 @@ impl SourceId {
             SourceId::Gitlab => "gitlab".to_string(),
             SourceId::Github => "github".to_string(),
             SourceId::Settings => "settings".to_string(),
-            SourceId::Vault(s) => format!("vault:{s}"),
-            SourceId::Exclusions(s) => format!("exclusions:{s}"),
             SourceId::AppData => "app-data".to_string(),
             SourceId::Reminders => "reminders".to_string(),
         }
@@ -179,14 +174,11 @@ pub fn baseline(prev_baseline: &[SourceStatus], next: &[SourceStatus]) -> Vec<So
 }
 
 /// Fixed Polish phrase for an error kind. Never the status message, which can
-/// hold paths or exclusion entries.
+/// hold paths or settings details.
 fn short_reason(kind: &str) -> &'static str {
     match kind {
-        "RootMissing" => "folder niedostępny",
-        "RootsOverlap" => "foldery vaultów nakładają się",
         "SettingsInvalid" => "nieprawidłowe ustawienia",
         "NotConfigured" => "brak pliku ustawień",
-        "UnmatchedExclusions" => "wykluczenia nic nie chronią",
         "Io" => "błąd odczytu",
         "Damaged" => "plik danych uszkodzony",
         "Missing" => "brak pliku danych",
@@ -399,17 +391,16 @@ mod tests {
         }
     }
 
-    const W: SourceId = SourceId::Vault(Space::Work);
-    const P: SourceId = SourceId::Vault(Space::Private);
+    const S: SourceId = SourceId::Settings;
+    const D: SourceId = SourceId::AppData;
 
     #[test]
     fn source_keys_are_stable() {
-        assert_eq!(SourceId::Settings.key(), "settings");
-        assert_eq!(W.key(), "vault:work");
-        assert_eq!(
-            SourceId::Exclusions(Space::Private).key(),
-            "exclusions:private"
-        );
+        assert_eq!(S.key(), "settings");
+        assert_eq!(D.key(), "app-data");
+        assert_eq!(SourceId::Gitlab.key(), "gitlab");
+        assert_eq!(SourceId::Github.key(), "github");
+        assert_eq!(SourceId::Reminders.key(), "reminders");
     }
 
     #[test]
@@ -456,7 +447,7 @@ mod tests {
     fn snapshot_serialises_camel_case() {
         let snap = HealthSnapshot {
             overall: Overall::NotRunning,
-            sources: vec![err(W, "Vault Praca", "RootMissing", "x")],
+            sources: vec![err(S, "Ustawienia", "SettingsInvalid", "x")],
             checked_at_ms: Some(5),
             seq: 7,
         };
@@ -464,35 +455,35 @@ mod tests {
         assert_eq!(v["overall"], "notRunning");
         assert_eq!(v["checkedAtMs"], 5);
         assert_eq!(v["seq"], 7);
-        assert_eq!(v["sources"][0]["id"], "vault:work");
+        assert_eq!(v["sources"][0]["id"], "settings");
         assert_eq!(v["sources"][0]["state"], "error");
-        assert_eq!(v["sources"][0]["kind"], "RootMissing");
+        assert_eq!(v["sources"][0]["kind"], "SettingsInvalid");
     }
 
     #[test]
     fn first_check_notifies_only_errors() {
         let next = vec![
-            st(SourceId::Settings, "Ustawienia", SourceState::Ok),
-            st(P, "Vault Prywatne", SourceState::NotConfigured),
-            err(W, "Vault Praca", "RootMissing", "m"),
+            st(S, "Ustawienia", SourceState::Ok),
+            st(SourceId::Gitlab, "GitLab", SourceState::NotConfigured),
+            err(D, "Dane aplikacji", "Damaged", "m"),
         ];
         let t = transitions(&[], &next);
         assert_eq!(t.len(), 1);
-        assert_eq!(t[0].id, W);
+        assert_eq!(t[0].id, D);
         assert_eq!(t[0].from_kind, None);
-        assert_eq!(t[0].to_kind.as_deref(), Some("RootMissing"));
+        assert_eq!(t[0].to_kind.as_deref(), Some("Damaged"));
     }
 
     #[test]
     fn entering_error_changing_kind_and_recovery_are_transitions() {
-        let ok = vec![st(W, "Vault Praca", SourceState::Ok)];
-        let e1 = vec![err(W, "Vault Praca", "RootMissing", "a")];
-        let e2 = vec![err(W, "Vault Praca", "RootsOverlap", "a")];
+        let ok = vec![st(D, "Dane aplikacji", SourceState::Ok)];
+        let e1 = vec![err(D, "Dane aplikacji", "Damaged", "a")];
+        let e2 = vec![err(D, "Dane aplikacji", "Missing", "a")];
         assert_eq!(transitions(&ok, &e1).len(), 1);
         let kind_change = transitions(&e1, &e2);
         assert_eq!(kind_change.len(), 1);
-        assert_eq!(kind_change[0].from_kind.as_deref(), Some("RootMissing"));
-        assert_eq!(kind_change[0].to_kind.as_deref(), Some("RootsOverlap"));
+        assert_eq!(kind_change[0].from_kind.as_deref(), Some("Damaged"));
+        assert_eq!(kind_change[0].to_kind.as_deref(), Some("Missing"));
         let rec = transitions(&e2, &ok);
         assert_eq!(rec.len(), 1);
         assert_eq!(rec[0].to_kind, None);
@@ -501,44 +492,41 @@ mod tests {
 
     #[test]
     fn same_kind_with_new_message_is_not_a_transition() {
-        let a = vec![err(W, "Vault Praca", "RootMissing", "first")];
-        let b = vec![err(W, "Vault Praca", "RootMissing", "second")];
+        let a = vec![err(D, "Dane aplikacji", "Damaged", "first")];
+        let b = vec![err(D, "Dane aplikacji", "Damaged", "second")];
         assert!(transitions(&a, &b).is_empty());
     }
 
     #[test]
     fn error_to_not_configured_is_silent() {
-        let a = vec![err(W, "Vault Praca", "RootMissing", "m")];
-        let b = vec![st(W, "Vault Praca", SourceState::NotConfigured)];
+        let a = vec![err(SourceId::Gitlab, "GitLab", "LoggedOut", "m")];
+        let b = vec![st(SourceId::Gitlab, "GitLab", SourceState::NotConfigured)];
         assert!(transitions(&a, &b).is_empty());
     }
 
     #[test]
     fn absent_source_is_silent_and_baseline_prevents_repeat_toast() {
-        let broken = err(W, "Vault Praca", "RootMissing", "m");
-        let settings_ok = st(SourceId::Settings, "Ustawienia", SourceState::Ok);
+        let broken = err(SourceId::Reminders, "Przypomnienia", "SettingsInvalid", "m");
+        let settings_ok = st(S, "Ustawienia", SourceState::Ok);
         let base0 = baseline(&[], &[settings_ok.clone(), broken.clone()]);
 
-        // Settings outage: the vault source vanishes from `next`.
-        let outage = vec![err(
-            SourceId::Settings,
-            "Ustawienia",
-            "SettingsInvalid",
-            "r",
-        )];
+        // Settings outage: the reminders source vanishes from `next` (as it
+        // does when the config dir cannot be resolved).
+        let outage = vec![err(S, "Ustawienia", "SettingsInvalid", "r")];
         let t = transitions(&base0, &outage);
         assert_eq!(t.len(), 1);
-        assert_eq!(t[0].id, SourceId::Settings);
+        assert_eq!(t[0].id, S);
         let base1 = baseline(&base0, &outage);
-        assert!(base1.iter().any(|s| s.id == W));
+        assert!(base1.iter().any(|s| s.id == SourceId::Reminders));
 
-        // Settings come back and the vault is still broken with the same kind.
+        // Settings come back and the reminders block is still broken with the
+        // same kind.
         let back = vec![settings_ok, broken];
         let t = transitions(&base1, &back);
         assert_eq!(t.len(), 1);
-        assert_eq!(t[0].id, SourceId::Settings);
+        assert_eq!(t[0].id, S);
         assert_eq!(t[0].to_kind, None);
-        assert!(t.iter().all(|x| x.id != W));
+        assert!(t.iter().all(|x| x.id != SourceId::Reminders));
     }
 
     fn tr(label: &str, to: Option<&str>) -> Transition {
@@ -558,27 +546,27 @@ mod tests {
     #[test]
     fn notice_error_title_wins_over_recovery() {
         let n = notice_for(&[
-            tr("Vault Praca", None),
+            tr("Dane aplikacji", None),
             tr("Ustawienia", Some("SettingsInvalid")),
         ])
         .unwrap();
         assert_eq!(n.title, "Nawigator dnia — błąd źródła");
         assert_eq!(
             n.body,
-            "Vault Praca: działa ponownie\nUstawienia: nieprawidłowe ustawienia"
+            "Dane aplikacji: działa ponownie\nUstawienia: nieprawidłowe ustawienia"
         );
     }
 
     #[test]
     fn notice_recovery_only_title() {
-        let n = notice_for(&[tr("Vault Praca", None)]).unwrap();
+        let n = notice_for(&[tr("Dane aplikacji", None)]).unwrap();
         assert_eq!(n.title, "Nawigator dnia — źródła działają");
     }
 
     #[test]
     fn notice_caps_lines_at_three() {
         let ts: Vec<Transition> = (0..5)
-            .map(|i| tr(&format!("Z{i}"), Some("RootMissing")))
+            .map(|i| tr(&format!("Z{i}"), Some("Failed")))
             .collect();
         let n = notice_for(&ts).unwrap();
         let lines: Vec<&str> = n.body.lines().collect();
@@ -589,30 +577,30 @@ mod tests {
     #[test]
     fn notice_never_carries_message_text() {
         let prev = vec![];
-        let reason = "work: invalid excluded entry: Klient-Testowy/hasla.md";
+        let reason = r"malformed JSON at C:\Klient-Testowy\hasla.json";
         let next = vec![
             err(
-                SourceId::Settings,
+                S,
                 "Ustawienia",
                 "SettingsInvalid",
                 &format!("Ustawienia są nieprawidłowe: {reason}"),
             ),
             err(
-                W,
-                "Vault Praca",
-                "RootMissing",
-                r"Folder vaultu nie istnieje lub jest niedostępny: C:\Klient-Testowy\vault",
+                SourceId::Gitlab,
+                "GitLab",
+                "Failed",
+                "Klient-Testowy hasla: invented call failure",
             ),
             err(
-                SourceId::Exclusions(Space::Work),
-                "Wykluczenia Praca",
-                "UnmatchedExclusions",
-                "Klient-Testowy/hasla.md",
+                D,
+                "Dane aplikacji",
+                "Damaged",
+                r"Przywróć kopię z folderu C:\Klient-Testowy\backups",
             ),
         ];
         let n = notice_for(&transitions(&prev, &next)).unwrap();
         let all = format!("{}\n{}", n.title, n.body);
-        for bad in ["Klient-Testowy", "hasla", r"C:\", "excluded entry"] {
+        for bad in ["Klient-Testowy", "hasla", r"C:\", "malformed", "invented"] {
             assert!(!all.contains(bad), "{bad} leaked: {all}");
         }
     }
@@ -620,10 +608,10 @@ mod tests {
     #[test]
     fn overall_rules() {
         let ok = vec![
-            st(W, "V", SourceState::Ok),
-            st(P, "V", SourceState::NotConfigured),
+            st(S, "Ustawienia", SourceState::Ok),
+            st(SourceId::Gitlab, "GitLab", SourceState::NotConfigured),
         ];
-        let bad = vec![err(W, "V", "RootMissing", "m")];
+        let bad = vec![err(D, "Dane aplikacji", "Damaged", "m")];
         assert_eq!(overall(&ok, false, false), Overall::Starting);
         assert_eq!(overall(&ok, false, true), Overall::Ok);
         assert_eq!(overall(&bad, false, true), Overall::Error);
@@ -633,19 +621,19 @@ mod tests {
 
     #[test]
     fn tooltip_examples() {
-        let one = vec![err(W, "Vault Praca", "RootMissing", "m")];
+        let one = vec![err(D, "Dane aplikacji", "Damaged", "m")];
         let two = vec![
-            err(W, "Vault Praca", "RootMissing", "m"),
-            err(P, "Vault Prywatne", "RootMissing", "m"),
+            err(D, "Dane aplikacji", "Damaged", "m"),
+            err(SourceId::Gitlab, "GitLab", "LoggedOut", "m"),
         ];
         assert_eq!(tooltip(Overall::Ok, &[]), "Nawigator dnia — OK");
         assert_eq!(
             tooltip(Overall::Error, &one),
-            "Nawigator dnia — błąd: Vault Praca"
+            "Nawigator dnia — błąd: Dane aplikacji"
         );
         assert_eq!(
             tooltip(Overall::Error, &two),
-            "Nawigator dnia — błąd: Vault Praca i 1 więcej"
+            "Nawigator dnia — błąd: Dane aplikacji i 1 więcej"
         );
         assert_eq!(
             tooltip(Overall::NotRunning, &[]),
@@ -660,7 +648,7 @@ mod tests {
     #[test]
     fn tooltip_truncates_long_labels_with_ellipsis() {
         let long = "Żółć".repeat(60);
-        let s = vec![err(W, &long, "RootMissing", "m")];
+        let s = vec![err(S, &long, "SettingsInvalid", "m")];
         let t = tooltip(Overall::Error, &s);
         assert!(t.encode_utf16().count() <= 127);
         assert!(t.ends_with('…'));
@@ -673,7 +661,7 @@ mod tests {
         ) {
             let sources: Vec<SourceStatus> = labels
                 .iter()
-                .map(|l| err(W, l, "RootMissing", "m"))
+                .map(|l| err(S, l, "SettingsInvalid", "m"))
                 .collect();
             for o in [Overall::Starting, Overall::Ok, Overall::Error, Overall::NotRunning] {
                 let t = tooltip(o, &sources);
@@ -791,7 +779,10 @@ mod tests {
         assert!(transitions(&[], &down).is_empty());
         assert!(transitions(&ok, &down).is_empty());
         assert!(transitions(&down, &ok).is_empty());
-        let src = vec![st(W, "V", SourceState::Ok), unavailable(H, "GitHub")];
+        let src = vec![
+            st(S, "Ustawienia", SourceState::Ok),
+            unavailable(H, "GitHub"),
+        ];
         assert_eq!(overall(&src, false, true), Overall::Ok);
         assert_eq!(
             tooltip(Overall::Ok, &src),
@@ -836,7 +827,10 @@ mod tests {
 
     #[test]
     fn unavailable_never_makes_overall_an_error() {
-        let src = vec![st(W, "V", SourceState::Ok), unavailable(G, "GitLab")];
+        let src = vec![
+            st(S, "Ustawienia", SourceState::Ok),
+            unavailable(G, "GitLab"),
+        ];
         assert_eq!(overall(&src, false, true), Overall::Ok);
         assert_eq!(overall(&src, false, false), Overall::Starting);
         assert_eq!(overall(&src, true, true), Overall::NotRunning);
@@ -870,15 +864,18 @@ mod tests {
 
     #[test]
     fn tooltip_notes_unavailable_sources_when_ok() {
-        let one = vec![st(W, "V", SourceState::Ok), unavailable(G, "GitLab")];
+        let one = vec![
+            st(S, "Ustawienia", SourceState::Ok),
+            unavailable(G, "GitLab"),
+        ];
         assert_eq!(
             tooltip(Overall::Ok, &one),
             "Nawigator dnia — OK (GitLab niedostępny)"
         );
-        let two = vec![unavailable(G, "GitLab"), unavailable(P, "Vault Prywatne")];
+        let two = vec![unavailable(G, "GitLab"), unavailable(H, "GitHub")];
         assert_eq!(
             tooltip(Overall::Ok, &two),
-            "Nawigator dnia — OK (GitLab, Vault Prywatne niedostępny)"
+            "Nawigator dnia — OK (GitLab, GitHub niedostępny)"
         );
         // Other states are unchanged.
         assert_eq!(

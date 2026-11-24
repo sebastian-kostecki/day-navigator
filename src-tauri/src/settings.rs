@@ -12,65 +12,43 @@ use crate::github::GithubError;
 use crate::gitlab::GitlabError;
 use crate::gitlab::filter::{DimensionRule, GitlabFilter};
 use crate::todo::{DEFAULT_TODO_LIMIT, TodoError};
-use crate::vault::{VaultError, VaultPath};
 
 const SUPPORTED_VERSION: u64 = 1;
 
-#[derive(Debug, Clone, Default)]
-pub struct Settings {
-    pub work: Option<SpaceSettings>,
-    pub private: Option<SpaceSettings>,
+/// Why `settings.json` as a whole cannot be used. `Io::path` is the file name
+/// only; `NotConfigured::settings_path` is the app's own settings file.
+#[derive(Debug, Clone, thiserror::Error, serde::Serialize)]
+#[serde(tag = "kind", content = "detail")]
+pub enum SettingsError {
+    #[error("settings file not found: {}", settings_path.display())]
+    NotConfigured { settings_path: PathBuf },
+    #[error("settings are invalid: {reason}")]
+    SettingsInvalid { reason: String },
+    #[error("I/O error on {path}: {kind}")]
+    Io { path: String, kind: String },
 }
 
-#[derive(Debug, Clone)]
-pub struct SpaceSettings {
-    pub vault: PathBuf,
-    pub excluded: Vec<VaultPath>,
-}
-
-#[derive(Deserialize)]
-struct RawSettings {
-    #[serde(default)]
-    spaces: RawSpaces,
-}
-
-#[derive(Deserialize, Default)]
-struct RawSpaces {
-    #[serde(default)]
-    work: Option<RawSpace>,
-    #[serde(default)]
-    private: Option<RawSpace>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawSpace {
-    vault: PathBuf,
-    #[serde(default)]
-    excluded: Vec<String>,
-    /// The retired vault-task block: still accepted so an old hand-written
-    /// `settings.json` loads, but any content is ignored.
-    #[serde(default, rename = "tasks")]
-    _legacy_tasks: Option<serde::de::IgnoredAny>,
-}
-
-fn invalid(reason: impl Into<String>) -> VaultError {
-    VaultError::SettingsInvalid {
+fn invalid(reason: impl Into<String>) -> SettingsError {
+    SettingsError::SettingsInvalid {
         reason: reason.into(),
     }
 }
 
-pub fn load_settings(path: &Path) -> Result<Settings, VaultError> {
+/// Checks the file as a whole: it exists and reads, is UTF-8 (a BOM is
+/// allowed), parses as JSON and has `version` 1. Each block is read by its own
+/// loader below; any other top-level key, an old `spaces` block included, is
+/// ignored whatever its shape.
+pub fn check_settings(path: &Path) -> Result<(), SettingsError> {
     let bytes = match fs::read(path) {
         Ok(b) => b,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return Err(VaultError::NotConfigured {
+            return Err(SettingsError::NotConfigured {
                 settings_path: path.to_path_buf(),
             });
         }
         Err(e) => {
             // File name only: error paths never carry absolute locations.
-            return Err(VaultError::Io {
+            return Err(SettingsError::Io {
                 path: path
                     .file_name()
                     .map(|n| n.to_string_lossy().into_owned())
@@ -84,7 +62,17 @@ pub fn load_settings(path: &Path) -> Result<Settings, VaultError> {
         .unwrap_or(&bytes);
     let text =
         std::str::from_utf8(bytes).map_err(|_| invalid("settings file is not valid UTF-8"))?;
-    parse_settings(text)
+    check_settings_text(text)
+}
+
+fn check_settings_text(text: &str) -> Result<(), SettingsError> {
+    let value: serde_json::Value =
+        serde_json::from_str(text).map_err(|e| invalid(format!("malformed JSON: {e}")))?;
+    match value.get("version").and_then(|v| v.as_u64()) {
+        Some(SUPPORTED_VERSION) => Ok(()),
+        Some(other) => Err(invalid(format!("unsupported version {other}"))),
+        None => Err(invalid("missing or non-numeric version")),
+    }
 }
 
 #[derive(Deserialize)]
@@ -96,8 +84,8 @@ struct RawGitlab {
 }
 
 /// Reads only the top-level `gitlab` block, on its own: a typo there never
-/// breaks the vaults and a vault typo never hides the GitLab list. A missing
-/// file, an absent block or `null` is `Ok(None)`. Every failure is
+/// breaks the other blocks and a typo elsewhere never hides the GitLab list. A
+/// missing file, an absent block or `null` is `Ok(None)`. Every failure is
 /// `SettingsInvalid` with no detail: serde errors can quote the value.
 pub fn load_gitlab_settings(path: &Path) -> Result<Option<GitlabConfig>, GitlabError> {
     let bytes = match fs::read(path) {
@@ -579,44 +567,6 @@ fn parse_filter_list(
     Ok(out)
 }
 
-fn parse_settings(text: &str) -> Result<Settings, VaultError> {
-    let value: serde_json::Value =
-        serde_json::from_str(text).map_err(|e| invalid(format!("malformed JSON: {e}")))?;
-    match value.get("version").and_then(|v| v.as_u64()) {
-        Some(SUPPORTED_VERSION) => {}
-        Some(other) => return Err(invalid(format!("unsupported version {other}"))),
-        None => return Err(invalid("missing or non-numeric version")),
-    }
-    let raw: RawSettings =
-        serde_json::from_value(value).map_err(|e| invalid(format!("bad settings shape: {e}")))?;
-    Ok(Settings {
-        work: raw.spaces.work.map(|s| convert("work", s)).transpose()?,
-        private: raw
-            .spaces
-            .private
-            .map(|s| convert("private", s))
-            .transpose()?,
-    })
-}
-
-fn convert(name: &str, raw: RawSpace) -> Result<SpaceSettings, VaultError> {
-    if !raw.vault.is_absolute() {
-        return Err(invalid(format!("{name}: vault path must be absolute")));
-    }
-    let excluded = raw
-        .excluded
-        .iter()
-        .map(|e| {
-            VaultPath::parse(e)
-                .map_err(|err| invalid(format!("{name}: invalid excluded entry: {err}")))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(SpaceSettings {
-        vault: raw.vault,
-        excluded,
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -634,59 +584,97 @@ mod tests {
     #[test]
     fn settings_missing_file_is_not_configured() {
         let dir = tempfile::tempdir().unwrap();
-        let err = load_settings(&dir.path().join("settings.json")).unwrap_err();
-        assert!(matches!(err, VaultError::NotConfigured { .. }));
+        let err = check_settings(&dir.path().join("settings.json")).unwrap_err();
+        assert!(matches!(err, SettingsError::NotConfigured { .. }));
     }
 
     #[test]
     fn settings_malformed_json_is_invalid() {
         let dir = tempfile::tempdir().unwrap();
-        let err = load_settings(&write(&dir, "{ not json")).unwrap_err();
-        assert!(matches!(err, VaultError::SettingsInvalid { .. }));
+        let err = check_settings(&write(&dir, "{ not json")).unwrap_err();
+        assert!(matches!(err, SettingsError::SettingsInvalid { .. }));
     }
 
     #[test]
-    fn settings_wrong_version_is_invalid() {
+    fn settings_wrong_or_missing_version_is_invalid() {
         let dir = tempfile::tempdir().unwrap();
-        let err = load_settings(&write(&dir, r#"{"version": 2, "spaces": {}}"#)).unwrap_err();
-        assert!(matches!(err, VaultError::SettingsInvalid { .. }));
-        let err = load_settings(&write(&dir, r#"{"spaces": {}}"#)).unwrap_err();
-        assert!(matches!(err, VaultError::SettingsInvalid { .. }));
-    }
-
-    #[test]
-    fn settings_relative_vault_path_is_invalid() {
-        let dir = tempfile::tempdir().unwrap();
-        let text = r#"{"version":1,"spaces":{"work":{"vault":"relative/vault","excluded":[]}}}"#;
-        let err = load_settings(&write(&dir, text)).unwrap_err();
-        assert!(matches!(err, VaultError::SettingsInvalid { .. }));
-    }
-
-    #[test]
-    fn settings_invalid_excluded_entry_is_invalid() {
-        let dir = tempfile::tempdir().unwrap();
-        let root = json_path(&dir);
-        for bad in ["../up", "/abs", ".hidden", "CON"] {
-            let text = format!(
-                r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":["{bad}"]}}}}}}"#
+        for text in [
+            r#"{"version": 2}"#,
+            r#"{"version": "1"}"#,
+            r#"{"version": null}"#,
+            r#"{}"#,
+            "[1]",
+        ] {
+            let err = check_settings(&write(&dir, text)).unwrap_err();
+            assert!(
+                matches!(err, SettingsError::SettingsInvalid { .. }),
+                "{text}"
             );
-            let err = load_settings(&write(&dir, &text)).unwrap_err();
-            assert!(matches!(err, VaultError::SettingsInvalid { .. }), "{bad}");
+        }
+        assert!(check_settings(&write(&dir, r#"{"version": 1}"#)).is_ok());
+    }
+
+    #[test]
+    fn settings_bom_is_stripped_and_bad_utf8_is_invalid() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("settings.json");
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(br#"{"version":1}"#);
+        fs::write(&p, bytes).unwrap();
+        assert!(check_settings(&p).is_ok());
+        fs::write(&p, [0xFF, 0xFE, 0x00]).unwrap();
+        assert!(matches!(
+            check_settings(&p),
+            Err(SettingsError::SettingsInvalid { .. })
+        ));
+    }
+
+    #[test]
+    fn settings_unreadable_file_is_io_with_the_file_name_only() {
+        let dir = tempfile::tempdir().unwrap();
+        // A directory where the file should be: unreadable, not "missing".
+        let p = dir.path().join("settings.json");
+        fs::create_dir(&p).unwrap();
+        match check_settings(&p).unwrap_err() {
+            SettingsError::Io { path, kind } => {
+                assert_eq!(path, "settings.json");
+                assert!(!kind.is_empty());
+            }
+            other => panic!("expected Io, got {other:?}"),
         }
     }
 
     #[test]
-    fn settings_null_and_absent_space_mean_not_configured() {
+    fn settings_error_serialises_with_kind_and_detail() {
+        let v = serde_json::to_value(invalid("zły")).unwrap();
+        assert_eq!(v["kind"], "SettingsInvalid");
+        assert_eq!(v["detail"]["reason"], "zły");
+    }
+
+    /// An old hand-written `settings.json` still carries the retired vault
+    /// block (`spaces`). It is ignored in any shape and never fails the file.
+    #[test]
+    fn settings_old_spaces_block_of_any_shape_is_ignored() {
         let dir = tempfile::tempdir().unwrap();
         let root = json_path(&dir);
-        let text = format!(
-            r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":["Dostepy","Klienci/hasla.md"]}},"private":null}}}}"#
-        );
-        let s = load_settings(&write(&dir, &text)).unwrap();
-        assert!(s.private.is_none());
-        assert_eq!(s.work.unwrap().excluded.len(), 2);
-        let s = load_settings(&write(&dir, r#"{"version":1,"spaces":{}}"#)).unwrap();
-        assert!(s.work.is_none() && s.private.is_none());
+        let tasks = r#""tasks":{"folder":"Tasks","template":"Templates/Task.md","statuses":["Todo","Done"],"done_status":"Done"}"#;
+        let spaces = [
+            format!(
+                r#"{{"work":{{"vault":"{root}","excluded":["Dostepy","../up","CON"],{tasks}}},"private":null}}"#
+            ),
+            r#"{"work":{"vault":"relative/vault","excluded":["/abs",".hidden"],"bogus":1}}"#
+                .to_string(),
+            r#"{"work":{"vault":"relative/vault","tasks":[1,2]},"other":{"x":1}}"#.to_string(),
+            r#"{}"#.to_string(),
+            r#""x""#.to_string(),
+            "null".to_string(),
+            "42".to_string(),
+            "[1,2]".to_string(),
+        ];
+        for block in spaces {
+            let text = format!(r#"{{"version":1,"spaces":{block}}}"#);
+            assert!(check_settings(&write(&dir, &text)).is_ok(), "{block}");
+        }
     }
 
     fn gitlab_text(block: &str) -> String {
@@ -825,18 +813,11 @@ mod tests {
     }
 
     #[test]
-    fn vault_settings_ignore_the_gitlab_block_valid_or_not() {
+    fn settings_check_ignores_the_gitlab_block_valid_or_not() {
         let dir = tempfile::tempdir().unwrap();
-        let root = json_path(&dir);
         for block in [r#"{"host":"gitlab.example.invalid"}"#, r#""not-an-object""#] {
-            let text = format!(
-                r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":["Dostepy"]}}}},"gitlab":{block}}}"#
-            );
-            let s = load_settings(&write(&dir, &text)).unwrap();
-            let work = s.work.unwrap();
-            assert_eq!(work.vault, PathBuf::from(dir.path()));
-            assert_eq!(work.excluded.len(), 1);
-            assert!(s.private.is_none());
+            let text = format!(r#"{{"version":1,"gitlab":{block}}}"#);
+            assert!(check_settings(&write(&dir, &text)).is_ok(), "{block}");
         }
     }
 
@@ -960,14 +941,14 @@ mod tests {
     #[test]
     fn github_block_is_independent_of_the_other_loaders() {
         let dir = tempfile::tempdir().unwrap();
-        let root = json_path(&dir);
-        // A broken github block leaves vault, GitLab and todo loaders green.
+        // A broken github block leaves the settings check, GitLab and todo
+        // loaders green.
         for block in [r#""nope""#, r#"{"repos":["bad"]}"#, r#"{"bogus":1}"#] {
             let text = format!(
-                r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":[]}}}},"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{{"limit":4}},"github":{block}}}"#
+                r#"{{"version":1,"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{{"limit":4}},"github":{block}}}"#
             );
             let p = write(&dir, &text);
-            assert!(load_settings(&p).unwrap().work.is_some(), "{block}");
+            assert!(check_settings(&p).is_ok(), "{block}");
             assert!(load_gitlab_settings(&p).unwrap().is_some(), "{block}");
             assert_eq!(load_todo_limit(&p).unwrap(), 4, "{block}");
             assert!(load_github_settings(&p).is_err(), "{block}");
@@ -1054,15 +1035,14 @@ mod tests {
     }
 
     #[test]
-    fn broken_todo_block_leaves_vault_and_gitlab_loaders_green() {
+    fn broken_todo_block_leaves_settings_check_and_gitlab_loader_green() {
         let dir = tempfile::tempdir().unwrap();
-        let root = json_path(&dir);
         for block in [r#"{"limit":0}"#, r#""nope""#, r#"{"bogus":1}"#] {
             let text = format!(
-                r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":[]}}}},"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{block}}}"#
+                r#"{{"version":1,"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{block}}}"#
             );
             let p = write(&dir, &text);
-            assert!(load_settings(&p).unwrap().work.is_some(), "{block}");
+            assert!(check_settings(&p).is_ok(), "{block}");
             assert!(load_gitlab_settings(&p).unwrap().is_some(), "{block}");
             assert!(load_todo_limit(&p).is_err(), "{block}");
         }
@@ -1208,13 +1188,12 @@ mod tests {
     #[test]
     fn broken_reminders_block_leaves_other_loaders_green() {
         let dir = tempfile::tempdir().unwrap();
-        let root = json_path(&dir);
         for block in [r#"{"longRunningHours":0}"#, r#""nope""#, r#"{"bogus":1}"#] {
             let text = format!(
-                r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":[]}}}},"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{{"limit":3}},"reminders":{block}}}"#
+                r#"{{"version":1,"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{{"limit":3}},"reminders":{block}}}"#
             );
             let p = write(&dir, &text);
-            assert!(load_settings(&p).unwrap().work.is_some(), "{block}");
+            assert!(check_settings(&p).is_ok(), "{block}");
             assert!(load_gitlab_settings(&p).unwrap().is_some(), "{block}");
             assert_eq!(load_todo_limit(&p).unwrap(), 3, "{block}");
             assert!(load_reminder_settings(&p).is_err(), "{block}");
@@ -1299,13 +1278,12 @@ mod tests {
     #[test]
     fn broken_refresh_block_leaves_the_other_loaders_green() {
         let dir = tempfile::tempdir().unwrap();
-        let root = json_path(&dir);
         for block in [r#"{"minutes":0}"#, r#""nope""#, r#"{"bogus":1}"#] {
             let text = format!(
-                r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":[]}}}},"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{{"limit":4}},"gitlabRefresh":{block}}}"#
+                r#"{{"version":1,"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{{"limit":4}},"gitlabRefresh":{block}}}"#
             );
             let p = write(&dir, &text);
-            assert!(load_settings(&p).unwrap().work.is_some(), "{block}");
+            assert!(check_settings(&p).is_ok(), "{block}");
             assert!(load_gitlab_settings(&p).unwrap().is_some(), "{block}");
             assert_eq!(load_todo_limit(&p).unwrap(), 4, "{block}");
             assert!(load_gitlab_refresh_minutes(&p).is_err(), "{block}");
@@ -1509,13 +1487,12 @@ mod tests {
     #[test]
     fn broken_filter_block_leaves_the_other_loaders_green() {
         let dir = tempfile::tempdir().unwrap();
-        let root = json_path(&dir);
         for block in [r#"{"closedDays":0}"#, r#""nope""#, r#"{"projcts":{}}"#] {
             let text = format!(
-                r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":[]}}}},"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{{"limit":4}},"gitlabRefresh":{{"minutes":6}},"gitlabFilter":{block}}}"#
+                r#"{{"version":1,"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{{"limit":4}},"gitlabRefresh":{{"minutes":6}},"gitlabFilter":{block}}}"#
             );
             let p = write(&dir, &text);
-            assert!(load_settings(&p).unwrap().work.is_some(), "{block}");
+            assert!(check_settings(&p).is_ok(), "{block}");
             assert!(load_gitlab_settings(&p).unwrap().is_some(), "{block}");
             assert_eq!(load_todo_limit(&p).unwrap(), 4, "{block}");
             assert_eq!(load_gitlab_refresh_minutes(&p), Ok(6), "{block}");
@@ -1531,37 +1508,5 @@ mod tests {
             load_gitlab_filter(&write(&dir, text)).unwrap().closed_days,
             Some(5)
         );
-    }
-
-    fn work_with(dir: &tempfile::TempDir, extra: &str) -> String {
-        let root = json_path(dir);
-        format!(
-            r#"{{"version":1,"spaces":{{"work":{{"vault":"{root}","excluded":["Dostepy"],{extra}}}}}}}"#
-        )
-    }
-
-    #[test]
-    fn settings_legacy_tasks_block_is_ignored() {
-        let dir = tempfile::tempdir().unwrap();
-        let tasks = r#""tasks":{"folder":"Tasks","template":"Templates/Task.md","statuses":["Todo","In progress","Done"],"done_status":"Done","priorities":["High","Medium","Low"]}"#;
-        let s = load_settings(&write(&dir, &work_with(&dir, tasks))).unwrap();
-        assert_eq!(s.work.unwrap().excluded.len(), 1);
-    }
-
-    #[test]
-    fn settings_legacy_tasks_value_of_any_shape_loads() {
-        let dir = tempfile::tempdir().unwrap();
-        for value in ["null", "42", r#""text""#, "[1,2]", r#"{"unknown":true}"#] {
-            let extra = format!(r#""tasks":{value}"#);
-            let loaded = load_settings(&write(&dir, &work_with(&dir, &extra)));
-            assert!(loaded.is_ok(), "{value}");
-        }
-    }
-
-    #[test]
-    fn settings_unknown_space_key_is_still_rejected() {
-        let dir = tempfile::tempdir().unwrap();
-        let err = load_settings(&write(&dir, &work_with(&dir, r#""bogus":1"#))).unwrap_err();
-        assert!(matches!(err, VaultError::SettingsInvalid { .. }));
     }
 }

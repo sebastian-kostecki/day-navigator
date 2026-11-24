@@ -3,8 +3,8 @@
 //! `health/` and stay free of `tauri`.
 //!
 //! Locking rule: `TrayIcon::set_icon`/`set_tooltip` block until the main thread
-//! runs them, and sync commands run on the main thread. So the `snapshot` and
-//! `VaultState` locks are never held across a tray, notification or emit call.
+//! runs them, and sync commands run on the main thread. So the `snapshot` lock
+//! is never held across a tray, notification or emit call.
 //! The one lock held across tray and emit calls is `published`, which only the
 //! check and watchdog threads take, never the main thread.
 
@@ -21,12 +21,10 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 
-use crate::VaultState;
 use crate::github_refresh::GithubRefreshState;
 use crate::gitlab_refresh::GitlabRefreshState;
 use crate::health::{self, HealthSnapshot, Overall, SourceStatus};
 use crate::store::StoreHandle;
-use crate::vault::{VaultError, VaultRegistry};
 
 const TRAY_ID: &str = "health";
 const CHECK_INTERVAL: Duration = Duration::from_secs(30);
@@ -246,18 +244,16 @@ pub(crate) fn toast(app: &AppHandle, area: &str, title: &str, body: &str) {
     }
 }
 
-type ProbeResult = (Result<VaultRegistry, VaultError>, Vec<SourceStatus>);
-
-/// Settings and vault sources first, then the app data store, which is
-/// reported even when `settings.json` is broken.
+/// Settings first, then the app data store, which is reported even when
+/// `settings.json` is broken, then GitLab, GitHub and reminders.
 fn probe_round(
     settings_path: &Option<PathBuf>,
     store: &StoreHandle,
     today: NaiveDate,
     gitlab: Option<SourceStatus>,
     github: Option<SourceStatus>,
-) -> ProbeResult {
-    let (registry, mut sources) = match settings_path {
+) -> Vec<SourceStatus> {
+    let mut sources = match settings_path {
         Some(p) => health::probe(p),
         None => health::unresolved_config_dir(),
     };
@@ -270,7 +266,7 @@ fn probe_round(
     if let Some(p) = settings_path {
         sources.push(health::reminders_status(p));
     }
-    (registry, sources)
+    sources
 }
 
 fn check_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Receiver<()>) {
@@ -296,7 +292,7 @@ fn check_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Rec
 
 fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut Vec<SourceStatus>) {
     let state = app.state::<HealthState>();
-    let (registry, sources) = probe_round(
+    let sources = probe_round(
         settings_path,
         &app.state::<StoreHandle>(),
         Local::now().date_naive(),
@@ -307,7 +303,6 @@ fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut 
     // stamping after the blocking tray calls below let the watchdog flag a
     // finished round as stalled.
     state.stamp_heartbeat();
-    app.state::<VaultState>().replace(registry);
 
     let transitions = health::transitions(baseline, &sources);
     *baseline = health::baseline(baseline, &sources);

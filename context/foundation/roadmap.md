@@ -52,7 +52,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | ---- | --------------------------- | -------------------------------------------------------------------------------------- | ------------- | --------------- | -------- |
 | F-01 | shared-ui-tools             | (foundation) shared UI tools live in `src/components/`, not copied across views         | —             | MS-10           | ready    |
 | F-02 | shared-work-timer-state     | (foundation) one work-timer state feeds the header, dashboard and "Work time"           | —             | MS-09           | ready    |
-| F-03 | remove-vault-layer          | (foundation) the vault layer and its health sources are gone                            | —             | MS-11           | ready    |
+| F-03 | remove-vault-layer          | (foundation) the vault layer and its health sources are gone                            | —             | MS-11           | in-progress |
 | F-04 | konsola-design-system       | (foundation) the Konsola design system is checked by hand and its change archived       | —             | MS-12           | ready    |
 | F-05 | design-system-artifact-sync | (foundation) the design-system artifact matches the app                                 | F-04          | MS-16           | proposed |
 | S-01 | todo-add-from-sources       | add an item to "To do" with "+" from the GitLab and GitHub views                        | —             | FR-026, US-01   | ready    |
@@ -130,7 +130,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Removes a hard rule from AGENTS.md ("Vaults are out of scope … existing vault code keeps its contract"); the rule about not touching vaults stays, only the dormant code goes.
-- **Status:** ready
+- **Status:** in-progress
 
 ### F-04: Manual check of the Konsola design system
 

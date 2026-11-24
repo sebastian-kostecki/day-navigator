@@ -12,11 +12,8 @@ pub mod settings;
 pub mod space;
 pub mod store;
 pub mod todo;
-pub mod vault;
 pub mod work_reminders;
 pub mod work_time;
-
-use std::sync::{Arc, RwLock};
 
 use chrono::{Local, NaiveDateTime};
 use tauri::Manager;
@@ -24,27 +21,6 @@ use tauri::Manager;
 use crate::own_tasks::{OwnTask, OwnTaskError, OwnTaskInput};
 use crate::space::Space;
 use crate::store::{Store, StoreError, StoreHandle};
-use crate::vault::{VaultError, VaultRegistry};
-
-/// Registry (or the error that stopped it) built from `settings.json`, kept in
-/// Tauri managed state. Each health check replaces it, so fixing settings
-/// takes effect without a restart. A failure is stored, never fatal.
-pub struct VaultState(RwLock<Arc<Result<VaultRegistry, VaultError>>>);
-
-impl VaultState {
-    pub fn new(initial: Result<VaultRegistry, VaultError>) -> Self {
-        VaultState(RwLock::new(Arc::new(initial)))
-    }
-
-    /// Cheap snapshot; the lock is not held after this returns.
-    pub fn current(&self) -> Arc<Result<VaultRegistry, VaultError>> {
-        Arc::clone(&self.0.read().unwrap_or_else(|p| p.into_inner()))
-    }
-
-    pub fn replace(&self, next: Result<VaultRegistry, VaultError>) {
-        *self.0.write().unwrap_or_else(|p| p.into_inner()) = Arc::new(next);
-    }
-}
 
 /// The blocking task could not run to completion (join error text). Each
 /// command error type maps it to its own variant.
@@ -176,13 +152,6 @@ pub fn run() {
                 .app_config_dir()
                 .ok()
                 .map(|dir| dir.join("settings.json"));
-            let state = match &settings_path {
-                Some(path) => {
-                    settings::load_settings(path).map(|s| VaultRegistry::from_settings(&s))
-                }
-                None => health::unresolved_config_dir().0,
-            };
-            app.manage(VaultState::new(state));
             let data_dir = app.path().app_data_dir().ok();
             // Not opened here: the first health or reminder round opens it on
             // its own thread, so `quick_check`, backup and migrations never

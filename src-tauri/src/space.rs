@@ -1,4 +1,4 @@
-//! The two spaces an item can belong to. Neutral: no vault or store imports.
+//! The two spaces an item can belong to. Neutral: no store imports.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]

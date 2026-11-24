@@ -223,16 +223,16 @@ Brak migracji danych. Zmiana kontraktu migawki (Rust + TS) w jednym commicie.
 
 #### Automated
 
-- [x] 1.1 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` przechodzą
-- [x] 1.2 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy filtra w migawce, pól interwału, `Debug` bez wartości filtra i `settings_file_to_open`
-- [x] 1.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 1.1 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` przechodzą — b64aaa4
+- [x] 1.2 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy filtra w migawce, pól interwału, `Debug` bez wartości filtra i `settings_file_to_open` — b64aaa4
+- [x] 1.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą — b64aaa4
 
 ### Phase 2: Pasek FILTR i linia następnej próby
 
 #### Automated
 
-- [ ] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 2.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą (pełny zestaw przed commitem)
+- [x] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 2.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą (pełny zestaw przed commitem)
 
 #### Manual
 

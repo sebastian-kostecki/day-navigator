@@ -1,9 +1,10 @@
 ---
 change_id: gitlab-new-and-hidden-date
 title: GitLab — flaga NOWE i data ukrycia
-status: impl_reviewed
+status: archived
 created: 2026-11-24
 updated: 2026-11-24
+archived_at: 2026-11-24T10:48:36Z
 ---
 
 ## Notes

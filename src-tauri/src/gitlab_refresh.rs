@@ -175,6 +175,7 @@ impl GitlabRefreshState {
         snap.hidden_check_failed = snap.hidden_check_failed.min(hidden_total);
         snap.items = Some(shown);
         snap.filter_active = filter.is_active();
+        snap.filter = filter.clone();
         snap.filtered_out = filtered_out;
         snap.hidden_error = None;
         snap.seq += 1;
@@ -330,6 +331,7 @@ fn reshape_kept(
     let (shown, out) = shape_items(full, records, fresh, filter);
     next.items = Some(shown);
     next.filter_active = filter.is_active();
+    next.filter = filter.clone();
     next.filtered_out = out;
     true
 }
@@ -512,10 +514,10 @@ fn run_fetch(
     }
 }
 
-/// The wait before the next round and whether the setting was invalid. Read
+/// The interval in minutes and whether the setting was invalid. Read
 /// every round, so a change needs no restart. No settings path or an invalid
 /// block gives the default.
-fn refresh_interval(settings_path: &Option<PathBuf>) -> (Duration, bool) {
+fn refresh_interval(settings_path: &Option<PathBuf>) -> (u32, bool) {
     let (minutes, invalid) = match settings_path {
         Some(path) => match load_gitlab_refresh_minutes(path) {
             Ok(m) => (m, false),
@@ -523,7 +525,7 @@ fn refresh_interval(settings_path: &Option<PathBuf>) -> (Duration, bool) {
         },
         None => (DEFAULT_REFRESH_MINUTES, false),
     };
-    (Duration::from_secs(u64::from(minutes) * 60), invalid)
+    (minutes, invalid)
 }
 
 /// Runs one round and returns how long to wait before the next one.
@@ -534,7 +536,8 @@ fn refresh_round(
     resume_after: &mut Option<u64>,
     session_seen: &mut SessionSeen,
 ) -> Duration {
-    let (wait, refresh_invalid) = refresh_interval(settings_path);
+    let (minutes, refresh_invalid) = refresh_interval(settings_path);
+    let wait = Duration::from_secs(u64::from(minutes) * 60);
     let (filter, filter_invalid) = load_filter(settings_path);
     let state = app.state::<GitlabRefreshState>();
     let started = Instant::now();
@@ -645,10 +648,12 @@ fn refresh_round(
         next.hidden_check_failed = check_failed;
         next.hidden_error = hidden_error;
         next.filter_active = filter.is_active();
+        next.filter = filter.clone();
         next.filtered_out = filtered_out;
         next.closed = closed;
     }
     next.refresh_setting_invalid = refresh_invalid;
+    next.refresh_minutes = minutes;
     next.filter_invalid = filter_invalid;
     // A failed round that keeps the items re-shapes them below. The hidden
     // records are read here, under the gate but before any `kept_*` lock.
@@ -699,6 +704,8 @@ fn refresh_round(
     let may_notify = notify_input(&next).is_some();
     // "To do" reconciles on the full list, never the filtered one.
     let todo_changed = reconcile_todo(app, &next, round_full.as_ref());
+    // The wait starts when the snapshot is stored.
+    next.next_refresh_at_ms = Some(now_ms().saturating_add(wait.as_millis() as u64));
     *state.write() = next;
     drop(gate);
     publish(app, &state);
@@ -1091,6 +1098,7 @@ mod tests {
         assert_eq!(items.merge_requests.len(), 1);
         assert!(items.hidden_issues.is_empty());
         assert!(next.filter_active);
+        assert_eq!(next.filter, filter);
         assert_eq!(
             next.filtered_out,
             FilteredOut {
@@ -1392,6 +1400,7 @@ mod tests {
             [1]
         );
         assert!(snap.filter_active);
+        assert_eq!(snap.filter, project_filter("acme/a"));
         assert_eq!(
             snap.filtered_out,
             FilteredOut {
@@ -1414,6 +1423,7 @@ mod tests {
             .unwrap();
         let snap = state.snapshot();
         assert!(!snap.filter_active);
+        assert_eq!(snap.filter, GitlabFilter::default());
         assert_eq!(snap.filtered_out, FilteredOut::default());
         assert_eq!(snap.items.unwrap().merge_requests.len(), 1);
     }
@@ -1437,26 +1447,31 @@ mod tests {
     #[test]
     fn act_on_issue_keeps_the_refresh_setting_flag() {
         let state = kept_state();
-        state.write().refresh_setting_invalid = true;
+        {
+            let mut snap = state.write();
+            snap.refresh_setting_invalid = true;
+            snap.refresh_minutes = 4;
+            snap.next_refresh_at_ms = Some(99);
+        }
         state
             .act_on_issue(1, |_, _| Ok(vec![record(1, None)]))
             .unwrap();
-        assert!(state.snapshot().refresh_setting_invalid);
+        let snap = state.snapshot();
+        assert!(snap.refresh_setting_invalid);
+        assert_eq!(snap.refresh_minutes, 4);
+        assert_eq!(snap.next_refresh_at_ms, Some(99));
     }
 
     #[test]
     fn refresh_interval_reads_the_setting_and_falls_back_to_ten_minutes() {
-        assert_eq!(
-            refresh_interval(&None),
-            (Duration::from_secs(10 * 60), false)
-        );
+        assert_eq!(refresh_interval(&None), (10, false));
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("settings.json");
         std::fs::write(&path, r#"{"version":1,"gitlabRefresh":{"minutes":3}}"#).unwrap();
         let p = Some(path.clone());
-        assert_eq!(refresh_interval(&p), (Duration::from_secs(3 * 60), false));
+        assert_eq!(refresh_interval(&p), (3, false));
         std::fs::write(&path, r#"{"version":1,"gitlabRefresh":{"minutes":15}}"#).unwrap();
-        assert_eq!(refresh_interval(&p), (Duration::from_secs(10 * 60), true));
+        assert_eq!(refresh_interval(&p), (10, true));
     }
 
     #[test]

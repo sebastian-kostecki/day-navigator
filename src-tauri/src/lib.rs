@@ -9,6 +9,7 @@ pub mod new_assignments;
 pub mod own_tasks;
 pub mod runtime;
 pub mod settings;
+pub mod settings_file;
 pub mod space;
 pub mod store;
 pub mod todo;
@@ -150,11 +151,7 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
-            let settings_path = app
-                .path()
-                .app_config_dir()
-                .ok()
-                .map(|dir| dir.join("settings.json"));
+            let settings_path = settings_file::settings_path(app.handle());
             let data_dir = app.path().app_data_dir().ok();
             // Not opened here: the first health or reminder round opens it on
             // its own thread, so `quick_check`, backup and migrations never
@@ -191,6 +188,7 @@ pub fn run() {
             gitlab_refresh::gitlab_snapshot,
             gitlab_refresh::refresh_gitlab,
             gitlab_refresh::mark_gitlab_seen,
+            settings_file::open_settings_file,
             github_refresh::github_snapshot,
             github_refresh::refresh_github,
             hidden_issues::commands::hide_gitlab_issue,

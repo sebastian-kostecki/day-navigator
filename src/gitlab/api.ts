@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { storeErrorMessage } from "../components/storeError";
-import type { GitlabSnapshot, HiddenIssueError } from "./types";
+import type { GitlabSnapshot, HiddenIssueError, OpenSettingsError } from "./types";
 
 export function getGitlabSnapshot(): Promise<GitlabSnapshot> {
   return invoke<GitlabSnapshot>("gitlab_snapshot");
@@ -66,4 +66,25 @@ export function hiddenIssueErrorMessage(e: unknown): string {
     default:
       return `Nieoczekiwany błąd (${(err as { kind: string }).kind})`;
   }
+}
+
+/** Opens `settings.json` from the app config folder in the default program. */
+export function openSettingsFile(): Promise<void> {
+  return invoke<void>("open_settings_file");
+}
+
+/** Polish message for anything thrown by `openSettingsFile`. */
+export function openSettingsErrorMessage(e: unknown): string {
+  if (typeof e === "object" && e !== null && "kind" in e) {
+    const err = e as OpenSettingsError;
+    switch (err.kind) {
+      case "ConfigDirUnresolved":
+        return "Nie można ustalić folderu ustawień aplikacji.";
+      case "Missing":
+        return "Brak pliku settings.json w folderze ustawień aplikacji.";
+      case "OpenFailed":
+        return "Nie udało się otworzyć settings.json.";
+    }
+  }
+  return `Nieoczekiwany błąd: ${String(e)}`;
 }

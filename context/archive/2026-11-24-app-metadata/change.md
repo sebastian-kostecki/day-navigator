@@ -1,10 +1,10 @@
 ---
 change_id: app-metadata
 title: Metadane aplikacji — opis i autor zamiast wartości z szablonu
-status: implemented
+status: archived
 created: 2026-11-24
 updated: 2026-11-24
-archived_at: null
+archived_at: 2026-11-24T07:59:27Z
 ---
 
 ## Notes

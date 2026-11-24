@@ -64,7 +64,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | S-07 | app-data-details            | see the last backup, kept backups and schema version, and open the backups folder       | F-03          | FR-022          | proposed |
 | S-08 | event-log                   | see today's events in a "Dziennik zdarzeń" panel on the dashboard                       | F-03          | FR-019          | proposed |
 | S-09 | release-notes               | see in each release what changed since the previous one                                 | —             | MS-14, FR-016   | in-progress |
-| S-10 | app-metadata                | see the real description and author in the exe and installer properties                 | —             | MS-15           | in-progress |
+| S-10 | app-metadata                | see the real description and author in the exe and installer properties                 | —             | MS-15           | done        |
 | S-11 | installer-signing           | install a release without a SmartScreen warning                                         | S-09          | MS-13, FR-016   | blocked  |
 
 ## Streams
@@ -281,7 +281,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** `Cargo.toml` is the only version source; the change must not bump the version by accident and publish a release.
-- **Status:** in-progress
+- **Status:** done
 
 ### S-11: Signed installer
 
@@ -357,3 +357,4 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-02: user can set in settings which assigned items the list shows — by project, labels, milestone and state.** — Archived 2026-11-23 → `context/archive/2026-11-23-gitlab-visibility-filter/`. Lesson: —.
 - **S-01: user can add an item to "To do" with a "+" button in each row of "Work (GitLab)" and "Projects (GitHub)", blocked at the limit with the same hint as the picker; an item already added shows the IN TO DO flag and a filled button.** — Archived 2026-11-24 → `context/archive/2026-11-24-todo-add-from-sources/`. Lesson: —.
 - **F-03: (foundation) `src-tauri/src/vault/`, the `vault:*` / `exclusions:*` health sources and their tests and fixtures are gone; AGENTS.md no longer carries the vault contract; the roadmap's parked item is resolved.** — Archived 2026-11-24 → `context/archive/2026-11-24-remove-vault-layer/`. Lesson: —.
+- **S-10: user can see the real description and author in the exe and installer properties instead of "A Tauri App" / "you".** — Archived 2026-11-24 → `context/archive/2026-11-24-app-metadata/`. Lesson: —.

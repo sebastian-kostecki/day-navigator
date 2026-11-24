@@ -1,7 +1,7 @@
 ---
 change_id: shared-ui-tools
 title: Wspólne narzędzia UI wyciągnięte z widoków
-status: implementing
+status: implemented
 created: 2026-11-24
 updated: 2026-11-24
 archived_at: null

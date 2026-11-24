@@ -290,11 +290,11 @@ Nie dotyczy — brak danych i kontraktów Rust. Usunięty `OwnTaskTabs.tsx` i ek
 
 #### Automated
 
-- [x] 3.1 Pełna bramka z AGENTS.md przechodzi: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [x] 3.2 `grep -n "gh auth login" src/github/GithubView.tsx` pokazuje polecenie wewnątrz `<code>`
+- [x] 3.1 Pełna bramka z AGENTS.md przechodzi: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` — 9f7fd0d
+- [x] 3.2 `grep -n "gh auth login" src/github/GithubView.tsx` pokazuje polecenie wewnątrz `<code>` — 9f7fd0d
 
 #### Manual
 
-- [x] 3.3 Wylogowane `gh`: czerwony blok „GitHub: brak sesji” z `gh auth login` w kroju mono; „Spróbuj ponownie” działa
-- [x] 3.4 GitLab bez VPN: „Sprawdź teraz” jest nieaktywne, dopóki trwa odświeżanie, i wraca po jego końcu; karta pozostaje spokojna (szara, bez czerwieni)
-- [x] 3.5 Inne błędy (`ErrorState` z tekstem) wyglądają jak dotąd
+- [x] 3.3 Wylogowane `gh`: czerwony blok „GitHub: brak sesji” z `gh auth login` w kroju mono; „Spróbuj ponownie” działa — 9f7fd0d
+- [x] 3.4 GitLab bez VPN: „Sprawdź teraz” jest nieaktywne, dopóki trwa odświeżanie, i wraca po jego końcu; karta pozostaje spokojna (szara, bez czerwieni) — 9f7fd0d
+- [x] 3.5 Inne błędy (`ErrorState` z tekstem) wyglądają jak dotąd — 9f7fd0d

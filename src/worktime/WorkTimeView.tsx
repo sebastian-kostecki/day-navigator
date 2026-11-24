@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Button, Field, Panel } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { workTimeErrorMessage } from "./api";
 import { formatClock, formatDuration } from "./format";
@@ -6,6 +7,7 @@ import { MonthReport } from "./MonthReport";
 import type { EntryRow } from "./types";
 import { useMonthReport } from "./useMonthReport";
 import { useWorkEntries } from "./useWorkEntries";
+import "./WorkTime.css";
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -45,13 +47,16 @@ function EntryForm(props: {
   initialEnd: string | null;
   showEnd: boolean;
   submitLabel: string;
+  /** The add form uses the dashed "add missing" button, the edit form a plain one. */
+  submitVariant: "secondary" | "dashed";
   onSave: SaveFn;
   onCancel?: () => void;
   entriesById: Map<number, EntryRow>;
   /** Clears the form after a successful add. */
   resetOnSave?: boolean;
 }) {
-  const { initialStart, initialEnd, showEnd, submitLabel, onSave, onCancel, entriesById } = props;
+  const { initialStart, initialEnd, showEnd, submitLabel, submitVariant, onSave, onCancel } = props;
+  const { entriesById } = props;
   const [start, setStart] = useState(initialStart);
   const [end, setEnd] = useState(initialEnd ?? "");
   const [saving, setSaving] = useState(false);
@@ -72,39 +77,37 @@ function EntryForm(props: {
   }
 
   return (
-    <form className="entry-form" onSubmit={submit}>
-      <fieldset disabled={saving}>
-        <label>
-          Początek
-          <input
+    <form className="wt-form" onSubmit={submit}>
+      <fieldset className="wt-form-fields" disabled={saving}>
+        <Field
+          label="Początek"
+          type="datetime-local"
+          step={60}
+          value={start}
+          onChange={(e) => setStart(e.currentTarget.value)}
+          required
+        />
+        {showEnd && (
+          <Field
+            label="Koniec"
             type="datetime-local"
             step={60}
-            value={start}
-            onChange={(e) => setStart(e.currentTarget.value)}
+            value={end}
+            onChange={(e) => setEnd(e.currentTarget.value)}
             required
           />
-        </label>
-        {showEnd && (
-          <label>
-            Koniec
-            <input
-              type="datetime-local"
-              step={60}
-              value={end}
-              onChange={(e) => setEnd(e.currentTarget.value)}
-              required
-            />
-          </label>
         )}
-        <button type="submit">{submitLabel}</button>
+        <Button type="submit" variant={submitVariant}>
+          {submitLabel}
+        </Button>
         {onCancel && (
-          <button type="button" onClick={onCancel}>
+          <Button variant="quiet" onClick={onCancel}>
             Anuluj
-          </button>
+          </Button>
         )}
       </fieldset>
       {error && (
-        <p className="task-error" role="alert">
+        <p className="wt-error" role="alert">
           {error}
         </p>
       )}
@@ -135,12 +138,13 @@ function EntryItem(props: {
 
   if (mode === "edit") {
     return (
-      <li className="entry-row">
+      <li className="wt-row is-editing">
         <EntryForm
           initialStart={row.startLocal}
           initialEnd={row.endLocal}
           showEnd={row.endMs !== null}
           submitLabel="Zapisz"
+          submitVariant="secondary"
           entriesById={entriesById}
           onSave={async (start, end) => {
             const err = await onUpdate(row.id, start, end);
@@ -154,33 +158,33 @@ function EntryItem(props: {
   }
 
   return (
-    <li className="entry-row">
-      <div className="entry-main">
-        <span className="entry-range">{rowRange(row, day)}</span>
-        <span className="entry-duration">{formatDuration(row.dayPortionMs)}</span>
+    <li className="wt-row">
+      <div className="wt-row-main">
+        <span className="wt-range">{rowRange(row, day)}</span>
+        <span className="wt-duration">{formatDuration(row.dayPortionMs)}</span>
       </div>
       {mode === "confirm" ? (
-        <span className="entry-actions">
-          Usunąć wpis?
-          <button type="button" disabled={busy} onClick={() => void confirmRemove()}>
+        <span className="wt-row-actions">
+          <span className="body">Usunąć wpis?</span>
+          <Button size="sm" disabled={busy} onClick={() => void confirmRemove()}>
             Tak
-          </button>
-          <button type="button" disabled={busy} onClick={() => setMode("view")}>
+          </Button>
+          <Button variant="quiet" size="sm" disabled={busy} onClick={() => setMode("view")}>
             Anuluj
-          </button>
+          </Button>
         </span>
       ) : (
-        <span className="entry-actions">
-          <button type="button" disabled={busy} onClick={() => setMode("edit")}>
+        <span className="wt-row-actions">
+          <Button variant="quiet" size="sm" disabled={busy} onClick={() => setMode("edit")}>
             Edytuj
-          </button>
-          <button type="button" disabled={busy} onClick={() => setMode("confirm")}>
+          </Button>
+          <Button variant="quiet" size="sm" disabled={busy} onClick={() => setMode("confirm")}>
             Usuń
-          </button>
+          </Button>
         </span>
       )}
       {removeError && (
-        <p className="task-error entry-error" role="alert">
+        <p className="wt-error wt-row-error" role="alert">
           {removeError}
         </p>
       )}
@@ -220,25 +224,33 @@ export default function WorkTimeView() {
   }
 
   const picker = (
-    <div className="day-picker">
-      <button type="button" aria-label="Poprzedni dzień" onClick={() => setDay(shiftDay(day, -1))}>
-        ◀
-      </button>
-      <input
+    <div className="wt-picker">
+      <Button
+        variant="quiet"
+        iconOnly
+        icon="chevron-left"
+        aria-label="Poprzedni dzień"
+        onClick={() => setDay(shiftDay(day, -1))}
+      />
+      <Field
+        label="Dzień"
         type="date"
         value={day}
         onChange={(e) => changeDay(e.currentTarget.value)}
-        aria-label="Dzień"
       />
-      <button type="button" aria-label="Następny dzień" onClick={() => setDay(shiftDay(day, 1))}>
-        ▶
-      </button>
+      <Button
+        variant="quiet"
+        iconOnly
+        icon="chevron-right"
+        aria-label="Następny dzień"
+        onClick={() => setDay(shiftDay(day, 1))}
+      />
     </div>
   );
 
   let body: React.ReactNode;
   if (entries.state === "loading") {
-    body = <p>Ładowanie…</p>;
+    body = <p className="dn-loading">Ładowanie…</p>;
   } else if (entries.state === "error") {
     body = (
       <ErrorState
@@ -261,57 +273,65 @@ export default function WorkTimeView() {
         : 0);
     body = (
       <>
-        {data.entries.length === 0 ? (
-          <p className="empty">Brak wpisów w tym dniu</p>
-        ) : (
-          <ul className="entry-list">
-            {data.entries.map((row) => (
-              <EntryItem
-                key={row.id}
-                row={row}
-                day={day}
-                busy={busyIds.has(row.id)}
-                entriesById={entriesById}
-                onUpdate={update}
-                onRemove={remove}
-              />
-            ))}
-          </ul>
-        )}
-        <p className="entry-total">
-          Razem: <strong>{formatDuration(total)}</strong>
-        </p>
-        <section className="new-entry">
-          <h2>Dodaj wpis</h2>
-          <EntryForm
-            key={day}
-            initialStart={`${day}T08:00`}
-            initialEnd={`${day}T09:00`}
-            showEnd
-            submitLabel="Dodaj"
-            entriesById={entriesById}
-            resetOnSave
-            onSave={(start, end) => add(start, end ?? "")}
-          />
-        </section>
+        <Panel
+          title="Wpisy"
+          footer={
+            <span className="wt-total">
+              Razem: <strong>{formatDuration(total)}</strong>
+            </span>
+          }
+        >
+          {data.entries.length === 0 ? (
+            <p className="dn-empty">Brak wpisów w tym dniu</p>
+          ) : (
+            <ul className="wt-entries">
+              {data.entries.map((row) => (
+                <EntryItem
+                  key={row.id}
+                  row={row}
+                  day={day}
+                  busy={busyIds.has(row.id)}
+                  entriesById={entriesById}
+                  onUpdate={update}
+                  onRemove={remove}
+                />
+              ))}
+            </ul>
+          )}
+        </Panel>
+        <Panel title="Dodaj wpis">
+          <div className="wt-new">
+            <EntryForm
+              key={day}
+              initialStart={`${day}T08:00`}
+              initialEnd={`${day}T09:00`}
+              showEnd
+              submitLabel="Dopisz"
+              submitVariant="dashed"
+              entriesById={entriesById}
+              resetOnSave
+              onSave={(start, end) => add(start, end ?? "")}
+            />
+          </div>
+        </Panel>
       </>
     );
   }
 
   const dayOffControl =
     entries.state === "loaded" && entries.data.dayKind !== "weekend" ? (
-      <div className="day-off">
-        <label>
+      <div className="wt-day-off">
+        <label className="wt-check">
           <input
             type="checkbox"
             checked={dayOffChecked}
             disabled={dayOffBusy}
             onChange={(e) => void toggleDayOff(e.currentTarget.checked)}
-          />{" "}
+          />
           Dzień wolny
         </label>
         {dayOffError?.day === day && (
-          <p className="task-error" role="alert">
+          <p className="wt-error" role="alert">
             {dayOffError.message}
           </p>
         )}
@@ -321,14 +341,16 @@ export default function WorkTimeView() {
   return (
     <main className="container">
       <h1>Czas pracy</h1>
-      {picker}
-      {dayOffControl}
       <MonthReport
         state={report}
         month={day.slice(0, 7)}
         onRetry={retryReport}
         onPickDay={setDay}
       />
+      <div className="wt-controls">
+        {picker}
+        {dayOffControl}
+      </div>
       {body}
     </main>
   );

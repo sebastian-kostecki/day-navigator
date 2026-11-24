@@ -250,13 +250,13 @@ export default function TodoView() {
       <h1>Do zrobienia</h1>
 
       {list.limitError && (
-        <p className="own-task-error" role="alert">
+        <p className="todo-error" role="alert">
           {todoErrorMessage(list.limitError)}
         </p>
       )}
 
       {notice && (
-        <p className="own-task-error" role="alert">
+        <p className="todo-error" role="alert">
           {notice}
         </p>
       )}

@@ -7,7 +7,6 @@ import OwnTasksView from "./own-tasks/OwnTasksView";
 import TodoView from "./todo/TodoView";
 import WorkTimeView from "./worktime/WorkTimeView";
 import { WorkTimerHeader } from "./worktime/WorkTimerHeader";
-import "./App.css";
 
 type View = "todo" | "gitlab" | "github" | "tasks" | "work-time" | "health";
 

@@ -8,7 +8,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 - Run `glab` / `gh` from Rust with a fixed program name and fixed argument lists: no shell, no string-built commands, no user-supplied flags. Read-only: never call a subcommand that creates, edits, closes, comments or assigns. An unreachable work GitLab (no VPN) is a calm "unavailable" state, not an alarm; a logged-out CLI is an error.
 - Work data (work vault content, company issues, hostnames) never goes into the repo, tests, fixtures, logs or the private space. Tests use invented data only.
 - Vaults are out of scope for the current MVP: no new code path reads or writes a vault. Existing vault code (`src-tauri/src/vault/`) keeps its contract: a write changes only the targeted line or section, the rest stays byte-identical, and nothing is hard-deleted (vault trash).
-- Outside folders configured in settings, the app writes only its own state under its bundle identifier: the app config dir (`settings.json`), the app data dir (own tasks, the "To do" list, hidden-issue snapshots, seen-assignment keys (opaque account key, kind, id), work-time entries) and the app log dir. Never user content or vault data there. If a configured path is missing, show an error; never create it silently.
+- Outside folders configured in settings, the app writes only its own state under its bundle identifier: the app config dir (`settings.json` and the window-state plugin's file), the app data dir (own tasks, the "To do" list, hidden-issue snapshots, seen-assignment keys (opaque account key, kind, id), work-time entries) and the app log dir. Never user content or vault data there. If a configured path is missing, show an error; never create it silently.
 - Never render an empty plan or list in place of a failed source; surface the failure.
 - Never bypass the pre-push hook (`--no-verify`) and never commit the denylist or its terms. `core.hooksPath` is relative, so push only from a checkout that contains `.githooks/pre-push`.
 - Change-scoped docs (research, plans, reviews) go in `context/changes/<change-id>/`.
@@ -26,6 +26,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 - A feature folder holds `<Name>View.tsx` (the screen), `api.ts` (the only file that imports `invoke` from `@tauri-apps/api/core`; one typed function per command), `types.ts` (TS mirrors of Rust serde types) and `use<Name>.ts` (loading/error/data state).
 - Navigation: `App.tsx` owns the active view in one piece of state and renders a fixed header (the work-time counter, always visible) plus the active view. No router or global state library without a plan that says so.
 - Every view that shows a source renders loading, error (via `src/components/ErrorState.tsx`, with the time of the last successful refresh) and data. "Empty" is a data state with an explicit message.
+- Styles: `src/styles/tokens.css` is the only place for values; no literal colours in any other CSS. Component CSS sits next to the component with a `dn-` prefix; view CSS is layout only. The theme is always dark (no `prefers-color-scheme`). `ErrorState` renders `SourceState kind="error"`. Design system: https://claude.ai/artifact/RAuK11sMerfzyBMr2gkiYY
 - Domain rules (hidden-issue reappearance, "To do" limit and carry-over, work-time norm and deviation) live in Rust and are unit-tested there; the UI only displays results and sends user actions.
 
 ## Rust ↔ TypeScript Contracts
@@ -45,7 +46,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 ## Tauri 2 Only
 
 - No v1 idioms: no `allowlist` in `tauri.conf.json`, no `tauri::api::*`, no `@tauri-apps/api/tauri` (use `@tauri-apps/api/core`).
-- Adding a plugin = crate in `src-tauri/Cargo.toml` + `.plugin(...)` in `lib.rs` + npm `@tauri-apps/plugin-*` on the same major.minor + its permissions in `capabilities/default.json`.
+- Adding a plugin = crate in `src-tauri/Cargo.toml` + `.plugin(...)` in `lib.rs` + npm `@tauri-apps/plugin-*` on the same major.minor + its permissions in `capabilities/default.json`. A plugin used only from Rust gets no npm package and no permissions (`window-state`).
 - Docs: https://v2.tauri.app/ , https://v2.tauri.app/plugin/ , https://docs.rs/tauri/2
 
 ## Build and Development Commands

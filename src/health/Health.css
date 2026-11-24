@@ -1,0 +1,36 @@
+/* Layout only: the panel, pills and states come from src/components. */
+
+.health-checked-at {
+  color: var(--ink-faint);
+}
+
+.health-sources {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.health-source {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2h) var(--space-4);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.health-source-label {
+  min-width: 0;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.health-source-message {
+  grid-column: 1 / -1;
+  color: var(--ink-faint);
+  word-break: break-word;
+}
+
+.health-source-message.is-error {
+  color: var(--danger-soft);
+}

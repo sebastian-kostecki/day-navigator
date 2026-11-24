@@ -47,3 +47,19 @@
   line-height: 24px;
   font-weight: 600;
 }
+
+/* A title that opens a URL: looks like text, underlined on hover. */
+.link-button {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}

@@ -1,64 +1,67 @@
+import { Button, StatStrip, type Stat } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { formatClock, formatHm, formatMonth, formatSigned, formatWorkdays } from "./format";
 import type { MonthReport as Report } from "./types";
 import type { MonthReportState } from "./useMonthReport";
 
-type CurrentReport = Extract<Report, { phase: "current" }>;
-
 function shortDay(day: string): string {
   return `${day.slice(8, 10)}.${day.slice(5, 7)}`;
 }
 
-function workedLine(report: Report): string {
-  return `Przepracowano ${formatHm(report.workedMs)} z ${formatHm(report.normMs)} (${formatWorkdays(report.workdays)})`;
-}
+/** The tiles that fit the month's phase (the same figures the text lines showed). */
+function stats(report: Report): Stat[] {
+  const worked: Stat = {
+    label: "Przepracowane",
+    value: formatHm(report.workedMs),
+    sub: `z ${formatHm(report.normMs)} normy (${formatWorkdays(report.workdays)})`,
+  };
+  if (report.phase === "future") return [worked];
 
-function neededLine(report: CurrentReport): string {
-  if (report.remainingMs === 0) return "Norma miesiąca wyrobiona";
+  const deviation: Stat = {
+    label: "Odchylenie",
+    value: formatSigned(report.deviationMs),
+    sub: report.phase === "past" ? "miesiąc zamknięty" : "do dziś",
+    tone: report.deviationMs < 0 ? "warn" : "info",
+  };
+  if (report.phase === "past") return [worked, deviation];
+
   // `neededPerDayMs` is null exactly when no workday is left after today.
-  if (report.workdaysAfterToday === 0 || report.neededPerDayMs === null) {
-    return `Do wyrobienia normy brakuje ${formatHm(report.remainingMs)}`;
+  const done = report.remainingMs === 0;
+  let neededSub: string | undefined;
+  if (done) {
+    neededSub = "norma miesiąca wyrobiona";
+  } else if (report.neededPerDayMs === null) {
+    neededSub = `brak dni roboczych, brakuje ${formatHm(report.remainingMs)}`;
   }
-  return `Średnio ${formatHm(report.neededPerDayMs)} dziennie przez ${formatWorkdays(report.workdaysAfterToday)}`;
+  return [
+    worked,
+    deviation,
+    {
+      label: "Średnio / dzień",
+      value: report.neededPerDayMs === null ? "—" : formatHm(report.neededPerDayMs),
+      sub: neededSub,
+    },
+    {
+      label: "Dni robocze po dziś",
+      value: String(report.workdaysAfterToday),
+      sub: "bez dzisiejszego dnia",
+    },
+  ];
 }
 
 function Lines({ report, onPickDay }: { report: Report; onPickDay: (day: string) => void }) {
-  let lines: React.ReactNode;
-  if (report.phase === "future") {
-    lines = (
-      <p>
-        Norma {formatHm(report.normMs)} ({formatWorkdays(report.workdays)})
-      </p>
-    );
-  } else if (report.phase === "past") {
-    lines = (
-      <>
-        <p>{workedLine(report)}</p>
-        <p>Odchylenie {formatSigned(report.deviationMs)} (miesiąc zamknięty)</p>
-      </>
-    );
-  } else {
-    lines = (
-      <>
-        <p>{workedLine(report)}</p>
-        <p>Odchylenie do dziś {formatSigned(report.deviationMs)}</p>
-        <p>{neededLine(report)}</p>
-      </>
-    );
-  }
-
   return (
     <>
-      {lines}
+      <StatStrip items={stats(report)} />
       {report.daysOff.length === 0 ? (
-        <p className="empty">Brak dni wolnych</p>
+        <p className="meta wt-muted">Brak dni wolnych</p>
       ) : (
-        <p className="days-off">
-          Dni wolne:{" "}
+        <p className="meta wt-days-off">
+          <span className="label-caps">Dni wolne:</span>
           {report.daysOff.map((d) => (
-            <button key={d} type="button" className="day-off-link" onClick={() => onPickDay(d)}>
+            <Button key={d} variant="quiet" size="sm" onClick={() => onPickDay(d)}>
               {shortDay(d)}
-            </button>
+            </Button>
           ))}
         </p>
       )}
@@ -75,7 +78,7 @@ export function MonthReport(props: {
   const { state, month, onRetry, onPickDay } = props;
   let content: React.ReactNode;
   if (state.state === "loading") {
-    content = <p>Ładowanie…</p>;
+    content = <p className="dn-loading">Ładowanie…</p>;
   } else if (state.state === "error") {
     content = (
       <ErrorState
@@ -92,8 +95,8 @@ export function MonthReport(props: {
     content = <Lines report={state.report} onPickDay={onPickDay} />;
   }
   return (
-    <section className="month-report">
-      <h2>Miesiąc: {formatMonth(month)}</h2>
+    <section className="wt-month">
+      <h2 className="panel-title">Miesiąc: {formatMonth(month)}</h2>
       {content}
     </section>
   );

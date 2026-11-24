@@ -53,6 +53,9 @@ jobs:
       - name: Pre-push hook self-test
         run: bash scripts/test-pre-push.sh
 
+      - name: Release notes self-test
+        run: bash scripts/test-release-notes.sh
+
   build-test:
     runs-on: windows-latest
     steps:
@@ -101,8 +104,12 @@ jobs:
     outputs:
       version: ${{ steps.decide.outputs.version }}
       publish: ${{ steps.decide.outputs.publish }}
+      notes: ${{ steps.notes.outputs.notes }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Tags and history: the release notes link to the previous app-v* tag.
+          fetch-depth: 0
 
       - name: Decide whether this version needs publishing
         id: decide
@@ -151,6 +158,24 @@ jobs:
             exit 1
           fi
 
+      - name: Release notes from CHANGELOG.md
+        id: notes
+        if: steps.decide.outputs.publish == 'true'
+        # Fails without a CHANGELOG.md section for this version, so no release.
+        shell: bash --noprofile --norc -e -o pipefail {0}
+        env:
+          VERSION: ${{ steps.decide.outputs.version }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          notes="$(bash scripts/release-notes.sh "$VERSION")"
+          printf '%s\n' "$notes"
+          delim="NOTES_$(openssl rand -hex 16)"
+          {
+            echo "notes<<$delim"
+            printf '%s\n' "$notes"
+            echo "$delim"
+          } >> "$GITHUB_OUTPUT"
+
   release:
     needs: [checks, build-test, version]
     if: needs.version.outputs.publish == 'true'
@@ -183,7 +208,7 @@ jobs:
           projectPath: .
           tagName: app-v__VERSION__
           releaseName: 'Nawigator dnia v__VERSION__'
-          releaseBody: 'Unsigned installer: if Windows SmartScreen warns, choose "More info" and then "Run anyway". It installs per user, no admin rights needed.'
+          releaseBody: ${{ needs.version.outputs.notes }}
           releaseDraft: false
           prerelease: false
           args: --bundles nsis

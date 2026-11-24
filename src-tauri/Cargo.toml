@@ -3,6 +3,8 @@ name = "day-navigator"
 version = "0.9.0"
 description = "Nawigator dnia: jedno miejsce na dzień pracy (zadania z GitLaba i GitHuba, lista Do zrobienia, czas pracy)"
 authors = ["Sebastian Kostecki"]
+license = "MIT"
+repository = "https://github.com/sebastian-kostecki/day-navigator"
 edition = "2024"
 default-run = "day-navigator"
 

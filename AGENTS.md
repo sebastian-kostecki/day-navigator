@@ -70,7 +70,7 @@ Run `cargo test` in `src-tauri/` (unit, property and integration tests). Tests u
 
 ## Commits and Pull Requests
 
-The remote is a private GitHub repository, reached only through `gh`. CI is `.github/workflows/ci.yml`: every push runs secret scan, audits, lint/format (ESLint, Prettier, rustfmt, clippy) and build/test; a push to `main` also publishes the NSIS installer as a GitHub Release.
+The remote is a public GitHub repository (MIT, see `LICENSE`), reached only through `gh`. Everything pushed is public: the work-data rule and the pre-push denylist matter all the more. CI is `.github/workflows/ci.yml`: every push runs secret scan, audits, lint/format (ESLint, Prettier, rustfmt, clippy) and build/test; a push to `main` also publishes the NSIS installer as a GitHub Release.
 
 - Release: bump `version` in `src-tauri/Cargo.toml`, run `cargo build` to refresh `Cargo.lock`, commit both and push to `main`. No bump means nothing is published (CI still runs). `Cargo.toml` is the only version source; the `package.json` version is unused.
 - One-time setup per clone: `git config core.hooksPath .githooks`, and a denylist of work terms at `%USERPROFILE%\.day-navigator\push-denylist.txt` (the pre-push hook blocks pushes without it).

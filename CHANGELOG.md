@@ -11,6 +11,12 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
 
 ## [Unreleased]
 
+### Changed
+
+- The project is open source under the MIT license (`LICENSE`). The README
+  has a contributing section, and `Cargo.toml` and `package.json` declare the
+  license.
+
 ## [0.9.0] - 2026-11-24
 
 ### Changed

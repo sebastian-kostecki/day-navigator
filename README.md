@@ -13,7 +13,7 @@
   <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/sebastian-kostecki/day-navigator?style=for-the-badge&label=Release" alt="Latest release"></a>
   <a href="../../actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/sebastian-kostecki/day-navigator/ci.yml?branch=main&style=for-the-badge&label=CI" alt="CI status"></a>
   <a href="#requirements"><img src="https://img.shields.io/badge/Platform-Windows%2011-0078D4?style=for-the-badge" alt="Platform: Windows 11"></a>
-  <a href="#license"><img src="https://img.shields.io/badge/License-All%20rights%20reserved-lightgrey?style=for-the-badge" alt="License: all rights reserved"></a>
+  <a href="#license"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="License: MIT"></a>
 </p>
 
 <p align="center">
@@ -148,6 +148,13 @@ and contributor rules are in [AGENTS.md](AGENTS.md).
 3. Push to `main`. CI builds the NSIS installer and publishes it as a GitHub Release, using
    the changelog section as the release notes.
 
+## Contributing
+
+Issues and pull requests are welcome. Before you open a pull request, run the checks listed
+under [Development](#development). Tests and fixtures use invented data only; never commit
+real hostnames, issue contents or other work data. The full rules for the codebase are in
+[AGENTS.md](AGENTS.md).
+
 ## License
 
-Personal project. All rights reserved © 2026 Sebastian Kostecki.
+[MIT](LICENSE) © 2026 Sebastian Kostecki.

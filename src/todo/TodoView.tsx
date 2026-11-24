@@ -23,9 +23,11 @@ import type { OwnTask, Space } from "../own-tasks/types";
 import { useMonthReport } from "../worktime/useMonthReport";
 import { useWorkTimer } from "../worktime/useWorkTimer";
 import { todoErrorMessage } from "./api";
+import { entryKey, githubKey, gitlabKey } from "./keys";
 import { SourcesPanel } from "./SourcesPanel";
 import { plural, summaryStats } from "./summary";
-import type { TodoEntry, TodoItem, TodoList } from "./types";
+import { TodoAddButton } from "./TodoAddButton";
+import type { TodoItem, TodoList } from "./types";
 import { useTodo } from "./useTodo";
 import "./TodoView.css";
 
@@ -91,27 +93,6 @@ function carriedLabel(pickedOn: string, today: string): string {
 function shortRef(reference: string): string {
   const at = Math.max(reference.lastIndexOf("#"), reference.lastIndexOf("!"));
   return at < 0 ? reference : reference.slice(at);
-}
-
-// Picker keys carry the source, so a GitHub `owner/repo#N` can never collide
-// with a GitLab reference.
-function gitlabKey(kind: string, reference: string): string {
-  return `gitlab:${kind}:${reference}`;
-}
-
-function githubKey(reference: string): string {
-  return `github:${reference}`;
-}
-
-function entryKey(entry: TodoEntry): string {
-  switch (entry.kind) {
-    case "own":
-      return `own:${entry.taskId}`;
-    case "gitlab":
-      return gitlabKey(entry.itemKind, entry.reference);
-    case "github":
-      return githubKey(entry.reference);
-  }
 }
 
 /** `owner/name` part of a `owner/name#N` reference. */
@@ -605,22 +586,16 @@ function Picker({
       ? ownLoad.tasks.filter((t) => t.doneAt === null && !onList.has(`own:${t.id}`))
       : [];
   const total = gitlabCandidates.length + githubCandidates.length + ownCandidates.length;
-  const disabled = busy || atLimit;
-  const disabledHint =
-    list.limit !== null && atLimit ? `Limit ${list.limit} otwartych pozycji` : undefined;
-
-  function addButton(label: string, onClick: () => void) {
+  function addButton(label: string, onAdd: () => void) {
     return (
-      <Button
-        variant="quiet"
-        size="sm"
-        iconOnly
-        icon="plus"
+      <TodoAddButton
         className="todo-add"
-        disabled={disabled}
-        title={disabledHint}
-        aria-label={`Dodaj: ${label}`}
-        onClick={onClick}
+        label={label}
+        onList={false}
+        atLimit={atLimit}
+        limit={list.limit}
+        disabled={busy}
+        onAdd={onAdd}
       />
     );
   }

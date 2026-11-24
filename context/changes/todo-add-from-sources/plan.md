@@ -224,10 +224,10 @@ Brak: bez zmian schematu i danych.
 
 #### Automated
 
-- [x] 1.1 `cargo fmt --check` w `src-tauri/` przechodzi
-- [x] 1.2 `cargo clippy --all-targets -- -D warnings` w `src-tauri/` przechodzi
-- [x] 1.3 `cargo test` w `src-tauri/` przechodzi
-- [x] 1.4 W `src-tauri/src` nie ma już literału `"todo-changed"` poza `todo::CHANGED_EVENT`
+- [x] 1.1 `cargo fmt --check` w `src-tauri/` przechodzi — 353e93d
+- [x] 1.2 `cargo clippy --all-targets -- -D warnings` w `src-tauri/` przechodzi — 353e93d
+- [x] 1.3 `cargo test` w `src-tauri/` przechodzi — 353e93d
+- [x] 1.4 W `src-tauri/src` nie ma już literału `"todo-changed"` poza `todo::CHANGED_EVENT` — 353e93d
 
 #### Manual
 
@@ -237,9 +237,9 @@ Brak: bez zmian schematu i danych.
 
 #### Automated
 
-- [ ] 2.1 `npm run lint` przechodzi
-- [ ] 2.2 `npm run format:check` przechodzi
-- [ ] 2.3 `npm run build` przechodzi bez błędów
+- [x] 2.1 `npm run lint` przechodzi
+- [x] 2.2 `npm run format:check` przechodzi
+- [x] 2.3 `npm run build` przechodzi bez błędów
 
 #### Manual
 

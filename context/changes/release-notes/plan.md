@@ -132,10 +132,10 @@ Istniejące wydania 0.1.0 i 0.2.0 zachowują stary opis. Przy uzupełnianiu wyda
 
 - [x] 1.1 Self-test przechodzi lokalnie
 - [x] 1.2 Próba na sucho na prawdziwej historii
-- [ ] 1.3 ci.yml parsuje się, release dostaje notes
+- [x] 1.3 ci.yml parsuje się, release dostaje notes (2026-11-24: CI [run 45352441666](https://github.com/sebastian-kostecki/day-navigator/actions/runs/45352441666) dla `9eff6c4` — checks, build-test, version i release zielone)
 - [x] 1.4 version nadal 0.2.0
 - [x] 1.5 Kontrole sprzed commita przechodzą
 
 #### Manual
 
-- [ ] 1.6 Następne wydanie pokazuje opis z CHANGELOG
+- [x] 1.6 Następne wydanie pokazuje opis z CHANGELOG (2026-11-24: [app-v0.2.1](https://github.com/sebastian-kostecki/day-navigator/releases/tag/app-v0.2.1) ma sekcję `[0.2.1]` z CHANGELOG, link porównania `app-v0.2.0...app-v0.2.1` i uwagę o niepodpisanym instalatorze)

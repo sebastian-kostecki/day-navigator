@@ -54,7 +54,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | F-02 | shared-work-timer-state     | (foundation) one work-timer state feeds the header, dashboard and "Work time"           | —             | MS-09           | done     |
 | F-03 | remove-vault-layer          | (foundation) the vault layer and its health sources are gone                            | —             | MS-11           | done     |
 | F-04 | konsola-design-system       | (foundation) the Konsola design system is checked by hand and its change archived       | —             | MS-12           | done     |
-| F-05 | design-system-artifact-sync | (foundation) the design-system artifact matches the app                                 | F-04          | MS-16           | in-progress |
+| F-05 | design-system-artifact-sync | (foundation) the design-system artifact matches the app                                 | F-04          | MS-16           | done       |
 | S-01 | todo-add-from-sources       | add an item to "To do" with "+" from the GitLab and GitHub views                        | —             | FR-026, US-01   | done     |
 | S-02 | gitlab-new-and-hidden-date  | see a NEW flag on fresh GitLab items and the date a row was hidden                      | —             | FR-023          | done     |
 | S-03 | gitlab-filter-bar-retry     | see the active filter values and when GitLab will be tried again                        | F-01          | FR-024          | done     |
@@ -156,7 +156,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** It edits a published artifact outside the repo; if the manual check (F-04) changes the UI, syncing first would document a state that does not ship.
-- **Status:** in-progress
+- **Status:** done
 
 ## Slices
 
@@ -369,3 +369,4 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-08: user can see a "Dziennik zdarzeń" panel under "Stan źródeł" on the dashboard with today's events: new assignments, ticking or removing "To do" items, START/STOP, a source going into error and back.** — Archived 2026-11-24 → `context/archive/2026-11-24-event-log/`. Lesson: —.
 - **S-06: user can see a "Przypomnienia" panel with the reminder thresholds and whether reminders are on; no editing, the settings stay in the file.** — Archived 2026-11-24 → `context/archive/2026-11-24-worktime-reminders-panel/`. Lesson: —.
 - **S-07: user can see in the "Dane aplikacji" card the time of the last backup, the number of kept backups ("7 z 7"), the schema version, and open the backups folder.** — Archived 2026-11-24 → `context/archive/2026-11-24-app-data-details/`. Lesson: —.
+- **F-05: (foundation) the "Day Navigator — Konsola" artifact's README and components match the app: Flag tone `new`, `ItemRow` id, `ItemRow` labels, `HoursBar` with a required `norm` (from Rust), `DataTable` row states `current`/`hatched` and cell tones `info`/`warn`, numbered navigation with shortcuts, `Notice`, START/STOP confirmation, app and tray icons.** — Archived 2026-11-24 → `context/archive/2026-11-24-design-system-artifact-sync/`. Lesson: —.

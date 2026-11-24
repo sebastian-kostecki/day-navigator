@@ -1,7 +1,7 @@
 ---
 change_id: shared-work-timer-state
 title: Wspólny stan licznika czasu pracy w UI
-status: implemented
+status: impl_reviewed
 created: 2026-11-24
 updated: 2026-11-24
 ---

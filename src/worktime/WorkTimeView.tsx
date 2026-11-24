@@ -80,6 +80,9 @@ export default function WorkTimeView() {
   const { entries, add, update, remove, setDayOff, dayOffChecked, dayOffBusy, busyIds, retry } =
     useWorkEntries(day);
   const { report, retry: retryReport } = useMonthReport(day);
+  // One tick for the whole app: the entries list also follows the shared timer.
+  // While the timer is unavailable (e.g. its status read fails on the month
+  // report) a running entry here stops too, until the header's retry or focus.
   const { timer, nowMs } = useWorkTimer();
   // A refusal belongs to the day it happened on.
   const [dayOffError, setDayOffError] = useState<{ day: string; message: string } | null>(null);

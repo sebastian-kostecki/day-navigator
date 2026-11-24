@@ -1,0 +1,135 @@
+/* Layout only: the rows, panels, fields and buttons come from src/components. */
+
+.own-form-card {
+  padding: var(--space-4);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.own-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.own-form > h2 {
+  margin: 0;
+}
+
+.own-form-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.own-form-space {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.own-form-note {
+  flex: 1 1 100%;
+}
+
+.own-form-counters {
+  display: flex;
+  flex: 1 1 100%;
+  justify-content: flex-end;
+  gap: var(--space-4);
+  margin: calc(-1 * var(--space-2)) 0 0;
+  color: var(--ink-faint);
+}
+
+.own-form-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex: 1 1 100%;
+}
+
+.own-error {
+  margin: 0;
+  color: var(--danger-ink);
+}
+
+.own-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+}
+
+.own-show-done {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.own-show-done input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.own-item {
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.own-item > .dn-row {
+  border-bottom: 0;
+}
+
+.own-item.is-editing {
+  padding: var(--space-4);
+  background: var(--surface-raised);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.own-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1) var(--space-3);
+}
+
+.own-overdue {
+  color: var(--danger);
+}
+
+/* Indented to line up under the title, past the checkbox and the source chip. */
+.own-note-wrap {
+  padding: 0 var(--space-4) var(--space-3) calc(var(--space-4) + 18px + var(--space-3));
+}
+
+/* 3 lines of 18px: the toggle shows only when the note overflows them. */
+.own-note {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-muted);
+}
+
+.own-note.is-expanded {
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+
+.own-note-toggle {
+  margin-top: var(--space-1);
+}

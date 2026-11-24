@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { Button, ItemRow, Panel, Segmented } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { ownTaskDefaultSpace, ownTaskErrorMessage } from "./api";
 import { OwnTaskForm } from "./OwnTaskForm";
 import type { OwnTask, Priority, Space } from "./types";
 import { useOwnTasks } from "./useOwnTasks";
+import "./OwnTasks.css";
 
 type Filter = "all" | Space;
 
@@ -22,6 +24,13 @@ const PRIORITY_LABEL: Record<Priority, string> = {
 
 function lastRefreshLabel(at: Date | null): string {
   return `Ostatnie udane odświeżenie: ${at ? at.toLocaleTimeString("pl-PL") : "brak"}`;
+}
+
+/** Today as a local `YYYY-MM-DD`, comparable with a task's `due`. */
+function todayIso(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 /** The note clamped to a few lines, with a toggle shown only when it overflows. */
@@ -43,21 +52,22 @@ function NotePreview({ note }: { note: string }) {
   }, [note, expanded]);
 
   return (
-    <>
-      <p ref={ref} className={expanded ? "own-task-note expanded" : "own-task-note"}>
+    <div className="own-note-wrap">
+      <p ref={ref} className={expanded ? "own-note is-expanded" : "own-note"}>
         {note}
       </p>
       {(overflows || expanded) && (
-        <button
-          type="button"
-          className="link-button own-task-note-toggle"
+        <Button
+          variant="quiet"
+          size="sm"
+          className="own-note-toggle"
           aria-expanded={expanded}
           onClick={() => setExpanded((x) => !x)}
         >
           {expanded ? "Zwiń notatkę" : "Pokaż całą notatkę"}
-        </button>
+        </Button>
       )}
-    </>
+    </div>
   );
 }
 
@@ -105,7 +115,7 @@ export default function OwnTasksView() {
     return (
       <main className="container">
         <h1>Moje zadania</h1>
-        <p>Ładowanie…</p>
+        <p className="dn-loading">Ładowanie…</p>
       </main>
     );
   }
@@ -137,10 +147,12 @@ export default function OwnTasksView() {
       filter === "all" ? "Brak otwartych zadań." : "Brak otwartych zadań w tej przestrzeni.";
   }
 
+  const today = todayIso();
+
   function renderTask(task: OwnTask) {
     if (editingId === task.id) {
       return (
-        <li key={task.id} className="own-task-row editing">
+        <div key={task.id} className="own-item is-editing">
           <OwnTaskForm
             heading="Edycja zadania"
             initial={{
@@ -158,36 +170,45 @@ export default function OwnTasksView() {
             }}
             onCancel={() => setEditingId(null)}
           />
-        </li>
+        </div>
       );
     }
     const isDone = task.doneAt !== null;
+    const overdue = !isDone && task.due !== null && task.due < today;
+    const dueToday = !isDone && task.due === today;
     return (
-      <li key={task.id} className={isDone ? "own-task-row is-done" : "own-task-row"}>
-        <input
-          type="checkbox"
-          checked={isDone}
-          disabled={busy.has(task.id)}
-          onChange={() => void toggleDone(task)}
-          aria-label={isDone ? `Otwórz ponownie: ${task.title}` : `Zrobione: ${task.title}`}
-        />
-        <div className="own-task-main">
-          <span className="own-task-title">{task.title}</span>
-          <span className="own-task-meta">
-            <span className={`own-task-badge ${task.space}`}>{SPACE_LABEL[task.space]}</span>
-            {task.due && <span>Termin: {task.due}</span>}
-            {task.priority && <span>Priorytet: {PRIORITY_LABEL[task.priority]}</span>}
-          </span>
-          {task.note && <NotePreview note={task.note} />}
-        </div>
-        <button
-          type="button"
-          aria-label={`Edytuj: ${task.title}`}
-          onClick={() => setEditingId(task.id)}
+      <div key={task.id} className="own-item">
+        <ItemRow
+          id={`own-${task.id}`}
+          done={isDone}
+          onToggle={() => void toggleDone(task)}
+          checkboxDisabled={busy.has(task.id)}
+          checkboxLabel={isDone ? `Otwórz ponownie: ${task.title}` : `Zrobione: ${task.title}`}
+          source="my"
+          title={task.title}
+          flag={dueToday ? "dziś" : undefined}
+          flagTone="change"
+          meta={
+            <span className="own-meta">
+              <span>{SPACE_LABEL[task.space]}</span>
+              {task.due && (
+                <span className={overdue ? "own-overdue" : undefined}>Termin: {task.due}</span>
+              )}
+              {task.priority && <span>Priorytet: {PRIORITY_LABEL[task.priority]}</span>}
+            </span>
+          }
         >
-          Edytuj
-        </button>
-      </li>
+          <Button
+            variant="quiet"
+            size="sm"
+            iconOnly
+            icon="edit"
+            aria-label={`Edytuj: ${task.title}`}
+            onClick={() => setEditingId(task.id)}
+          />
+        </ItemRow>
+        {task.note && <NotePreview note={task.note} />}
+      </div>
     );
   }
 
@@ -196,45 +217,41 @@ export default function OwnTasksView() {
       <h1>Moje zadania</h1>
 
       {defaultSpace !== null && (
-        <OwnTaskForm
-          heading="Dodaj zadanie"
-          initial={{ space: defaultSpace, title: "", note: "", due: null, priority: null }}
-          submitLabel="Dodaj"
-          onSubmit={add}
-          resetOnSuccess
-        />
+        <div className="own-form-card">
+          <OwnTaskForm
+            heading="Dodaj zadanie"
+            initial={{ space: defaultSpace, title: "", note: "", due: null, priority: null }}
+            submitLabel="Dodaj"
+            onSubmit={add}
+            resetOnSuccess
+          />
+        </div>
       )}
       {defaultSpaceError && (
-        <p className="own-task-error" role="alert">
+        <p className="own-error" role="alert">
           {defaultSpaceError}
         </p>
       )}
 
-      <div className="own-task-filter" role="group" aria-label="Filtr przestrzeni">
-        {FILTERS.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            className={filter === f.value ? "active" : undefined}
-            aria-pressed={filter === f.value}
-            onClick={() => setFilter(f.value)}
-          >
-            {f.label}
-          </button>
-        ))}
+      <div className="own-controls">
+        <Segmented
+          label="Filtr przestrzeni"
+          options={FILTERS}
+          value={filter}
+          onChange={(value) => setFilter(value as Filter)}
+        />
+        <label className="own-show-done">
+          <input
+            type="checkbox"
+            checked={showDone}
+            onChange={(e) => setShowDone(e.currentTarget.checked)}
+          />
+          Pokaż zrobione
+        </label>
       </div>
 
-      <label className="toggle">
-        <input
-          type="checkbox"
-          checked={showDone}
-          onChange={(e) => setShowDone(e.currentTarget.checked)}
-        />
-        Pokaż zrobione
-      </label>
-
       {notice && (
-        <p className="own-task-error" role="alert">
+        <p className="own-error" role="alert">
           {notice}
         </p>
       )}
@@ -248,19 +265,20 @@ export default function OwnTasksView() {
         />
       )}
 
-      {emptyMessage && <p className="empty">{emptyMessage}</p>}
-      {open.length > 0 && <ul className="own-task-list">{open.map(renderTask)}</ul>}
+      <Panel title="Otwarte" meta={open.length}>
+        {emptyMessage && <p className="dn-empty">{emptyMessage}</p>}
+        {open.map(renderTask)}
+      </Panel>
 
       {/* With no tasks at all, the single "no tasks yet" message says it all. */}
       {showDone && tasks.length > 0 && (
-        <>
-          <h2>Zrobione</h2>
+        <Panel title="Zrobione" meta={done.length}>
           {done.length === 0 ? (
-            <p className="empty">Brak zrobionych zadań.</p>
+            <p className="dn-empty">Brak zrobionych zadań.</p>
           ) : (
-            <ul className="own-task-list">{done.map(renderTask)}</ul>
+            done.map(renderTask)
           )}
-        </>
+        </Panel>
       )}
     </main>
   );

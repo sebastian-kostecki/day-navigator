@@ -492,8 +492,8 @@ Fonty dodają poniżej 1 MB do instalatora (pełne pliki woff2, sześć grubośc
 
 #### Automated
 
-- [x] 4.1 Bramki frontendu przechodzą: `npm run lint`, `npm run format:check`, `npm run build`
-- [x] 4.2 Ani widoki, ani `App.css` nie zawierają starych klas: `git grep --untracked -nE "gitlab-item|gitlab-notice|badge-changed|gitlab-section" -- src` nic nie zwraca
+- [x] 4.1 Bramki frontendu przechodzą: `npm run lint`, `npm run format:check`, `npm run build` — 6876ffb
+- [x] 4.2 Ani widoki, ani `App.css` nie zawierają starych klas: `git grep --untracked -nE "gitlab-item|gitlab-notice|badge-changed|gitlab-section" -- src` nic nie zwraca — 6876ffb
 
 #### Manual
 
@@ -506,8 +506,8 @@ Fonty dodają poniżej 1 MB do instalatora (pełne pliki woff2, sześć grubośc
 
 #### Automated
 
-- [ ] 5.1 Bramki frontendu przechodzą: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 5.2 Ani widok, ani `App.css` nie zawierają starych klas: `git grep --untracked -nE "own-task-row|own-task-badge|own-task-filter" -- src` nic nie zwraca
+- [x] 5.1 Bramki frontendu przechodzą: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 5.2 Ani widok, ani `App.css` nie zawierają starych klas: `git grep --untracked -nE "own-task-row|own-task-badge|own-task-filter" -- src` nic nie zwraca
 
 #### Manual
 

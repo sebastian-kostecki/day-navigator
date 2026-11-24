@@ -1,5 +1,7 @@
 import { useState } from "react";
+import { Button, Field, Segmented } from "../components";
 import type { OwnTaskInput, Priority, Space } from "./types";
+import "./OwnTasks.css";
 
 type Props = {
   heading?: string;
@@ -14,6 +16,28 @@ type Props = {
 
 const TITLE_MAX = 200;
 const NOTE_MAX = 2000;
+
+const SPACE_OPTIONS: { value: Space; label: string }[] = [
+  { value: "work", label: "Praca" },
+  { value: "private", label: "Prywatne" },
+];
+
+// `Field` renders select options with the label as the value, so the
+// priority select works on labels and these maps translate to the domain value.
+const NO_PRIORITY = "—";
+const PRIORITY_LABELS: Record<Priority, string> = {
+  high: "Wysoki",
+  medium: "Średni",
+  low: "Niski",
+};
+const PRIORITY_OPTIONS = [NO_PRIORITY, ...Object.values(PRIORITY_LABELS)];
+
+function priorityFromLabel(label: string): Priority | "" {
+  const found = (Object.keys(PRIORITY_LABELS) as Priority[]).find(
+    (p) => PRIORITY_LABELS[p] === label,
+  );
+  return found ?? "";
+}
 
 // No `maxLength` on purpose: the browser would silently cut pasted text and
 // counts UTF-16 units, not characters. Rust is the only limit; the counters
@@ -60,64 +84,63 @@ export function OwnTaskForm({
   }
 
   return (
-    <form className="own-task-form" onSubmit={submit}>
-      {heading && <h2>{heading}</h2>}
-      <fieldset disabled={pending}>
-        <input
-          type="text"
-          className="own-task-title-input"
+    <form className="own-form" onSubmit={submit}>
+      {heading && <h2 className="panel-title">{heading}</h2>}
+      <fieldset className="own-form-fields" disabled={pending}>
+        <div className="own-form-space">
+          <span className="label-caps">Przestrzeń</span>
+          <Segmented
+            label="Przestrzeń"
+            options={SPACE_OPTIONS}
+            value={space}
+            onChange={(value) => setSpace(value as Space)}
+          />
+        </div>
+        <Field
+          grow
+          label="Tytuł"
           value={title}
           onChange={(e) => setTitle(e.currentTarget.value)}
           placeholder="Tytuł"
-          aria-label="Tytuł"
         />
-        <span className="own-task-counter">
-          {charCount(title)}/{TITLE_MAX}
-        </span>
-        <textarea
-          className="own-task-note-input"
-          value={note}
-          onChange={(e) => setNote(e.currentTarget.value)}
-          placeholder="Notatka (opcjonalnie)"
-          aria-label="Notatka"
-          rows={3}
-        />
-        <span className="own-task-counter">
-          {charCount(note)}/{NOTE_MAX}
-        </span>
-        <select
-          value={space}
-          onChange={(e) => setSpace(e.currentTarget.value as Space)}
-          aria-label="Przestrzeń"
-        >
-          <option value="work">Praca</option>
-          <option value="private">Prywatne</option>
-        </select>
-        <input
+        <Field
+          label="Termin"
           type="date"
           value={due}
           onChange={(e) => setDue(e.currentTarget.value)}
-          aria-label="Termin"
         />
-        <select
-          value={priority}
-          onChange={(e) => setPriority(e.currentTarget.value as Priority | "")}
-          aria-label="Priorytet"
-        >
-          <option value="">—</option>
-          <option value="high">Wysoki</option>
-          <option value="medium">Średni</option>
-          <option value="low">Niski</option>
-        </select>
-        <button type="submit">{submitLabel}</button>
-        {onCancel && (
-          <button type="button" onClick={onCancel}>
-            Anuluj
-          </button>
-        )}
+        <Field
+          label="Priorytet"
+          options={PRIORITY_OPTIONS}
+          value={priority === "" ? NO_PRIORITY : PRIORITY_LABELS[priority]}
+          onChange={(e) => setPriority(priorityFromLabel(e.currentTarget.value))}
+        />
+        <Field
+          multiline
+          className="own-form-note"
+          label="Notatka"
+          value={note}
+          onChange={(e) => setNote(e.currentTarget.value)}
+          placeholder="Notatka (opcjonalnie)"
+          rows={3}
+        />
+        <p className="meta own-form-counters">
+          <span>
+            Tytuł {charCount(title)}/{TITLE_MAX}
+          </span>
+          <span>
+            Notatka {charCount(note)}/{NOTE_MAX}
+          </span>
+        </p>
+        <div className="own-form-actions">
+          <Button type="submit" variant="primary">
+            {submitLabel}
+          </Button>
+          {onCancel && <Button onClick={onCancel}>Anuluj</Button>}
+        </div>
       </fieldset>
       {error && (
-        <p className="own-task-error" role="alert">
+        <p className="own-error" role="alert">
           {error}
         </p>
       )}

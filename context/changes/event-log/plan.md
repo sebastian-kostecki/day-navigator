@@ -354,11 +354,11 @@ Migracja v10 tworzy pustą tabelę `events`; istniejące dane bez zmian. S-07 (`
 
 #### Manual
 
-- [ ] 3.5 Po pierwszym uruchomieniu nowej wersji panel „Dziennik zdarzeń” jest pod „Stanem źródeł” i pokazuje „Brak zdarzeń dzisiaj.” (albo błędy źródeł z pierwszej rundy)
-- [ ] 3.6 Odhaczenie pozycji GitLab, GitHub i własnej daje od razu wiersze „Odhaczono” z krótką referencją i tytułem (własna: sam tytuł); najechanie na referencję pokazuje pełną; odznaczenie nie dodaje wiersza; „Zdjęto” po zdjęciu pozycji
-- [ ] 3.7 START i STOP w nagłówku dają wiersze „START” / „STOP” z bieżącą godziną
-- [ ] 3.8 Z VPN: przypisanie sobie testowego zgłoszenia daje po rundzie „Nowe przypisanie”; zamknięcie zgłoszenia z „Do zrobienia” w GitLabie daje „Zamknięte w źródle”
-- [ ] 3.9 Wylogowanie `gh` (`gh auth logout`) daje „GitHub: błąd — wylogowano”, ponowne zalogowanie „GitHub: znowu działa”; odłączenie VPN nie dodaje wiersza
-- [ ] 3.10 Po restarcie aplikacji dzisiejsze zdarzenia są nadal widoczne; po północy (albo po zmianie daty systemowej na jutro) panel jest pusty
-- [ ] 3.11 Log aplikacji z tej sesji nie zawiera referencji ani tytułów z dziennika
-- [ ] 3.12 W wąskim oknie (800 px) długie tytuły ucinają się wielokropkiem i nie rozsypują kolumny
+- [x] 3.5 Po pierwszym uruchomieniu nowej wersji panel „Dziennik zdarzeń” jest pod „Stanem źródeł” i pokazuje „Brak zdarzeń dzisiaj.” (albo błędy źródeł z pierwszej rundy)
+- [x] 3.6 Odhaczenie pozycji GitLab, GitHub i własnej daje od razu wiersze „Odhaczono” z krótką referencją i tytułem (własna: sam tytuł); najechanie na referencję pokazuje pełną; odznaczenie nie dodaje wiersza; „Zdjęto” po zdjęciu pozycji
+- [x] 3.7 START i STOP w nagłówku dają wiersze „START” / „STOP” z bieżącą godziną
+- [x] 3.8 Z VPN: przypisanie sobie testowego zgłoszenia daje po rundzie „Nowe przypisanie”; zamknięcie zgłoszenia z „Do zrobienia” w GitLabie daje „Zamknięte w źródle”
+- [x] 3.9 Wylogowanie `gh` (`gh auth logout`) daje „GitHub: błąd — wylogowano”, ponowne zalogowanie „GitHub: znowu działa”; odłączenie VPN nie dodaje wiersza
+- [x] 3.10 Po restarcie aplikacji dzisiejsze zdarzenia są nadal widoczne; po północy (albo po zmianie daty systemowej na jutro) panel jest pusty
+- [x] 3.11 Log aplikacji z tej sesji nie zawiera referencji ani tytułów z dziennika
+- [x] 3.12 W wąskim oknie (800 px) długie tytuły ucinają się wielokropkiem i nie rozsypują kolumny

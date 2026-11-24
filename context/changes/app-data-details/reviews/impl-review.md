@@ -68,7 +68,7 @@ Manual 2.4–2.7 are `[x]`; they are UI observations confirmed by the user in th
 - **Location**: src-tauri/src/store/mod.rs:281
 - **Detail**: `status()` now ends with `store.schema_version()` and propagates its error. After a passed `check` and backup, a failure of this read-only detail query (in practice only `Busy`/IO) flips the „Dane aplikacji” source to `Error` (tray, toast, event log) for a round, and — unlike a failed `check` — does not drop the store for reopen. The plan's contract (`Result<u32, StoreError>`) asked for exactly this, so it is a plan-level choice; the realistic probability is very low because `check` just succeeded on the same connection under the same lock.
 - **Fix**: Keep the source state independent of the detail: have `status` return `Ok(store.schema_version().ok())` (`Result<Option<u32>, StoreError>`) so a failed version read only hides „Schemat”.
-- **Decision**: PENDING
+- **Decision**: FIXED — `status` returns `Result<Option<u32>, StoreError>`; a failed version read logs the kind at debug and only hides „Schemat”.
 
 ### F2 — Pure `sourceView.ts` imports its fact type from the `SourceCard` component
 
@@ -78,4 +78,4 @@ Manual 2.4–2.7 are `[x]`; they are UI observations confirmed by the user in th
 - **Location**: src/health/sourceView.ts:5
 - **Detail**: `sourceView.ts` ("pure display rules… no state") now does `import type { SourceFact } from "./SourceCard"`, while `SourceCard.tsx` imports from `sourceView.ts` — a type-only import cycle and a rules module depending on a component. Harmless at runtime (erased), lint/build pass.
 - **Fix**: Move `SourceFact` into `sourceView.ts` (or `types.ts`) and import it from there in `SourceCard.tsx` and `HealthPanel.tsx`.
-- **Decision**: PENDING
+- **Decision**: FIXED — `SourceFact` moved to `sourceView.ts`; `SourceCard.tsx` and `HealthPanel.tsx` import it from there.

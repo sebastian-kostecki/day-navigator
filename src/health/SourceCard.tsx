@@ -1,9 +1,15 @@
 import { useId, type ReactNode } from "react";
 import { StatusPill } from "../components";
 import type { SourceStatus } from "./types";
-import { GLYPH, cardMessage, pillState, pillText, toneOf, type CardSpec } from "./sourceView";
-
-export type SourceFact = { label: string; value: string; tone?: "warn" };
+import {
+  GLYPH,
+  cardMessage,
+  pillState,
+  pillText,
+  toneOf,
+  type CardSpec,
+  type SourceFact,
+} from "./sourceView";
 
 type Props = {
   spec: CardSpec;

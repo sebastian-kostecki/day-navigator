@@ -2,8 +2,9 @@
 // texts and the head summary. No state, no backend calls.
 
 import { formatAgo, type PillState } from "../components";
-import type { SourceFact } from "./SourceCard";
 import type { AppDataDetails, SourceStatus } from "./types";
+
+export type SourceFact = { label: string; value: string; tone?: "warn" };
 
 export type Tone = "ok" | "calm" | "error";
 

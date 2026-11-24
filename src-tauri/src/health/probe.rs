@@ -51,7 +51,7 @@ pub fn store_probe(
     today: NaiveDate,
 ) -> (SourceStatus, Option<AppDataDetails>) {
     let checked = handle.status(today);
-    let schema_version = checked.as_ref().ok().copied();
+    let schema_version = checked.as_ref().ok().copied().flatten();
     let state = match checked {
         Ok(_) => SourceState::Ok,
         Err(e) => SourceState::Error {

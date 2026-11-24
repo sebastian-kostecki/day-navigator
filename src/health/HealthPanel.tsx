@@ -10,7 +10,7 @@ import {
 } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { OpenBackupsButton } from "./OpenBackupsButton";
-import { SourceCard, type SourceFact } from "./SourceCard";
+import { SourceCard } from "./SourceCard";
 import {
   CARD_IDS,
   appDataFacts,
@@ -21,6 +21,7 @@ import {
   rowMessage,
   summaryText,
   toneOf,
+  type SourceFact,
 } from "./sourceView";
 import type { SourceStatus } from "./types";
 import { useHealth } from "./useHealth";

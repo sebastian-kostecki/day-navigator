@@ -266,8 +266,9 @@ impl StoreHandle {
 
     /// Open if needed, liveness check, daily backup. A failing check (other
     /// than `Busy`) drops the store, so the next call runs the full open
-    /// sequence again. Returns the schema version read under the same lock.
-    pub fn status(&self, today: NaiveDate) -> Result<u32, StoreError> {
+    /// sequence again. Returns the schema version read under the same lock; a
+    /// failed version read after a passed check only yields `None`.
+    pub fn status(&self, today: NaiveDate) -> Result<Option<u32>, StoreError> {
         let mut guard = self.lock();
         let store = self.ensure(&mut guard, today)?;
         if let Err(e) = store.check() {
@@ -278,7 +279,10 @@ impl StoreHandle {
             return Err(e);
         }
         store.backup_if_due(today);
-        store.schema_version()
+        Ok(store
+            .schema_version()
+            .inspect_err(|e| log::debug!("store: schema version read failed: {}", e.kind()))
+            .ok())
     }
 }
 
@@ -327,7 +331,7 @@ mod tests {
         let h = StoreHandle::new(Some(tmp.path().join("data")));
         assert_eq!(
             h.status(day()).unwrap(),
-            schema::MIGRATIONS.last().unwrap().version
+            Some(schema::MIGRATIONS.last().unwrap().version)
         );
     }
 

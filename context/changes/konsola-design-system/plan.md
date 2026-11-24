@@ -453,7 +453,7 @@ Fonty dodają poniżej 1 MB do instalatora (pełne pliki woff2, sześć grubośc
 
 #### Manual
 
-- [ ] 1.5 `npm run tauri dev` z wyłączoną siecią: tekst w Plex, liczby w JetBrains Mono, polskie znaki (ąęłńóśźż) w tym samym foncie (sprawdzone w DevTools → Computed → Rendered fonts)
+- [x] 1.5 `npm run tauri dev` z wyłączoną siecią: tekst w Plex, liczby w JetBrains Mono, polskie znaki (ąęłńóśźż) w tym samym foncie (sprawdzone w DevTools → Computed → Rendered fonts)
 - [x] 1.6 Wszystkie sześć widoków jest czytelnych na ciemnym tle, bez jasnych kart z jasnym tekstem; przyciski `dn-btn` nie dostają niebieskiego obrysu po najechaniu
 - [x] 1.7 Błąd (np. „Stan źródeł” przy zatrzymanym sprawdzaniu lub GitHub wylogowany) renderuje się jako czerwony blok `SourceState` z „Spróbuj ponownie” i czasem ostatniego sukcesu
 
@@ -468,11 +468,11 @@ Fonty dodają poniżej 1 MB do instalatora (pełne pliki woff2, sześć grubośc
 #### Manual
 
 - [x] 2.4 Nagłówek przy 1280px mieści się w jednym rzędzie; przy 800px zakładki zostają obok znaku, a licznik (REC, zegar, START/STOP) schodzi cały do drugiego rzędu, bez poziomego przewijania
-- [ ] 2.5 START/STOP przełącza się, „● REC” pojawia się tylko przy biegnącym liczniku, przycisk jest zablokowany w trakcie akcji
+- [x] 2.5 START/STOP przełącza się, „● REC” pojawia się tylko przy biegnącym liczniku, przycisk jest zablokowany w trakcie akcji
 - [x] 2.6 Zakładka aktywna ma podkreślenie bursztynem i `aria-current="page"`; nawigacja klawiaturą (Tab/Enter) działa z widocznym fokusem
-- [ ] 2.7 Po zmianie rozmiaru okna i wyjściu z aplikacji (także przez zasobnik) kolejne uruchomienie otwiera okno w tym samym rozmiarze i miejscu
-- [ ] 2.8 Pierwsze uruchomienie bez zapisanego stanu otwiera okno 1280×800; zmniejszenie poniżej 800×600 nie jest możliwe
-- [ ] 2.9 Przy starcie z zapisanym stanem okno pojawia się od razu w zapamiętanym rozmiarze, bez mignięcia w 1280×800; drugie uruchomienie (single-instance) pokazuje istniejące okno
+- [x] 2.7 Po zmianie rozmiaru okna i wyjściu z aplikacji (także przez zasobnik) kolejne uruchomienie otwiera okno w tym samym rozmiarze i miejscu
+- [x] 2.8 Pierwsze uruchomienie bez zapisanego stanu otwiera okno 1280×800; zmniejszenie poniżej 800×600 nie jest możliwe
+- [x] 2.9 Przy starcie z zapisanym stanem okno pojawia się od razu w zapamiętanym rozmiarze, bez mignięcia w 1280×800; drugie uruchomienie (single-instance) pokazuje istniejące okno
 
 ### Phase 3: Do zrobienia
 
@@ -497,9 +497,9 @@ Fonty dodają poniżej 1 MB do instalatora (pełne pliki woff2, sześć grubośc
 
 #### Manual
 
-- [ ] 4.3 GitLab z VPN: sekcje, flagi „Zmienione”, etykiety, ukrywanie i przywracanie przez „Ukryte” działa
-- [ ] 4.4 GitLab bez VPN: spokojny szary blok z czasem ostatniego udanego odświeżenia, bez czerwieni; nieaktualna lista przyciemniona
-- [ ] 4.5 GitHub: wylogowane `gh` daje czerwony blok z instrukcją; repozytorium bez zgłoszeń ma jednozdaniowy pusty stan
+- [x] 4.3 GitLab z VPN: sekcje, flagi „Zmienione”, etykiety, ukrywanie i przywracanie przez „Ukryte” działa
+- [x] 4.4 GitLab bez VPN: spokojny szary blok z czasem ostatniego udanego odświeżenia, bez czerwieni; nieaktualna lista przyciemniona
+- [x] 4.5 GitHub: wylogowane `gh` daje czerwony blok z instrukcją; repozytorium bez zgłoszeń ma jednozdaniowy pusty stan
 - [x] 4.6 „Odśwież” jest zablokowany w trakcie odświeżania i pokazuje „Odświeżam…”
 
 ### Phase 5: Moje zadania
@@ -511,10 +511,10 @@ Fonty dodają poniżej 1 MB do instalatora (pełne pliki woff2, sześć grubośc
 
 #### Manual
 
-- [ ] 5.3 Dodanie samym tytułem działa; przy biegnącym liczniku domyślnie wybrana jest Praca, a bez niego Prywatne
+- [x] 5.3 Dodanie samym tytułem działa; przy biegnącym liczniku domyślnie wybrana jest Praca, a bez niego Prywatne
 - [x] 5.4 Błąd zapisu zostawia wpisane dane w formularzu i pokazuje komunikat
-- [ ] 5.5 Zakładki Praca / Prywatne / Zrobione pokazują właściwe zadania z licznikami; odhaczenie przenosi zadanie do „Zrobione”, a ponowne otwarcie z powrotem; boczny panel „Edycja” zapisuje tytuł, notatkę i termin przyciskiem „Zapisz”
-- [ ] 5.6 Długa notatka jest w wierszu ucięta do jednej linii z wielokropkiem, a w panelu „Edycja” widać ją całą; krótka mieści się bez ucięcia
+- [x] 5.5 Zakładki Praca / Prywatne / Zrobione pokazują właściwe zadania z licznikami; odhaczenie przenosi zadanie do „Zrobione”, a ponowne otwarcie z powrotem; boczny panel „Edycja” zapisuje tytuł, notatkę i termin przyciskiem „Zapisz”
+- [x] 5.6 Długa notatka jest w wierszu ucięta do jednej linii z wielokropkiem, a w panelu „Edycja” widać ją całą; krótka mieści się bez ucięcia
 - [x] 5.7 Każdy przycisk edycji ma inną nazwę w czytniku ekranu (DevTools → Accessibility)
 
 ### Phase 6: Czas pracy, Stan źródeł i sprzątanie
@@ -528,7 +528,7 @@ Fonty dodają poniżej 1 MB do instalatora (pełne pliki woff2, sześć grubośc
 
 #### Manual
 
-- [ ] 6.5 Czas pracy: pasek wskaźników zgadza się z dzisiejszymi liczbami raportu w bieżącym, przeszłym i przyszłym miesiącu (w przyszłym bez kafla odchylenia, ostatniego dnia roboczego „Średnio / dzień” pokazuje „—”); odchylenie ujemne jest pomarańczowe ze znakiem `−`
-- [ ] 6.6 Edycja, usuwanie z potwierdzeniem i dopisanie wpisu działają; „Razem” tyka przy biegnącym liczniku
-- [ ] 6.7 Stan źródeł: GitLab bez VPN ma szarą pigułkę NIEDOSTĘPNY, a nieskonfigurowane źródło ma pigułkę NIESKONFIGUROWANE; błąd jest czerwony
+- [x] 6.5 Czas pracy: pasek wskaźników zgadza się z dzisiejszymi liczbami raportu w bieżącym, przeszłym i przyszłym miesiącu (w przyszłym bez kafla odchylenia, ostatniego dnia roboczego „Średnio / dzień” pokazuje „—”); odchylenie ujemne jest pomarańczowe ze znakiem `−`
+- [x] 6.6 Edycja, usuwanie z potwierdzeniem i dopisanie wpisu działają; „Razem” tyka przy biegnącym liczniku
+- [x] 6.7 Stan źródeł: GitLab bez VPN ma szarą pigułkę NIEDOSTĘPNY, a nieskonfigurowane źródło ma pigułkę NIESKONFIGUROWANE; błąd jest czerwony
 - [x] 6.8 Przejście przez wszystkie sześć widoków przy 1280px i 800px: brak resztek starego wyglądu, brak poziomego przewijania strony

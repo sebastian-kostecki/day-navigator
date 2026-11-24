@@ -23,7 +23,7 @@ milestone_status: open
 
 **M-2: Konsola mockup gaps closed and the codebase cleaned up** — Status: open
 
-- **Intent:** The app shows what the Konsola mockups show and 0.2.0 left out (event log, days table, reminders panel, app-data details, GitLab NEW flag and filter bar, GitHub labels, "+" to "To do"), on a cleaner base (shared UI tools and timer state, no vault layer), verified by hand, with releases that say what changed, carry real metadata and, once a signing method is chosen, are signed.
+- **Intent:** The app shows what the Konsola mockups show and 0.2.0 left out (event log, days table, reminders panel, app-data details, GitLab NEW flag and filter bar, GitHub labels, "+" to "To do"), on a cleaner base (shared UI tools and timer state, no vault layer), verified by hand, with releases that say what changed and carry real metadata. Installer signing (MS-13) was parked on 2026-11-24 (see `## Parked`).
 - **Source materials:** GitHub issues #1–#16 (open on 2026-11-24; #17–#19 are decision questions and stay outside); `context/foundation/prd.md` v2 for #1–#8.
 - **Done when:** every F-NN and S-NN below is `done`, and the preserved behaviour still holds: FR-016 (CI green, an installer only on a version bump) and the read-only `glab`/`gh` rule.
 - **Scope anchors:** FR-019–FR-026 in the PRD (issues #1–#8). Issues #9–#16 have no FR and are anchored here; each `MS-NN` number matches its issue number:
@@ -31,7 +31,7 @@ milestone_status: open
   - MS-10: Shared UI tools moved from the views into `src/components/`: `useNow`, `plural`, `Tabs`, a table/grid component, a `Segmented` size for 40 px fields, a priority chip, `ErrorState.message` as a node, `disabled` for `SourceState` actions (issue #10).
   - MS-11: The unused vault layer removed, together with its health sources, tests and fixtures; AGENTS.md and the roadmap updated (issue #11).
   - MS-12: The open Manual rows of the Konsola design-system plan checked by hand, then the change archived (issue #12).
-  - MS-13: The NSIS installer signed in CI without secrets in the repo, after a signing method is chosen; the release text updated (issue #13).
+  - MS-13: The NSIS installer signed in CI without secrets in the repo, after a signing method is chosen; the release text updated (issue #13). Parked 2026-11-24: no slice in M-2 (see `## Parked`).
   - MS-14: The release description generated from the changes since the previous `app-v*` tag, keeping the unsigned-installer note until signing exists (issue #14).
   - MS-15: Real `description` and `authors` in `src-tauri/Cargo.toml`, checked in the exe and installer properties (issue #15).
   - MS-16: The "Day Navigator — Konsola" design-system artifact brought in line with the app (Flag tone `new`, `ItemRow` id, numbered navigation with shortcuts, `Notice`, START/STOP confirmation, app and tray icons) (issue #16).
@@ -65,7 +65,6 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | S-08 | event-log                   | see today's events in a "Dziennik zdarzeń" panel on the dashboard                       | F-03          | FR-019          | done     |
 | S-09 | release-notes               | see in each release what changed since the previous one                                 | —             | MS-14, FR-016   | done     |
 | S-10 | app-metadata                | see the real description and author in the exe and installer properties                 | —             | MS-15           | done     |
-| S-11 | installer-signing           | install a release without a SmartScreen warning                                         | S-09          | MS-13, FR-016   | blocked  |
 
 ## Streams
 
@@ -76,7 +75,7 @@ Navigation aid — groups items that share a Prerequisites chain. Canonical orde
 | A      | Source views            | `S-01`, `S-02`, `S-04`; `F-01` → `S-03`         | The north star first; `F-01` lands before the first view slice that would add another local copy.       |
 | B      | Work time               | `F-02` → `S-05`; `S-06`                         | `S-05` also needs `F-01` (joins Stream A at `F-01`); `S-06` shares the view, so plan it after `S-05`.    |
 | C      | App data and events     | `F-03` → `S-07`, `S-08`                         | Quality goal: the health source set is settled before new health details and source-error events.     |
-| D      | Releases                | `S-10`; `S-09` → `S-11`                         | Must keep FR-016; `S-11` waits on the signing decision.                                                 |
+| D      | Releases                | `S-10`; `S-09`                                  | Must keep FR-016; installer signing is parked.                                                          |
 | E      | Design system           | `F-04` → `F-05`                                 | Manual check of the current UI first, then the artifact follows the checked app.                        |
 
 ## Baseline
@@ -283,19 +282,6 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Risk:** `Cargo.toml` is the only version source; the change must not bump the version by accident and publish a release.
 - **Status:** done
 
-### S-11: Signed installer
-
-- **Outcome:** user can install a release without a Windows SmartScreen warning; signing runs in CI with GitHub Actions secrets only, and the release text drops the "Run anyway" note.
-- **Change ID:** installer-signing
-- **PRD refs:** MS-13, FR-016 (preserved)
-- **Prerequisites:** S-09
-- **Parallel with:** F-01, F-02, F-03, F-04, F-05, S-01–S-08, S-10
-- **Blockers:** a code-signing certificate or an Azure Trusted Signing account, with its identity check, from the provider.
-- **Unknowns:**
-  - Which signing method (code-signing certificate or Azure Trusted Signing), at what cost? — Owner: user. Block: yes.
-- **Risk:** The first secret in CI; it lives only in GitHub Actions secrets, never in the repo, and the pre-push and secret-scan gates stay.
-- **Status:** blocked
-
 ## Backlog Handoff
 
 | Roadmap ID | Change ID                   | Suggested issue title                                   | Ready for `/10x-plan` | Notes |
@@ -315,7 +301,6 @@ Foundations below assume these are present and do NOT re-scaffold them.
 | S-08       | event-log                   | Event log on the dashboard                              | yes                   | Issue #1 |
 | S-09       | release-notes               | Release description with the list of changes            | yes                   | Issue #14 |
 | S-10       | app-metadata                | App metadata in Cargo.toml                              | yes                   | Issue #15 |
-| S-11       | installer-signing           | Sign the installer                                      | no                    | Issue #13; blocked on the signing method |
 
 ## Open Roadmap Questions
 
@@ -329,6 +314,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Work-time automation** — Why parked: PRD Non-Goals; no automatic holiday calendar, idle detection or activity tracking.
 - **MRs where the user is a reviewer; deleting tasks (FR-009)** — Why parked: PRD Non-Goals ("Poza v1").
 - **Editing reminder settings in the app** — Why parked: issue #3 scopes the panel as read-only; the settings stay in the file.
+- **Signed installer (was S-11 `installer-signing`, MS-13, issue #13)** — Why parked: decided by the user on 2026-11-24. For one user on one machine, a signature does not remove the SmartScreen warning right away, because reputation builds with downloads. Azure Artifact Signing is not open to individuals in Poland, and an OV certificate costs a yearly fee. Free OSS signing (SignPath Foundation) would need a public repository. The release text keeps the "Run anyway" note. The item comes back in a later milestone if the app is ever shared with others.
 - **Autostart, week view, end-of-day close and the rest of the PRD v2 plan** — Why parked: open decision issues #17–#19 and PRD "considered, deliberately NOT excluded"; no FR covers them.
 
 ## Milestone History

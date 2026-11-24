@@ -347,10 +347,10 @@ Migracja v10 tworzy pustą tabelę `events`; istniejące dane bez zmian. S-07 (`
 
 #### Automated
 
-- [x] 3.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [x] 3.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą
-- [x] 3.3 `rg -n "#[0-9a-fA-F]{3,6}" src --glob "*.css" --glob "!src/styles/tokens.css"` nie znajduje nowych literalnych kolorów
-- [x] 3.4 `rg -n "invoke" src/events src/todo/EventLogPanel.tsx` znajduje `invoke` tylko w `src/events/api.ts`
+- [x] 3.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą — e2f123c
+- [x] 3.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą — e2f123c
+- [x] 3.3 `rg -n "#[0-9a-fA-F]{3,6}" src --glob "*.css" --glob "!src/styles/tokens.css"` nie znajduje nowych literalnych kolorów — e2f123c
+- [x] 3.4 `rg -n "invoke" src/events src/todo/EventLogPanel.tsx` znajduje `invoke` tylko w `src/events/api.ts` — e2f123c
 
 #### Manual
 

@@ -17,8 +17,10 @@
 //! NEW flags (S-02): a round records its seen set before the gate and brings
 //! the fresh keys under it. `kept_new` holds them so every path that shapes the
 //! list sets the same flags. `shown_until` is the `now_ms` of the last round
-//! stored in the snapshot: `mark_seen` saves exactly that, never the wall
-//! clock, so an item the user has not seen cannot be marked as seen.
+//! stored in the snapshot whose seen set was written: `mark_seen` saves exactly
+//! that, never the wall clock. A failed seen-set write leaves the flags and
+//! `shown_until` as they were, so leaving the view never marks unshown items
+//! as seen.
 //! `last_mark` is the last mark saved this session; a round that read an older
 //! mark drops the fresh keys it already covers.
 //!
@@ -79,7 +81,8 @@ pub struct GitlabRefreshState {
     /// (a failed round, a hide command) sets the same flags.
     kept_new: Mutex<HashSet<ItemKey>>,
     /// The account and the `now_ms` of the last successful round stored in the
-    /// snapshot: the value `mark_seen` saves. Cleared with `kept_full`.
+    /// snapshot whose seen set was written: the value `mark_seen` saves. A round
+    /// whose seen-set write failed leaves it unchanged. Cleared with `kept_full`.
     shown_until: Mutex<Option<(String, i64)>>,
     /// The account and the last `seen_until_ms` saved this session.
     last_mark: Mutex<Option<(String, i64)>>,
@@ -182,13 +185,16 @@ impl GitlabRefreshState {
     /// last saved mark of `account` already covers (`first_seen_ms <=
     /// last_mark`, a round that read the mark before the user left the view),
     /// stores the rest as `kept_new` and records `now_ms` as `shown_until`.
+    /// `fresh` is `None` when the seen-set write failed: then `kept_new` and
+    /// `shown_until` stay unchanged (leaving the view never marks unshown items
+    /// as seen) and the current flags are returned.
     /// `account` is `None` when the round has no account: nothing is flagged.
     /// Returns the set to flag the round's list with.
     fn accept_round(
         &self,
         account: Option<&str>,
         now_ms: i64,
-        fresh: &[(ItemKey, i64)],
+        fresh: Option<&[(ItemKey, i64)]>,
     ) -> HashSet<ItemKey> {
         let mut kept_new = self.kept_new.lock().unwrap_or_else(|p| p.into_inner());
         let mut shown_until = self.shown_until.lock().unwrap_or_else(|p| p.into_inner());
@@ -197,6 +203,9 @@ impl GitlabRefreshState {
             kept_new.clear();
             *shown_until = None;
             return HashSet::new();
+        };
+        let Some(fresh) = fresh else {
+            return kept_new.clone();
         };
         let covered = match &*last_mark {
             Some((a, mark)) if a == account => Some(*mark),
@@ -579,8 +588,8 @@ fn refresh_round(
     let gate = state.hidden_gate.lock().unwrap_or_else(|p| p.into_inner());
     let round_fresh = if fetched.is_ok() {
         let (account, fresh) = match &seen {
-            Some((account, outcome)) => (Some(account.as_str()), outcome.fresh.as_slice()),
-            None => (None, &[][..]),
+            Some((account, outcome)) => (Some(account.as_str()), outcome.fresh.as_deref()),
+            None => (None, None),
         };
         state.accept_round(account, round_ms, fresh)
     } else {
@@ -741,8 +750,9 @@ fn notify_input(snap: &GitlabSnapshot) -> Option<&str> {
 struct SeenOutcome {
     /// The keys to toast (from the store, or the session memory on an error).
     toast_keys: Vec<ItemKey>,
-    /// Keys new to the view with their `first_seen_ms`; empty on a store error.
-    fresh: Vec<(ItemKey, i64)>,
+    /// Keys new to the view with their `first_seen_ms`; `None` when the seen-set
+    /// write failed.
+    fresh: Option<Vec<(ItemKey, i64)>>,
 }
 
 /// Records the round's full list in the seen set at `now_ms`. Runs before the
@@ -761,8 +771,8 @@ fn record_seen(
         .state::<StoreHandle>()
         .with_store(today, |s| record_round(s, account, &current, now_ms));
     let (stored, fresh) = match recorded {
-        Ok(round) => (Ok(round.new), round.fresh),
-        Err(e) => (Err(e), Vec::new()),
+        Ok(round) => (Ok(round.new), Some(round.fresh)),
+        Err(e) => (Err(e), None),
     };
     if let Err(e) = &stored {
         // The health round reports an unopenable store, not a failing write,
@@ -1473,7 +1483,7 @@ mod tests {
             (key(ItemKind::Issue, 1), now_ms),
             (key(ItemKind::MergeRequest, 3), now_ms),
         ];
-        let set = state.accept_round(Some(account), now_ms, &fresh);
+        let set = state.accept_round(Some(account), now_ms, Some(&fresh));
         let full = state.kept_full.lock().unwrap().clone().unwrap();
         let (shown, _) = shape_items(&full, &[], &set, &GitlabFilter::default());
         let mut snap = state.write();
@@ -1590,7 +1600,11 @@ mod tests {
         let state = shown_state("account-a", 100);
         state.mark_seen(|_, _| Ok(())).unwrap();
         // The next round first saw issue 2 at 150, after the saved mark.
-        let set = state.accept_round(Some("account-a"), 150, &[(key(ItemKind::Issue, 2), 150)]);
+        let set = state.accept_round(
+            Some("account-a"),
+            150,
+            Some(&[(key(ItemKind::Issue, 2), 150)]),
+        );
         assert_eq!(set, fresh_set(&[key(ItemKind::Issue, 2)]));
         assert_eq!(
             *state.shown_until.lock().unwrap(),
@@ -1622,17 +1636,38 @@ mod tests {
             (key(ItemKind::Issue, 2), 100),
             (key(ItemKind::MergeRequest, 3), 101),
         ];
-        let set = state.accept_round(Some("account-a"), 120, &fresh);
+        let set = state.accept_round(Some("account-a"), 120, Some(&fresh));
         assert_eq!(set, fresh_set(&[key(ItemKind::MergeRequest, 3)]));
         // Another account's mark covers nothing.
-        let set = state.accept_round(Some("account-b"), 130, &fresh);
+        let set = state.accept_round(Some("account-b"), 130, Some(&fresh));
         assert_eq!(set.len(), 3);
+    }
+
+    #[test]
+    fn a_failed_seen_set_write_keeps_the_flags_and_shown_until() {
+        let state = shown_state("account-a", 100);
+        let set = state.accept_round(Some("account-a"), 200, None);
+        assert!(set.contains(&key(ItemKind::Issue, 1)));
+        assert_eq!(set.len(), 2);
+        assert_eq!(
+            *state.shown_until.lock().unwrap(),
+            Some(("account-a".to_string(), 100))
+        );
+    }
+
+    #[test]
+    fn a_failed_first_round_saves_no_mark() {
+        let state = kept_state();
+        let set = state.accept_round(Some("account-a"), 100, None);
+        assert!(set.is_empty());
+        let out = state.mark_seen(|_, _| panic!("nothing was shown"));
+        assert!(matches!(out, Ok(false)));
     }
 
     #[test]
     fn accept_round_without_an_account_flags_nothing() {
         let state = shown_state("account-a", 100);
-        let set = state.accept_round(None, 120, &[(key(ItemKind::Issue, 1), 120)]);
+        let set = state.accept_round(None, 120, Some(&[(key(ItemKind::Issue, 1), 120)]));
         assert!(set.is_empty());
         assert!(state.kept_new.lock().unwrap().is_empty());
         assert!(state.shown_until.lock().unwrap().is_none());

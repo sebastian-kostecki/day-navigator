@@ -1,4 +1,4 @@
-//! Failures of the new-assignment store operation, serialized for logs.
+//! Failures of the new-assignment store operation, serialized for logs and the UI.
 //!
 //! Invariant (same as `StoreError`): no variant carries ids or any other row
 //! value.
@@ -14,12 +14,12 @@ pub enum NewAssignmentError {
     Store(StoreError),
     /// The blocking task of a command could not finish (no content).
     #[error("background task failed")]
-    BackgroundFailed,
+    Background,
 }
 
 impl From<crate::BackgroundFailed> for NewAssignmentError {
     fn from(_: crate::BackgroundFailed) -> Self {
-        NewAssignmentError::BackgroundFailed
+        NewAssignmentError::Background
     }
 }
 
@@ -40,7 +40,7 @@ impl NewAssignmentError {
     pub fn kind(&self) -> &'static str {
         match self {
             NewAssignmentError::Store(e) => e.kind(),
-            NewAssignmentError::BackgroundFailed => "BackgroundFailed",
+            NewAssignmentError::Background => "Background",
         }
     }
 }

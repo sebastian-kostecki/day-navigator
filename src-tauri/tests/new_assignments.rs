@@ -7,6 +7,7 @@ use common::test_store_dir;
 use day_navigator_lib::gitlab::ItemKind;
 use day_navigator_lib::new_assignments::{FORGET_AFTER_MS, ItemKey, mark_view_seen, record_round};
 use day_navigator_lib::store::{Store, StoreError, StoreHandle, schema};
+use rusqlite::OptionalExtension;
 
 const NOW: i64 = 1_800_000_000_000;
 const DAY: i64 = 86_400_000;
@@ -171,6 +172,20 @@ fn an_absent_item_is_forgotten_after_thirty_days_and_notifies_on_return() {
     assert_eq!(back.new, vec![issue(1)]);
 }
 
+#[test]
+fn a_forgotten_key_is_fresh_again_on_return() {
+    let (_tmp, dir) = test_store_dir();
+    let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+    record_round(&mut store, ACCOUNT_A, &[issue(1), issue(2)], NOW).unwrap();
+    mark_view_seen(&mut store, ACCOUNT_A, NOW + 10).unwrap();
+    // Issue 1 stays absent until it is forgotten.
+    record_round(&mut store, ACCOUNT_A, &[issue(2)], NOW + FORGET_AFTER_MS).unwrap();
+    let back_ms = NOW + FORGET_AFTER_MS + 1;
+    let back = record_round(&mut store, ACCOUNT_A, &[issue(1), issue(2)], back_ms).unwrap();
+    assert_eq!(back.new, vec![issue(1)]);
+    assert!(back.fresh.contains(&(issue(1), back_ms)));
+}
+
 fn mark_of(store: &Store, account: &str) -> Option<i64> {
     store
         .read::<_, StoreError>(|c| {
@@ -179,7 +194,8 @@ fn mark_of(store: &Store, account: &str) -> Option<i64> {
                 [account],
                 |r| r.get(0),
             )
-            .ok())
+            .optional()
+            .unwrap())
         })
         .unwrap()
 }

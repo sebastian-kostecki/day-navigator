@@ -42,6 +42,7 @@ Weryfikacja: kontrole sprzed commita z `AGENTS.md` oraz ręczny przebieg w `npm 
 - Brak zmiany toastów S-04 (treść, próg 3, `SessionSeen`). Zmienia się tylko miejsce wywołania `record_round` w rundzie.
 - Brak zmiany semantyki `first_seen_ms`, zapominania po 30 dniach ani zasiewania konta.
 - Brak migracji dla daty ukrycia: `hidden_at_ms` już istnieje.
+- NOWE nie omija filtra widoczności: pozycja usunięta filtrem liczy się jako widziana przy wyjściu z widoku i po poszerzeniu filtra nie ma NOWE (impl review F2, świadomy kompromis z przeglądu planu).
 - Brak synchronizacji artefaktu design systemu (F-05). Aplikacja dalej może pokazać kilka flag w jednym wierszu, jak dziś.
 - Brak nowych wywołań `glab` i zmian w `src-tauri/src/cli/`.
 
@@ -346,10 +347,10 @@ Migracja v9 tworzy pustą tabelę `gitlab_view_marks`. Istniejące `seen_assignm
 
 #### Manual
 
-- [ ] 3.4 Po pierwszym uruchomieniu nowej wersji żadna pozycja w „Praca (GitLab)” nie ma NOWE; po przejściu do innego widoku i z powrotem nadal nic
-- [ ] 3.5 Z VPN: po przypisaniu sobie testowego zgłoszenia, gdy aktywny jest inny widok, następna wizyta w „Praca (GitLab)” pokazuje przy nim niebieską flagę NOWE; po wyjściu z widoku i powrocie flagi już nie ma
-- [ ] 3.6 Zgłoszenie przypisane w trakcie wizyty dostaje NOWE w tej wizycie; po zamknięciu okna (do zasobnika) i ponownym otwarciu z zasobnika flagi już nie ma
-- [ ] 3.7 W `npm run tauri dev` (StrictMode) samo wejście w widok nie gasi flag
-- [ ] 3.8 Bez VPN (karta „GitLab niedostępny” z zachowaną listą) flagi NOWE zostają; ukrycie innego zgłoszenia ich nie gasi
-- [ ] 3.9 „Pokaż ukryte” pokazuje przy każdym ukrytym wierszu „ukryte DD.MM” z dniem ukrycia; ponowne ukrycie zmienia datę na dzisiejszą
-- [ ] 3.10 W wąskim oknie (800 px) komórka tytułu z NOWE / „ukryte DD.MM” nie rozsypuje tabeli
+- [x] 3.4 Po pierwszym uruchomieniu nowej wersji żadna pozycja w „Praca (GitLab)” nie ma NOWE; po przejściu do innego widoku i z powrotem nadal nic
+- [x] 3.5 Z VPN: po przypisaniu sobie testowego zgłoszenia, gdy aktywny jest inny widok, następna wizyta w „Praca (GitLab)” pokazuje przy nim niebieską flagę NOWE; po wyjściu z widoku i powrocie flagi już nie ma
+- [x] 3.6 Zgłoszenie przypisane w trakcie wizyty dostaje NOWE w tej wizycie; po zamknięciu okna (do zasobnika) i ponownym otwarciu z zasobnika flagi już nie ma
+- [x] 3.7 W `npm run tauri dev` (StrictMode) samo wejście w widok nie gasi flag
+- [x] 3.8 Bez VPN (karta „GitLab niedostępny” z zachowaną listą) flagi NOWE zostają; ukrycie innego zgłoszenia ich nie gasi
+- [x] 3.9 „Pokaż ukryte” pokazuje przy każdym ukrytym wierszu „ukryte DD.MM” z dniem ukrycia; ponowne ukrycie zmienia datę na dzisiejszą
+- [x] 3.10 W wąskim oknie (800 px) komórka tytułu z NOWE / „ukryte DD.MM” nie rozsypuje tabeli

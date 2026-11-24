@@ -28,53 +28,19 @@
   color: var(--ink-faint);
 }
 
-/* The table: one grid template shared by the head row and every item row. */
+/* The table: the template is shared by the head row and every item row;
+   structure and type come from DataTable. */
 
-.gitlab-grid {
-  display: grid;
-  grid-template-columns: 56px 72px minmax(0, 1fr) 120px 150px 104px 136px;
-  gap: var(--space-3);
-  align-items: center;
-  padding: 0 var(--space-4);
-}
-
-.gitlab-head {
-  min-height: var(--size-control);
-  border-bottom: 1px solid var(--line);
-}
-
-.gitlab-row {
-  min-height: var(--size-row);
-  border-bottom: 1px solid var(--line-subtle);
+.gitlab-table {
+  --dn-table-cols: 56px 72px minmax(0, 1fr) 120px 150px 104px 136px;
 }
 
 .gitlab-row.is-hidden {
   opacity: 0.6;
 }
 
-.gitlab-cell {
-  min-width: 0;
-}
-
-.gitlab-col-nr,
-.gitlab-col-labels,
-.gitlab-col-when {
-  color: var(--ink-faint);
-}
-
 .gitlab-col-labels {
   font-size: 11px;
-}
-
-.gitlab-col-labels,
-.gitlab-col-project {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.gitlab-col-project {
-  color: var(--ink-muted);
 }
 
 .gitlab-col-when {
@@ -111,8 +77,8 @@
 /* Narrow window: drop the project and label columns first, then the number
    and time, so the page never scrolls sideways. */
 @media (max-width: 900px) {
-  .gitlab-grid {
-    grid-template-columns: 56px 72px minmax(0, 1fr) 104px 136px;
+  .gitlab-table {
+    --dn-table-cols: 56px 72px minmax(0, 1fr) 104px 136px;
   }
 
   .gitlab-col-project,
@@ -122,9 +88,9 @@
 }
 
 @media (max-width: 600px) {
-  .gitlab-grid {
-    grid-template-columns: 48px minmax(0, 1fr) 136px;
-    padding: 0 var(--space-3);
+  .gitlab-table {
+    --dn-table-cols: 48px minmax(0, 1fr) 136px;
+    --dn-table-pad-x: var(--space-3);
   }
 
   .gitlab-col-nr,

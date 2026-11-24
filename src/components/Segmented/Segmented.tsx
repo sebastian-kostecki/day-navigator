@@ -8,11 +8,13 @@ export type SegmentedProps = {
   onChange?: (value: string) => void;
   /** Accessible name of the group. */
   label: string;
+  /** sm = control height (default); md = matches the 40px fields. */
+  size?: "sm" | "md";
 };
 
-export function Segmented({ options, value, onChange, label }: SegmentedProps) {
+export function Segmented({ options, value, onChange, label, size = "sm" }: SegmentedProps) {
   return (
-    <div role="group" aria-label={label} className="dn-seg">
+    <div role="group" aria-label={label} className={size === "md" ? "dn-seg dn-seg-md" : "dn-seg"}>
       {options.map((o) => {
         const on = o.value === value;
         return (

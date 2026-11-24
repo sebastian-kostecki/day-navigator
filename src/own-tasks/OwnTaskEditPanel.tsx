@@ -64,6 +64,7 @@ export function OwnTaskEditPanel({ task, onSave, onToggleDone, toggleBusy }: Pro
           </span>
           <Segmented
             label="Przestrzeń"
+            size="md"
             options={SPACE_OPTIONS}
             value={space}
             onChange={(value) => {

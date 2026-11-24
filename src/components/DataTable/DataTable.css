@@ -1,0 +1,35 @@
+.dn-table-row {
+  display: grid;
+  grid-template-columns: var(--dn-table-cols);
+  gap: var(--space-3);
+  align-items: center;
+  padding: 0 var(--dn-table-pad-x, var(--space-4));
+}
+
+.dn-table-head {
+  min-height: var(--size-control);
+  border-bottom: 1px solid var(--line);
+}
+
+.dn-table-body {
+  min-height: var(--size-row);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.dn-table-cell {
+  min-width: 0;
+}
+
+.dn-table-cell-muted {
+  color: var(--ink-muted);
+}
+
+.dn-table-cell-faint {
+  color: var(--ink-faint);
+}
+
+.dn-table-cell-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

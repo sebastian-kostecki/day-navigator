@@ -1,19 +1,26 @@
 import { useRef, type KeyboardEvent } from "react";
-import "./OwnTasks.css";
+import "./Tabs.css";
 
-export type OwnTaskTab = "work" | "private" | "done";
-
-type Props = {
-  tabs: { value: OwnTaskTab; label: string; count: number }[];
-  value: OwnTaskTab;
-  onChange: (value: OwnTaskTab) => void;
+export type TabsProps<T extends string> = {
+  tabs: { value: T; label: string; count?: number }[];
+  value: T;
+  onChange: (value: T) => void;
+  /** Accessible name of the tab group. */
+  label: string;
   /** Id of the tab panel these tabs control. */
   panelId: string;
   idPrefix: string;
 };
 
 /** A tablist with roving focus: arrows, Home and End move and select. */
-export function OwnTaskTabs({ tabs, value, onChange, panelId, idPrefix }: Props) {
+export function Tabs<T extends string>({
+  tabs,
+  value,
+  onChange,
+  label,
+  panelId,
+  idPrefix,
+}: TabsProps<T>) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
 
   function onKeyDown(e: KeyboardEvent, index: number) {
@@ -29,7 +36,7 @@ export function OwnTaskTabs({ tabs, value, onChange, panelId, idPrefix }: Props)
   }
 
   return (
-    <div role="tablist" aria-label="Filtr zadań" className="own-tabs">
+    <div role="tablist" aria-label={label} className="dn-tabs">
       {tabs.map((t, i) => {
         const on = t.value === value;
         return (
@@ -44,12 +51,12 @@ export function OwnTaskTabs({ tabs, value, onChange, panelId, idPrefix }: Props)
             aria-selected={on}
             aria-controls={panelId}
             tabIndex={on ? 0 : -1}
-            className={on ? "own-tab is-on" : "own-tab"}
+            className={on ? "dn-tab is-on" : "dn-tab"}
             onClick={() => onChange(t.value)}
             onKeyDown={(e) => onKeyDown(e, i)}
           >
             {t.label}
-            <span className="own-tab-count">{t.count}</span>
+            {t.count !== undefined && <span className="dn-tab-count">{t.count}</span>}
           </button>
         );
       })}

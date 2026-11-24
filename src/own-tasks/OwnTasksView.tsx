@@ -1,14 +1,21 @@
 import { useEffect, useId, useState } from "react";
-import { Button, ItemRow, Notice, Panel } from "../components";
+import { Button, Chip, ItemRow, Notice, Panel, Tabs } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { ownTaskDefaultSpace, ownTaskErrorMessage } from "./api";
 import { formatDue, PRIORITY_LABEL, SPACE_LABEL, todayIso } from "./labels";
 import { OwnTaskEditPanel } from "./OwnTaskEditPanel";
 import { OwnTaskForm } from "./OwnTaskForm";
-import { OwnTaskTabs, type OwnTaskTab } from "./OwnTaskTabs";
-import type { OwnTask, OwnTaskInput, Space } from "./types";
+import type { OwnTask, OwnTaskInput, Priority, Space } from "./types";
 import { useOwnTasks } from "./useOwnTasks";
 import "./OwnTasks.css";
+
+type OwnTaskTab = "work" | "private" | "done";
+
+const PRIORITY_TONE: Record<Priority, "warn" | "soft" | "faint"> = {
+  high: "warn",
+  medium: "soft",
+  low: "faint",
+};
 
 /** `own_task_default_space` is Work exactly while the work-time counter runs. */
 const SPACE_REASON: Record<Space, string> = {
@@ -143,10 +150,10 @@ export default function OwnTasksView() {
         meta={
           <span className="own-row-meta">
             {task.priority && (
-              <span className={`own-prio own-prio-${task.priority}`}>
+              <Chip tone={PRIORITY_TONE[task.priority]}>
                 <span className="dn-sr-only">Priorytet: </span>
                 {PRIORITY_LABEL[task.priority]}
-              </span>
+              </Chip>
             )}
             <span className={dueClass}>
               <span className="dn-sr-only">Termin: </span>
@@ -202,10 +209,11 @@ export default function OwnTasksView() {
       <div className="dn-columns">
         <div className="dn-col-main own-list-col">
           <Panel>
-            <OwnTaskTabs
+            <Tabs
               tabs={tabs}
               value={tab}
               onChange={setPickedTab}
+              label="Filtr zadań"
               panelId={panelId}
               idPrefix={idPrefix}
             />

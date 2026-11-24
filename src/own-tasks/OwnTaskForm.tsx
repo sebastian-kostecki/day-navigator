@@ -64,6 +64,7 @@ export function OwnTaskForm({ initialSpace, spaceReason, onSubmit }: Props) {
           </span>
           <Segmented
             label="Przestrzeń"
+            size="md"
             options={SPACE_OPTIONS}
             value={space}
             onChange={(value) => setSpace(value as Space)}

@@ -1,6 +1,9 @@
 import { useState } from "react";
 import {
   Button,
+  DataTable,
+  DataTableCell,
+  DataTableRow,
   Flag,
   Notice,
   Panel,
@@ -151,17 +154,14 @@ function GitlabRow({
   const url = item.webUrl;
   const labels = item.labels.join(", ");
   return (
-    <div
-      role="row"
-      className={hidden ? "gitlab-grid gitlab-row is-hidden" : "gitlab-grid gitlab-row"}
-    >
-      <span role="cell" className="gitlab-cell">
+    <DataTableRow className={hidden ? "gitlab-row is-hidden" : "gitlab-row"}>
+      <DataTableCell>
         <SourceChip source={item.kind === "mergeRequest" ? "mr" : "iss"} />
-      </span>
-      <span role="cell" className="gitlab-cell gitlab-col-nr code">
+      </DataTableCell>
+      <DataTableCell tone="faint" className="gitlab-col-nr code">
         {nr}
-      </span>
-      <span role="cell" className="gitlab-cell gitlab-col-title">
+      </DataTableCell>
+      <DataTableCell className="gitlab-col-title">
         {url ? (
           <button
             type="button"
@@ -183,17 +183,22 @@ function GitlabRow({
         )}
         {item.draft && <Flag tone="change">Draft</Flag>}
         {todoFound && <Flag tone="change">W Do zrobienia</Flag>}
-      </span>
-      <span role="cell" className="gitlab-cell gitlab-col-project" title={path || undefined}>
+      </DataTableCell>
+      <DataTableCell tone="muted" truncate className="gitlab-col-project" title={path || undefined}>
         {project}
-      </span>
-      <span role="cell" className="gitlab-cell gitlab-col-labels code" title={labels || undefined}>
+      </DataTableCell>
+      <DataTableCell
+        tone="faint"
+        truncate
+        className="gitlab-col-labels code"
+        title={labels || undefined}
+      >
         {labels}
-      </span>
-      <span role="cell" className="gitlab-cell gitlab-col-when code" title={formatUpdated(at)}>
+      </DataTableCell>
+      <DataTableCell tone="faint" className="gitlab-col-when code" title={formatUpdated(at)}>
         {formatChange(at, now)}
-      </span>
-      <span role="cell" className="gitlab-cell gitlab-col-actions">
+      </DataTableCell>
+      <DataTableCell className="gitlab-col-actions">
         {actions && item.kind === "issue" && (
           <RowButtons item={item} hidden={hidden} actions={actions} />
         )}
@@ -209,8 +214,8 @@ function GitlabRow({
             onRemove={todoFound ? () => void actions.todo.remove(todoFound.id) : undefined}
           />
         )}
-      </span>
-    </div>
+      </DataTableCell>
+    </DataTableRow>
   );
 }
 
@@ -228,26 +233,26 @@ function GitlabTable({
   actions?: RowActions;
 }) {
   return (
-    <div role="table" aria-label={label} className="gitlab-table">
-      <div role="row" className="gitlab-grid gitlab-head label-caps">
-        <span role="columnheader">Typ</span>
-        <span role="columnheader" className="gitlab-col-nr">
+    <DataTable label={label} className="gitlab-table">
+      <DataTableRow head>
+        <DataTableCell header>Typ</DataTableCell>
+        <DataTableCell header tone="faint" className="gitlab-col-nr">
           Nr
-        </span>
-        <span role="columnheader">Tytuł</span>
-        <span role="columnheader" className="gitlab-col-project">
+        </DataTableCell>
+        <DataTableCell header>Tytuł</DataTableCell>
+        <DataTableCell header tone="muted" truncate className="gitlab-col-project">
           Projekt
-        </span>
-        <span role="columnheader" className="gitlab-col-labels">
+        </DataTableCell>
+        <DataTableCell header tone="faint" truncate className="gitlab-col-labels">
           Etykiety
-        </span>
-        <span role="columnheader" className="gitlab-col-when">
+        </DataTableCell>
+        <DataTableCell header tone="faint" className="gitlab-col-when">
           {whenHeader}
-        </span>
-        <span role="columnheader" className="gitlab-col-actions">
+        </DataTableCell>
+        <DataTableCell header className="gitlab-col-actions">
           {actions ? "Akcje" : ""}
-        </span>
-      </div>
+        </DataTableCell>
+      </DataTableRow>
       {rows.map((row) => (
         <GitlabRow
           key={`${row.item.kind}:${row.item.reference}`}
@@ -256,7 +261,7 @@ function GitlabTable({
           actions={actions}
         />
       ))}
-    </div>
+    </DataTable>
   );
 }
 

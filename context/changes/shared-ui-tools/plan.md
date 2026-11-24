@@ -261,30 +261,30 @@ Nie dotyczy — brak danych i kontraktów Rust. Usunięty `OwnTaskTabs.tsx` i ek
 
 #### Automated
 
-- [x] 1.1 Pełna bramka z AGENTS.md przechodzi: `npm run lint`, `npm run format:check`, `npm run build`, a w `src-tauri/`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [x] 1.2 Brak lokalnych kopii: `grep -rn "function plural\|function useNow\|useMinuteClock\|tens < 12" src` zwraca tylko `src/components/`
-- [x] 1.3 Brak zegarów w widokach: `grep -rn "setInterval(() => setNow" src` zwraca tylko `src/components/useNow.ts`
+- [x] 1.1 Pełna bramka z AGENTS.md przechodzi: `npm run lint`, `npm run format:check`, `npm run build`, a w `src-tauri/`: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` — de5842c
+- [x] 1.2 Brak lokalnych kopii: `grep -rn "function plural\|function useNow\|useMinuteClock\|tens < 12" src` zwraca tylko `src/components/` — de5842c
+- [x] 1.3 Brak zegarów w widokach: `grep -rn "setInterval(() => setNow" src` zwraca tylko `src/components/useNow.ts` — de5842c
 
 #### Manual
 
-- [x] 1.4 GitLab, GitHub, „Stan źródeł” i panel źródeł na pulpicie: etykiety „N min temu” / wiek pozycji przesuwają się po ok. 30 s, jak dotąd
-- [x] 1.5 „Czas pracy”, dziś, licznik biegnie: „Razem” tyka co sekundę; po STOP przestaje tykać; dzień przeszły nie tyka
-- [x] 1.6 Liczebniki w nagłówkach list (GitLab „widoczne/ukryte”, GitHub „otwarte/repozytoria”, „Do zrobienia” „wolne miejsca”/„pozycje”) mają poprawne formy dla 1, 2, 5 i 12
+- [x] 1.4 GitLab, GitHub, „Stan źródeł” i panel źródeł na pulpicie: etykiety „N min temu” / wiek pozycji przesuwają się po ok. 30 s, jak dotąd — de5842c
+- [x] 1.5 „Czas pracy”, dziś, licznik biegnie: „Razem” tyka co sekundę; po STOP przestaje tykać; dzień przeszły nie tyka — de5842c
+- [x] 1.6 Liczebniki w nagłówkach list (GitLab „widoczne/ukryte”, GitHub „otwarte/repozytoria”, „Do zrobienia” „wolne miejsca”/„pozycje”) mają poprawne formy dla 1, 2, 5 i 12 — de5842c
 
 ### Phase 2: Komponenty prezentacyjne
 
 #### Automated
 
-- [ ] 2.1 Pełna bramka z AGENTS.md przechodzi: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [ ] 2.2 Brak nadpisań i starych klas: `grep -rn "dn-seg-btn\|own-tab\|own-prio" src` zwraca tylko `src/components/Segmented/`
-- [ ] 2.3 `src/own-tasks/OwnTaskTabs.tsx` nie istnieje, a `src/components/index.ts` eksportuje `Tabs`, `Chip`, `DataTable`, `DataTableRow`, `DataTableCell`
+- [x] 2.1 Pełna bramka z AGENTS.md przechodzi: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 2.2 Brak nadpisań i starych klas: `grep -rn "dn-seg-btn\|own-tab\|own-prio" src` zwraca tylko `src/components/Segmented/`
+- [x] 2.3 `src/own-tasks/OwnTaskTabs.tsx` nie istnieje, a `src/components/index.ts` eksportuje `Tabs`, `Chip`, `DataTable`, `DataTableRow`, `DataTableCell`
 
 #### Manual
 
-- [ ] 2.4 „Moje zadania”: zakładki Praca / Prywatne / Zrobione wyglądają jak dotąd (podkreślenie akcentem, liczniki); strzałki, Home i End przełączają i przenoszą fokus; czytnik ekranu ogłasza „Filtr zadań”
-- [ ] 2.5 „Moje zadania”: chip priorytetu (wysoki pomarańczowy, normalny, niski) wygląda jak dotąd; „Przestrzeń” w szybkim dodawaniu i w „Edycji” ma wysokość pól obok
-- [ ] 2.6 GitLab przy 1280, 900 i 800 px oraz poniżej 600 px: kolumny, nagłówki, ucinanie tytułów i etykiet, ukrywanie kolumn, przyciemnienie ukrytych wierszy i tabela „Zamknięte” bez zmian
-- [ ] 2.7 Filtr rodzaju w GitLabie (Segmented) ma dotychczasową wysokość 36 px
+- [x] 2.4 „Moje zadania”: zakładki Praca / Prywatne / Zrobione wyglądają jak dotąd (podkreślenie akcentem, liczniki); strzałki, Home i End przełączają i przenoszą fokus; czytnik ekranu ogłasza „Filtr zadań”
+- [x] 2.5 „Moje zadania”: chip priorytetu (wysoki pomarańczowy, normalny, niski) wygląda jak dotąd; „Przestrzeń” w szybkim dodawaniu i w „Edycji” ma wysokość pól obok
+- [x] 2.6 GitLab przy 1280, 900 i 800 px oraz poniżej 600 px: kolumny, nagłówki, ucinanie tytułów i etykiet, ukrywanie kolumn, przyciemnienie ukrytych wierszy i tabela „Zamknięte” bez zmian
+- [x] 2.7 Filtr rodzaju w GitLabie (Segmented) ma dotychczasową wysokość 36 px
 
 ### Phase 3: Stany źródeł
 

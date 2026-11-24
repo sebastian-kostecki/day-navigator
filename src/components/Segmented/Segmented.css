@@ -15,6 +15,10 @@
   cursor: pointer;
 }
 
+.dn-seg-md .dn-seg-btn {
+  min-height: calc(var(--size-field) - 2px);
+}
+
 .dn-seg-btn.is-on {
   background: var(--surface-active);
   color: var(--ink-strong);

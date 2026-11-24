@@ -77,6 +77,12 @@ pub struct GitlabItem {
     /// sent to the UI.
     #[serde(skip)]
     pub milestone: Option<String>,
+    /// First seen after the view's seen-until mark (S-02). Set by the round,
+    /// only on merge requests and visible issues; the parser gives `false`.
+    pub is_new: bool,
+    /// When the user hid the issue, UTC ms (S-02). Only on `hidden_issues`
+    /// items; the parser gives `None`.
+    pub hidden_at_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -272,6 +278,8 @@ fn build_item(
         draft: kind == ItemKind::MergeRequest && r.draft,
         changed: None,
         milestone: r.milestone.map(|m| m.title),
+        is_new: false,
+        hidden_at_ms: None,
     };
     Ok((stamp, item))
 }
@@ -1254,6 +1262,8 @@ mod tests {
             draft: false,
             changed: None,
             milestone: None,
+            is_new: false,
+            hidden_at_ms: None,
         }
     }
 
@@ -1742,5 +1752,24 @@ mod tests {
         s.state = GitlabState::NotConfigured;
         let v = serde_json::to_value(&s).unwrap();
         assert_eq!(v["state"]["state"], "notConfigured");
+    }
+
+    #[test]
+    fn item_serializes_new_and_hidden_date_for_the_webview() {
+        let mut i = item("acme/invented#1");
+        let v = serde_json::to_value(&i).unwrap();
+        assert_eq!(v["isNew"], serde_json::json!(false));
+        assert_eq!(v["hiddenAtMs"], serde_json::Value::Null);
+        i.is_new = true;
+        i.hidden_at_ms = Some(1_800_000_000_000);
+        let v = serde_json::to_value(&i).unwrap();
+        assert_eq!(v["isNew"], serde_json::json!(true));
+        assert_eq!(v["hiddenAtMs"], serde_json::json!(1_800_000_000_000_i64));
+        let closed = ClosedItem {
+            item: i,
+            closed_at: "2026-03-03T08:00:00Z".into(),
+        };
+        let v = serde_json::to_value(&closed).unwrap();
+        assert_eq!(v["isNew"], serde_json::json!(true));
     }
 }

@@ -25,12 +25,13 @@ use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 
 use chrono::DateTime;
+use rusqlite::OptionalExtension;
 
 use crate::gitlab::{AssignedItems, GitlabItem, ItemKind};
 use crate::store::{Store, StoreError};
 pub use error::NewAssignmentError;
 pub use notice::notices_for;
-pub use rules::{FORGET_AFTER_MS, ItemKey, RoundPlan, SeenRow, plan_round};
+pub use rules::{FORGET_AFTER_MS, ItemKey, RoundPlan, RoundSeen, SeenRow, fresh_since, plan_round};
 
 fn kind_text(kind: ItemKind) -> &'static str {
     match kind {
@@ -87,17 +88,47 @@ pub fn items_for<'a>(items: &'a AssignedItems, keys: &[ItemKey]) -> Vec<&'a Gitl
     out
 }
 
+/// Sets `is_new` on merge requests and visible issues from `fresh`; hidden
+/// issues are never new.
+pub fn mark_fresh(items: &mut AssignedItems, fresh: &HashSet<ItemKey>) {
+    for item in items.merge_requests.iter_mut().chain(&mut items.issues) {
+        item.is_new = fresh.contains(&ItemKey::new(item.kind, item.id));
+    }
+    for item in &mut items.hidden_issues {
+        item.is_new = false;
+    }
+}
+
+/// Moves the account's seen-until mark to `seen_until_ms`, never back: the
+/// caller passes the instant of the round that was shown, not the clock.
+pub fn mark_view_seen(
+    store: &mut Store,
+    account: &str,
+    seen_until_ms: i64,
+) -> Result<(), NewAssignmentError> {
+    store.write::<_, NewAssignmentError>(|tx| {
+        tx.execute(
+            "INSERT INTO gitlab_view_marks (account, seen_until_ms) VALUES (?1, ?2)
+             ON CONFLICT (account)
+             DO UPDATE SET seen_until_ms = max(seen_until_ms, excluded.seen_until_ms)",
+            rusqlite::params![account, seen_until_ms],
+        )?;
+        Ok(())
+    })
+}
+
 /// Records one successful round for `account` and returns the keys that are
-/// new (empty on the account's first round, which seeds silently). One write:
-/// read the seeded flag and rows, plan, insert the marker when seeding, upsert
-/// every current key, then delete this account's stale absent rows. Rows of
-/// other accounts are never touched.
+/// new (empty on the account's first round, which seeds silently) and the keys
+/// that are fresh for the view (first seen after the account's seen-until
+/// mark). One write: read the seeded flag, rows and mark, plan, insert the
+/// marker when seeding, upsert every current key, then delete this account's
+/// stale absent rows. Rows of other accounts are never touched.
 pub fn record_round(
     store: &mut Store,
     account: &str,
     current: &[ItemKey],
     now_ms: i64,
-) -> Result<Vec<ItemKey>, NewAssignmentError> {
+) -> Result<RoundSeen, NewAssignmentError> {
     store.write::<_, NewAssignmentError>(|tx| {
         let seeded: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM assignment_accounts WHERE account = ?1)",
@@ -106,30 +137,39 @@ pub fn record_round(
         )?;
 
         let mut stored = Vec::new();
+        let mut first_seen: HashMap<ItemKey, i64> = HashMap::new();
         {
             let mut stmt = tx.prepare(
-                "SELECT kind, item_id, last_seen_ms FROM seen_assignments WHERE account = ?1",
+                "SELECT kind, item_id, first_seen_ms, last_seen_ms FROM seen_assignments
+                 WHERE account = ?1",
             )?;
             let rows = stmt.query_map([account], |r| {
                 Ok((
                     r.get::<_, String>(0)?,
                     r.get::<_, i64>(1)?,
                     r.get::<_, i64>(2)?,
+                    r.get::<_, i64>(3)?,
                 ))
             })?;
             for row in rows {
-                let (kind, id, last_seen_ms) = row?;
+                let (kind, id, first_seen_ms, last_seen_ms) = row?;
                 let (Some(kind), Ok(id)) = (kind_from_text(&kind), u64::try_from(id)) else {
                     return Err(NewAssignmentError::Store(StoreError::Damaged {
                         reason: "seen assignment record is unreadable".into(),
                     }));
                 };
-                stored.push(SeenRow {
-                    key: ItemKey::new(kind, id),
-                    last_seen_ms,
-                });
+                let key = ItemKey::new(kind, id);
+                first_seen.insert(key, first_seen_ms);
+                stored.push(SeenRow { key, last_seen_ms });
             }
         }
+        let mark: Option<i64> = tx
+            .query_row(
+                "SELECT seen_until_ms FROM gitlab_view_marks WHERE account = ?1",
+                [account],
+                |r| r.get(0),
+            )
+            .optional()?;
 
         let plan = plan_round(seeded, &stored, current, now_ms);
 
@@ -167,7 +207,23 @@ pub fn record_round(
                 ])?;
             }
         }
-        Ok(plan.new)
+        // A stored key keeps its first instant (the upsert never changes it);
+        // an inserted one has `now_ms`.
+        let seen: Vec<(ItemKey, i64)> = current
+            .iter()
+            .map(|k| (*k, first_seen.get(k).copied().unwrap_or(now_ms)))
+            .collect();
+        // The seeding round is a baseline for the view too: nothing is fresh,
+        // even when a mark was saved before the account's first stored round.
+        let fresh = if plan.seed {
+            Vec::new()
+        } else {
+            fresh_since(&seen, mark)
+        };
+        Ok(RoundSeen {
+            new: plan.new,
+            fresh,
+        })
     })
 }
 

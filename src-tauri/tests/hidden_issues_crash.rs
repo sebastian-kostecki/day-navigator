@@ -48,6 +48,8 @@ fn item(n: u64) -> GitlabItem {
         draft: false,
         changed: None,
         milestone: None,
+        is_new: false,
+        hidden_at_ms: None,
     }
 }
 

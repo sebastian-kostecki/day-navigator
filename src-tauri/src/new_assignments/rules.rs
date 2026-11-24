@@ -74,6 +74,30 @@ pub struct RoundPlan {
     pub forget: Vec<ItemKey>,
 }
 
+/// What one recorded round returns: the keys to toast and the keys that are
+/// new to the view, each with its `first_seen_ms`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoundSeen {
+    /// Keys to notify (see `RoundPlan::new`).
+    pub new: Vec<ItemKey>,
+    /// `fresh_since` of the round's keys and the account's seen-until mark.
+    pub fresh: Vec<(ItemKey, i64)>,
+}
+
+/// The keys that are new to the view (S-02): `first_seen_ms` strictly after the
+/// account's seen-until `mark`. Without a mark nothing is fresh. Input order is
+/// kept; a repeated key is returned once.
+pub fn fresh_since(seen: &[(ItemKey, i64)], mark: Option<i64>) -> Vec<(ItemKey, i64)> {
+    let Some(mark) = mark else {
+        return Vec::new();
+    };
+    let mut taken = HashSet::new();
+    seen.iter()
+        .filter(|(key, first_seen_ms)| *first_seen_ms > mark && taken.insert(*key))
+        .copied()
+        .collect()
+}
+
 pub fn plan_round(seeded: bool, stored: &[SeenRow], current: &[ItemKey], now_ms: i64) -> RoundPlan {
     let known: HashSet<ItemKey> = stored.iter().map(|r| r.key).collect();
     let present: HashSet<ItemKey> = current.iter().copied().collect();

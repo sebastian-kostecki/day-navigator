@@ -206,6 +206,18 @@ CREATE UNIQUE INDEX todo_items_live_github
   ON todo_items (github_ref)
   WHERE github_ref IS NOT NULL AND removed_at IS NULL AND closed_at IS NULL;",
     },
+    // S-02: the GitLab view's seen-until mark, for the NEW flag. `account` is
+    // the opaque key from `gitlab::account_key` (a hash, never a hostname or a
+    // login); the value is one UTC instant in ms. No title, reference or URL.
+    // No REFERENCES to `assignment_accounts`: a mark can exist before the
+    // account's first round seeded it.
+    Migration {
+        version: 9,
+        sql: "CREATE TABLE gitlab_view_marks (
+  account       TEXT    PRIMARY KEY,
+  seen_until_ms INTEGER NOT NULL
+) WITHOUT ROWID;",
+    },
 ];
 
 /// Versions must start at 1 and rise by exactly 1.

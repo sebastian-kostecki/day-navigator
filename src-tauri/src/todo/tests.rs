@@ -47,6 +47,8 @@ fn gl(kind: ItemKind, n: u32) -> GitlabItem {
         iid: u64::from(n),
         changed: None,
         milestone: None,
+        is_new: false,
+        hidden_at_ms: None,
         reference: format!("invented/project{sep}{n}"),
         title: format!("Pozycja testowa {n}"),
         web_url: Some(format!(

@@ -252,11 +252,16 @@ pub fn partition(
         match records.iter().find(|r| r.issue_id == issue.id) {
             None => visible.push(GitlabItem {
                 changed: None,
+                hidden_at_ms: None,
                 ..issue.clone()
             }),
-            Some(r) if r.is_hidden() => hidden.push(issue.clone()),
+            Some(r) if r.is_hidden() => hidden.push(GitlabItem {
+                hidden_at_ms: Some(r.hidden_at_ms),
+                ..issue.clone()
+            }),
             Some(r) => visible.push(GitlabItem {
                 changed: r.changed_reason,
+                hidden_at_ms: None,
                 ..issue.clone()
             }),
         }

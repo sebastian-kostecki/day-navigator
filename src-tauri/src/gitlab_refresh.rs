@@ -601,7 +601,7 @@ fn notify_new_assignments(
     let current = keys_of(full);
     let now = Local::now().naive_local();
     let stored = app.state::<StoreHandle>().with_store(now.date(), |s| {
-        record_round(s, account, &current, now_ms() as i64)
+        record_round(s, account, &current, now_ms() as i64).map(|r| r.new)
     });
     if let Err(e) = &stored {
         // The health round reports an unopenable store, not a failing write,
@@ -1071,6 +1071,8 @@ mod tests {
             draft: false,
             changed: None,
             milestone: None,
+            is_new: false,
+            hidden_at_ms: None,
         }
     }
 
@@ -1150,7 +1152,11 @@ mod tests {
         assert_eq!(snap.hidden_check_failed, 1);
         let items = snap.items.unwrap();
         assert_eq!(items.merge_requests, vec![entry(3, ItemKind::MergeRequest)]);
-        assert_eq!(items.hidden_issues, vec![entry(1, ItemKind::Issue)]);
+        let hidden_entry = GitlabItem {
+            hidden_at_ms: Some(1),
+            ..entry(1, ItemKind::Issue)
+        };
+        assert_eq!(items.hidden_issues, vec![hidden_entry]);
         assert_eq!(items.issues.len(), 1);
         assert_eq!(items.issues[0].id, 2);
         assert_eq!(items.issues[0].changed, Some(gitlab::ChangeReason::Comment));

@@ -22,6 +22,10 @@ export type GitlabItem = {
   draft: boolean;
   /** Set on a visible issue that carries a "changed" mark. */
   changed: ChangeReason | null;
+  /** First seen after the view's seen-until mark; set on MRs and visible issues. */
+  isNew: boolean;
+  /** When the user hid the issue (UTC ms); only on hidden issues. */
+  hiddenAtMs: number | null;
 };
 
 export type AssignedItems = {

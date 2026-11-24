@@ -4,14 +4,6 @@ import { formatClock, formatWorkdays } from "../worktime/format";
 import type { MonthReportState } from "../worktime/useMonthReport";
 import type { TimerState } from "../worktime/useWorkTimer";
 
-/** Polish plural: `one` for 1, `few` for 2–4 (not 12–14), `many` otherwise. */
-export function plural(n: number, one: string, few: string, many: string): string {
-  if (n === 1) return one;
-  const units = n % 10;
-  const tens = n % 100;
-  return units >= 2 && units <= 4 && (tens < 12 || tens > 14) ? few : many;
-}
-
 /** Today's total: closed time plus the running span, as the header counts it. */
 function todayTile(timer: TimerState, nowMs: number): Stat {
   if (timer.state === "loading") return { label: "Dziś", value: "…", sub: "wczytywanie" };

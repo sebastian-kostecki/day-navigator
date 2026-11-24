@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Button,
   Flag,
   Notice,
   Panel,
+  RELATIVE_TICK_MS,
   Segmented,
   SourceChip,
   SourceState,
   formatAge,
   formatAgo,
+  plural,
+  useNow,
 } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { gitlabKey } from "../todo/keys";
@@ -20,9 +23,6 @@ import type { ChangeReason, ClosedSection, GitlabItem, GitlabSnapshot } from "./
 import { useGitlab } from "./useGitlab";
 import "./GitlabView.css";
 
-/** How often the relative labels ("2 min temu", "3 dni") are recomputed. */
-const NOW_TICK_MS = 30_000;
-
 function formatUpdated(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString("pl-PL");
@@ -33,14 +33,6 @@ function formatChange(iso: string, now: number): string {
   const ms = Date.parse(iso);
   if (Number.isNaN(ms)) return "—";
   return formatAge(ms, now) === "dziś" ? formatAgo(ms, now) : formatAge(ms, now);
-}
-
-/** Polish count form: 1, 2–4 (not 12–14), everything else. */
-function plural(n: number, one: string, few: string, many: string): string {
-  if (n === 1) return one;
-  const d = n % 10;
-  const h = n % 100;
-  return d >= 2 && d <= 4 && (h < 12 || h > 14) ? few : many;
 }
 
 /** `group/sub/project#12` → nr `#12`, project `project`, path `group/sub/project`. */
@@ -422,11 +414,7 @@ export function GitlabView() {
   const todo = useTodoPicks();
   const [kind, setKind] = useState<KindFilter>("all");
   const [showHidden, setShowHidden] = useState(false);
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const handle = setInterval(() => setNow(Date.now()), NOW_TICK_MS);
-    return () => clearInterval(handle);
-  }, []);
+  const now = useNow(RELATIVE_TICK_MS);
 
   if (loadError) {
     return (

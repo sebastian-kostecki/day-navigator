@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
 import {
   Button,
   Icon,
   ItemRow,
   Notice,
   Panel,
+  RELATIVE_TICK_MS,
   SourceState,
   formatAge,
   formatAgo,
+  plural,
+  useNow,
 } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { githubKey } from "../todo/keys";
@@ -18,17 +20,6 @@ import { openGithubIssue } from "./api";
 import type { GithubIssue, GithubState, RepoView } from "./types";
 import { useGithub } from "./useGithub";
 import "./GithubView.css";
-
-/** How often the relative labels ("2 min temu", "3 dni") are recomputed. */
-const NOW_TICK_MS = 30_000;
-
-/** Polish count form: 1, 2–4 (not 12–14), everything else. */
-function plural(n: number, one: string, few: string, many: string): string {
-  if (n === 1) return one;
-  const d = n % 10;
-  const h = n % 100;
-  return d >= 2 && d <= 4 && (h < 12 || h > 14) ? few : many;
-}
 
 function formatIssueAge(iso: string, now: number): string {
   const ms = Date.parse(iso);
@@ -137,11 +128,7 @@ function SourceError({
 export function GithubView() {
   const { snapshot, loadError, refresh, refreshError, retry } = useGithub();
   const todo = useTodoPicks();
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const handle = setInterval(() => setNow(Date.now()), NOW_TICK_MS);
-    return () => clearInterval(handle);
-  }, []);
+  const now = useNow(RELATIVE_TICK_MS);
 
   if (loadError) {
     return (

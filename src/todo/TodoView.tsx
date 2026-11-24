@@ -7,6 +7,7 @@ import {
   Panel,
   SourceState,
   StatStrip,
+  plural,
   type FlagProps,
   type SourceKind,
 } from "../components";
@@ -25,7 +26,7 @@ import { useWorkTimer } from "../worktime/useWorkTimer";
 import { todoErrorMessage } from "./api";
 import { entryKey, githubKey, gitlabKey } from "./keys";
 import { SourcesPanel } from "./SourcesPanel";
-import { plural, summaryStats } from "./summary";
+import { summaryStats } from "./summary";
 import { TodoAddButton } from "./TodoAddButton";
 import type { TodoItem, TodoList } from "./types";
 import { useTodo } from "./useTodo";

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Button, Field, Notice, Panel, formatHm, type Stat } from "../components";
+import { useState } from "react";
+import { Button, Field, Notice, Panel, formatHm, useNow, type Stat } from "../components";
 import { workTimeErrorMessage } from "./api";
 import { formatClock, formatMonth } from "./format";
 import { MonthReport } from "./MonthReport";
@@ -85,7 +85,6 @@ export default function WorkTimeView() {
     useWorkEntries(day);
   const { report, retry: retryReport } = useMonthReport(day);
   const { timer, nowMs: timerNowMs } = useWorkTimer();
-  const [nowMs, setNowMs] = useState(() => Date.now());
   // A refusal belongs to the day it happened on.
   const [dayOffError, setDayOffError] = useState<{ day: string; message: string } | null>(null);
 
@@ -101,11 +100,7 @@ export default function WorkTimeView() {
   const ticking = entries.state === "loaded" && entries.data.runningFromMs !== null;
 
   // Tick only while a running entry counts in the shown day.
-  useEffect(() => {
-    if (!ticking) return;
-    const handle = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(handle);
-  }, [ticking]);
+  const nowMs = useNow(ticking ? 1000 : null);
 
   function changeDay(value: string) {
     if (value) setDay(value);

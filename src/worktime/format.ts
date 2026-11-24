@@ -1,3 +1,5 @@
+import { plural } from "../components";
+
 /** `H:MM:SS` for a non-negative duration in milliseconds. */
 export function formatDuration(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -30,11 +32,7 @@ export function formatSigned(ms: number): string {
 
 /** `N dzień roboczy` / `N dni robocze` / `N dni roboczych` (Polish plural). */
 export function formatWorkdays(n: number): string {
-  if (n === 1) return "1 dzień roboczy";
-  const units = n % 10;
-  const tens = n % 100;
-  if (units >= 2 && units <= 4 && (tens < 12 || tens > 14)) return `${n} dni robocze`;
-  return `${n} dni roboczych`;
+  return `${n} ${plural(n, "dzień roboczy", "dni robocze", "dni roboczych")}`;
 }
 
 /** Polish month name and year for `YYYY-MM`. */

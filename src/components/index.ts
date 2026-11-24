@@ -12,4 +12,6 @@ export { SourceChip, type SourceChipProps, type SourceKind } from "./SourceChip/
 export { SourceState, type SourceStateProps } from "./SourceState/SourceState";
 export { StatStrip, type Stat, type StatStripProps } from "./StatStrip/StatStrip";
 export { StatusPill, type PillState, type StatusPillProps } from "./StatusPill/StatusPill";
+export { plural } from "./plural";
 export { formatAge, formatAgo, formatHm, formatHms } from "./time";
+export { RELATIVE_TICK_MS, useNow } from "./useNow";

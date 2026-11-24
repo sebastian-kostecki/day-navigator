@@ -1,5 +1,13 @@
-import { useEffect, useState, useTransition } from "react";
-import { Button, Panel, StatusPill, formatAgo, type PillState } from "../components";
+import { useTransition } from "react";
+import {
+  Button,
+  Panel,
+  RELATIVE_TICK_MS,
+  StatusPill,
+  formatAgo,
+  useNow,
+  type PillState,
+} from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { SourceCard, type SourceFact } from "./SourceCard";
 import {
@@ -15,18 +23,6 @@ import {
 import type { SourceStatus } from "./types";
 import { useHealth } from "./useHealth";
 import "./Health.css";
-
-/** Re-render often enough for "N min temu" notes to stay right. */
-const NOW_TICK_MS = 30_000;
-
-function useNow(intervalMs: number): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const handle = setInterval(() => setNow(Date.now()), intervalMs);
-    return () => clearInterval(handle);
-  }, [intervalMs]);
-  return now;
-}
 
 const LEGEND: { state: PillState; text: string; label: string }[] = [
   { state: "ok", label: "OK", text: "Źródło działa i odpowiada." },
@@ -70,7 +66,7 @@ function SourceRow({ source }: { source: SourceStatus }) {
 
 export function HealthPanel() {
   const { snapshot, loadError, checkError, checkNow, retry } = useHealth();
-  const now = useNow(NOW_TICK_MS);
+  const now = useNow(RELATIVE_TICK_MS);
   const [checking, startCheck] = useTransition();
 
   const runCheck = () => startCheck(() => checkNow());

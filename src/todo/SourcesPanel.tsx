@@ -1,5 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { Notice, Panel, formatAgo } from "../components";
+import type { ReactNode } from "react";
+import { Notice, Panel, RELATIVE_TICK_MS, formatAgo, useNow } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import type { HealthSnapshot, SourceStatus } from "../health/types";
 import { formatClock } from "../worktime/format";
@@ -17,16 +17,6 @@ const SUFFIX: Record<SourceStatus["state"], string | null> = {
   notConfigured: "nie skonfigurowano",
   error: "błąd",
 };
-
-/** Re-renders every half minute so "N min temu" keeps up; no backend call. */
-function useMinuteClock(): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const handle = setInterval(() => setNow(Date.now()), 30_000);
-    return () => clearInterval(handle);
-  }, []);
-  return now;
-}
 
 function detail(s: SourceStatus, lastSuccessMs: number | null, now: number): string | null {
   const parts: string[] = [];
@@ -55,7 +45,7 @@ export function SourcesPanel({
   gitlabLastSuccessMs: number | null;
   githubLastSuccessMs: number | null;
 }) {
-  const now = useMinuteClock();
+  const now = useNow(RELATIVE_TICK_MS);
 
   let body: ReactNode;
   if (loadError !== null) {

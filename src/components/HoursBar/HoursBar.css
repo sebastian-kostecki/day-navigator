@@ -1,0 +1,28 @@
+.dn-hours {
+  position: relative;
+  height: 10px;
+  background: var(--line-subtle);
+  border-radius: var(--radius-xs);
+  min-width: 80px;
+}
+
+.dn-hours-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--radius-xs);
+  background: var(--ink-soft);
+}
+
+.dn-hours-fill.is-today {
+  background: var(--accent);
+}
+
+.dn-hours-norm {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: var(--ink-faint);
+}

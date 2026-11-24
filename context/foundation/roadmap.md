@@ -147,7 +147,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 ### F-05: Design-system artifact in line with the app
 
-- **Outcome:** (foundation) the "Day Navigator — Konsola" artifact's README and components match the app: Flag tone `new`, `ItemRow` id, `ItemRow` labels, numbered navigation with shortcuts, `Notice`, START/STOP confirmation, app and tray icons.
+- **Outcome:** (foundation) the "Day Navigator — Konsola" artifact's README and components match the app: Flag tone `new`, `ItemRow` id, `ItemRow` labels, `HoursBar` with a required `norm` (from Rust), `DataTable` row states `current`/`hatched` and cell tones `info`/`warn`, numbered navigation with shortcuts, `Notice`, START/STOP confirmation, app and tray icons.
 - **Change ID:** design-system-artifact-sync
 - **PRD refs:** MS-16
 - **Unlocks:** verification path — UI reviews of the M-2 slices (the `new` flag tone in S-01/S-02, panels in S-05–S-08) check against a current design source instead of an outdated one.

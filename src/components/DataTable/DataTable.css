@@ -16,6 +16,15 @@
   border-bottom: 1px solid var(--line-subtle);
 }
 
+.dn-table-body.is-current {
+  background: var(--surface-raised);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.dn-table-body.is-hatched {
+  background-image: var(--hatch-bg);
+}
+
 .dn-table-cell {
   min-width: 0;
 }
@@ -26,6 +35,14 @@
 
 .dn-table-cell-faint {
   color: var(--ink-faint);
+}
+
+.dn-table-cell-info {
+  color: var(--info);
+}
+
+.dn-table-cell-warn {
+  color: var(--warn);
 }
 
 .dn-table-cell-truncate {

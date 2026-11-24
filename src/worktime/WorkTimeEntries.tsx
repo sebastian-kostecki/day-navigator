@@ -2,12 +2,10 @@ import { useState } from "react";
 import { Button, Field, Notice, Panel } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { workTimeErrorMessage } from "./api";
-import { formatClock, formatDuration } from "./format";
+import { WEEKDAYS, formatClock, formatDuration } from "./format";
 import { liveSpanMs } from "./total";
 import type { DayEntries, EntryRow } from "./types";
 import type { EntriesState } from "./useWorkEntries";
-
-const WEEKDAYS = ["nd", "pn", "wt", "śr", "cz", "pt", "sb"];
 
 /** `DD.MM` of a `YYYY-MM-DD` day. */
 export function shortDay(day: string): string {

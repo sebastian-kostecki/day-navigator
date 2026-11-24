@@ -1,9 +1,8 @@
-import { Button, StatStrip, type Stat } from "../components";
+import { StatStrip, type Stat } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { formatClock, formatHm, formatSigned, formatWorkdays } from "./format";
 import type { MonthReport as Report } from "./types";
 import type { MonthReportState } from "./useMonthReport";
-import { shortDay } from "./WorkTimeEntries";
 
 /** The month tiles that fit the month's phase, after the "Dziś" tile. */
 function stats(report: Report): Stat[] {
@@ -54,9 +53,8 @@ export function MonthReport(props: {
   /** Today's total, shown first whatever month is shown. */
   today: Stat;
   onRetry: () => void;
-  onPickDay: (day: string) => void;
 }) {
-  const { state, today, onRetry, onPickDay } = props;
+  const { state, today, onRetry } = props;
   let content: React.ReactNode;
   if (state.state === "loading") {
     content = <p className="dn-loading">Ładowanie…</p>;
@@ -73,27 +71,7 @@ export function MonthReport(props: {
     );
   } else {
     const { report } = state;
-    content = (
-      <>
-        <StatStrip items={[today, ...stats(report)]} />
-        {report.daysOff.length > 0 && (
-          <p className="meta wt-days-off">
-            <span className="label-caps">Dni wolne:</span>
-            {report.daysOff.map((d) => (
-              <Button
-                key={d}
-                variant="quiet"
-                size="sm"
-                aria-label={`Pokaż dzień wolny ${shortDay(d)}`}
-                onClick={() => onPickDay(d)}
-              >
-                {shortDay(d)}
-              </Button>
-            ))}
-          </p>
-        )}
-      </>
-    );
+    content = <StatStrip items={[today, ...stats(report)]} />;
   }
   return (
     <section className="wt-month" aria-label="Raport miesiąca">

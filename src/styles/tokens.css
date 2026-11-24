@@ -86,6 +86,9 @@
   --src-own: #7cc4ff;
   --kind-mr: #b48cff;
 
+  /* Day-off stripes (a row background) */
+  --hatch-bg: repeating-linear-gradient(135deg, var(--line-subtle) 0 2px, transparent 2px 8px);
+
   /* Type families */
   --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", Consolas, ui-monospace, monospace;

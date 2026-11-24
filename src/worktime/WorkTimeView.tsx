@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { Button, Field, Notice, Panel, formatHm, type Stat } from "../components";
+import { ErrorState } from "../components/ErrorState";
 import { workTimeErrorMessage } from "./api";
+import { DaysTable } from "./DaysTable";
 import { formatClock, formatMonth } from "./format";
 import { MonthReport } from "./MonthReport";
 import { todayTotalMs } from "./total";
 import { EntriesPanel } from "./WorkTimeEntries";
+import { useDayOffToggle } from "./useDayOffToggle";
 import { useMonthReport } from "./useMonthReport";
 import { useWorkEntries } from "./useWorkEntries";
 import { useWorkTimer, type TimerState } from "./useWorkTimer";
@@ -67,6 +70,11 @@ function HowCounted() {
           to przepracowany czas minus cała norma.
         </p>
         <p>
+          W tabeli dni odchylenie dnia to przepracowany czas minus norma dnia (8 h w dzień roboczy,
+          0 h w dzień wolny i w weekend), a odchylenia dni do dziś sumują się do odchylenia
+          miesiąca.
+        </p>
+        <p>
           Średnio / dzień: czas brakujący do normy miesiąca podzielony na dni robocze po dziś,
           zaokrąglony w górę do minuty. Wpis przez północ liczy się w każdym dniu po kawałku.
         </p>
@@ -80,6 +88,7 @@ export default function WorkTimeView() {
   const { entries, add, update, remove, setDayOff, dayOffChecked, dayOffBusy, busyIds, retry } =
     useWorkEntries(day);
   const { report, retry: retryReport } = useMonthReport(day);
+  const dayOffToggle = useDayOffToggle(report);
   // One tick for the whole app: the entries list also follows the shared timer.
   // While the timer is unavailable (e.g. its status read fails on the month
   // report) a running entry here stops too, until the header's retry or focus.
@@ -98,6 +107,43 @@ export default function WorkTimeView() {
   }
 
   const month = day.slice(0, 7);
+
+  let daysBody: React.ReactNode;
+  if (report.state === "loading") {
+    daysBody = <p className="dn-loading wt-panel-body">Ładowanie…</p>;
+  } else if (report.state === "error") {
+    daysBody = (
+      <div className="wt-panel-body">
+        <ErrorState
+          title="Nie udało się wczytać dni miesiąca"
+          message={report.message}
+          lastSuccess={
+            report.lastOkAt === null ? undefined : `ostatnio OK ${formatClock(report.lastOkAt)}`
+          }
+          onRetry={retryReport}
+        />
+      </div>
+    );
+  } else {
+    daysBody = (
+      <>
+        <DaysTable
+          report={report.report}
+          today={localToday()}
+          liveTodayMs={timer.state === "loaded" ? todayTotalMs(timer.status, nowMs) : null}
+          onPickDay={setDay}
+          dayOff={dayOffToggle}
+        />
+        {dayOffToggle.error && (
+          <div className="wt-panel-body">
+            <Notice tone="error" compact>
+              {`${dayOffToggle.error.day.slice(8, 10)}.${dayOffToggle.error.day.slice(5, 7)}: ${dayOffToggle.error.message}`}
+            </Notice>
+          </div>
+        )}
+      </>
+    );
+  }
 
   const dayOffControl =
     entries.state === "loaded" && entries.data.dayKind !== "weekend" ? (
@@ -145,12 +191,7 @@ export default function WorkTimeView() {
           />
         </div>
       </div>
-      <MonthReport
-        state={report}
-        today={todayStat(timer, nowMs)}
-        onRetry={retryReport}
-        onPickDay={setDay}
-      />
+      <MonthReport state={report} today={todayStat(timer, nowMs)} onRetry={retryReport} />
       <div className="dn-columns">
         <div className="dn-col-main wt-stack">
           <Panel title="Wybrany dzień">
@@ -179,6 +220,9 @@ export default function WorkTimeView() {
               </div>
               {dayOffControl}
             </div>
+          </Panel>
+          <Panel title="Dni miesiąca" meta={formatMonth(month)}>
+            {daysBody}
           </Panel>
           <HowCounted />
         </div>

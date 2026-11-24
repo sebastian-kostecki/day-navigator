@@ -17,12 +17,25 @@
   gap: var(--space-3);
 }
 
-.wt-days-off {
+.wt-days {
+  --dn-table-cols: 84px 76px minmax(0, 1fr) 52px 60px 44px;
+}
+
+.wt-days .dn-hours {
+  min-width: 0;
+}
+
+.wt-days-num {
+  text-align: right;
+}
+
+.wt-days-switch {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1) var(--space-2);
-  margin: 0;
+  justify-content: center;
+}
+
+.wt-days .wt-check {
+  min-height: 0;
 }
 
 .wt-stack {

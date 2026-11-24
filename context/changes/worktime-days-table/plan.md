@@ -325,23 +325,23 @@ Brak migracji schematu. Pole `days` jest addytywne w odpowiedzi `work_month_repo
 
 #### Automated
 
-- [x] 1.1 Formatowanie Rust: `cargo fmt --check`
-- [x] 1.2 Clippy bez ostrzeżeń: `cargo clippy --all-targets -- -D warnings`
-- [x] 1.3 Nowe testy reguły dnia i raportu dziennego przechodzą: `cargo test work_time::norm_tests`
-- [x] 1.4 Cały zestaw testów Rust przechodzi: `cargo test`
-- [x] 1.5 Typy TS kompilują się z nowym polem: `npm run build`
-- [x] 1.6 Lint i formatowanie frontendu: `npm run lint` oraz `npm run format:check`
+- [x] 1.1 Formatowanie Rust: `cargo fmt --check` — 2e21900
+- [x] 1.2 Clippy bez ostrzeżeń: `cargo clippy --all-targets -- -D warnings` — 2e21900
+- [x] 1.3 Nowe testy reguły dnia i raportu dziennego przechodzą: `cargo test work_time::norm_tests` — 2e21900
+- [x] 1.4 Cały zestaw testów Rust przechodzi: `cargo test` — 2e21900
+- [x] 1.5 Typy TS kompilują się z nowym polem: `npm run build` — 2e21900
+- [x] 1.6 Lint i formatowanie frontendu: `npm run lint` oraz `npm run format:check` — 2e21900
 
 ### Phase 2: Tabela dni w „Czas pracy”
 
 #### Automated
 
-- [ ] 2.1 Lint frontendu: `npm run lint`
-- [ ] 2.2 Formatowanie frontendu: `npm run format:check`
-- [ ] 2.3 Typy i build: `npm run build`
-- [ ] 2.4 Rust bez regresji: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [ ] 2.5 W UI nie ma reguły 8 h (rg nic nie zwraca)
-- [ ] 2.6 Licznik czytany tylko przez kontekst (`useWorkTimerSource` tylko w `useWorkTimer.ts` i `WorkTimerProvider.tsx`)
+- [x] 2.1 Lint frontendu: `npm run lint`
+- [x] 2.2 Formatowanie frontendu: `npm run format:check`
+- [x] 2.3 Typy i build: `npm run build`
+- [x] 2.4 Rust bez regresji: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 2.5 W UI nie ma reguły 8 h (rg nic nie zwraca)
+- [x] 2.6 Licznik czytany tylko przez kontekst (`useWorkTimerSource` tylko w `useWorkTimer.ts` i `WorkTimerProvider.tsx`)
 
 #### Manual
 

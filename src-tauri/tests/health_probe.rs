@@ -115,14 +115,24 @@ fn unconfigured_space_is_neutral() {
 }
 
 #[test]
-fn no_space_configured_is_a_settings_error() {
+fn no_space_configured_is_neutral() {
+    // Vaults are out of MVP scope: no vault space is a valid setup, not an alarm.
     let tmp = tempfile::tempdir().unwrap();
     let path = write_settings(tmp.path(), None, None);
     let (reg, sources) = probe(&path);
     assert!(reg.is_ok());
-    let settings = find(&sources, SourceId::Settings).unwrap();
-    assert_eq!(kind_of(settings), Some("NoSpaceConfigured"));
-    assert_eq!(overall(&sources, false, true), Overall::Error);
+    assert_eq!(find(&sources, SourceId::Settings), Some(&SourceState::Ok));
+    for space in [Space::Work, Space::Private] {
+        assert_eq!(
+            find(&sources, SourceId::Vault(space)),
+            Some(&SourceState::NotConfigured)
+        );
+        assert_eq!(
+            find(&sources, SourceId::Exclusions(space)),
+            Some(&SourceState::NotConfigured)
+        );
+    }
+    assert_eq!(overall(&sources, false, true), Overall::Ok);
 }
 
 #[test]

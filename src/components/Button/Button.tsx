@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import { Icon, type IconName } from "../Icon/Icon";
 import "./Button.css";
 
@@ -12,6 +12,8 @@ export type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "childre
   iconOnly?: boolean;
   /** Toggle state, rendered as aria-pressed. */
   pressed?: boolean;
+  /** React 19 ref as a prop, e.g. to move focus to the button. */
+  ref?: Ref<HTMLButtonElement>;
   children?: ReactNode;
 };
 

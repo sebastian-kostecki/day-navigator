@@ -5,6 +5,7 @@ export { Field, type FieldProps } from "./Field/Field";
 export { Flag, type FlagProps } from "./Flag/Flag";
 export { Icon, type IconName, type IconProps } from "./Icon/Icon";
 export { ItemRow, type ItemRowProps } from "./ItemRow/ItemRow";
+export { Notice, type NoticeProps, type NoticeTone } from "./Notice/Notice";
 export { Panel, type PanelProps } from "./Panel/Panel";
 export { Segmented, type SegmentedOption, type SegmentedProps } from "./Segmented/Segmented";
 export { SourceChip, type SourceChipProps, type SourceKind } from "./SourceChip/SourceChip";

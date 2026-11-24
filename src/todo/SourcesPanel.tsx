@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Panel, formatAgo } from "../components";
+import { Notice, Panel, formatAgo } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import type { HealthSnapshot, SourceStatus } from "../health/types";
 import { formatClock } from "../worktime/format";
@@ -70,17 +70,17 @@ export function SourcesPanel({
     );
   } else if (snapshot.overall === "notRunning" && snapshot.checkedAtMs == null) {
     body = (
-      <p className="todo-group-alert" role="alert">
+      <Notice tone="error" inset>
         Sprawdzanie stanu nie działa — pierwsze sprawdzenie źródeł nie zakończyło się.
-      </p>
+      </Notice>
     );
   } else {
     body = (
       <>
         {snapshot.overall === "notRunning" && (
-          <p className="todo-group-alert" role="alert">
+          <Notice tone="error" inset>
             Sprawdzanie stanu nie działa — wyniki mogą być nieaktualne.
-          </p>
+          </Notice>
         )}
         <ul className="todo-sources">
           {snapshot.sources.map((s) => {

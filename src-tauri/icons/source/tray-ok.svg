@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Tray icon, state "ok". Same glyph as app-icon.svg, thicker strokes for 16 px. -->
+  <rect x="32" y="32" width="960" height="960" rx="220" fill="#0F1115"/>
+  <circle cx="512" cy="512" r="330" fill="none" stroke="#F5A524" stroke-width="88"/>
+  <g transform="rotate(45 512 512)">
+    <polygon points="512,250 612,512 412,512" fill="#F5A524"/>
+    <polygon points="412,512 612,512 512,774" fill="#5A6372"/>
+  </g>
+  <circle cx="512" cy="512" r="40" fill="#0F1115"/>
+  
+</svg>

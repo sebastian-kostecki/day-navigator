@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Field, Panel } from "../components";
+import { Button, Field, Notice, Panel } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { workTimeErrorMessage } from "./api";
 import { formatClock, formatDuration } from "./format";
@@ -84,9 +84,9 @@ function EntryForm(props: {
         </div>
       </fieldset>
       {error && (
-        <p className="wt-error" role="alert">
+        <Notice tone="error" compact>
           {error}
-        </p>
+        </Notice>
       )}
     </form>
   );
@@ -181,9 +181,9 @@ function EntryItem(props: {
         </>
       )}
       {removeError && (
-        <p className="wt-error wt-row-error" role="alert">
+        <Notice tone="error" compact className="wt-row-error">
           {removeError}
-        </p>
+        </Notice>
       )}
     </li>
   );

@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import { Button, Field, Segmented } from "../components";
+import { Button, Field, Notice, Segmented } from "../components";
 import {
   NOTE_MAX,
   PRIORITY_OPTIONS,
@@ -130,15 +130,20 @@ export function OwnTaskEditPanel({ task, onSave, onToggleDone, toggleBusy }: Pro
           <Button onClick={onToggleDone} disabled={toggleBusy}>
             {isDone ? "Przywróć" : "Oznacz jako zrobione"}
           </Button>
-          <span className="meta own-saved" role="status">
-            {saved ? "Zapisano." : ""}
-          </span>
+          {/* Always mounted, so the live region announces "Zapisano." when it appears. */}
+          <div role="status">
+            {saved ? (
+              <Notice tone="info" compact role={null}>
+                Zapisano.
+              </Notice>
+            ) : null}
+          </div>
         </div>
       </fieldset>
       {error && (
-        <p className="own-error" role="alert">
+        <Notice tone="error" compact>
           {error}
-        </p>
+        </Notice>
       )}
       <p className="meta own-hint">
         Zadań się nie usuwa — dodane przez pomyłkę oznacz jako zrobione albo popraw. Odhaczenie tu i

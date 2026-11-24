@@ -1,5 +1,14 @@
 import { useEffect, useState } from "react";
-import { Button, Icon, ItemRow, Panel, SourceState, formatAge, formatAgo } from "../components";
+import {
+  Button,
+  Icon,
+  ItemRow,
+  Notice,
+  Panel,
+  SourceState,
+  formatAge,
+  formatAgo,
+} from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { openGithubIssue } from "./api";
 import type { GithubIssue, GithubState, RepoView } from "./types";
@@ -64,9 +73,9 @@ function RepoGroup({ repo, now }: { repo: RepoView; now: number }) {
       }
     >
       {repo.error ? (
-        <p className="github-repo-error" role="alert">
+        <Notice tone="error" inset>
           {repo.error.message}
-        </p>
+        </Notice>
       ) : repo.issues.length === 0 ? (
         <p className="github-repo-empty">Brak otwartych zgłoszeń przypisanych do Ciebie.</p>
       ) : (

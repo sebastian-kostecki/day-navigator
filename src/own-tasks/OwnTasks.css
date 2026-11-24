@@ -2,11 +2,6 @@
    The tab strip and the priority chip have no shared component yet; they use
    tokens only. */
 
-.own-error {
-  margin: 0;
-  color: var(--danger-ink);
-}
-
 .own-hint {
   margin: 0;
   color: var(--ink-faint);
@@ -218,8 +213,4 @@
   align-items: center;
   gap: var(--space-2);
   margin-top: var(--space-1);
-}
-
-.own-saved {
-  color: var(--ink-faint);
 }

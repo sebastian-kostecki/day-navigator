@@ -42,12 +42,6 @@
   color: var(--ink-faint);
 }
 
-.github-repo-error {
-  margin: 0;
-  padding: var(--space-3) var(--space-4);
-  color: var(--danger-ink);
-}
-
 .github-scope {
   display: flex;
   flex-direction: column;

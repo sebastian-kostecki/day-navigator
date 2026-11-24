@@ -3,6 +3,7 @@ import {
   Button,
   Flag,
   ItemRow,
+  Notice,
   Panel,
   SourceState,
   StatStrip,
@@ -373,17 +374,9 @@ export default function TodoView() {
     <main className="container">
       {summary}
 
-      {list.limitError && (
-        <p className="todo-error" role="alert">
-          {todoErrorMessage(list.limitError)}
-        </p>
-      )}
+      {list.limitError && <Notice tone="error">{todoErrorMessage(list.limitError)}</Notice>}
 
-      {notice && (
-        <p className="todo-error" role="alert">
-          {notice}
-        </p>
-      )}
+      {notice && <Notice tone="error">{notice}</Notice>}
 
       {reloadError && (
         <ErrorState
@@ -395,21 +388,21 @@ export default function TodoView() {
       )}
 
       {unverified && (
-        <p className="todo-notice" role="status">
+        <Notice tone="calm">
           GitLab niedostępny — stan pozycji z GitLaba niezweryfikowany (ostatnie odświeżenie{" "}
           {snapshot?.lastSuccessMs != null ? formatClock(snapshot.lastSuccessMs) : "brak"})
-        </p>
+        </Notice>
       )}
 
       {githubUnverified && (
-        <p className="todo-notice" role="status">
+        <Notice tone="calm">
           GitHub niedostępny lub repozytorium niezaładowane — stan pozycji z GitHuba
           niezweryfikowany (ostatnie odświeżenie{" "}
           {githubSnapshot?.lastSuccessMs != null
             ? formatClock(githubSnapshot.lastSuccessMs)
             : "brak"}
           )
-        </p>
+        </Notice>
       )}
 
       <div className="dn-columns">
@@ -686,14 +679,14 @@ function Picker({
       )}
       {githubStatus && <SourceStatusView status={githubStatus} />}
       {githubRepoErrors === "some" && (
-        <p className="todo-group-alert" role="alert">
+        <Notice tone="error" inset>
           Część repozytoriów GitHub nie załadowała się — ich zgłoszeń nie ma na liście.
-        </p>
+        </Notice>
       )}
       {githubRepoErrors === "all" && (
-        <p className="todo-group-alert" role="alert">
+        <Notice tone="error" inset>
           Żadne repozytorium GitHub nie załadowało się — nie ma czego dodać.
-        </p>
+        </Notice>
       )}
       {githubCandidates.length === 0 ? (
         githubIssues.length > 0 ? (

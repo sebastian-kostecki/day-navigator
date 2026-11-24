@@ -186,7 +186,6 @@ fn short_reason(kind: &str) -> &'static str {
         "RootsOverlap" => "foldery vaultów nakładają się",
         "SettingsInvalid" => "nieprawidłowe ustawienia",
         "NotConfigured" => "brak pliku ustawień",
-        "NoSpaceConfigured" => "nie skonfigurowano vaultu",
         "UnmatchedExclusions" => "wykluczenia nic nie chronią",
         "Io" => "błąd odczytu",
         "Damaged" => "plik danych uszkodzony",

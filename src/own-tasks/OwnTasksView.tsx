@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { Button, ItemRow, Panel } from "../components";
+import { Button, ItemRow, Notice, Panel } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { ownTaskDefaultSpace, ownTaskErrorMessage } from "./api";
 import { formatDue, PRIORITY_LABEL, SPACE_LABEL, todayIso } from "./labels";
@@ -186,17 +186,9 @@ export default function OwnTasksView() {
           onSubmit={addTask}
         />
       )}
-      {defaultSpaceError && (
-        <p className="own-error" role="alert">
-          {defaultSpaceError}
-        </p>
-      )}
+      {defaultSpaceError && <Notice tone="error">{defaultSpaceError}</Notice>}
 
-      {notice && (
-        <p className="own-error" role="alert">
-          {notice}
-        </p>
-      )}
+      {notice && <Notice tone="error">{notice}</Notice>}
 
       {reloadError && (
         <ErrorState

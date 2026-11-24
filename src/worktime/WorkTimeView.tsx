@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Button, Field, Panel, formatHm, type Stat } from "../components";
+import { Button, Field, Notice, Panel, formatHm, type Stat } from "../components";
 import { workTimeErrorMessage } from "./api";
 import { formatClock, formatMonth } from "./format";
 import { MonthReport } from "./MonthReport";
@@ -126,9 +126,9 @@ export default function WorkTimeView() {
           Dzień wolny
         </label>
         {dayOffError?.day === day && (
-          <p className="wt-error" role="alert">
+          <Notice tone="error" compact>
             {dayOffError.message}
-          </p>
+          </Notice>
         )}
       </div>
     ) : null;

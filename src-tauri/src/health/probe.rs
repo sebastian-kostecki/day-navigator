@@ -24,23 +24,14 @@ pub fn probe(settings_path: &Path) -> (Result<VaultRegistry, VaultError>, Vec<So
         }
     };
     let registry = VaultRegistry::from_settings(&settings);
-    let mut sources = Vec::new();
-    if settings.work.is_none() && settings.private.is_none() {
-        sources.push(SourceStatus {
-            id: SourceId::Settings,
-            label: "Ustawienia".to_string(),
-            state: SourceState::Error {
-                kind: "NoSpaceConfigured".to_string(),
-                message: "Nie skonfigurowano żadnego vaultu".to_string(),
-            },
-        });
-    } else {
-        sources.push(SourceStatus {
-            id: SourceId::Settings,
-            label: "Ustawienia".to_string(),
-            state: SourceState::Ok,
-        });
-    }
+    // Vaults are out of scope for the current MVP, so a settings file without
+    // any vault space is a valid one: the vault sources below report
+    // `notConfigured` on their own, without an alarm.
+    let mut sources = vec![SourceStatus {
+        id: SourceId::Settings,
+        label: "Ustawienia".to_string(),
+        state: SourceState::Ok,
+    }];
     for space in [Space::Work, Space::Private] {
         probe_space(&registry, space, &mut sources);
     }

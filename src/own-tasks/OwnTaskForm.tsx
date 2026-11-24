@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Field, Segmented } from "../components";
+import { Button, Field, Notice, Segmented } from "../components";
 import { PRIORITY_OPTIONS, SPACE_OPTIONS, priorityFromLabel, priorityToLabel } from "./labels";
 import type { OwnTaskInput, Priority, Space } from "./types";
 import "./OwnTasks.css";
@@ -89,9 +89,9 @@ export function OwnTaskForm({ initialSpace, spaceReason, onSubmit }: Props) {
       </fieldset>
       <p className="meta own-hint">{hint}</p>
       {error && (
-        <p className="own-error" role="alert">
+        <Notice tone="error" compact>
           {error}
-        </p>
+        </Notice>
       )}
     </form>
   );

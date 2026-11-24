@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Button,
   Flag,
+  Notice,
   Panel,
   Segmented,
   SourceChip,
@@ -283,9 +284,9 @@ function ClosedBlock({
       footer={filteredNote(closed.filteredOut)}
     >
       {closed.error ? (
-        <p className="gitlab-note gitlab-note-inset" role="status">
+        <Notice tone="warn" inset>
           {closed.error}
-        </p>
+        </Notice>
       ) : items.length === 0 ? (
         <p className="dn-empty">
           {oneDay
@@ -502,38 +503,34 @@ export function GitlabView() {
       )}
       {/* "1–14" and "10 min" mirror REFRESH_MINUTES_MAX and DEFAULT_REFRESH_MINUTES in src-tauri/src/settings.rs. */}
       {snapshot.refreshSettingInvalid && (
-        <p className="gitlab-note" role="status">
+        <Notice tone="warn">
           Nieprawidłowe ustawienie <code>gitlabRefresh.minutes</code> (dozwolone 1–14) — odświeżam
           co 10 min
-        </p>
+        </Notice>
       )}
       {snapshot.filterInvalid && (
-        <p className="gitlab-note" role="status">
+        <Notice tone="warn">
           Nieprawidłowy blok gitlabFilter w settings.json — pokazuję wszystkie przypisane
-        </p>
+        </Notice>
       )}
       {snapshot.hiddenError && (
-        <p className="gitlab-note" role="status">
+        <Notice tone="warn">
           Lista pokazuje wszystkie zgłoszenia, bo nie udało się odczytać ukrytych.{" "}
           {snapshot.hiddenError}
-        </p>
+        </Notice>
       )}
       {hiddenCheckFailed > 0 && (
-        <p className="gitlab-note" role="status">
+        <Notice tone="warn">
           Nie udało się sprawdzić {hiddenCheckFailed} ukrytych — spróbuję przy następnym odświeżeniu
-        </p>
+        </Notice>
       )}
       {hasHidden && !ownCommentsKnown && (
-        <p className="gitlab-note" role="status">
+        <Notice tone="warn">
           Ustaw <code>&quot;user&quot;</code> w bloku <code>&quot;gitlab&quot;</code> w
           settings.json, aby Twoje własne komentarze nie przywracały ukrytych zgłoszeń.
-        </p>
+        </Notice>
       )}
-      {actionError && (
-        <p className="gitlab-action-error" role="alert">
-          {actionError}
-        </p>
-      )}
+      {actionError && <Notice tone="error">{actionError}</Notice>}
       {items && state.state !== "notConfigured" && !offline && (
         <Lists
           snapshot={{ ...snapshot, items }}

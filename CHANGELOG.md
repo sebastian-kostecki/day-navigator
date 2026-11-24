@@ -11,12 +11,26 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-24
+
+### Added
+
+- "Praca (GitLab)" and "Projekty (GitHub)": a "+" button on each row adds the
+  item to "Do zrobienia", blocked at the list limit with the same hint as the
+  picker; items already on the list show the "W DO ZROBIENIA" flag and a
+  filled button that takes them off again.
+
 ### Changed
 
 - The exe and the installer show the author in their copyright field; the
   package description and author are no longer template values.
 - Release descriptions come from this changelog, with a link to the full
   list of changes since the previous release.
+
+### Removed
+
+- The unused Obsidian vault layer, and the vault and exclusion cards in
+  "Stan źródeł". An older `settings.json` with vault paths still loads.
 
 ## [0.2.0] - 2026-11-24
 

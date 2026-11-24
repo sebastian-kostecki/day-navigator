@@ -218,8 +218,8 @@ CREATE UNIQUE INDEX todo_items_live_github
   seen_until_ms INTEGER NOT NULL
 ) WITHOUT ROWID;",
     },
-    // S-08: today's event log. Only the current day's rows are kept; every
-    // write deletes other days. Holds only what the UI shows: the item's
+    // S-08: today's event log. Only the current day's rows are shown; every
+    // write deletes past days. Holds only what the UI shows: the item's
     // reference and title, the source key and label, the error kind. No URL,
     // hostname or message text. `at` is local `YYYY-MM-DDTHH:MM:SS`.
     Migration {

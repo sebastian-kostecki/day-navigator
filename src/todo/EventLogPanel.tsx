@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Notice, Panel } from "../components";
+import { Panel } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import type { EventEntry } from "../events/types";
 import { useEventLog } from "../events/useEventLog";
@@ -52,7 +52,7 @@ function lastRefreshLabel(at: Date | null): string {
 
 /** The "Dziennik zdarzeń" panel: today's events, newest first. */
 export function EventLogPanel() {
-  const { load, lastSuccessAt, reloadError, retry } = useEventLog();
+  const { load, lastSuccessAt, reloadError, retry, refresh } = useEventLog();
 
   let body: ReactNode;
   let meta: ReactNode;
@@ -74,14 +74,17 @@ export function EventLogPanel() {
     );
   } else {
     const { events, truncated } = load.log;
-    meta = events.length;
+    meta = truncated ? "200+" : events.length;
     if (truncated) footer = "Pokazano 200 najnowszych";
     body = (
       <>
         {reloadError && (
-          <Notice tone="error" inset>
-            {reloadError}
-          </Notice>
+          <ErrorState
+            title="Nie udało się odświeżyć dziennika — może być nieaktualny"
+            message={reloadError}
+            onRetry={() => void refresh()}
+            lastSuccess={lastRefreshLabel(lastSuccessAt)}
+          />
         )}
         {events.length === 0 ? (
           <p className="dn-empty">Brak zdarzeń dzisiaj.</p>

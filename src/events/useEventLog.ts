@@ -106,5 +106,5 @@ export function useEventLog() {
     setAttempt((n) => n + 1);
   }, []);
 
-  return { load, lastSuccessAt, reloadError, retry };
+  return { load, lastSuccessAt, reloadError, retry, refresh: reload };
 }

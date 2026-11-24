@@ -1,8 +1,9 @@
 //! Today's event log (S-08): what happened to the user's list today.
 //!
 //! No `tauri` import and no clock: `today` and `now` are parameters. Only the
-//! current day's rows are kept; every write first deletes the rows of other
-//! days (also those of a later day, after the clock went back). A row holds
+//! current day's rows are shown; every write first deletes the rows of past
+//! days (a later day's rows stay, so a stale writer cannot touch them, and
+//! the read shows only today's). A row holds
 //! what the UI shows: the item's reference and title, the source key and
 //! label, the error kind. No URL, hostname or message text.
 
@@ -247,7 +248,7 @@ fn columns_of(event: &NewEvent) -> Columns {
     }
 }
 
-/// Deletes the rows of every other day, then inserts `event` at `now`. The
+/// Deletes the rows of past days, then inserts `event` at `now`. The
 /// caller passes the transaction, so one write can hold several events.
 pub fn record_in(
     tx: &Transaction<'_>,
@@ -256,7 +257,7 @@ pub fn record_in(
     event: &NewEvent,
 ) -> Result<(), StoreError> {
     tx.execute(
-        "DELETE FROM events WHERE substr(at, 1, 10) <> ?1",
+        "DELETE FROM events WHERE substr(at, 1, 10) < ?1",
         [day_text(today)],
     )?;
     let c = columns_of(event);

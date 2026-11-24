@@ -155,13 +155,67 @@ fn a_new_day_removes_yesterdays_events() {
 }
 
 #[test]
-fn a_clock_set_back_removes_tomorrows_events() {
+fn a_clock_set_back_keeps_tomorrows_events_hidden() {
     let (_tmp, dir) = test_store_dir();
     let mut store = open(&dir);
     record(&mut store, day(24), at(24, 8, 0), &[assigned()]).unwrap();
     record(&mut store, day(23), at(23, 8, 0), &[ticked()]).unwrap();
-    assert_eq!(count(&store), 1);
-    assert!(list_today(&store, day(24)).unwrap().events.is_empty());
+    assert_eq!(count(&store), 2);
+    let log = list_today(&store, day(23)).unwrap();
+    assert_eq!(log.events.len(), 1);
+    assert!(matches!(log.events[0].event, EventView::Ticked(_)));
+}
+
+#[test]
+fn a_stale_writer_keeps_the_newer_days_events() {
+    let (_tmp, dir) = test_store_dir();
+    let mut store = open(&dir);
+    record(&mut store, day(24), at(24, 0, 1), &[assigned()]).unwrap();
+    record(&mut store, day(23), at(23, 23, 59), &[ticked()]).unwrap();
+    let log = list_today(&store, day(24)).unwrap();
+    assert_eq!(log.events.len(), 1);
+    assert!(matches!(log.events[0].event, EventView::Assigned { .. }));
+}
+
+#[test]
+fn every_source_id_round_trips() {
+    // No wildcard arm: a new `SourceId` variant must be listed here.
+    fn expected_key(source: SourceId) -> &'static str {
+        match source {
+            SourceId::Settings => "settings",
+            SourceId::AppData => "app-data",
+            SourceId::Gitlab => "gitlab",
+            SourceId::Github => "github",
+            SourceId::Reminders => "reminders",
+        }
+    }
+    let sources = [
+        SourceId::Settings,
+        SourceId::AppData,
+        SourceId::Gitlab,
+        SourceId::Github,
+        SourceId::Reminders,
+    ];
+    let (_tmp, dir) = test_store_dir();
+    let mut store = open(&dir);
+    let events: Vec<NewEvent> = sources
+        .iter()
+        .map(|s| NewEvent::SourceError {
+            source: *s,
+            label: "Wymyślone źródło".to_string(),
+            error_kind: "Busy".to_string(),
+        })
+        .collect();
+    record(&mut store, day(23), at(23, 8, 0), &events).unwrap();
+    let log = list_today(&store, day(23)).unwrap();
+    assert_eq!(log.events.len(), sources.len());
+    for s in sources {
+        let found = log.events.iter().any(|e| {
+            matches!(&e.event, EventView::SourceError { source_id, .. }
+                if *source_id == s && source_id.key() == expected_key(s))
+        });
+        assert!(found, "no stored event for {}", expected_key(s));
+    }
 }
 
 #[test]

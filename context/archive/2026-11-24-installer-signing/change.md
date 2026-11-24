@@ -1,9 +1,10 @@
 ---
 change_id: installer-signing
 title: Installer signing
-status: research
+status: archived
 created: 2026-11-24
 updated: 2026-11-24
+archived_at: 2026-11-24T18:53:22Z
 ---
 
 ## Notes

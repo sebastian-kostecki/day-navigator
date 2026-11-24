@@ -128,6 +128,26 @@
   white-space: nowrap;
 }
 
+.health-card-fact dd.is-warn {
+  color: var(--warn);
+}
+
+.health-card-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.health-card-actions .health-card-note {
+  padding: 0;
+}
+
+.health-card-note.is-error {
+  color: var(--danger-soft);
+}
+
 /* Other sources: compact rows. */
 
 .health-rows {

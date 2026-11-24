@@ -1,8 +1,9 @@
 // Pure display rules for the "Stan źródeł" view: pill text, glyphs, card
 // texts and the head summary. No state, no backend calls.
 
-import type { PillState } from "../components";
-import type { SourceStatus } from "./types";
+import { formatAgo, type PillState } from "../components";
+import type { SourceFact } from "./SourceCard";
+import type { AppDataDetails, SourceStatus } from "./types";
 
 export type Tone = "ok" | "calm" | "error";
 
@@ -83,6 +84,31 @@ export function cardMessage(s: SourceStatus): { text: string; note?: string } {
 /** Short message for a compact row; only states that carry one. */
 export function rowMessage(s: SourceStatus): string | null {
   return s.state === "error" || s.state === "unavailable" ? s.message : null;
+}
+
+/** "YYYY-MM-DD" to "DD.MM.YYYY" by reformatting the string (no timezone parsing). */
+function formatBackupDate(date: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : date;
+}
+
+/** Facts for the "Dane aplikacji" card, after "Sprawdzono". */
+export function appDataFacts(appData: AppDataDetails, nowMs: number): SourceFact[] {
+  const facts: SourceFact[] = [];
+  const { backups, schemaVersion } = appData;
+  if (backups.state === "listed") {
+    const tone = backups.stale ? ("warn" as const) : undefined;
+    let last: string;
+    if (backups.last === null) last = "brak";
+    else if (backups.last.atMs != null) last = formatAgo(backups.last.atMs, nowMs);
+    else last = formatBackupDate(backups.last.date);
+    facts.push({ label: "Ostatnia kopia", value: last, tone });
+    facts.push({ label: "Kopie", value: `${backups.kept} z ${backups.keep}` });
+  } else {
+    facts.push({ label: "Kopie", value: "nie można odczytać folderu", tone: "warn" });
+  }
+  if (schemaVersion !== null) facts.push({ label: "Schemat", value: `v${schemaVersion}` });
+  return facts;
 }
 
 /** "1 błąd", "2 błędy", "5 błędów", "22 błędy". */

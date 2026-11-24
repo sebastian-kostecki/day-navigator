@@ -231,8 +231,8 @@ Brak migracji danych. Zmiana kontraktu migawki (Rust + TS) w jednym commicie.
 
 #### Automated
 
-- [x] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [x] 2.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą (pełny zestaw przed commitem)
+- [x] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą — 250d709
+- [x] 2.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą (pełny zestaw przed commitem) — 250d709
 
 #### Manual
 

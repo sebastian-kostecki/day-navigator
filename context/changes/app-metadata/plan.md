@@ -107,4 +107,4 @@ Brak. Publisher bez zmian, więc klucze rejestru instalatora zostają te same, a
 
 #### Manual
 
-- [ ] 1.5 Właściwości exe i instalatora w Eksploratorze pokazują autora
+- [x] 1.5 Właściwości exe i instalatora w Eksploratorze pokazują autora (2026-11-24: sprawdzone przez `VersionInfo`, czyli te same pola co zakładka Szczegóły: `FileDescription` „Nawigator dnia”, `LegalCopyright` „© 2026 Sebastian Kostecki” w exe i instalatorze; `CompanyName` exe to „sebas” z identyfikatora — poza zakresem)

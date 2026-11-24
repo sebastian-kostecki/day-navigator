@@ -253,9 +253,9 @@ Brak migracji danych. `HealthSnapshot` zyskuje pole; jedyny konsument to UI w ty
 
 #### Automated
 
-- [x] 2.1 `npm run build`, `npm run lint` i `npm run format:check` przechodzą
-- [x] 2.2 `cargo test`, `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` nadal przechodzą
-- [x] 2.3 `rg "#[0-9a-fA-F]{3,6}\b" src/health/Health.css` nie znajduje literalnych kolorów
+- [x] 2.1 `npm run build`, `npm run lint` i `npm run format:check` przechodzą — db6a36e
+- [x] 2.2 `cargo test`, `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` nadal przechodzą — db6a36e
+- [x] 2.3 `rg "#[0-9a-fA-F]{3,6}\b" src/health/Health.css` nie znajduje literalnych kolorów — db6a36e
 
 #### Manual
 

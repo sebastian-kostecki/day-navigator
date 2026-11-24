@@ -336,12 +336,12 @@ Brak migracji schematu. Pole `days` jest addytywne w odpowiedzi `work_month_repo
 
 #### Automated
 
-- [x] 2.1 Lint frontendu: `npm run lint`
-- [x] 2.2 Formatowanie frontendu: `npm run format:check`
-- [x] 2.3 Typy i build: `npm run build`
-- [x] 2.4 Rust bez regresji: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [x] 2.5 W UI nie ma reguły 8 h (rg nic nie zwraca)
-- [x] 2.6 Licznik czytany tylko przez kontekst (`useWorkTimerSource` tylko w `useWorkTimer.ts` i `WorkTimerProvider.tsx`)
+- [x] 2.1 Lint frontendu: `npm run lint` — 6f5f743
+- [x] 2.2 Formatowanie frontendu: `npm run format:check` — 6f5f743
+- [x] 2.3 Typy i build: `npm run build` — 6f5f743
+- [x] 2.4 Rust bez regresji: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` — 6f5f743
+- [x] 2.5 W UI nie ma reguły 8 h (rg nic nie zwraca) — 6f5f743
+- [x] 2.6 Licznik czytany tylko przez kontekst (`useWorkTimerSource` tylko w `useWorkTimer.ts` i `WorkTimerProvider.tsx`) — 6f5f743
 
 #### Manual
 

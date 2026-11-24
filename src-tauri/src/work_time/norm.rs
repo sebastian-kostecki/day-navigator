@@ -39,6 +39,31 @@ pub fn workdays(
         .collect()
 }
 
+/// Norm of one day: 8 h on a Monday-to-Friday day that is not in `days_off`,
+/// otherwise 0. A weekend is 0 even when listed in `days_off`.
+pub fn day_norm_ms(day: NaiveDate, days_off: &BTreeSet<NaiveDate>) -> i64 {
+    if is_weekend(day) || days_off.contains(&day) {
+        0
+    } else {
+        DAILY_NORM_MS
+    }
+}
+
+/// Deviation of one day: `None` for a day after `today` and for a day with
+/// neither norm nor hours; otherwise worked minus norm.
+pub fn day_deviation_ms(
+    day: NaiveDate,
+    today: NaiveDate,
+    norm_ms: i64,
+    worked_ms: i64,
+) -> Option<i64> {
+    if day > today || (norm_ms == 0 && worked_ms == 0) {
+        None
+    } else {
+        Some(worked_ms - norm_ms)
+    }
+}
+
 /// Where a month stands relative to today.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]

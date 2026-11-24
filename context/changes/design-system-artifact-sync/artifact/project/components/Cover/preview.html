@@ -1,0 +1,50 @@
+<!-- @dsCard height=320 -->
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Day Navigator — Konsola — cover</title>
+<style>
+  html, body { margin: 0; background: var(--bg); }
+  .cover { position: relative; width: 960px; height: 320px; background: var(--bg); overflow: hidden; }
+  .band { position: absolute; left: 0; top: 0; }
+  .accent { fill: var(--accent); }
+  .raised { fill: var(--surface-raised); }
+  .info { fill: var(--info); }
+  .danger { fill: var(--danger); }
+  .dot { fill: var(--line-strong); }
+  .r-lg { rx: var(--radius-lg); ry: var(--radius-lg); }
+  .r-sm { rx: var(--radius-sm); ry: var(--radius-sm); }
+  .text { position: absolute; left: 40px; top: 148px; max-width: 880px; }
+  .name { margin: 0; font-family: var(--font-sans); font-weight: 600; font-size: 64px; line-height: 0.95; letter-spacing: -0.02em; color: var(--ink-strong); }
+  .tag { margin: 8px 0 0; max-width: 440px; font-family: var(--font-sans); font-size: 14px; line-height: 20px; color: var(--ink-faint); }
+</style>
+</head>
+<body>
+<div class="cover">
+  <!--
+    blocks: accent 420×120 (space-5 multiples), surface-raised 300×120, info 96×120, danger 48×48 — corners radius-lg / radius-sm
+    arrangement: top-band skeleton (the name is too wide for the 440px zone), unequal bands flush to the top edge, left to right by identity weight
+    pattern: dot grid at 24px (2 × space-3) on the surface-raised band, in line-strong — "precise, technical, mono": the console's tabular grid
+    scales: gaps space-3 (12px), dots r=1.5, radii radius-lg (6px) and radius-sm (3px)
+  -->
+  <svg class="band" width="960" height="120" viewBox="0 0 960 120" aria-hidden="true">
+    <rect class="accent r-lg" x="0" y="-6" width="420" height="126"></rect>
+    <rect class="raised r-lg" x="432" y="-6" width="300" height="126"></rect>
+    <g>
+      <circle class="dot" cx="444" cy="12" r="1.5"></circle><circle class="dot" cx="468" cy="12" r="1.5"></circle><circle class="dot" cx="492" cy="12" r="1.5"></circle><circle class="dot" cx="516" cy="12" r="1.5"></circle><circle class="dot" cx="540" cy="12" r="1.5"></circle><circle class="dot" cx="564" cy="12" r="1.5"></circle><circle class="dot" cx="588" cy="12" r="1.5"></circle><circle class="dot" cx="612" cy="12" r="1.5"></circle><circle class="dot" cx="636" cy="12" r="1.5"></circle><circle class="dot" cx="660" cy="12" r="1.5"></circle><circle class="dot" cx="684" cy="12" r="1.5"></circle><circle class="dot" cx="708" cy="12" r="1.5"></circle>
+      <circle class="dot" cx="444" cy="36" r="1.5"></circle><circle class="dot" cx="468" cy="36" r="1.5"></circle><circle class="dot" cx="492" cy="36" r="1.5"></circle><circle class="dot" cx="516" cy="36" r="1.5"></circle><circle class="dot" cx="540" cy="36" r="1.5"></circle><circle class="dot" cx="564" cy="36" r="1.5"></circle><circle class="dot" cx="588" cy="36" r="1.5"></circle><circle class="dot" cx="612" cy="36" r="1.5"></circle><circle class="dot" cx="636" cy="36" r="1.5"></circle><circle class="dot" cx="660" cy="36" r="1.5"></circle><circle class="dot" cx="684" cy="36" r="1.5"></circle><circle class="dot" cx="708" cy="36" r="1.5"></circle>
+      <circle class="dot" cx="444" cy="60" r="1.5"></circle><circle class="dot" cx="468" cy="60" r="1.5"></circle><circle class="dot" cx="492" cy="60" r="1.5"></circle><circle class="dot" cx="516" cy="60" r="1.5"></circle><circle class="dot" cx="540" cy="60" r="1.5"></circle><circle class="dot" cx="564" cy="60" r="1.5"></circle><circle class="dot" cx="588" cy="60" r="1.5"></circle><circle class="dot" cx="612" cy="60" r="1.5"></circle><circle class="dot" cx="636" cy="60" r="1.5"></circle><circle class="dot" cx="660" cy="60" r="1.5"></circle><circle class="dot" cx="684" cy="60" r="1.5"></circle><circle class="dot" cx="708" cy="60" r="1.5"></circle>
+      <circle class="dot" cx="444" cy="84" r="1.5"></circle><circle class="dot" cx="468" cy="84" r="1.5"></circle><circle class="dot" cx="492" cy="84" r="1.5"></circle><circle class="dot" cx="516" cy="84" r="1.5"></circle><circle class="dot" cx="540" cy="84" r="1.5"></circle><circle class="dot" cx="564" cy="84" r="1.5"></circle><circle class="dot" cx="588" cy="84" r="1.5"></circle><circle class="dot" cx="612" cy="84" r="1.5"></circle><circle class="dot" cx="636" cy="84" r="1.5"></circle><circle class="dot" cx="660" cy="84" r="1.5"></circle><circle class="dot" cx="684" cy="84" r="1.5"></circle><circle class="dot" cx="708" cy="84" r="1.5"></circle>
+      <circle class="dot" cx="444" cy="108" r="1.5"></circle><circle class="dot" cx="468" cy="108" r="1.5"></circle><circle class="dot" cx="492" cy="108" r="1.5"></circle><circle class="dot" cx="516" cy="108" r="1.5"></circle><circle class="dot" cx="540" cy="108" r="1.5"></circle><circle class="dot" cx="564" cy="108" r="1.5"></circle><circle class="dot" cx="588" cy="108" r="1.5"></circle><circle class="dot" cx="612" cy="108" r="1.5"></circle><circle class="dot" cx="636" cy="108" r="1.5"></circle><circle class="dot" cx="660" cy="108" r="1.5"></circle><circle class="dot" cx="684" cy="108" r="1.5"></circle><circle class="dot" cx="708" cy="108" r="1.5"></circle>
+    </g>
+    <rect class="info r-lg" x="744" y="-6" width="96" height="126"></rect>
+    <rect class="danger r-sm" x="852" y="72" width="48" height="48"></rect>
+  </svg>
+  <div class="text">
+    <h1 class="name">Day Navigator<br>— Konsola</h1>
+    <p class="tag">Ciemny, gęsty interfejs: co dziś zrobić i ile brakuje do normy.</p>
+  </div>
+</div>
+</body>
+</html>

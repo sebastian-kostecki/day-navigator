@@ -1,0 +1,27 @@
+<!-- @dsCard group="Dane" height=250 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>ItemRow — preview</title></head>
+<body>
+<div id="root" style="padding: 16px"></div>
+<script>
+  var D = window.DayNav, h = React.createElement;
+  function Demo() {
+    var s = React.useState({ 4: true }), done = s[0], set = s[1];
+    function t(id) { return function () { var n = Object.assign({}, done); n[id] = !done[id]; set(n); }; }
+    function tools(inTodo) {
+      return [
+        h(D.Button, { key: 'a', variant: inTodo ? 'primary' : 'quiet', iconOnly: true, icon: 'plus', pressed: inTodo, 'aria-label': 'Dodaj do listy Do zrobienia' }),
+        h(D.Button, { key: 'b', variant: 'quiet', iconOnly: true, icon: 'hide', 'aria-label': 'Ukryj do zmiany' })
+      ];
+    }
+    return h(D.Panel, { title: 'Do zrobienia', meta: '[3/5]' },
+      h(D.ItemRow, { id: 'r1', source: 'gl', refId: '!418', title: 'Walidacja dat w imporcie faktur', flag: 'ZMIENIONE', done: !!done[1], onToggle: t(1) }, tools(true)),
+      h(D.ItemRow, { id: 'r2', source: 'my', refId: 'praca', title: 'Przygotować notatkę na retro', flag: 'DZIŚ', done: !!done[2], onToggle: t(2), selected: true }),
+      h(D.ItemRow, { id: 'r3', source: 'gh', refId: '#27', title: 'Eksport listy zakupów do PDF', flag: 'NOWE', flagTone: 'new', meta: '3 dni', done: !!done[3], onToggle: t(3) }),
+      h(D.ItemRow, { id: 'r4', source: 'gl', refId: '#1203', title: 'Błąd sortowania w tabeli zamówień', done: !!done[4], onToggle: t(4) }));
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+</script>
+</body>
+</html>

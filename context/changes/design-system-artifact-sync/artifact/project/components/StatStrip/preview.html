@@ -1,0 +1,18 @@
+<!-- @dsCard group="Dane" height=130 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>StatStrip — preview</title></head>
+<body>
+<div id="root" style="padding: 16px"></div>
+<script>
+  var D = window.DayNav, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(D.StatStrip, { items: [
+    { label: 'Dziś', value: '5:12', sub: 'start 08:41' },
+    { label: 'Miesiąc', value: '119:42', sub: 'z 160:00 normy' },
+    { label: 'Odchylenie', value: '+2:30', sub: 'do wczoraj włącznie', tone: 'info' },
+    { label: 'Średnio / dzień', value: '7:35', sub: 'przez 6 dni roboczych' },
+    { label: 'Pod normą', value: '−1:10', sub: 'przykład wartości ujemnej', tone: 'warn' }
+  ] }));
+</script>
+</body>
+</html>

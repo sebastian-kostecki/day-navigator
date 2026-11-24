@@ -1,0 +1,29 @@
+<!-- @dsCard group="Akcje" height=150 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Button — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.DayNav, h = React.createElement;
+  function Demo() {
+    var s = React.useState(false), on = s[0], set = s[1];
+    return h('div', null,
+      h('div', { className: 'dn-demo' },
+        h(D.Button, { variant: 'primary' }, 'Zapisz'),
+        h(D.Button, null, 'Oznacz jako zrobione'),
+        h(D.Button, { variant: 'quiet', size: 'sm', icon: 'refresh' }, 'Odśwież'),
+        h(D.Button, { variant: 'dashed', icon: 'plus' }, 'Dopisz brakujący wpis'),
+        h(D.Button, { size: 'lg' }, 'Sprawdź teraz')),
+      h('div', { className: 'dn-demo' },
+        h(D.Button, { variant: 'quiet', iconOnly: true, icon: 'plus', 'aria-label': 'Dodaj do listy Do zrobienia' }),
+        h(D.Button, { variant: 'primary', iconOnly: true, icon: 'plus', pressed: true, 'aria-label': 'Już w Do zrobienia' }),
+        h(D.Button, { variant: 'quiet', iconOnly: true, icon: 'hide', 'aria-label': 'Ukryj do zmiany' }),
+        h(D.Button, { variant: 'quiet', iconOnly: true, icon: 'edit', 'aria-label': 'Edytuj zadanie' }),
+        h(D.Button, { variant: 'quiet', size: 'sm', pressed: on, onClick: function () { set(!on); } }, on ? 'Ukryj ukryte (2)' : 'Pokaż ukryte (2)'),
+        h(D.Button, { variant: 'quiet', iconOnly: true, icon: 'chevron-right', disabled: true, 'aria-label': 'Następny miesiąc' })));
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+</script>
+</body>
+</html>

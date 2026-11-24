@@ -1,0 +1,18 @@
+<!-- @dsCard group="Nawigacja" height=80 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Tabs — preview</title></head>
+<body>
+<div id="root" style="padding: 16px"></div>
+<script>
+  var D = window.DayNav, h = React.createElement;
+  function Demo() {
+    var s = React.useState('Praca');
+    return h(D.Panel, null, h(D.Tabs, { label: 'Filtr zadań', value: s[0], onChange: s[1], tabs: [
+      { value: 'Praca', label: 'Praca', count: 3 }, { value: 'Prywatne', label: 'Prywatne', count: 2 }, { value: 'Zrobione', label: 'Zrobione', count: 1 }
+    ] }));
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
+</script>
+</body>
+</html>

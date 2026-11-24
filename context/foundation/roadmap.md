@@ -54,7 +54,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | F-02 | shared-work-timer-state     | (foundation) one work-timer state feeds the header, dashboard and "Work time"           | —             | MS-09           | done     |
 | F-03 | remove-vault-layer          | (foundation) the vault layer and its health sources are gone                            | —             | MS-11           | done     |
 | F-04 | konsola-design-system       | (foundation) the Konsola design system is checked by hand and its change archived       | —             | MS-12           | done     |
-| F-05 | design-system-artifact-sync | (foundation) the design-system artifact matches the app                                 | F-04          | MS-16           | ready    |
+| F-05 | design-system-artifact-sync | (foundation) the design-system artifact matches the app                                 | F-04          | MS-16           | in-progress |
 | S-01 | todo-add-from-sources       | add an item to "To do" with "+" from the GitLab and GitHub views                        | —             | FR-026, US-01   | done     |
 | S-02 | gitlab-new-and-hidden-date  | see a NEW flag on fresh GitLab items and the date a row was hidden                      | —             | FR-023          | done     |
 | S-03 | gitlab-filter-bar-retry     | see the active filter values and when GitLab will be tried again                        | F-01          | FR-024          | done     |
@@ -156,7 +156,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** It edits a published artifact outside the repo; if the manual check (F-04) changes the UI, syncing first would document a state that does not ship.
-- **Status:** ready
+- **Status:** in-progress
 
 ## Slices
 

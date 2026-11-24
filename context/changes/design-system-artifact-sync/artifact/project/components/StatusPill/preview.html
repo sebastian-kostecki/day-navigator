@@ -1,0 +1,14 @@
+<!-- @dsCard group="Oznaczenia" height=72 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>StatusPill — preview</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var D = window.DayNav, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(
+    h('div', { className: 'dn-demo' },
+      h(D.StatusPill, { state: 'ok' }), h(D.StatusPill, { state: 'calm' }), h(D.StatusPill, { state: 'error' })));
+</script>
+</body>
+</html>

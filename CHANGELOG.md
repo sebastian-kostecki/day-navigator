@@ -11,6 +11,16 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-24
+
+### Changed
+
+- The README now describes the app: features, privacy, requirements,
+  install, configuration (`settings.json`) and development. It replaces the
+  Tauri template text.
+- The "Day Navigator — Konsola" design-system artifact now matches the app.
+  The app itself does not change.
+
 ## [0.3.0] - 2026-11-24
 
 ### Added

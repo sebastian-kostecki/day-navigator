@@ -20,6 +20,7 @@ use chrono::{NaiveDate, NaiveDateTime};
 use rusqlite::{OptionalExtension, Transaction};
 use serde::Serialize;
 
+use crate::events::{self, ItemSource, NewEvent, Subject};
 use crate::github::GithubIssue;
 use crate::gitlab::{AssignedItems, GitlabItem, ItemKind};
 use crate::own_tasks;
@@ -422,6 +423,78 @@ pub fn add_github(
     })
 }
 
+/// A live entry's current state, as far as the event log needs it.
+struct Live {
+    own_task_id: Option<i64>,
+    /// Ticked now: `done_at` of an own task, `ticked_at` of a GitLab/GitHub entry.
+    ticked: bool,
+    subject: Subject,
+}
+
+/// The live entry `id` with its subject, or `None` when there is no such live
+/// entry. Own: `(Own, None, task title)`; GitLab/GitHub: reference and title.
+fn live_entry(tx: &Transaction<'_>, id: i64) -> Result<Option<Live>, TodoError> {
+    let row = tx
+        .query_row(
+            "SELECT t.source, t.own_task_id, t.ticked_at, t.gitlab_ref, t.gitlab_title, \
+                    t.github_ref, t.github_title, o.title, o.done_at \
+             FROM todo_items t LEFT JOIN own_tasks o ON o.id = t.own_task_id \
+             WHERE t.id = ?1 AND t.removed_at IS NULL AND t.closed_at IS NULL",
+            [id],
+            |r| {
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, Option<i64>>(1)?,
+                    r.get::<_, Option<String>>(2)?,
+                    r.get::<_, Option<String>>(3)?,
+                    r.get::<_, Option<String>>(4)?,
+                    r.get::<_, Option<String>>(5)?,
+                    r.get::<_, Option<String>>(6)?,
+                    r.get::<_, Option<String>>(7)?,
+                    r.get::<_, Option<String>>(8)?,
+                ))
+            },
+        )
+        .optional()?;
+    let Some((source, own_task_id, ticked_at, gl_ref, gl_title, gh_ref, gh_title, o_title, done)) =
+        row
+    else {
+        return Ok(None);
+    };
+    let (subject, ticked) = match source.as_str() {
+        "own" => (
+            Subject {
+                source: ItemSource::Own,
+                reference: None,
+                title: o_title.ok_or_else(corrupt)?,
+            },
+            done.is_some(),
+        ),
+        "gitlab" => (
+            Subject {
+                source: ItemSource::Gitlab,
+                reference: Some(gl_ref.ok_or_else(corrupt)?),
+                title: gl_title.ok_or_else(corrupt)?,
+            },
+            ticked_at.is_some(),
+        ),
+        "github" => (
+            Subject {
+                source: ItemSource::Github,
+                reference: Some(gh_ref.ok_or_else(corrupt)?),
+                title: gh_title.ok_or_else(corrupt)?,
+            },
+            ticked_at.is_some(),
+        ),
+        _ => return Err(corrupt().into()),
+    };
+    Ok(Some(Live {
+        own_task_id,
+        ticked,
+        subject,
+    }))
+}
+
 /// Ticks or unticks an entry on today's list. An own entry changes the task's
 /// `done_at` in the same transaction; a GitLab or GitHub entry keeps its own
 /// tick.
@@ -434,21 +507,15 @@ pub fn set_ticked(
 ) -> Result<(), TodoError> {
     store.write(|tx| {
         roll_over_in(tx, today)?;
-        let entry: Option<(Option<i64>, Option<String>)> = tx
-            .query_row(
-                "SELECT own_task_id, ticked_at FROM todo_items \
-                 WHERE id = ?1 AND removed_at IS NULL AND closed_at IS NULL",
-                [id],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .optional()?;
-        let Some((own_task_id, ticked_at)) = entry else {
+        let Some(live) = live_entry(tx, id)? else {
             return Err(TodoError::NotFound);
         };
-        if let Some(task_id) = own_task_id {
+        // An event only when the state really changes to ticked.
+        let newly_ticked = ticked && !live.ticked;
+        if let Some(task_id) = live.own_task_id {
             own_tasks::set_done_in(tx, task_id, ticked, now)?;
         } else if ticked {
-            if ticked_at.is_none() {
+            if !live.ticked {
                 tx.execute(
                     "UPDATE todo_items SET ticked_at = ?1, ticked_by = 'user' WHERE id = ?2",
                     (stamp(now), id),
@@ -459,6 +526,9 @@ pub fn set_ticked(
                 "UPDATE todo_items SET ticked_at = NULL, ticked_by = NULL WHERE id = ?1",
                 [id],
             )?;
+        }
+        if newly_ticked {
+            events::record_in(tx, today, now, &NewEvent::Ticked(live.subject))?;
         }
         Ok(())
     })
@@ -473,14 +543,16 @@ pub fn remove(
 ) -> Result<(), TodoError> {
     store.write(|tx| {
         roll_over_in(tx, today)?;
+        let subject = live_entry(tx, id)?.map(|l| l.subject);
         let changed = tx.execute(
             "UPDATE todo_items SET removed_at = ?1 \
              WHERE id = ?2 AND removed_at IS NULL AND closed_at IS NULL",
             (stamp(now), id),
         )?;
-        if changed == 0 {
+        let Some(subject) = subject.filter(|_| changed > 0) else {
             return Err(TodoError::NotFound);
-        }
+        };
+        events::record_in(tx, today, now, &NewEvent::Removed(subject))?;
         Ok(())
     })
 }
@@ -539,6 +611,16 @@ pub fn reconcile_gitlab(
                     tx.execute(
                         "UPDATE todo_items SET ticked_at = ?1, ticked_by = 'source' WHERE id = ?2",
                         (&ts, id),
+                    )?;
+                    events::record_in(
+                        tx,
+                        today,
+                        now,
+                        &NewEvent::ClosedInSource(Subject {
+                            source: ItemSource::Gitlab,
+                            reference: Some(reference),
+                            title,
+                        }),
                     )?;
                     changed += 1;
                 }
@@ -621,6 +703,16 @@ pub fn reconcile_github(
                     tx.execute(
                         "UPDATE todo_items SET ticked_at = ?1, ticked_by = 'source' WHERE id = ?2",
                         (&ts, id),
+                    )?;
+                    events::record_in(
+                        tx,
+                        today,
+                        now,
+                        &NewEvent::ClosedInSource(Subject {
+                            source: ItemSource::Github,
+                            reference: Some(reference),
+                            title,
+                        }),
                     )?;
                     changed += 1;
                 }

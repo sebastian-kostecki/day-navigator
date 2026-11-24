@@ -70,9 +70,9 @@ fn writer_process() {
     for _ in 0..MAX_WRITER_COMMITS {
         // A previous kill may have landed after START: stop first.
         if work_time::is_running(&store).unwrap() {
-            work_time::stop(&mut store, now).unwrap();
+            work_time::stop(&mut store, now, &chrono::Utc).unwrap();
         } else {
-            work_time::start(&mut store, now).unwrap();
+            work_time::start(&mut store, now, &chrono::Utc).unwrap();
         }
         n += 1;
         now += STEP_MS;

@@ -326,22 +326,22 @@ Migracja v10 tworzy pustą tabelę `events`; istniejące dane bez zmian. S-07 (`
 
 #### Automated
 
-- [x] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy jednostkowe w `src/events/tests.rs` (`from_transitions`: wejście w błąd, zmiana rodzaju, powrót; ucięcie tytułu na granicy znaku; kształt JSON `EventItem` z `kind` i polami camelCase) i `schema::validate(MIGRATIONS)`
-- [x] 1.2 Testy integracyjne `tests/events.rs` (upgrade v9→v10, najnowsze pierwsze, czyszczenie wczoraj i „jutro”, filtr odczytu, limit 200 i `truncated`, ucięcie tytułu, `reason`) przechodzą
-- [x] 1.3 Test `tests/events_crash.rs` przechodzi i dochodzi do zmiany dnia
-- [x] 1.4 `tests/new_assignments.rs` przechodzi po v10
-- [x] 1.5 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` bez uwag
-- [x] 1.6 `npm run build` przechodzi (nowe `src/events/types.ts` i `api.ts`)
+- [x] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy jednostkowe w `src/events/tests.rs` (`from_transitions`: wejście w błąd, zmiana rodzaju, powrót; ucięcie tytułu na granicy znaku; kształt JSON `EventItem` z `kind` i polami camelCase) i `schema::validate(MIGRATIONS)` — 1b77273
+- [x] 1.2 Testy integracyjne `tests/events.rs` (upgrade v9→v10, najnowsze pierwsze, czyszczenie wczoraj i „jutro”, filtr odczytu, limit 200 i `truncated`, ucięcie tytułu, `reason`) przechodzą — 1b77273
+- [x] 1.3 Test `tests/events_crash.rs` przechodzi i dochodzi do zmiany dnia — 1b77273
+- [x] 1.4 `tests/new_assignments.rs` przechodzi po v10 — 1b77273
+- [x] 1.5 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` bez uwag — 1b77273
+- [x] 1.6 `npm run build` przechodzi (nowe `src/events/types.ts` i `api.ts`) — 1b77273
 
 ### Phase 2: Zapis zdarzeń w miejscach zmian (Rust)
 
 #### Automated
 
-- [ ] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy w `tests/todo.rs` (lub `src/todo/tests.rs`): odhaczenie GitLab/GitHub/własnej zapisuje jedno `Ticked` z referencją i tytułem (własna: bez referencji, z tytułem zadania); ponowne odhaczenie już odhaczonej i odznaczenie nie zapisują nic; `remove` zapisuje `Removed`; `reconcile_gitlab` i `reconcile_github` zapisują `ClosedInSource` tylko dla odhaczonych przez źródło, nie dla odświeżenia tytułu; odmowa (`NotFound`) nie zapisuje zdarzenia
-- [ ] 2.2 Nowe testy w `tests/work_time.rs`: `start` zapisuje `WorkStarted`, `stop` zapisuje `WorkStopped`, odmowa (`AlreadyRunning`, `NotRunning`) nie zapisuje nic; czas zdarzenia to lokalna forma `now` w strefie testowej
-- [ ] 2.3 Istniejące testy `todo*`, `work_time*`, `new_assignments*`, `hidden_issues_round`, `health_probe` przechodzą
-- [ ] 2.4 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` bez uwag
-- [ ] 2.5 `rg -n "log::(info|warn|debug|error)!" src-tauri/src/events` pokazuje tylko wpisy z `kind()` (bez referencji, tytułów i etykiet)
+- [x] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy w `tests/todo.rs` (lub `src/todo/tests.rs`): odhaczenie GitLab/GitHub/własnej zapisuje jedno `Ticked` z referencją i tytułem (własna: bez referencji, z tytułem zadania); ponowne odhaczenie już odhaczonej i odznaczenie nie zapisują nic; `remove` zapisuje `Removed`; `reconcile_gitlab` i `reconcile_github` zapisują `ClosedInSource` tylko dla odhaczonych przez źródło, nie dla odświeżenia tytułu; odmowa (`NotFound`) nie zapisuje zdarzenia
+- [x] 2.2 Nowe testy w `tests/work_time.rs`: `start` zapisuje `WorkStarted`, `stop` zapisuje `WorkStopped`, odmowa (`AlreadyRunning`, `NotRunning`) nie zapisuje nic; czas zdarzenia to lokalna forma `now` w strefie testowej
+- [x] 2.3 Istniejące testy `todo*`, `work_time*`, `new_assignments*`, `hidden_issues_round`, `health_probe` przechodzą
+- [x] 2.4 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` bez uwag
+- [x] 2.5 `rg -n "log::(info|warn|debug|error)!" src-tauri/src/events` pokazuje tylko wpisy z `kind()` (bez referencji, tytułów i etykiet)
 
 ### Phase 3: Panel i dokumentacja (UI)
 

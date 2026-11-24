@@ -34,10 +34,11 @@ use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Duration, Instant};
 
-use chrono::Local;
+use chrono::{Local, TimeZone};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::cli::{CliRunner, GitlabConfig, GitlabHost};
+use crate::events::{self, EventError, NewEvent};
 use crate::gitlab::fetch::{closed_window, fetch_assigned, fetch_recently_closed};
 use crate::gitlab::filter::GitlabFilter;
 use crate::gitlab::{
@@ -705,6 +706,9 @@ fn refresh_round(
     if todo_changed && let Err(e) = app.emit(todo::CHANGED_EVENT, ()) {
         log::warn!("todo: emit failed: {e}");
     }
+    if todo_changed {
+        events::commands::notify(app);
+    }
     // After the gate and the publish: no lock is held while a toast shows.
     if let (true, Some(full), Some((_, outcome))) = (may_notify, &round_full, &seen) {
         toast_new_assignments(app, full, &outcome.toast_keys);
@@ -766,10 +770,37 @@ fn record_seen(
     now_ms: i64,
 ) -> SeenOutcome {
     let current = keys_of(full);
-    let today = Local::now().date_naive();
-    let recorded = app
-        .state::<StoreHandle>()
-        .with_store(today, |s| record_round(s, account, &current, now_ms));
+    // Day and event time both come from the round's instant, so they agree.
+    let now_local = Local
+        .timestamp_millis_opt(now_ms)
+        .earliest()
+        .map_or_else(|| Local::now().naive_local(), |d| d.naive_local());
+    let today = now_local.date();
+    let mut events_stored = false;
+    let recorded = app.state::<StoreHandle>().with_store(today, |s| {
+        let round = record_round(s, account, &current, now_ms)?;
+        // The event log must never change the round's outcome: its failure is
+        // logged by kind only and the toasts and NEW flags stay as they are.
+        if !round.new.is_empty() {
+            let new_events: Vec<NewEvent> = items_for(full, &round.new)
+                .into_iter()
+                .map(|i| NewEvent::Assigned {
+                    item_kind: i.kind,
+                    reference: i.reference.clone(),
+                    title: i.title.clone(),
+                })
+                .collect();
+            match events::record(s, today, now_local, &new_events) {
+                Ok(n) => events_stored = n > 0,
+                Err(EventError::Store(StoreError::Busy)) => log::debug!("events: record busy"),
+                Err(e) => log::warn!("events: record failed: {}", e.kind()),
+            }
+        }
+        Ok::<_, NewAssignmentError>(round)
+    });
+    if events_stored {
+        events::commands::notify(app);
+    }
     let (stored, fresh) = match recorded {
         Ok(round) => (Ok(round.new), Some(round.fresh)),
         Err(e) => (Err(e), None),

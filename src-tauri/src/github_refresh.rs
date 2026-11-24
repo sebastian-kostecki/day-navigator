@@ -200,6 +200,9 @@ fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliR
     if todo_changed && let Err(e) = app.emit(todo::CHANGED_EVENT, ()) {
         log::warn!("todo: emit failed: {e}");
     }
+    if todo_changed {
+        crate::events::commands::notify(app);
+    }
 
     if from != to {
         log::info!("github: {from} -> {to}");

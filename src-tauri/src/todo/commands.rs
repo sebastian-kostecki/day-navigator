@@ -102,11 +102,12 @@ async fn run(
         })
     })
     .await;
-    if call == Call::Mutation
-        && outcome.is_ok()
-        && let Err(e) = app.emit(CHANGED_EVENT, ())
-    {
-        log::warn!("todo: emit failed: {e}");
+    if call == Call::Mutation && outcome.is_ok() {
+        if let Err(e) = app.emit(CHANGED_EVENT, ()) {
+            log::warn!("todo: emit failed: {e}");
+        }
+        // Ticking and removing store an event in the same write.
+        crate::events::commands::notify(app);
     }
     let result = outcome.and_then(|list| list);
     if let Err(e) = &result {

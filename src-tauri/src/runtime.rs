@@ -21,10 +21,11 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
 
+use crate::events::{self, EventError};
 use crate::github_refresh::GithubRefreshState;
 use crate::gitlab_refresh::GitlabRefreshState;
 use crate::health::{self, HealthSnapshot, Overall, SourceStatus};
-use crate::store::StoreHandle;
+use crate::store::{StoreError, StoreHandle};
 
 const TRAY_ID: &str = "health";
 const CHECK_INTERVAL: Duration = Duration::from_secs(30);
@@ -325,6 +326,19 @@ fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut 
     publish(app, &state);
     if let Some(notice) = health::notice_for(&transitions) {
         toast(app, "health", &notice.title, &notice.body);
+    }
+    if !transitions.is_empty() {
+        let now = Local::now().naive_local();
+        let today = now.date();
+        let recorded = app.state::<StoreHandle>().with_store(today, |s| {
+            events::record(s, today, now, &events::from_transitions(&transitions))
+        });
+        match recorded {
+            Ok(n) if n > 0 => events::commands::notify(app),
+            Ok(_) => {}
+            Err(EventError::Store(StoreError::Busy)) => log::debug!("events: record busy"),
+            Err(e) => log::warn!("events: record failed: {}", e.kind()),
+        }
     }
     for t in &transitions {
         log::info!(

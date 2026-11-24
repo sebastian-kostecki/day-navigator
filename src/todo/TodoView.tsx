@@ -271,14 +271,14 @@ export default function TodoView() {
       )}
 
       {unverified && (
-        <p className="gitlab-notice" role="status">
+        <p className="todo-notice" role="status">
           GitLab niedostępny — stan pozycji z GitLaba niezweryfikowany (ostatnie odświeżenie{" "}
           {snapshot?.lastSuccessMs != null ? formatClock(snapshot.lastSuccessMs) : "brak"})
         </p>
       )}
 
       {githubUnverified && (
-        <p className="gitlab-notice" role="status">
+        <p className="todo-notice" role="status">
           GitHub niedostępny lub repozytorium niezaładowane — stan pozycji z GitHuba
           niezweryfikowany (ostatnie odświeżenie{" "}
           {githubSnapshot?.lastSuccessMs != null

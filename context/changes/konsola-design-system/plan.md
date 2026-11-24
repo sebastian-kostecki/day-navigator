@@ -492,8 +492,8 @@ Fonty dodają poniżej 1 MB do instalatora (pełne pliki woff2, sześć grubośc
 
 #### Automated
 
-- [ ] 4.1 Bramki frontendu przechodzą: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 4.2 Ani widoki, ani `App.css` nie zawierają starych klas: `git grep --untracked -nE "gitlab-item|gitlab-notice|badge-changed|gitlab-section" -- src` nic nie zwraca
+- [x] 4.1 Bramki frontendu przechodzą: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 4.2 Ani widoki, ani `App.css` nie zawierają starych klas: `git grep --untracked -nE "gitlab-item|gitlab-notice|badge-changed|gitlab-section" -- src` nic nie zwraca
 
 #### Manual
 

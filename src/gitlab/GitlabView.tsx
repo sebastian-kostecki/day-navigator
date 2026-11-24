@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+import { Button, Flag, ItemRow, Panel, SourceState } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { openGitlabItem } from "./api";
 import type {
@@ -8,6 +10,7 @@ import type {
   GitlabSnapshot,
 } from "./types";
 import { useGitlab } from "./useGitlab";
+import "./GitlabView.css";
 
 function formatClock(ms: number): string {
   return new Date(ms).toLocaleTimeString("pl-PL", { hour: "2-digit", minute: "2-digit" });
@@ -31,7 +34,7 @@ type RowActions = {
   dismiss: (id: number) => void;
 };
 
-function ItemRow({
+function GitlabRow({
   item,
   actions,
   hidden = false,
@@ -47,71 +50,76 @@ function ItemRow({
   const url = item.webUrl;
   const working = actions?.busy.has(item.id) ?? false;
   return (
-    <li className="gitlab-item">
-      <span className="gitlab-ref">{item.reference}</span>
-      <span className="gitlab-title-line">
-        {url ? (
-          <button type="button" className="link-button" onClick={() => void openGitlabItem(url)}>
-            {item.title}
-          </button>
-        ) : (
-          <span>{item.title}</span>
-        )}
-        {item.draft && <span className="badge">Draft</span>}
-        {item.changed && (
-          <span className="badge badge-changed">Zmienione: {CHANGE_LABEL[item.changed]}</span>
-        )}
-      </span>
-      {item.labels.length > 0 && (
-        <span className="gitlab-labels">
+    <ItemRow
+      source={item.kind === "mergeRequest" ? "mr" : "iss"}
+      refId={item.reference}
+      title={
+        <span className="gitlab-title">
+          {url ? (
+            <button
+              type="button"
+              className="link-button gitlab-title-text"
+              onClick={() => void openGitlabItem(url)}
+            >
+              {item.title}
+            </button>
+          ) : (
+            <span className="gitlab-title-text">{item.title}</span>
+          )}
+          {item.draft && <Flag tone="change">Draft</Flag>}
           {item.labels.map((l) => (
-            <span key={l} className="badge">
+            <span key={l} className="gitlab-label">
               {l}
             </span>
           ))}
         </span>
-      )}
-      <span className="gitlab-updated">{formatUpdated(at ?? item.updatedAt)}</span>
+      }
+      flag={item.changed ? `Zmienione: ${CHANGE_LABEL[item.changed]}` : undefined}
+      flagTone="change"
+      meta={formatUpdated(at ?? item.updatedAt)}
+    >
       {actions && (
-        <span className="gitlab-actions">
+        <>
           {item.changed && (
-            <button
-              type="button"
+            <Button
+              variant="quiet"
+              size="sm"
               disabled={working}
               aria-label={`OK, zauważone: ${item.title}`}
               onClick={() => actions.dismiss(item.id)}
             >
               OK
-            </button>
+            </Button>
           )}
           {hidden ? (
-            <button
-              type="button"
+            <Button
+              variant="quiet"
+              size="sm"
               disabled={working}
               aria-label={`Pokaż: ${item.title}`}
               onClick={() => actions.unhide(item.id)}
             >
               Pokaż
-            </button>
+            </Button>
           ) : (
-            <button
-              type="button"
+            <Button
+              variant="quiet"
+              size="sm"
               disabled={working}
               aria-label={`Ukryj: ${item.title}`}
               onClick={() => actions.hide(item.id)}
             >
               Ukryj
-            </button>
+            </Button>
           )}
-        </span>
+        </>
       )}
-    </li>
+    </ItemRow>
   );
 }
 
-function FilteredCount({ count }: { count: number }) {
-  if (count <= 0) return null;
-  return <p className="checked-at">Ukryte filtrem: {count}</p>;
+function filteredNote(count: number): ReactNode {
+  return count > 0 ? `Ukryte filtrem: ${count}` : undefined;
 }
 
 function Section({
@@ -128,21 +136,15 @@ function Section({
   actions?: RowActions;
 }) {
   return (
-    <section className="gitlab-section">
-      <h2>
-        {title} ({items.length})
-      </h2>
+    <Panel title={title} meta={items.length} footer={filteredNote(filteredOut)}>
       {items.length === 0 ? (
-        <p className="empty">{emptyText}</p>
+        <p className="dn-empty">{emptyText}</p>
       ) : (
-        <ul className="gitlab-list">
-          {items.map((item) => (
-            <ItemRow key={`${item.kind}:${item.reference}`} item={item} actions={actions} />
-          ))}
-        </ul>
+        items.map((item) => (
+          <GitlabRow key={`${item.kind}:${item.reference}`} item={item} actions={actions} />
+        ))
       )}
-      <FilteredCount count={filteredOut} />
-    </section>
+    </Panel>
   );
 }
 
@@ -156,15 +158,14 @@ function HiddenSection({
   actions: RowActions;
 }) {
   if (items.length === 0 && filteredOut <= 0) return null;
+  const note = filteredNote(filteredOut);
   return (
     <details className="gitlab-hidden">
       <summary>Ukryte ({items.length})</summary>
-      <FilteredCount count={filteredOut} />
-      <ul className="gitlab-list">
-        {items.map((item) => (
-          <ItemRow key={`${item.kind}:${item.reference}`} item={item} actions={actions} hidden />
-        ))}
-      </ul>
+      {note && <p className="meta gitlab-hidden-note">{note}</p>}
+      {items.map((item) => (
+        <GitlabRow key={`${item.kind}:${item.reference}`} item={item} actions={actions} hidden />
+      ))}
     </details>
   );
 }
@@ -172,30 +173,27 @@ function HiddenSection({
 function ClosedBlock({ closed }: { closed: ClosedSection }) {
   const oneDay = closed.days === 1;
   return (
-    <section className="gitlab-section">
-      <h2>
-        {oneDay ? "Zamknięte (ostatni dzień)" : `Zamknięte (ostatnie ${closed.days} dni)`}
-        {!closed.error && ` (${closed.items.length})`}
-      </h2>
+    <Panel
+      title={oneDay ? "Zamknięte (ostatni dzień)" : `Zamknięte (ostatnie ${closed.days} dni)`}
+      meta={closed.error ? undefined : closed.items.length}
+      footer={filteredNote(closed.filteredOut)}
+    >
       {closed.error ? (
-        <p className="gitlab-notice" role="status">
+        <p className="gitlab-note" role="status">
           {closed.error}
         </p>
       ) : closed.items.length === 0 ? (
-        <p className="empty">
+        <p className="dn-empty">
           {oneDay
             ? "Brak zamkniętych w ostatnim dniu."
             : `Brak zamkniętych w ostatnich ${closed.days} dniach.`}
         </p>
       ) : (
-        <ul className="gitlab-list">
-          {closed.items.map((item) => (
-            <ItemRow key={`${item.kind}:${item.reference}`} item={item} at={item.closedAt} />
-          ))}
-        </ul>
+        closed.items.map((item) => (
+          <GitlabRow key={`${item.kind}:${item.reference}`} item={item} at={item.closedAt} />
+        ))
       )}
-      <FilteredCount count={closed.filteredOut} />
-    </section>
+    </Panel>
   );
 }
 
@@ -212,7 +210,7 @@ function Lists({
 }) {
   const { filterActive, filteredOut, closed } = snapshot;
   return (
-    <div className={stale ? "gitlab-lists stale" : "gitlab-lists"}>
+    <div className={stale ? "gitlab-lists is-stale" : "gitlab-lists"}>
       <Section
         title="Merge requesty"
         items={items.mergeRequests}
@@ -273,7 +271,7 @@ export function GitlabView() {
     return (
       <main className="container">
         <h1>Praca (GitLab)</h1>
-        <p>Pobieram przypisane z GitLaba…</p>
+        <p className="dn-loading">Pobieram przypisane z GitLaba…</p>
       </main>
     );
   }
@@ -289,24 +287,37 @@ export function GitlabView() {
 
   return (
     <main className="container">
-      <h1>Praca (GitLab)</h1>
+      <div className="dn-view-head">
+        <h1>Praca (GitLab)</h1>
+        {lastSuccessMs != null && state.state !== "error" && (
+          <span className="meta gitlab-last-ok">
+            Ostatnie udane odświeżenie: {formatClock(lastSuccessMs)}
+          </span>
+        )}
+        <Button size="sm" disabled={refreshing} onClick={() => void refresh()}>
+          {refreshing ? "Odświeżam…" : "Odśwież"}
+        </Button>
+      </div>
       {state.state === "notConfigured" && (
-        <p className="notice" role="status">
-          GitLab nie jest skonfigurowany. Dodaj{" "}
+        <SourceState kind="calm" title="GitLab nie jest skonfigurowany.">
+          Dodaj{" "}
           <code>
             &quot;gitlab&quot;: {"{"} &quot;host&quot;: &quot;…&quot; {"}"}
           </code>{" "}
           do settings.json (opcjonalnie <code>&quot;user&quot;</code>: login, gdy glab jest
           zalogowany na konto serwisowe).
-        </p>
+        </SourceState>
       )}
       {state.state === "unavailable" && (
-        <p className="gitlab-notice" role="status">
-          GitLab niedostępny (brak VPN lub sieci) —{" "}
-          {lastSuccessMs != null
-            ? `lista z ${formatClock(lastSuccessMs)}`
-            : "brak udanego odświeżenia od uruchomienia aplikacji"}
-        </p>
+        <SourceState
+          kind="calm"
+          title="GitLab niedostępny (brak VPN lub sieci)"
+          lastOk={
+            lastSuccessMs != null
+              ? `Lista z ${formatClock(lastSuccessMs)}`
+              : "Brak udanego odświeżenia od uruchomienia aplikacji"
+          }
+        />
       )}
       {state.state === "error" && (
         <ErrorState
@@ -318,35 +329,35 @@ export function GitlabView() {
       )}
       {/* "1–14" and "10 min" mirror REFRESH_MINUTES_MAX and DEFAULT_REFRESH_MINUTES in src-tauri/src/settings.rs. */}
       {snapshot.refreshSettingInvalid && (
-        <p className="gitlab-notice" role="status">
+        <p className="gitlab-note" role="status">
           Nieprawidłowe ustawienie <code>gitlabRefresh.minutes</code> (dozwolone 1–14) — odświeżam
           co 10 min
         </p>
       )}
       {snapshot.filterInvalid && (
-        <p className="gitlab-notice" role="status">
+        <p className="gitlab-note" role="status">
           Nieprawidłowy blok gitlabFilter w settings.json — pokazuję wszystkie przypisane
         </p>
       )}
       {snapshot.hiddenError && (
-        <p className="gitlab-notice" role="status">
+        <p className="gitlab-note" role="status">
           Lista pokazuje wszystkie zgłoszenia, bo nie udało się odczytać ukrytych.{" "}
           {snapshot.hiddenError}
         </p>
       )}
       {hiddenCheckFailed > 0 && (
-        <p className="gitlab-notice" role="status">
+        <p className="gitlab-note" role="status">
           Nie udało się sprawdzić {hiddenCheckFailed} ukrytych — spróbuję przy następnym odświeżeniu
         </p>
       )}
       {hasHidden && !ownCommentsKnown && (
-        <p className="gitlab-notice" role="status">
+        <p className="gitlab-note" role="status">
           Ustaw <code>&quot;user&quot;</code> w bloku <code>&quot;gitlab&quot;</code> w
           settings.json, aby Twoje własne komentarze nie przywracały ukrytych zgłoszeń.
         </p>
       )}
       {actionError && (
-        <p className="task-error" role="alert">
+        <p className="gitlab-action-error" role="alert">
           {actionError}
         </p>
       )}
@@ -360,16 +371,6 @@ export function GitlabView() {
           onRetry={() => void refresh()}
         />
       )}
-      <div className="actions">
-        <button type="button" disabled={refreshing} onClick={() => void refresh()}>
-          {refreshing ? "Odświeżam…" : "Odśwież"}
-        </button>
-        {lastSuccessMs != null && state.state !== "error" && (
-          <span className="checked-at">
-            Ostatnie udane odświeżenie: {formatClock(lastSuccessMs)}
-          </span>
-        )}
-      </div>
     </main>
   );
 }

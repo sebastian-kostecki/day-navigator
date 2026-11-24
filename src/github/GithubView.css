@@ -1,0 +1,25 @@
+/* Layout only: the rows, panels and states come from src/components. */
+
+.github-lists {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.github-lists.is-stale {
+  opacity: 0.55;
+}
+
+.github-last-ok {
+  color: var(--ink-faint);
+}
+
+.github-repo {
+  font-family: var(--font-mono);
+}
+
+.github-repo-error {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--danger-ink);
+}

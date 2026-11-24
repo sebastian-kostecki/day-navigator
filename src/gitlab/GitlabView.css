@@ -1,0 +1,79 @@
+/* Layout only: the rows, panels and states come from src/components. */
+
+.gitlab-lists {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.gitlab-lists.is-stale {
+  opacity: 0.55;
+}
+
+.gitlab-last-ok {
+  color: var(--ink-faint);
+}
+
+.gitlab-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-lg);
+  border-left: 3px solid var(--line-strong);
+  background: var(--surface-raised);
+  color: var(--ink-muted);
+}
+
+.gitlab-action-error {
+  margin: 0;
+  color: var(--danger-ink);
+}
+
+.gitlab-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.gitlab-title-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Neutral chip for a GitLab label (coloured chips belong to sources). */
+.gitlab-label {
+  flex: none;
+  padding: 2px var(--space-1h);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-control);
+  background: var(--surface-raised);
+  color: var(--ink-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.gitlab-hidden {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+}
+
+.gitlab-hidden > summary {
+  padding: var(--space-3) var(--space-4);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.gitlab-hidden[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.gitlab-hidden-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-4);
+  color: var(--ink-faint);
+}

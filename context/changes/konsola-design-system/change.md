@@ -3,7 +3,7 @@ change_id: konsola-design-system
 title: Design system Konsola w aplikacji — tokeny, komponenty i przestylowanie widoków
 status: implementing
 created: 2026-11-23
-updated: 2026-11-23
+updated: 2026-11-24
 archived_at: null
 ---
 

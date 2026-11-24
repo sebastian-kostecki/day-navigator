@@ -241,8 +241,8 @@ None. No store schema change and no settings format change. Existing `settings.j
 
 #### Manual
 
-- [ ] 2.5 Without a `reminders` block, the panel shows `10:00` and `09:00`, both `WŁ.` and both `domyślnie`
-- [ ] 2.6 With `"reminders": {"longRunningHours": 6, "notRunningAfter": false}` saved, focusing the app window shows `6:00` `WŁ.` without `domyślnie` and `—` `WYŁ.` for the second row, with no restart
-- [ ] 2.7 With an invalid block, the panel shows the paused error state; after fixing the file, retry or refocus brings the values back, with "ostatnio OK" shown while in error after an earlier success
-- [ ] 2.8 "Ustawienia" opens `settings.json`; with the file moved away it shows the missing-file notice and creates no file
-- [ ] 2.9 The panel sits under "Wpisy" at 1280 px and wraps sensibly at 800 px; header counter, START/STOP and the days table behave as before
+- [x] 2.5 Without a `reminders` block, the panel shows `10:00` and `09:00`, both `WŁ.` and both `domyślnie`
+- [x] 2.6 With `"reminders": {"longRunningHours": 6, "notRunningAfter": false}` saved, focusing the app window shows `6:00` `WŁ.` without `domyślnie` and `—` `WYŁ.` for the second row, with no restart
+- [x] 2.7 With an invalid block, the panel shows the paused error state; after fixing the file, retry or refocus brings the values back, with "ostatnio OK" shown while in error after an earlier success
+- [x] 2.8 "Ustawienia" opens `settings.json`; with the file moved away it shows the missing-file notice and creates no file
+- [x] 2.9 The panel sits under "Wpisy" at 1280 px and wraps sensibly at 800 px; header counter, START/STOP and the days table behave as before

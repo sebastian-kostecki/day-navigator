@@ -1,19 +1,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <!-- Day Navigator app icon (Konsola design system): a compass needle pointing
-       north-east inside a day ring, amber on the console's dark ground.
-       Regenerate the bundle icons (in src-tauri/): npx tauri icon icons/source/app-icon.svg, then drop the android/ and ios/ output. Tray: icons/tray/<state>.png is the 32x32.png of npx tauri icon icons/source/tray-<state>.svg -->
-  <rect x="48" y="48" width="928" height="928" rx="208" fill="#0F1115"/>
-  <rect x="48" y="48" width="928" height="928" rx="208" fill="none" stroke="#2E3440" stroke-width="16"/>
-  <circle cx="512" cy="512" r="318" fill="none" stroke="#F5A524" stroke-width="56"/>
-  <g stroke="#F5A524" stroke-width="40" stroke-linecap="round">
-    <line x1="512" y1="168" x2="512" y2="214"/>
-    <line x1="856" y1="512" x2="810" y2="512"/>
-    <line x1="512" y1="856" x2="512" y2="810"/>
-    <line x1="168" y1="512" x2="214" y2="512"/>
+       north-east inside a day ring, amber, on a transparent background (no tile,
+       like other Windows 11 app icons). The needle hub is cut out by the mask.
+       Regenerate the bundle icons (in src-tauri/): npx tauri icon icons/source/app-icon.svg,
+       then drop the android/ and ios/ output. Tray: icons/tray/<state>.png is the
+       32x32.png of npx tauri icon icons/source/tray-<state>.svg -->
+  <defs>
+    <mask id="hub">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <circle cx="512" cy="512" r="44" fill="#000"/>
+    </mask>
+  </defs>
+  <circle cx="512" cy="512" r="400" fill="none" stroke="#F5A524" stroke-width="76"/>
+  <g stroke="#F5A524" stroke-width="52" stroke-linecap="round">
+    <line x1="512" y1="80" x2="512" y2="150"/>
+    <line x1="944" y1="512" x2="874" y2="512"/>
+    <line x1="512" y1="944" x2="512" y2="874"/>
+    <line x1="80" y1="512" x2="150" y2="512"/>
   </g>
-  <g transform="rotate(45 512 512)">
-    <polygon points="512,276 590,512 434,512" fill="#F5A524"/>
-    <polygon points="434,512 590,512 512,748" fill="#5A6372"/>
+  <g transform="rotate(45 512 512)" mask="url(#hub)">
+    <polygon points="512,196 610,512 414,512" fill="#F5A524"/>
+    <polygon points="414,512 610,512 512,828" fill="#8A93A3"/>
   </g>
-  <circle cx="512" cy="512" r="34" fill="#0F1115"/>
 </svg>

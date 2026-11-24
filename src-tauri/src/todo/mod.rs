@@ -30,6 +30,10 @@ pub use error::TodoError;
 const TS_FORMAT: &str = "%Y-%m-%dT%H:%M:%S";
 const DATE_FORMAT: &str = "%Y-%m-%d";
 
+/// Event emitted (no payload) after the list changed: by a mutating command or
+/// by a refresh round that reconciled entries. The one place for the name.
+pub const CHANGED_EVENT: &str = "todo-changed";
+
 /// Open entries allowed on a day's list unless `settings.json` says otherwise.
 pub const DEFAULT_TODO_LIMIT: u32 = 5;
 

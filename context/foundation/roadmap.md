@@ -55,7 +55,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | F-03 | remove-vault-layer          | (foundation) the vault layer and its health sources are gone                            | —             | MS-11           | ready    |
 | F-04 | konsola-design-system       | (foundation) the Konsola design system is checked by hand and its change archived       | —             | MS-12           | ready    |
 | F-05 | design-system-artifact-sync | (foundation) the design-system artifact matches the app                                 | F-04          | MS-16           | proposed |
-| S-01 | todo-add-from-sources       | add an item to "To do" with "+" from the GitLab and GitHub views                        | —             | FR-026, US-01   | ready    |
+| S-01 | todo-add-from-sources       | add an item to "To do" with "+" from the GitLab and GitHub views                        | —             | FR-026, US-01   | in-progress |
 | S-02 | gitlab-new-and-hidden-date  | see a NEW flag on fresh GitLab items and the date a row was hidden                      | —             | FR-023          | ready    |
 | S-03 | gitlab-filter-bar-retry     | see the active filter values and when GitLab will be tried again                        | F-01          | FR-024          | proposed |
 | S-04 | github-issue-labels         | see labels on GitHub issues                                                             | —             | FR-025          | ready    |
@@ -170,7 +170,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** The source views must learn the "To do" state without a new poller (e.g. a list-change event); the limit and carry-over rules stay in Rust.
-- **Status:** ready
+- **Status:** in-progress
 
 ### S-02: GitLab NEW flag and hidden date
 

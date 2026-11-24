@@ -1,7 +1,7 @@
 ---
 change_id: gitlab-filter-bar-retry
 title: GitLab — pasek wartości filtra i czas następnej próby
-status: implementing
+status: implemented
 created: 2026-11-24
 updated: 2026-11-24
 ---

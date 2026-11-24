@@ -236,8 +236,8 @@ Brak migracji danych. Zmiana kontraktu migawki (Rust + TS) w jednym commicie.
 
 #### Manual
 
-- [ ] 2.3 Z filtrem w `settings.json` pasek nad listą pokazuje te wartości; bez bloku `gitlabFilter` paska nie ma; przy nieprawidłowym bloku jest tylko ostrzeżenie, bez paska
-- [ ] 2.4 „Ustawienia” otwiera `settings.json` w domyślnym programie
-- [ ] 2.5 Bez VPN karta „GitLab niedostępny” pokazuje interwał i następną próbę, odliczanie maleje, po „Sprawdź teraz” widać „sprawdzam teraz…”, potem nową godzinę
-- [ ] 2.6 Po zmianie `gitlabRefresh.minutes` karta po następnej rundzie podaje nowy interwał
-- [ ] 2.7 Log aplikacji po kilku rundach i otwarciu ustawień nie zawiera wartości filtra ani ścieżki ustawień
+- [x] 2.3 Z filtrem w `settings.json` pasek nad listą pokazuje te wartości; bez bloku `gitlabFilter` paska nie ma; przy nieprawidłowym bloku jest tylko ostrzeżenie, bez paska — 250d709
+- [x] 2.4 „Ustawienia” otwiera `settings.json` w domyślnym programie — 250d709
+- [x] 2.5 Bez VPN karta „GitLab niedostępny” pokazuje interwał i następną próbę, odliczanie maleje, po „Sprawdź teraz” widać „sprawdzam teraz…”, potem nową godzinę — 250d709
+- [x] 2.6 Po zmianie `gitlabRefresh.minutes` karta po następnej rundzie podaje nowy interwał — 250d709
+- [x] 2.7 Log aplikacji po kilku rundach i otwarciu ustawień nie zawiera wartości filtra ani ścieżki ustawień — 250d709

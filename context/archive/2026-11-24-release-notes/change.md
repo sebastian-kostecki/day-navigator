@@ -1,10 +1,10 @@
 ---
 change_id: release-notes
 title: Opis wydania z CHANGELOG.md zamiast stałego tekstu
-status: implemented
+status: archived
 created: 2026-11-24
 updated: 2026-11-24
-archived_at: null
+archived_at: 2026-11-24T08:14:31Z
 ---
 
 ## Notes

@@ -160,8 +160,9 @@ pub fn transitions(prev: &[SourceStatus], next: &[SourceStatus]) -> Vec<Transiti
 }
 
 /// The diff baseline for the next round: `next` plus every earlier entry whose
-/// id is absent from `next`, so a source hidden by a settings outage is
-/// compared against its last known status when it comes back.
+/// id is absent from `next`, so a source missing from a round (GitLab and
+/// GitHub are `None` until their first refresh round finishes) is compared
+/// against its last known status when it appears again.
 pub fn baseline(prev_baseline: &[SourceStatus], next: &[SourceStatus]) -> Vec<SourceStatus> {
     let mut out = next.to_vec();
     out.extend(
@@ -506,27 +507,21 @@ mod tests {
 
     #[test]
     fn absent_source_is_silent_and_baseline_prevents_repeat_toast() {
-        let broken = err(SourceId::Reminders, "Przypomnienia", "SettingsInvalid", "m");
+        let gitlab_broken = err(SourceId::Gitlab, "GitLab", "LoggedOut", "m");
         let settings_ok = st(S, "Ustawienia", SourceState::Ok);
-        let base0 = baseline(&[], &[settings_ok.clone(), broken.clone()]);
+        let base0 = baseline(&[], &[settings_ok.clone(), gitlab_broken.clone()]);
 
-        // Settings outage: the reminders source vanishes from `next` (as it
-        // does when the config dir cannot be resolved).
-        let outage = vec![err(S, "Ustawienia", "SettingsInvalid", "r")];
-        let t = transitions(&base0, &outage);
-        assert_eq!(t.len(), 1);
-        assert_eq!(t[0].id, S);
-        let base1 = baseline(&base0, &outage);
-        assert!(base1.iter().any(|s| s.id == SourceId::Reminders));
+        // A later round where GitLab has no snapshot yet (`gitlab_status`
+        // returns `None`): the source is absent, so it is silent.
+        let without_gitlab = vec![settings_ok.clone()];
+        assert!(transitions(&base0, &without_gitlab).is_empty());
+        let base1 = baseline(&base0, &without_gitlab);
+        assert!(base1.iter().any(|s| s.id == SourceId::Gitlab));
 
-        // Settings come back and the reminders block is still broken with the
-        // same kind.
-        let back = vec![settings_ok, broken];
+        // GitLab is back with the same error kind: no repeated toast.
+        let back = vec![settings_ok, gitlab_broken];
         let t = transitions(&base1, &back);
-        assert_eq!(t.len(), 1);
-        assert_eq!(t[0].id, S);
-        assert_eq!(t[0].to_kind, None);
-        assert!(t.iter().all(|x| x.id != SourceId::Reminders));
+        assert!(t.is_empty(), "{t:?}");
     }
 
     fn tr(label: &str, to: Option<&str>) -> Transition {

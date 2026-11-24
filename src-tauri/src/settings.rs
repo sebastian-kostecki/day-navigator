@@ -17,7 +17,7 @@ const SUPPORTED_VERSION: u64 = 1;
 
 /// Why `settings.json` as a whole cannot be used. `Io::path` is the file name
 /// only; `NotConfigured::settings_path` is the app's own settings file.
-#[derive(Debug, Clone, thiserror::Error, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error, serde::Serialize)]
 #[serde(tag = "kind", content = "detail")]
 pub enum SettingsError {
     #[error("settings file not found: {}", settings_path.display())]
@@ -26,6 +26,17 @@ pub enum SettingsError {
     SettingsInvalid { reason: String },
     #[error("I/O error on {path}: {kind}")]
     Io { path: String, kind: String },
+}
+
+impl SettingsError {
+    /// Variant name, for logs and the health snapshot.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            SettingsError::NotConfigured { .. } => "NotConfigured",
+            SettingsError::SettingsInvalid { .. } => "SettingsInvalid",
+            SettingsError::Io { .. } => "Io",
+        }
+    }
 }
 
 fn invalid(reason: impl Into<String>) -> SettingsError {

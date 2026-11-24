@@ -54,6 +54,10 @@ fn old_settings_with_spaces_is_only_settings_ok() {
     let path = tmp.path().join("settings.json");
     fs::write(&path, text.to_string()).unwrap();
     let sources = probe(&path);
+    assert!(
+        !missing.exists(),
+        "probe must not create a configured folder"
+    );
     assert_eq!(ids(&sources), ["settings"]);
     assert_eq!(sources[0].id, SourceId::Settings);
     assert_eq!(sources[0].state, SourceState::Ok);

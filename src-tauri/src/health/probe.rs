@@ -171,18 +171,10 @@ fn error_status(e: &SettingsError) -> SourceStatus {
         id: SourceId::Settings,
         label: "Ustawienia".to_string(),
         state: SourceState::Error {
-            kind: kind_name(e),
+            kind: e.kind().to_string(),
             message: message_pl(e),
         },
     }
-}
-
-/// The English variant name, taken from the serde tag so it covers every variant.
-fn kind_name(e: &SettingsError) -> String {
-    serde_json::to_value(e)
-        .ok()
-        .and_then(|v| v.get("kind").and_then(|k| k.as_str().map(str::to_string)))
-        .unwrap_or_else(|| "Unknown".to_string())
 }
 
 /// Polish panel text for a settings error. May include the user's own settings
@@ -394,23 +386,31 @@ mod tests {
     }
 
     #[test]
-    fn kind_name_is_the_variant_name() {
-        assert_eq!(
-            kind_name(&SettingsError::NotConfigured {
-                settings_path: PathBuf::from("X:/s.json"),
-            }),
-            "NotConfigured"
-        );
-        assert_eq!(
-            kind_name(&SettingsError::SettingsInvalid { reason: "x".into() }),
-            "SettingsInvalid"
-        );
-        assert_eq!(
-            kind_name(&SettingsError::Io {
-                path: "settings.json".into(),
-                kind: "PermissionDenied".into(),
-            }),
-            "Io"
-        );
+    fn kind_is_the_variant_name_and_the_serde_tag() {
+        let cases = [
+            (
+                SettingsError::NotConfigured {
+                    settings_path: PathBuf::from("X:/s.json"),
+                },
+                "NotConfigured",
+            ),
+            (
+                SettingsError::SettingsInvalid { reason: "x".into() },
+                "SettingsInvalid",
+            ),
+            (
+                SettingsError::Io {
+                    path: "settings.json".into(),
+                    kind: "PermissionDenied".into(),
+                },
+                "Io",
+            ),
+        ];
+        for (e, name) in cases {
+            assert_eq!(e.kind(), name);
+            // The wire tag the UI reads must not drift from `kind()`.
+            let v = serde_json::to_value(&e).unwrap();
+            assert_eq!(v["kind"], name);
+        }
     }
 }

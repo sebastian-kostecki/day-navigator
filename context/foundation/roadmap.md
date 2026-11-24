@@ -58,7 +58,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | S-01 | todo-add-from-sources       | add an item to "To do" with "+" from the GitLab and GitHub views                        | —             | FR-026, US-01   | done     |
 | S-02 | gitlab-new-and-hidden-date  | see a NEW flag on fresh GitLab items and the date a row was hidden                      | —             | FR-023          | ready    |
 | S-03 | gitlab-filter-bar-retry     | see the active filter values and when GitLab will be tried again                        | F-01          | FR-024          | ready    |
-| S-04 | github-issue-labels         | see labels on GitHub issues                                                             | —             | FR-025          | in-progress |
+| S-04 | github-issue-labels         | see labels on GitHub issues                                                             | —             | FR-025          | done     |
 | S-05 | worktime-days-table         | see a table of the month's days against 8 h and mark days off there                     | F-01, F-02    | FR-020          | proposed |
 | S-06 | worktime-reminders-panel    | see the reminder thresholds and whether reminders are on                                | —             | FR-021          | ready    |
 | S-07 | app-data-details            | see the last backup, kept backups and schema version, and open the backups folder       | F-03          | FR-022          | ready    |
@@ -207,7 +207,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Changes the fixed `gh issue list` call; it stays read-only and covered by the guard test.
-- **Status:** in-progress
+- **Status:** done
 
 ### S-05: Days table in "Work time"
 
@@ -361,3 +361,4 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-09: user can see in each GitHub Release what changed since the previous `app-v*` tag; the unsigned-installer note stays until signing exists.** — Archived 2026-11-24 → `context/archive/2026-11-24-release-notes/`. Lesson: —.
 - **F-01: (foundation) the tools that grew locally in views — `useNow`, `plural`, `Tabs`, a table/grid component, a `Segmented` size for 40 px fields, a priority chip, `ErrorState.message` as a node, `disabled` for `SourceState` actions — live in `src/components/` and the existing views use them, with no visible change.** — Archived 2026-11-24 → `context/archive/2026-11-24-shared-ui-tools/`. Lesson: —.
 - **F-04: (foundation) the open Manual rows of `context/changes/konsola-design-system/plan.md` are checked by the user on the real machine (offline fonts, layout at 1280 and 800 px, window state, GitLab with and without VPN, logged-out `gh`, own tasks, work time, keyboard-only navigation) and the change is archived.** — Archived 2026-11-24 → `context/archive/2026-11-23-konsola-design-system/`. Lesson: —.
+- **S-04: user can see the labels of each GitHub issue as text in its row, as in GitLab.** — Archived 2026-11-24 → `context/archive/2026-11-24-github-issue-labels/`. Lesson: —.

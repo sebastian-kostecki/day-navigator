@@ -9,9 +9,11 @@ import {
   type PillState,
 } from "../components";
 import { ErrorState } from "../components/ErrorState";
-import { SourceCard, type SourceFact } from "./SourceCard";
+import { OpenBackupsButton } from "./OpenBackupsButton";
+import { SourceCard } from "./SourceCard";
 import {
   CARD_IDS,
+  appDataFacts,
   CARD_SOURCES,
   GLYPH,
   pillState,
@@ -19,6 +21,7 @@ import {
   rowMessage,
   summaryText,
   toneOf,
+  type SourceFact,
 } from "./sourceView";
 import type { SourceStatus } from "./types";
 import { useHealth } from "./useHealth";
@@ -100,13 +103,17 @@ export function HealthPanel() {
   const lastCheck =
     checkedAtMs != null ? `Ostatnie sprawdzenie: ${formatAgo(checkedAtMs, now)}` : undefined;
 
-  const cardFacts = (id: string): SourceFact[] =>
+  const appData = snapshot?.appData ?? null;
+
+  const cardFacts = (id: string): SourceFact[] => {
+    if (id !== "app-data") return [];
     // The store is opened and checked by the health round itself, so the
     // round's time is this source's check time. GitLab and GitHub are read
     // from their own refresh rounds, whose time is not in the snapshot.
-    id === "app-data" && checkedAtMs != null
-      ? [{ label: "Sprawdzono", value: formatAgo(checkedAtMs, now) }]
-      : [];
+    const facts: SourceFact[] =
+      checkedAtMs != null ? [{ label: "Sprawdzono", value: formatAgo(checkedAtMs, now) }] : [];
+    return appData ? [...facts, ...appDataFacts(appData, now)] : facts;
+  };
 
   const others = snapshot?.sources.filter((s) => !CARD_IDS.has(s.id)) ?? [];
 
@@ -161,6 +168,7 @@ export function HealthPanel() {
                 spec={spec}
                 source={snapshot.sources.find((s) => s.id === spec.id)}
                 facts={cardFacts(spec.id)}
+                actions={spec.id === "app-data" && appData ? <OpenBackupsButton /> : undefined}
               />
             ))}
           </div>

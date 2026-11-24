@@ -1,3 +1,4 @@
+pub mod backups_folder;
 pub mod cli;
 pub mod events;
 pub mod github;
@@ -191,6 +192,7 @@ pub fn run() {
             gitlab_refresh::refresh_gitlab,
             gitlab_refresh::mark_gitlab_seen,
             settings_file::open_settings_file,
+            backups_folder::open_backups_folder,
             github_refresh::github_snapshot,
             github_refresh::refresh_github,
             hidden_issues::commands::hide_gitlab_issue,

@@ -1,9 +1,15 @@
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { StatusPill } from "../components";
 import type { SourceStatus } from "./types";
-import { GLYPH, cardMessage, pillState, pillText, toneOf, type CardSpec } from "./sourceView";
-
-export type SourceFact = { label: string; value: string };
+import {
+  GLYPH,
+  cardMessage,
+  pillState,
+  pillText,
+  toneOf,
+  type CardSpec,
+  type SourceFact,
+} from "./sourceView";
 
 type Props = {
   spec: CardSpec;
@@ -11,10 +17,12 @@ type Props = {
   source: SourceStatus | undefined;
   /** Only facts backed by data; an empty list renders no `<dl>`. */
   facts: SourceFact[];
+  /** Optional controls under the facts (for example a button). */
+  actions?: ReactNode;
 };
 
 /** A big source card: head with glyph, name, kind and pill; message; facts. */
-export function SourceCard({ spec, source, facts }: Props) {
+export function SourceCard({ spec, source, facts, actions }: Props) {
   const headingId = useId();
   const tone = source ? toneOf(source) : "calm";
   const message = source
@@ -46,11 +54,12 @@ export function SourceCard({ spec, source, facts }: Props) {
           {facts.map((f) => (
             <div key={f.label} className="health-card-fact">
               <dt>{f.label}</dt>
-              <dd>{f.value}</dd>
+              <dd className={f.tone === "warn" ? "is-warn" : undefined}>{f.value}</dd>
             </div>
           ))}
         </dl>
       ) : null}
+      {actions ? <div className="health-card-actions">{actions}</div> : null}
     </section>
   );
 }

@@ -16,6 +16,7 @@ use chrono::NaiveDate;
 use rusqlite::config::DbConfig;
 use rusqlite::{Connection, Transaction, TransactionBehavior};
 
+pub use backup::{BackupSummary, LastBackup};
 pub use error::StoreError;
 
 pub const DB_FILE: &str = "day-navigator.db";
@@ -171,6 +172,14 @@ impl Store {
             })?;
         Ok(())
     }
+
+    /// The schema version of the open database (`PRAGMA user_version`).
+    pub fn schema_version(&self) -> Result<u32, StoreError> {
+        let v: i64 = self
+            .conn
+            .query_row("PRAGMA user_version", [], |r| r.get(0))?;
+        Ok(u32::try_from(v).unwrap_or(u32::MAX))
+    }
 }
 
 /// The store shared by the commands of later slices and the health round.
@@ -240,10 +249,26 @@ impl StoreHandle {
         f(store)
     }
 
+    /// Summary of `backups/` in the data folder, read without the lock or the
+    /// database. `None` when the data dir is unresolved. Call it after
+    /// `status`, which may write today's backup.
+    pub fn backup_summary(&self, today: NaiveDate) -> Option<BackupSummary> {
+        self.dir
+            .as_deref()
+            .map(|d| backup::summarize(&d.join(BACKUP_DIR), today))
+    }
+
+    /// The `backups/` folder, only to open it in the file manager. Never for
+    /// logs or errors.
+    pub fn backups_dir(&self) -> Option<PathBuf> {
+        self.dir.as_deref().map(|d| d.join(BACKUP_DIR))
+    }
+
     /// Open if needed, liveness check, daily backup. A failing check (other
     /// than `Busy`) drops the store, so the next call runs the full open
-    /// sequence again.
-    pub fn status(&self, today: NaiveDate) -> Result<(), StoreError> {
+    /// sequence again. Returns the schema version read under the same lock; a
+    /// failed version read after a passed check only yields `None`.
+    pub fn status(&self, today: NaiveDate) -> Result<Option<u32>, StoreError> {
         let mut guard = self.lock();
         let store = self.ensure(&mut guard, today)?;
         if let Err(e) = store.check() {
@@ -254,7 +279,10 @@ impl StoreHandle {
             return Err(e);
         }
         store.backup_if_due(today);
-        Ok(())
+        Ok(store
+            .schema_version()
+            .inspect_err(|e| log::debug!("store: schema version read failed: {}", e.kind()))
+            .ok())
     }
 }
 
@@ -295,6 +323,16 @@ mod tests {
         );
         assert!(h.status(day()).is_ok(), "next status reopens the real file");
         assert!(h.lock().is_some());
+    }
+
+    #[test]
+    fn status_returns_the_latest_schema_version() {
+        let tmp = tempfile::tempdir().unwrap();
+        let h = StoreHandle::new(Some(tmp.path().join("data")));
+        assert_eq!(
+            h.status(day()).unwrap(),
+            Some(schema::MIGRATIONS.last().unwrap().version)
+        );
     }
 
     #[test]

@@ -5,7 +5,7 @@ use std::path::Path;
 
 use chrono::NaiveDate;
 
-use super::{SourceId, SourceState, SourceStatus};
+use super::{AppDataDetails, SourceId, SourceState, SourceStatus};
 use crate::github::{GithubSnapshot, GithubState};
 use crate::gitlab::{GitlabSnapshot, GitlabState};
 use crate::settings::{SettingsError, check_settings, load_reminder_settings};
@@ -39,18 +39,36 @@ pub fn unresolved_config_dir() -> Vec<SourceStatus> {
 /// user's own path, like the settings message); `StoreError` itself stays
 /// path-free.
 pub fn store_status(handle: &StoreHandle, today: NaiveDate) -> SourceStatus {
-    let state = match handle.status(today) {
-        Ok(()) => SourceState::Ok,
+    store_probe(handle, today).0
+}
+
+/// [`store_status`] plus the details for the "Dane aplikacji" card. The backup
+/// summary is read after `status`, which may write today's backup. The schema
+/// version is set only when the check passed; the details are `None` when the
+/// data folder is unresolved.
+pub fn store_probe(
+    handle: &StoreHandle,
+    today: NaiveDate,
+) -> (SourceStatus, Option<AppDataDetails>) {
+    let checked = handle.status(today);
+    let schema_version = checked.as_ref().ok().copied().flatten();
+    let state = match checked {
+        Ok(_) => SourceState::Ok,
         Err(e) => SourceState::Error {
             kind: e.kind().to_string(),
             message: store_message_pl(&e, handle.dir()),
         },
     };
-    SourceStatus {
+    let status = SourceStatus {
         id: SourceId::AppData,
         label: "Dane aplikacji".to_string(),
         state,
-    }
+    };
+    let details = handle.backup_summary(today).map(|backups| AppDataDetails {
+        schema_version,
+        backups,
+    });
+    (status, details)
 }
 
 /// The GitLab source derived from the last snapshot. `None` while the first

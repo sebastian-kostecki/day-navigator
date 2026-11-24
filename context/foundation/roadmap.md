@@ -64,7 +64,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | S-07 | app-data-details            | see the last backup, kept backups and schema version, and open the backups folder       | F-03          | FR-022          | proposed |
 | S-08 | event-log                   | see today's events in a "Dziennik zdarzeń" panel on the dashboard                       | F-03          | FR-019          | proposed |
 | S-09 | release-notes               | see in each release what changed since the previous one                                 | —             | MS-14, FR-016   | ready    |
-| S-10 | app-metadata                | see the real description and author in the exe and installer properties                 | —             | MS-15           | ready    |
+| S-10 | app-metadata                | see the real description and author in the exe and installer properties                 | —             | MS-15           | in-progress |
 | S-11 | installer-signing           | install a release without a SmartScreen warning                                         | S-09          | MS-13, FR-016   | blocked  |
 
 ## Streams
@@ -281,7 +281,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** `Cargo.toml` is the only version source; the change must not bump the version by accident and publish a release.
-- **Status:** ready
+- **Status:** in-progress
 
 ### S-11: Signed installer
 

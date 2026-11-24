@@ -1,8 +1,8 @@
 [package]
 name = "day-navigator"
 version = "0.2.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "Nawigator dnia: jedno miejsce na dzień pracy (zadania z GitLaba i GitHuba, lista Do zrobienia, czas pracy)"
+authors = ["Sebastian Kostecki"]
 edition = "2024"
 default-run = "day-navigator"
 

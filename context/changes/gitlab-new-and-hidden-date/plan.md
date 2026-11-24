@@ -331,18 +331,18 @@ Migracja v9 tworzy pustą tabelę `gitlab_view_marks`. Istniejące `seen_assignm
 
 #### Automated
 
-- [x] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy jednostkowe w `gitlab_refresh.rs`: `shape_items` flaguje tylko MR-y i widoczne zgłoszenia ze zbioru; `act_on_issue` zachowuje `is_new` i `hidden_at_ms` po ukryciu innego zgłoszenia; `reshape_kept` po nieudanej rundzie zachowuje flagi; `mark_seen` bez `shown_until` nic nie zapisuje i nie zmienia `seq`; `mark_seen` zapisuje `shown_until` (nie zegar), gasi flagi, podbija `seq` i ustawia `last_mark`; pozycja z rundy zapisanej po `shown_until` zostaje NOWE; błąd `save` zostawia snapshot bez zmian; świeże klucze z `first_seen_ms <= last_mark` są odrzucane
-- [x] 2.2 Istniejące testy `tests/new_assignments.rs`, `tests/new_assignments_crash.rs` i `tests/hidden_issues_round.rs` przechodzą po zmianie typu zwracanego przez `record_round`
-- [x] 2.3 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` bez uwag
-- [x] 2.4 `npm run build` przechodzi
+- [x] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy jednostkowe w `gitlab_refresh.rs`: `shape_items` flaguje tylko MR-y i widoczne zgłoszenia ze zbioru; `act_on_issue` zachowuje `is_new` i `hidden_at_ms` po ukryciu innego zgłoszenia; `reshape_kept` po nieudanej rundzie zachowuje flagi; `mark_seen` bez `shown_until` nic nie zapisuje i nie zmienia `seq`; `mark_seen` zapisuje `shown_until` (nie zegar), gasi flagi, podbija `seq` i ustawia `last_mark`; pozycja z rundy zapisanej po `shown_until` zostaje NOWE; błąd `save` zostawia snapshot bez zmian; świeże klucze z `first_seen_ms <= last_mark` są odrzucane — 0dbb074
+- [x] 2.2 Istniejące testy `tests/new_assignments.rs`, `tests/new_assignments_crash.rs` i `tests/hidden_issues_round.rs` przechodzą po zmianie typu zwracanego przez `record_round` — 0dbb074
+- [x] 2.3 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` bez uwag — 0dbb074
+- [x] 2.4 `npm run build` przechodzi — 0dbb074
 
 ### Phase 3: UI i dokumentacja
 
 #### Automated
 
-- [ ] 3.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 3.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą
-- [ ] 3.3 `rg -n "#[0-9a-fA-F]{3,6}" src --glob "*.css" --glob "!src/styles/tokens.css"` nie znajduje nowych literalnych kolorów
+- [x] 3.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 3.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą
+- [x] 3.3 `rg -n "#[0-9a-fA-F]{3,6}" src --glob "*.css" --glob "!src/styles/tokens.css"` nie znajduje nowych literalnych kolorów
 
 #### Manual
 

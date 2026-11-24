@@ -23,5 +23,5 @@ export { StatStrip, type Stat, type StatStripProps } from "./StatStrip/StatStrip
 export { StatusPill, type PillState, type StatusPillProps } from "./StatusPill/StatusPill";
 export { Tabs, type TabsProps } from "./Tabs/Tabs";
 export { plural } from "./plural";
-export { formatAge, formatAgo, formatHm, formatHms } from "./time";
+export { formatAge, formatAgo, formatDay, formatHm, formatHms } from "./time";
 export { RELATIVE_TICK_MS, useNow } from "./useNow";

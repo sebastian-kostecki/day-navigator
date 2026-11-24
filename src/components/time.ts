@@ -53,6 +53,13 @@ export function formatAge(ms: number, nowMs: number): string {
   return `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`;
 }
 
+/** Local `DD.MM`, or `DD.MM.YYYY` when `ms` is not in the same local year as `nowMs`. */
+export function formatDay(ms: number, nowMs: number): string {
+  const d = new Date(ms);
+  const day = `${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}`;
+  return d.getFullYear() === new Date(nowMs).getFullYear() ? day : `${day}.${d.getFullYear()}`;
+}
+
 /** `H:MM:SS` for a duration in milliseconds; negative counts as zero. */
 export function formatHms(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));

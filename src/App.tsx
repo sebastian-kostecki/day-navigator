@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AppHeader } from "./components";
 import { GitlabView } from "./gitlab/GitlabView";
+import { useGitlabSeenMark } from "./gitlab/useGitlabSeenMark";
 import { GithubView } from "./github/GithubView";
 import { HealthPanel } from "./health/HealthPanel";
 import OwnTasksView from "./own-tasks/OwnTasksView";
@@ -30,6 +31,7 @@ function isEditable(target: EventTarget | null): boolean {
 
 function App() {
   const [view, setView] = useState<View>("todo");
+  useGitlabSeenMark(view);
 
   // Digits 1–6 switch views; never with a modifier, on auto-repeat or while typing.
   useEffect(() => {

@@ -102,6 +102,8 @@ mod notices {
             draft: false,
             changed: None,
             milestone: None,
+            is_new: false,
+            hidden_at_ms: None,
         }
     }
 
@@ -380,5 +382,69 @@ mod items {
             hidden_issues: vec![],
         };
         assert_eq!(keys_of(&full), vec![key(ItemKind::Issue, max)]);
+    }
+}
+
+#[test]
+fn fresh_since_without_a_mark_gives_nothing() {
+    let seen = [(issue(1), NOW), (mr(2), NOW + 1)];
+    assert!(fresh_since(&seen, None).is_empty());
+}
+
+#[test]
+fn fresh_since_is_strictly_after_the_mark() {
+    let seen = [(issue(1), NOW - 1), (issue(2), NOW), (mr(3), NOW + 1)];
+    assert_eq!(
+        fresh_since(&seen, Some(NOW)),
+        vec![(mr(3), NOW + 1)],
+        "equal is not new, greater is"
+    );
+}
+
+#[test]
+fn fresh_since_keeps_input_order_and_drops_repeats() {
+    let seen = [
+        (mr(9), NOW + 5),
+        (issue(1), NOW + 2),
+        (mr(9), NOW + 5),
+        (issue(4), NOW - 3),
+    ];
+    assert_eq!(
+        fresh_since(&seen, Some(NOW)),
+        vec![(mr(9), NOW + 5), (issue(1), NOW + 2)]
+    );
+}
+
+mod flags {
+    use std::collections::HashSet;
+
+    use super::notices::item;
+    use crate::gitlab::{AssignedItems, ItemKind};
+    use crate::new_assignments::{ItemKey, mark_fresh};
+
+    #[test]
+    fn mark_fresh_flags_mrs_and_visible_issues_but_never_hidden() {
+        let mut items = AssignedItems {
+            merge_requests: vec![
+                item(ItemKind::MergeRequest, 1, "a"),
+                item(ItemKind::MergeRequest, 2, "b"),
+            ],
+            issues: vec![item(ItemKind::Issue, 1, "c"), item(ItemKind::Issue, 2, "d")],
+            hidden_issues: vec![item(ItemKind::Issue, 3, "e")],
+        };
+        items.hidden_issues[0].is_new = true;
+        let fresh: HashSet<ItemKey> = [
+            ItemKey::new(ItemKind::MergeRequest, 1),
+            ItemKey::new(ItemKind::Issue, 2),
+            ItemKey::new(ItemKind::Issue, 3),
+        ]
+        .into_iter()
+        .collect();
+        mark_fresh(&mut items, &fresh);
+        assert!(items.merge_requests[0].is_new);
+        assert!(!items.merge_requests[1].is_new);
+        assert!(!items.issues[0].is_new);
+        assert!(items.issues[1].is_new);
+        assert!(!items.hidden_issues[0].is_new);
     }
 }

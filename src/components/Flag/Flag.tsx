@@ -2,8 +2,9 @@ import type { ReactNode } from "react";
 import "./Flag.css";
 
 export type FlagProps = {
-  /** change = amber (Zmienione, Z <dnia>, Draft); info = blue (closed in the source). */
-  tone?: "change" | "info";
+  /** change = amber (Zmienione, Z <dnia>, Draft); info = blue (closed in the source);
+   * new = blue (Nowe, a freshly assigned item). */
+  tone?: "change" | "info" | "new";
   children: ReactNode;
   className?: string;
 };

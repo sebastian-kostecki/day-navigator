@@ -142,6 +142,8 @@ mod tests {
             draft: false,
             changed: None,
             milestone: None,
+            is_new: false,
+            hidden_at_ms: None,
         }
     }
 

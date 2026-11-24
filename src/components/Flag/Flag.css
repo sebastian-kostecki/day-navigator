@@ -10,7 +10,8 @@
   color: var(--flag);
 }
 
-.dn-flag-info {
+.dn-flag-info,
+.dn-flag-new {
   border-color: var(--info-line);
   color: var(--info);
 }

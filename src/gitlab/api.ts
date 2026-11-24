@@ -12,6 +12,11 @@ export function refreshGitlab(): Promise<void> {
   return invoke<void>("refresh_gitlab");
 }
 
+/** Ends a visit to the GitLab view: the "new" flags go out and the seen mark moves. */
+export function markGitlabSeen(): Promise<void> {
+  return invoke<void>("mark_gitlab_seen");
+}
+
 /** Opens an item in the default browser. */
 export function openGitlabItem(url: string): Promise<void> {
   return openUrl(url);

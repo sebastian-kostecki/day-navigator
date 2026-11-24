@@ -13,6 +13,7 @@ import {
   SourceState,
   formatAge,
   formatAgo,
+  formatDay,
   plural,
   useNow,
 } from "../components";
@@ -173,7 +174,12 @@ function GitlabRow({
         ) : (
           <span className="gitlab-title-text">{item.title}</span>
         )}
-        {hidden && <span className="dn-sr-only"> (ukryte)</span>}
+        {hidden && (
+          <span className="gitlab-hidden-at code">
+            {item.hiddenAtMs != null ? `ukryte ${formatDay(item.hiddenAtMs, now)}` : "ukryte"}
+          </span>
+        )}
+        {item.isNew && <Flag tone="new">Nowe</Flag>}
         {item.changed && (
           <span className="gitlab-flag" title={CHANGE_LABEL[item.changed]}>
             <Flag tone="change">

@@ -44,6 +44,8 @@ fn issue(id: u64, labels: &[&str]) -> GitlabItem {
         draft: false,
         changed: None,
         milestone: None,
+        is_new: false,
+        hidden_at_ms: None,
     }
 }
 

@@ -48,6 +48,8 @@ fn item(n: u32) -> GitlabItem {
         iid: u64::from(n),
         changed: None,
         milestone: None,
+        is_new: false,
+        hidden_at_ms: None,
         reference: format!("invented/project!{n}"),
         title: format!("Zmiana testowa {n}"),
         web_url: Some(format!("https://gitlab.example.invalid/invented/{n}")),

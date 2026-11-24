@@ -40,6 +40,8 @@ fn issue(id: u64, labels: &[&str], updated: &str) -> GitlabItem {
         draft: false,
         changed: None,
         milestone: None,
+        is_new: false,
+        hidden_at_ms: None,
     }
 }
 
@@ -413,7 +415,10 @@ fn partition_splits_marks_and_keeps_order() {
         &[a.clone(), b.clone(), c.clone(), d.clone()],
         &[hidden, marked],
     );
-    assert_eq!(hid, [b]);
+    assert_eq!(hid.len(), 1);
+    assert_eq!(hid[0].id, b.id);
+    assert_eq!(hid[0].hidden_at_ms, Some(NOW - DAY));
+    assert!(visible.iter().all(|i| i.hidden_at_ms.is_none()));
     assert_eq!(visible.iter().map(|i| i.id).collect::<Vec<_>>(), [1, 3, 4]);
     assert_eq!(visible[1].changed, Some(ChangeReason::Status));
     assert_eq!(visible[0].changed, None);

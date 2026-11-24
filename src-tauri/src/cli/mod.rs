@@ -196,7 +196,7 @@ fn gh_assigned_issues_args(repo: &GithubRepo) -> Vec<String> {
         "--limit",
         "500",
         "--json",
-        "number,title,url,updatedAt",
+        "number,title,url,updatedAt,labels",
     ]
     .iter()
     .map(|a| a.to_string())
@@ -719,7 +719,7 @@ mod tests {
         "--limit",
         "500",
         "--json",
-        "number,title,url,updatedAt",
+        "number,title,url,updatedAt,labels",
     ];
 
     /// The read-only guard on one argument list.
@@ -1102,7 +1102,7 @@ mod tests {
                 "--limit",
                 "500",
                 "--json",
-                "number,title,url,updatedAt"
+                "number,title,url,updatedAt,labels"
             ]
         );
         assert_eq!(call.name(), "gh:assigned-issues");

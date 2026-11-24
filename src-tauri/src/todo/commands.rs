@@ -243,6 +243,7 @@ mod tests {
             title: "Invented".to_string(),
             web_url: None,
             updated_at: "2026-01-01T00:00:00Z".to_string(),
+            labels: vec![],
         };
         let snapshot = GithubSnapshot {
             repos: vec![RepoView {

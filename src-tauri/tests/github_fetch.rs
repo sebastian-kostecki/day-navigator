@@ -58,6 +58,7 @@ fn alpha_and_beta_load_in_settings_order() {
     let refs: Vec<&str> = alpha.iter().map(|i| i.reference.as_str()).collect();
     assert_eq!(refs, ["octo-test/alpha#11", "octo-test/alpha#3"]);
     assert_eq!(alpha[0].title, "Widget crashes on start");
+    assert_eq!(alpha[0].labels, ["bug", "needs-triage"]);
     assert_eq!(
         alpha[0].web_url.as_deref(),
         Some("https://github.com/octo-test/alpha/issues/11")
@@ -107,6 +108,7 @@ fn a_loaded_title_reaches_the_issue_list_and_nothing_else() {
     use day_navigator_lib::github::{GithubSnapshot, next_snapshot};
     use day_navigator_lib::health::probe::github_status;
     const TITLE_MARKER: &str = "LEAK-MARKER-GH-TITLE-5a8e";
+    const LABEL_MARKER: &str = "LEAK-MARKER-GH-LABEL-3d9f";
 
     let cfg = config(&["octo-test/alpha", "octo-test/missing"]);
     let fetched = fetch_assigned(&runner("gh-issues"), &cfg);
@@ -115,6 +117,13 @@ fn a_loaded_title_reaches_the_issue_list_and_nothing_else() {
     // The title is data: it is in the alpha list...
     let alpha = &snap.repos[0];
     assert!(alpha.issues.iter().any(|i| i.title.contains(TITLE_MARKER)));
+    // A label is data too: it is in the alpha issue's labels...
+    assert!(
+        alpha
+            .issues
+            .iter()
+            .any(|i| i.labels.iter().any(|l| l.contains(LABEL_MARKER)))
+    );
     // ...and in nothing that reaches a log line, the tray or an error text.
     let status = github_status(&snap).expect("a status after a round");
     let error = snap.repos[1].error.as_ref().expect("missing repo error");
@@ -127,6 +136,7 @@ fn a_loaded_title_reaches_the_issue_list_and_nothing_else() {
     ];
     for text in shown {
         assert!(!text.contains(TITLE_MARKER), "{text}");
+        assert!(!text.contains(LABEL_MARKER), "{text}");
         assert!(!text.contains("octo-test"), "{text}");
     }
 }

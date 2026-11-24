@@ -288,7 +288,7 @@ fn gh_assigned_issues_passes_exactly_these_arguments() {
             "--limit",
             "500",
             "--json",
-            "number,title,url,updatedAt"
+            "number,title,url,updatedAt,labels"
         ]
     );
 }

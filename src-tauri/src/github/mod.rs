@@ -30,6 +30,8 @@ pub struct GithubIssue {
     pub web_url: Option<String>,
     /// RFC 3339 text exactly as GitHub sent it.
     pub updated_at: String,
+    /// Label names in the order GitHub sent them; empty when there are none.
+    pub labels: Vec<String>,
 }
 
 /// Why a repo or a round produced no list. No variant carries a value from the
@@ -139,6 +141,14 @@ struct RawIssue {
     title: String,
     url: String,
     updated_at: String,
+    #[serde(default)]
+    labels: Vec<RawLabel>,
+}
+
+/// One label object of `gh`; its other fields are ignored.
+#[derive(Deserialize)]
+struct RawLabel {
+    name: String,
 }
 
 /// Link kept only under `https://github.com/<owner>/<name>/issues/` of this
@@ -176,6 +186,7 @@ pub fn parse_issues(repo: &GithubRepo, stdout: &str) -> Result<Vec<GithubIssue>,
             title: r.title,
             web_url: checked_url(&r.url, repo),
             updated_at: r.updated_at,
+            labels: r.labels.into_iter().map(|l| l.name).collect(),
         };
         keyed.push((stamp, issue));
     }
@@ -330,6 +341,14 @@ mod tests {
         format!(r#"{{"number":{number},"title":"{title}","url":"{url}","updatedAt":"{updated}"}}"#)
     }
 
+    /// One otherwise valid issue whose `labels` value is the given raw JSON.
+    fn with_labels(labels_json: &str) -> String {
+        format!(
+            r#"[{{"number":1,"title":"T","url":"{}","updatedAt":"2026-01-01T00:00:00Z","labels":{labels_json}}}]"#,
+            url(1)
+        )
+    }
+
     fn url(n: u64) -> String {
         format!("https://github.com/octo-test/alpha/issues/{n}")
     }
@@ -386,6 +405,35 @@ mod tests {
     }
 
     #[test]
+    fn labels_keep_the_response_order_and_ignore_other_fields() {
+        let json = with_labels(
+            r#"[{"id":"x1","name":"bug","description":"d","color":"ff0000"},{"name":"needs-triage"},{"name":"area/ui"}]"#,
+        );
+        let got = parse_issues(&repo(), &json).unwrap();
+        assert_eq!(got[0].labels, ["bug", "needs-triage", "area/ui"]);
+    }
+
+    #[test]
+    fn missing_or_empty_labels_are_an_empty_list() {
+        let missing = array(&[issue_json(1, "T", &url(1), "2026-01-01T00:00:00Z")]);
+        assert!(
+            parse_issues(&repo(), &missing).unwrap()[0]
+                .labels
+                .is_empty()
+        );
+        let empty = with_labels("[]");
+        assert!(parse_issues(&repo(), &empty).unwrap()[0].labels.is_empty());
+    }
+
+    #[test]
+    fn issue_serializes_its_labels() {
+        let mut i = issue("octo-test/alpha", 1);
+        i.labels = vec!["bug".to_string(), "needs-triage".to_string()];
+        let v = serde_json::to_value(&i).unwrap();
+        assert_eq!(v["labels"], serde_json::json!(["bug", "needs-triage"]));
+    }
+
+    #[test]
     fn empty_array_is_an_empty_list() {
         assert_eq!(parse_issues(&repo(), "[]").unwrap(), vec![]);
         assert_eq!(parse_issues(&repo(), " [ ] \n").unwrap(), vec![]);
@@ -408,6 +456,9 @@ mod tests {
             "[][]".to_string(),
             format!(r#"[{{"number":"1","title":"{MARKER}","url":"x","updatedAt":"x"}}]"#),
             format!(r#"[{{"number":1,"title":"{MARKER}"}}]"#),
+            with_labels(&format!(r#""{MARKER}""#)),
+            with_labels(&format!(r#"[{{"color":"{MARKER}"}}]"#)),
+            with_labels(r#"[{"name":1}]"#),
         ];
         for json in cases {
             let err = parse_issues(&repo(), &json).unwrap_err();
@@ -480,6 +531,7 @@ mod tests {
             title: format!("Invented {n}"),
             web_url: None,
             updated_at: "2026-03-03T08:00:00Z".to_string(),
+            labels: vec![],
         }
     }
 

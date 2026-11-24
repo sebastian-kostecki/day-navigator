@@ -58,7 +58,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | S-01 | todo-add-from-sources       | add an item to "To do" with "+" from the GitLab and GitHub views                        | —             | FR-026, US-01   | done     |
 | S-02 | gitlab-new-and-hidden-date  | see a NEW flag on fresh GitLab items and the date a row was hidden                      | —             | FR-023          | ready    |
 | S-03 | gitlab-filter-bar-retry     | see the active filter values and when GitLab will be tried again                        | F-01          | FR-024          | ready    |
-| S-04 | github-issue-labels         | see labels on GitHub issues                                                             | —             | FR-025          | ready    |
+| S-04 | github-issue-labels         | see labels on GitHub issues                                                             | —             | FR-025          | in-progress |
 | S-05 | worktime-days-table         | see a table of the month's days against 8 h and mark days off there                     | F-01, F-02    | FR-020          | proposed |
 | S-06 | worktime-reminders-panel    | see the reminder thresholds and whether reminders are on                                | —             | FR-021          | ready    |
 | S-07 | app-data-details            | see the last backup, kept backups and schema version, and open the backups folder       | F-03          | FR-022          | ready    |
@@ -207,7 +207,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Changes the fixed `gh issue list` call; it stays read-only and covered by the guard test.
-- **Status:** ready
+- **Status:** in-progress
 
 ### S-05: Days table in "Work time"
 

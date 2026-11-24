@@ -451,10 +451,10 @@ There are no data migrations. The publish replaces files in place. The previous 
 
 #### Automated
 
-- [x] 3.1 bundle.js passes node --check and runtime limits
-- [x] 3.2 Every bundle component renders with the TSX class names
-- [x] 3.3 Component CSS copied verbatim, no hex in bundle.css
-- [x] 3.4 Every exported type is declared in index.d.ts
+- [x] 3.1 bundle.js passes node --check and runtime limits — 031e331
+- [x] 3.2 Every bundle component renders with the TSX class names — 031e331
+- [x] 3.3 Component CSS copied verbatim, no hex in bundle.css — 031e331
+- [x] 3.4 Every exported type is declared in index.d.ts — 031e331
 
 #### Manual
 
@@ -464,8 +464,8 @@ There are no data migrations. The publish replaces files in place. The previous 
 
 #### Automated
 
-- [ ] 4.1 Every card has README and a valid preview
-- [ ] 4.2 No denylist term in the working copy
+- [x] 4.1 Every card has README and a valid preview
+- [x] 4.2 No denylist term in the working copy
 
 #### Manual
 

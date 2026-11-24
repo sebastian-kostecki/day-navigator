@@ -1,4 +1,4 @@
-<!-- @dsCard group="Oznaczenia" height=72 -->
+<!-- @dsCard group="Oznaczenia" height=140 subtitle="Z glifem i bez glifu (własny tekst)" -->
 <!doctype html>
 <html>
 <head><meta charset="utf-8"><title>StatusPill — preview</title></head>
@@ -6,9 +6,13 @@
 <div id="root"></div>
 <script>
   var D = window.DayNav, h = React.createElement;
-  ReactDOM.createRoot(document.getElementById('root')).render(
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
     h('div', { className: 'dn-demo' },
-      h(D.StatusPill, { state: 'ok' }), h(D.StatusPill, { state: 'calm' }), h(D.StatusPill, { state: 'error' })));
+      h(D.StatusPill, { state: 'ok' }), h(D.StatusPill, { state: 'calm' }), h(D.StatusPill, { state: 'error' })),
+    h('div', { className: 'dn-demo' },
+      h(D.StatusPill, { state: 'ok', glyph: false }, 'WŁ.'),
+      h(D.StatusPill, { state: 'calm', glyph: false }, 'WYŁ.'),
+      h(D.StatusPill, { state: 'calm', glyph: false }, 'NIESKONFIGUROWANE'))));
 </script>
 </body>
 </html>

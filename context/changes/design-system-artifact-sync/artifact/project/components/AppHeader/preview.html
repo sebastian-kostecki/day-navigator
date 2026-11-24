@@ -1,20 +1,114 @@
-<!-- @dsCard group="Nawigacja" height=150 subtitle="Licznik biegnie / zatrzymany" -->
+<!-- @dsCard group="Nawigacja" height=460 subtitle="Numerowana nawigacja 1–6 i licznik w czterech stanach" -->
 <!doctype html>
 <html>
 <head><meta charset="utf-8"><title>AppHeader — preview</title></head>
 <body>
-<div id="root"></div>
+<div id="root" class="dn-demo-col"></div>
 <script>
   var D = window.DayNav, h = React.createElement;
-  var nav = [
-    { key: '1', label: 'Do zrobienia', active: true }, { key: '2', label: 'GitLab' }, { key: '3', label: 'GitHub' },
-    { key: '4', label: 'Moje zadania' }, { key: '5', label: 'Czas pracy' }, { key: '6', label: 'Źródła' }
+  var VIEWS = [
+    { id: 'todo', label: 'Do zrobienia' }, { id: 'gitlab', label: 'GitLab' }, { id: 'github', label: 'GitHub' },
+    { id: 'tasks', label: 'Moje zadania' }, { id: 'work-time', label: 'Czas pracy' }, { id: 'health', label: 'Źródła' }
   ];
+  var CONFIRM_TIMEOUT_MS = 6000;
+  var CONFIRM_GUARD_MS = 400;
+
+  function isEditable(t) {
+    if (!(t instanceof HTMLElement)) return false;
+    if (t.isContentEditable) return true;
+    return t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT';
+  }
+
+  function label(text) {
+    return h('div', { style: { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-faint)', marginBottom: 6 } }, text);
+  }
+
+  /* Znacznik licznika dokładnie jak WorkTimerHeader.tsx. */
+  function Timer(p) {
+    var qid = 'dn-timer-confirm-q-' + p.uid;
+    var rec = h('span', { className: p.running ? 'dn-rec' : 'dn-rec is-stopped' },
+      h('span', { 'aria-hidden': 'true' }, p.running ? '●' : '○'), ' ', p.running ? 'REC' : 'STOP');
+    var clock = h('span', { className: 'clock dn-clock' }, h('span', { className: 'dn-sr-only' }, 'Dziś: '), p.clock);
+    var control;
+    if (p.pending) {
+      var start = p.pending === 'start';
+      control = h('div', { className: 'dn-timer-confirm', role: 'group', 'aria-labelledby': qid },
+        h('span', { id: qid, className: 'dn-timer-confirm-q' }, start ? 'Rozpocząć pracę?' : 'Zakończyć pracę?'),
+        h(D.Button, { variant: start ? 'primary' : 'secondary', size: 'lg', className: 'dn-btn-mono', onClick: p.onConfirm }, start ? 'TAK, START' : 'TAK, STOP'),
+        h(D.Button, { ref: p.cancelRef, size: 'lg', onClick: p.onCancel }, 'Anuluj'));
+    } else {
+      control = h(D.Button, { variant: p.running ? 'secondary' : 'primary', size: 'lg', className: 'dn-btn-mono', onClick: p.onAsk },
+        p.running ? 'STOP' : 'START');
+    }
+    return h('div', { className: 'dn-timer' }, rec, clock, control);
+  }
+
+  function TimerError() {
+    return h(D.Notice, { tone: 'error', compact: true, className: 'dn-timer-error', action: 'Spróbuj ponownie', onAction: function () {} },
+      'Czas pracy niedostępny: baza zajęta (ostatnio OK 08:52)');
+  }
+
+  /* Jeden nagłówek z żywym licznikiem: START/STOP pyta, TAK stosuje, Anuluj / Escape / 6 s anuluje, klik w 400 ms jest ignorowany. */
+  function LiveTimer() {
+    var r = React.useState(true), running = r[0], setRunning = r[1];
+    var q = React.useState(null), asked = q[0], setAsked = q[1];
+    var cancelRef = React.useRef(null);
+    var pending = asked && (asked.action === 'stop') === running ? asked : null;
+
+    React.useEffect(function () {
+      if (!pending) return;
+      if (cancelRef.current) cancelRef.current.focus();
+      var timeout = setTimeout(function () { setAsked(null); }, CONFIRM_TIMEOUT_MS);
+      function onKeyDown(e) { if (e.key === 'Escape') setAsked(null); }
+      window.addEventListener('keydown', onKeyDown);
+      return function () { clearTimeout(timeout); window.removeEventListener('keydown', onKeyDown); };
+    }, [pending]);
+
+    function confirm() {
+      if (!pending || Date.now() - pending.at < CONFIRM_GUARD_MS) return;
+      setAsked(null);
+      setRunning(pending.action === 'start');
+    }
+    return h(Timer, {
+      uid: 'live', running: running, clock: '05:12:34', pending: pending ? pending.action : null, cancelRef: cancelRef,
+      onAsk: function () { setAsked({ action: running ? 'stop' : 'start', at: Date.now() }); },
+      onConfirm: confirm,
+      onCancel: function () { setAsked(null); }
+    });
+  }
+
   function Demo() {
-    var s = React.useState(true), running = s[0], set = s[1];
-    return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 12 } },
-      h(D.AppHeader, { items: nav, clock: running ? '05:12:34' : '00:00:00', running: running, onToggle: function () { set(!running); } }),
-      h(D.AppHeader, { items: nav, clock: '00:00:00', running: false }));
+    var s = React.useState('todo'), view = s[0], setView = s[1];
+
+    /* Klawisze 1–6 jak w App.tsx: bez modyfikatora, bez powtórzeń, nie w polach edycji. */
+    React.useEffect(function () {
+      function onKeyDown(e) {
+        if (e.ctrlKey || e.altKey || e.metaKey || e.repeat) return;
+        if (e.defaultPrevented || isEditable(e.target)) return;
+        if (!/^[1-6]$/.test(e.key)) return;
+        var next = VIEWS[Number(e.key) - 1];
+        e.preventDefault();
+        setView(next.id);
+        requestAnimationFrame(function () {
+          var el = document.querySelector('.dn-nav [data-view="' + next.id + '"]');
+          if (el) el.focus({ preventScroll: true });
+        });
+      }
+      window.addEventListener('keydown', onKeyDown);
+      return function () { window.removeEventListener('keydown', onKeyDown); };
+    }, []);
+
+    var items = VIEWS.map(function (v, i) { return { id: v.id, label: v.label, key: String(i + 1), active: view === v.id }; });
+    function header(uid, children) {
+      return h(D.AppHeader, { key: uid, items: items, onSelect: setView }, children);
+    }
+    return h(React.Fragment, null,
+      h('div', null, label('Żywy: klawisze 1–6 przełączają widok; START/STOP pyta, Anuluj / Escape / 6 s anuluje'), header('live', h(LiveTimer))),
+      h('div', null, label('Pytanie „Zakończyć pracę?”'),
+        header('q', h(Timer, { uid: 'q', running: true, clock: '05:12:34', pending: 'stop', onConfirm: function () {}, onCancel: function () {} }))),
+      h('div', null, label('Zatrzymany'),
+        header('stopped', h(Timer, { uid: 's', running: false, clock: '00:00:00', pending: null, onAsk: function () {} }))),
+      h('div', null, label('Błąd licznika'), header('err', h(TimerError))));
   }
   ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
 </script>

@@ -1,4 +1,4 @@
-<!-- @dsCard group="Nawigacja" height=80 -->
+<!-- @dsCard group="Nawigacja" height=190 subtitle="Strzałki, Home, End; tabpanel z id" -->
 <!doctype html>
 <html>
 <head><meta charset="utf-8"><title>Tabs — preview</title></head>
@@ -6,11 +6,20 @@
 <div id="root" style="padding: 16px"></div>
 <script>
   var D = window.DayNav, h = React.createElement;
+  var lists = {
+    Praca: ['Przygotować notatkę na retro', 'Uzupełnić opis zmian w imporcie'],
+    Prywatne: ['Zamówić książkę o rytmie dnia'],
+    Zrobione: ['Zapisać się na przegląd roweru']
+  };
   function Demo() {
-    var s = React.useState('Praca');
-    return h(D.Panel, null, h(D.Tabs, { label: 'Filtr zadań', value: s[0], onChange: s[1], tabs: [
-      { value: 'Praca', label: 'Praca', count: 3 }, { value: 'Prywatne', label: 'Prywatne', count: 2 }, { value: 'Zrobione', label: 'Zrobione', count: 1 }
-    ] }));
+    var s = React.useState('Praca'), value = s[0];
+    return h(D.Panel, null,
+      h(D.Tabs, { label: 'Filtr zadań', value: value, onChange: s[1], panelId: 'pv-tasks-panel', idPrefix: 'pv-tasks', tabs: [
+        { value: 'Praca', label: 'Praca', count: 2 }, { value: 'Prywatne', label: 'Prywatne', count: 1 }, { value: 'Zrobione', label: 'Zrobione', count: 1 }
+      ] }),
+      h('div', { id: 'pv-tasks-panel', role: 'tabpanel', 'aria-labelledby': 'pv-tasks-' + value, style: { padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6, color: 'var(--ink-muted)' } },
+        lists[value].map(function (t) { return h('div', { key: t }, t); }),
+        h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-faint)' } }, 'Fokus na zakładce: ← → Home End')));
   }
   ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
 </script>

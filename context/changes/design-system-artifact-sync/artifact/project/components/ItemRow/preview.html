@@ -1,4 +1,4 @@
-<!-- @dsCard group="Dane" height=250 -->
+<!-- @dsCard group="Dane" height=520 subtitle="Checkbox, flagi, labels, selected, bez checkboxa" -->
 <!doctype html>
 <html>
 <head><meta charset="utf-8"><title>ItemRow — preview</title></head>
@@ -7,19 +7,28 @@
 <script>
   var D = window.DayNav, h = React.createElement;
   function Demo() {
-    var s = React.useState({ 4: true }), done = s[0], set = s[1];
+    var s = React.useState({ r5: true }), done = s[0], set = s[1];
     function t(id) { return function () { var n = Object.assign({}, done); n[id] = !done[id]; set(n); }; }
     function tools(inTodo) {
       return [
-        h(D.Button, { key: 'a', variant: inTodo ? 'primary' : 'quiet', iconOnly: true, icon: 'plus', pressed: inTodo, 'aria-label': 'Dodaj do listy Do zrobienia' }),
-        h(D.Button, { key: 'b', variant: 'quiet', iconOnly: true, icon: 'hide', 'aria-label': 'Ukryj do zmiany' })
+        h(D.Button, { key: 'a', variant: inTodo ? 'primary' : 'quiet', size: 'sm', iconOnly: true, icon: 'plus', pressed: inTodo, 'aria-label': 'Dodaj do listy Do zrobienia' }),
+        h(D.Button, { key: 'b', variant: 'quiet', size: 'sm', iconOnly: true, icon: 'eye-off', 'aria-label': 'Ukryj do zmiany' })
       ];
     }
-    return h(D.Panel, { title: 'Do zrobienia', meta: '[3/5]' },
-      h(D.ItemRow, { id: 'r1', source: 'gl', refId: '!418', title: 'Walidacja dat w imporcie faktur', flag: 'ZMIENIONE', done: !!done[1], onToggle: t(1) }, tools(true)),
-      h(D.ItemRow, { id: 'r2', source: 'my', refId: 'praca', title: 'Przygotować notatkę na retro', flag: 'DZIŚ', done: !!done[2], onToggle: t(2), selected: true }),
-      h(D.ItemRow, { id: 'r3', source: 'gh', refId: '#27', title: 'Eksport listy zakupów do PDF', flag: 'NOWE', flagTone: 'new', meta: '3 dni', done: !!done[3], onToggle: t(3) }),
-      h(D.ItemRow, { id: 'r4', source: 'gl', refId: '#1203', title: 'Błąd sortowania w tabeli zamówień', done: !!done[4], onToggle: t(4) }));
+    function row(id, props, kids) {
+      return h(D.ItemRow, Object.assign({ id: id, done: !!done[id], onToggle: t(id) }, props), kids);
+    }
+    var extra = h('span', { style: { display: 'inline-flex', gap: 8 } },
+      h(D.Flag, { tone: 'change' }, 'Draft'), h(D.Flag, { tone: 'change' }, 'W Do zrobienia'));
+    return h(D.Panel, { title: 'Do zrobienia', meta: '[2/7]' },
+      row('r1', { source: 'gl', refId: '!418', title: 'Walidacja dat w imporcie faktur', flag: 'Zmienione', checkboxLabel: 'Zrobione: Walidacja dat w imporcie faktur' }, tools(true)),
+      row('r2', { source: 'my', refId: 'praca', title: 'Przygotować notatkę na retro', flag: 'Dziś', selected: true, checkboxLabel: 'Zrobione: Przygotować notatkę na retro' }),
+      row('r3', { source: 'gh', refId: '#27', title: 'Eksport listy zakupów do PDF', flag: 'Nowe', flagTone: 'new', meta: '3 dni', checkboxLabel: 'Zrobione: Eksport listy zakupów do PDF' }),
+      row('r4', { source: 'gl', refId: '#1203', title: 'Błąd sortowania w tabeli zamówień', labels: ['backend', 'faktury'], checkboxLabel: 'Zrobione: Błąd sortowania w tabeli zamówień' }),
+      row('r5', { source: 'gl', refId: '!417', title: 'Porządki w konfiguracji eksportu', checkboxLabel: 'Otwórz ponownie: Porządki w konfiguracji eksportu' }),
+      row('r6', { source: 'gl', refId: '!422', title: 'Przepisanie raportu miesięcznego', flag: 'Nowe', flagTone: 'new', meta: extra, checkboxLabel: 'Zrobione: Przepisanie raportu miesięcznego' }),
+      row('r7', { source: 'gl', refId: '!409', title: 'Wyłączony przycisk zapisu', checkboxLabel: 'Zrobione: Wyłączony przycisk zapisu', checkboxDisabled: true }),
+      h(D.ItemRow, { source: 'gh', refId: '#31', title: 'Pozycja bez checkboxa: tytuł jest zwykłym span-em', meta: '2 dni' }));
   }
   ReactDOM.createRoot(document.getElementById('root')).render(h(Demo));
 </script>

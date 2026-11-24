@@ -1,4 +1,4 @@
-<!-- @dsCard group="Oznaczenia" height=72 -->
+<!-- @dsCard group="Oznaczenia" height=170 subtitle="Tony i kilka flag w stałej kolejności" -->
 <!doctype html>
 <html>
 <head><meta charset="utf-8"><title>Flag — preview</title></head>
@@ -6,10 +6,18 @@
 <div id="root"></div>
 <script>
   var D = window.DayNav, h = React.createElement;
-  ReactDOM.createRoot(document.getElementById('root')).render(
+  function label(text) {
+    return h('span', { style: { fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--ink-faint)', minWidth: 72 } }, text);
+  }
+  ReactDOM.createRoot(document.getElementById('root')).render(h(React.Fragment, null,
     h('div', { className: 'dn-demo' },
-      h(D.Flag, null, 'ZMIENIONE'), h(D.Flag, null, 'Z PIĄTKU'), h(D.Flag, null, 'DZIŚ'),
-      h(D.Flag, { tone: 'new' }, 'NOWE')));
+      label('change'), h(D.Flag, { tone: 'change' }, 'Zmienione'), h(D.Flag, null, 'Z piątku'), h(D.Flag, null, 'Dziś'),
+      label('info'), h(D.Flag, { tone: 'info' }, 'Zamknięte'),
+      label('new'), h(D.Flag, { tone: 'new' }, 'Nowe')),
+    h('div', { className: 'dn-demo' },
+      label('kolejność'),
+      h(D.Flag, { tone: 'new' }, 'Nowe'), h(D.Flag, { tone: 'change' }, 'Zmienione'),
+      h(D.Flag, { tone: 'change' }, 'Draft'), h(D.Flag, { tone: 'change' }, 'W Do zrobienia'))));
 </script>
 </body>
 </html>

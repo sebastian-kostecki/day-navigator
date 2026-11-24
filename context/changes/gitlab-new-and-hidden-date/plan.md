@@ -340,9 +340,9 @@ Migracja v9 tworzy pustą tabelę `gitlab_view_marks`. Istniejące `seen_assignm
 
 #### Automated
 
-- [x] 3.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [x] 3.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą
-- [x] 3.3 `rg -n "#[0-9a-fA-F]{3,6}" src --glob "*.css" --glob "!src/styles/tokens.css"` nie znajduje nowych literalnych kolorów
+- [x] 3.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą — 15096c2
+- [x] 3.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą — 15096c2
+- [x] 3.3 `rg -n "#[0-9a-fA-F]{3,6}" src --glob "*.css" --glob "!src/styles/tokens.css"` nie znajduje nowych literalnych kolorów — 15096c2
 
 #### Manual
 

@@ -345,10 +345,10 @@ Brak migracji schematu. Pole `days` jest addytywne w odpowiedzi `work_month_repo
 
 #### Manual
 
-- [ ] 2.7 Panel „Dni miesiąca”: wszystkie dni, dziś wyróżniony, dni wolne zakreskowane, weekendy wyciszone bez przełącznika
-- [ ] 2.8 Wiersz dziś na żywo zgodny z nagłówkiem; suma ± do dziś = kafelek „Odchylenie”
-- [ ] 2.9 Przełącznik „Wolne” oznacza i odznacza dzień bez odskoku; kafelek i checkbox się zgadzają
-- [ ] 2.10 Klik w datę zmienia „Wybrany dzień” i panel wpisów
-- [ ] 2.11 Miesiąc przeszły i przyszły; brak wiersza linków „Dni wolne:”
-- [ ] 2.12 Tabela mieści się przy 800 px
-- [ ] 2.13 Obsługa samą klawiaturą
+- [x] 2.7 Panel „Dni miesiąca”: wszystkie dni, dziś wyróżniony, dni wolne zakreskowane, weekendy wyciszone bez przełącznika — 6f5f743
+- [x] 2.8 Wiersz dziś na żywo zgodny z nagłówkiem; suma ± do dziś = kafelek „Odchylenie” — 6f5f743
+- [x] 2.9 Przełącznik „Wolne” oznacza i odznacza dzień bez odskoku; kafelek i checkbox się zgadzają — 6f5f743
+- [x] 2.10 Klik w datę zmienia „Wybrany dzień” i panel wpisów — 6f5f743
+- [x] 2.11 Miesiąc przeszły i przyszły; brak wiersza linków „Dni wolne:” — 6f5f743
+- [x] 2.12 Tabela mieści się przy 800 px — 6f5f743
+- [x] 2.13 Obsługa samą klawiaturą — 6f5f743

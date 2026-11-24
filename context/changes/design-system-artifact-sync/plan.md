@@ -432,16 +432,16 @@ There are no data migrations. The publish replaces files in place. The previous 
 
 #### Automated
 
-- [x] 1.1 Every artifact project path exists in the working copy
-- [x] 1.2 sync-checklist.md covers the 18 components and 2 pattern cards
+- [x] 1.1 Every artifact project path exists in the working copy — 4721528
+- [x] 1.2 sync-checklist.md covers the 18 components and 2 pattern cards — 4721528
 
 ### Phase 2: Tokens, fonts and README
 
 #### Automated
 
-- [ ] 2.1 tokens.json equals tokens.css by name and value
-- [ ] 2.2 Every type.fonts file exists in src/assets/fonts
-- [ ] 2.3 No denylist term in the working copy
+- [x] 2.1 tokens.json equals tokens.css by name and value
+- [x] 2.2 Every type.fonts file exists in src/assets/fonts
+- [x] 2.3 No denylist term in the working copy
 
 #### Manual
 

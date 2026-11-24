@@ -37,7 +37,8 @@ Konsola to ciemny, gęsty interfejs Day Navigatora — osobistej aplikacji Windo
 
 ## Flagi
 
-- Wiersz może mieć kilka flag, zawsze w tej kolejności: `NOWE`, `ZMIENIONE`, `DRAFT`, `W DO ZROBIENIA`. W `ItemRow` pierwsza idzie do `flag`, pozostałe do `meta`.
+- Wiersz może mieć kilka flag. W tabeli GitLaba stoją obok tytułu zawsze w tej kolejności: `NOWE`, `ZMIENIONE`, `DRAFT`, `W DO ZROBIENIA`.
+- W `ItemRow` („Do zrobienia”) pierwsza flaga idzie do `flag`, pozostałe do `meta`, w kolejności: przeniesione (`Z PIĄTKU`), `ZMIENIONE`, `DZIŚ`, „zamknięte w źródle”.
 - Ton `info` (niebieski) znaczy „zamknięte w źródle”. `new` też jest niebieski; `change` ma kolor `flag`.
 - `Chip` to znacznik priorytetu (tony `warn`, `soft`, `faint`); sygnałem zmiany pozostaje `Flag`.
 

@@ -877,6 +877,21 @@ label.dn-row-title {
   font-variant-numeric: tabular-nums;
 }
 
+/* --- Style tekstu: to, czego tokens.json nie wyraża (src/styles/tokens.css) --- */
+.view-title,
+.panel-title {
+  margin: 0;
+}
+
+.label-caps {
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.brand {
+  color: var(--accent);
+}
+
 /* --- Pomocnicze: src/styles/tokens.css --- */
 .dn-loading {
   margin: 0;

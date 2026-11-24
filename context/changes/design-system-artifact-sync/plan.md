@@ -445,7 +445,7 @@ There are no data migrations. The publish replaces files in place. The previous 
 
 #### Manual
 
-- [ ] 2.4 README states current rules with no stale claims
+- [x] 2.4 README states current rules with no stale claims (checked by the agent against src/ at the parent session's request; flag-order rule corrected)
 
 ### Phase 3: Bundle, stylesheet and types
 
@@ -464,8 +464,8 @@ There are no data migrations. The publish replaces files in place. The previous 
 
 #### Automated
 
-- [x] 4.1 Every card has README and a valid preview
-- [x] 4.2 No denylist term in the working copy
+- [x] 4.1 Every card has README and a valid preview — 1a5c34c
+- [x] 4.2 No denylist term in the working copy — 1a5c34c
 
 #### Manual
 
@@ -475,12 +475,12 @@ There are no data migrations. The publish replaces files in place. The previous 
 
 #### Automated
 
-- [ ] 5.1 render-local.mjs builds every preview
-- [ ] 5.2 Published listing has every path, fonts and the icon group
+- [x] 5.1 render-local.mjs builds every preview
+- [x] 5.2 Published listing has every path, fonts and the icon group
 
 #### Manual
 
 - [ ] 5.3 Local renders match the app
-- [ ] 5.4 User gave explicit OK before publishing
+- [x] 5.4 User gave explicit OK before publishing ("Yes, publish" in this session, 2026-11-24)
 - [ ] 5.5 Live artifact renders every card, fonts and icons
-- [ ] 5.6 Checklist done and findings reported
+- [x] 5.6 Checklist done and findings reported (all 41 rows done; two findings in sync-checklist.md and the run report)

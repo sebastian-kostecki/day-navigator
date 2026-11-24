@@ -84,6 +84,8 @@ export function openSettingsErrorMessage(e: unknown): string {
         return "Brak pliku settings.json w folderze ustawień aplikacji.";
       case "OpenFailed":
         return "Nie udało się otworzyć settings.json.";
+      default:
+        return `Nieoczekiwany błąd (${(err as { kind: string }).kind})`;
     }
   }
   return `Nieoczekiwany błąd: ${String(e)}`;

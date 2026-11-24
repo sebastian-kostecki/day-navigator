@@ -324,6 +324,8 @@ fn reshape_kept(
     }
     if filter_invalid || filter.closed_days.is_none() {
         next.closed = None;
+        // The bar must not announce a closed section that is gone.
+        next.filter.closed_days = None;
     }
     let (Some(full), Some(records)) = (full, records) else {
         return false;
@@ -1147,9 +1149,11 @@ mod tests {
     #[test]
     fn reshape_kept_without_records_keeps_the_shown_list() {
         let (mut next, full) = kept_round();
+        next.filter = closed_on(project_filter("acme/a"));
         let before = next.clone();
         // The store read failed: the list stays as it was shown and the kept
-        // filter is not replaced, but an invalid block still drops `closed`.
+        // filter is not replaced, but an invalid block still drops `closed`
+        // (and the bar's `closedDays` with it).
         assert!(!reshape_kept(
             &mut next,
             Some(&full),
@@ -1162,6 +1166,8 @@ mod tests {
         assert_eq!(next.filtered_out, before.filtered_out);
         assert!(next.filter_active);
         assert_eq!(next.closed, None);
+        assert_eq!(next.filter.closed_days, None);
+        assert_eq!(next.filter.projects, project_filter("acme/a").projects);
     }
 
     #[test]

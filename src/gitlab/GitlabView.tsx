@@ -62,7 +62,7 @@ const CHANGE_LABEL: Record<ChangeReason, string> = {
 };
 
 /** The refresh interval and when the next automatic try is due. */
-export function retryText(
+function retryText(
   refreshMinutes: number,
   nextRefreshAtMs: number | null,
   refreshing: boolean,

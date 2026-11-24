@@ -8,7 +8,7 @@ function ruleHasValues(rule: FilterRule): boolean {
 }
 
 /** True when the filter has any entry or the closed section is on. */
-export function hasFilterValues(filter: GitlabFilterValues): boolean {
+function hasFilterValues(filter: GitlabFilterValues): boolean {
   return (
     ruleHasValues(filter.projects) ||
     ruleHasValues(filter.labels) ||
@@ -22,14 +22,14 @@ function FilterDimension({ label, rule }: { label: string; rule: FilterRule }) {
   return (
     <span className="gitlab-filter-group">
       <span className="meta">{label}</span>
-      {rule.include.map((value) => (
-        <span key={`in:${value}`} title={value} className="gitlab-filter-chip">
+      {rule.include.map((value, i) => (
+        <span key={`in:${i}:${value}`} title={value} className="gitlab-filter-chip">
           <Chip>{value}</Chip>
         </span>
       ))}
       {rule.exclude.length > 0 && <span className="meta">bez:</span>}
-      {rule.exclude.map((value) => (
-        <span key={`ex:${value}`} title={value} className="gitlab-filter-chip">
+      {rule.exclude.map((value, i) => (
+        <span key={`ex:${i}:${value}`} title={value} className="gitlab-filter-chip">
           <Chip tone="faint">{value}</Chip>
         </span>
       ))}

@@ -5,6 +5,7 @@ import { workTimeErrorMessage } from "./api";
 import { DaysTable } from "./DaysTable";
 import { formatClock, formatMonth } from "./format";
 import { MonthReport } from "./MonthReport";
+import { RemindersPanel } from "./RemindersPanel";
 import { todayTotalMs } from "./total";
 import { EntriesPanel } from "./WorkTimeEntries";
 import { useDayOffToggle } from "./useDayOffToggle";
@@ -226,7 +227,7 @@ export default function WorkTimeView() {
           </Panel>
           <HowCounted />
         </div>
-        <div className="dn-col-side">
+        <div className="dn-col-side wt-stack">
           <EntriesPanel
             day={day}
             isToday={day === localToday()}
@@ -238,6 +239,7 @@ export default function WorkTimeView() {
             remove={remove}
             retry={retry}
           />
+          <RemindersPanel />
         </div>
       </div>
     </main>

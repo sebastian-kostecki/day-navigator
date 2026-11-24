@@ -226,18 +226,18 @@ None. No store schema change and no settings format change. Existing `settings.j
 
 #### Automated
 
-- [x] 1.1 `cargo test` passes in `src-tauri/`, including the new origin, agreement, mapping and serialization tests
-- [x] 1.2 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass in `src-tauri/`
-- [x] 1.3 `npm run lint`, `npm run format:check` and `npm run build` pass with zero errors
+- [x] 1.1 `cargo test` passes in `src-tauri/`, including the new origin, agreement, mapping and serialization tests — 6a87a05
+- [x] 1.2 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass in `src-tauri/` — 6a87a05
+- [x] 1.3 `npm run lint`, `npm run format:check` and `npm run build` pass with zero errors — 6a87a05
 
 ### Phase 2: „Przypomnienia” panel in "Czas pracy"
 
 #### Automated
 
-- [ ] 2.1 `npm run lint`, `npm run format:check` and `npm run build` pass with zero errors
-- [ ] 2.2 `cargo test`, `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass in `src-tauri/` (no regression)
-- [ ] 2.3 `rg -n "useWorkTimerSource" src` finds it only in `src/worktime/WorkTimerProvider.tsx` and `useWorkTimer.ts` (no second timer subscription)
-- [ ] 2.4 `rg -n "#[0-9a-fA-F]{3,8}\b|rgb\(" src/worktime` finds no literal colours
+- [x] 2.1 `npm run lint`, `npm run format:check` and `npm run build` pass with zero errors
+- [x] 2.2 `cargo test`, `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass in `src-tauri/` (no regression)
+- [x] 2.3 `rg -n "useWorkTimerSource" src` finds it only in `src/worktime/WorkTimerProvider.tsx` and `useWorkTimer.ts` (no second timer subscription)
+- [x] 2.4 `rg -n "#[0-9a-fA-F]{3,8}\b|rgb\(" src/worktime` finds no literal colours
 
 #### Manual
 

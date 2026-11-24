@@ -223,10 +223,10 @@ Brak danych i ustawień do migracji. Wycofanie to revert commitów fazy 2, potem
 
 #### Automated
 
-- [x] 2.1 Lint, format i build przechodzą
-- [x] 2.2 Bramka Rust przechodzi bez zmian w `src-tauri/`
-- [x] 2.3 Jeden wzór sumy w `total.ts`
-- [x] 2.4 Jeden tick w „Czasie pracy”
+- [x] 2.1 Lint, format i build przechodzą — 004aa9f
+- [x] 2.2 Bramka Rust przechodzi bez zmian w `src-tauri/` — 004aa9f
+- [x] 2.3 Jeden wzór sumy w `total.ts` — 004aa9f
+- [x] 2.4 Jeden tick w „Czasie pracy” — 004aa9f
 
 #### Manual
 

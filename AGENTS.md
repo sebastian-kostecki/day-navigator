@@ -7,7 +7,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 - No secrets anywhere: no passwords, tokens or keys in code, settings or the repo. Reach GitLab and GitHub only through the logged-in `glab` / `gh` CLIs; if logged out, report it instead of adding credentials.
 - Run `glab` / `gh` from Rust with a fixed program name and fixed argument lists: no shell, no string-built commands, no user-supplied flags. Read-only: never call a subcommand that creates, edits, closes, comments or assigns. An unreachable work GitLab (no VPN) is a calm "unavailable" state, not an alarm; a logged-out CLI is an error.
 - Work data (work vault content, company issues, hostnames) never goes into the repo, tests, fixtures, logs or the private space. Tests use invented data only.
-- Vaults are out of scope for the current MVP: no new code path reads or writes a vault. Existing vault code (`src-tauri/src/vault/`) keeps its contract: a write changes only the targeted line or section, the rest stays byte-identical, and nothing is hard-deleted (vault trash).
+- Vaults are out of scope: the app never reads or writes a vault.
 - Outside folders configured in settings, the app writes only its own state under its bundle identifier: the app config dir (`settings.json` and the window-state plugin's file), the app data dir (own tasks, the "To do" list, hidden-issue snapshots, seen-assignment keys (opaque account key, kind, id), work-time entries) and the app log dir. Never user content or vault data there. If a configured path is missing, show an error; never create it silently.
 - Never render an empty plan or list in place of a failed source; surface the failure.
 - Never bypass the pre-push hook (`--no-verify`) and never commit the denylist or its terms. `core.hooksPath` is relative, so push only from a checkout that contains `.githooks/pre-push`.
@@ -31,7 +31,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 
 ## Rust ↔ TypeScript Contracts
 
-- `#[tauri::command]` input/output types are serde structs with `#[serde(rename_all = "camelCase")]`; error enums derive `thiserror::Error` + `Serialize` with `#[serde(tag = "kind", content = "detail")]` (see `src-tauri/src/vault/error.rs`).
+- `#[tauri::command]` input/output types are serde structs with `#[serde(rename_all = "camelCase")]`; error enums derive `thiserror::Error` + `Serialize` with `#[serde(tag = "kind", content = "detail")]` (see `SettingsError` in `src-tauri/src/settings.rs`).
 - The TS mirror is a tagged union on `kind`. Change the Rust type and its TS mirror in the same commit.
 
 ## App Data Store
@@ -66,7 +66,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 
 ## Testing
 
-Run `cargo test` in `src-tauri/` (unit, property and integration tests). Fixtures live in `src-tauri/tests/fixtures/vault/`: invented data only, kept byte-exact (CRLF, BOM) by `.gitattributes`. Tests never touch the fixture itself; a slice that writes vault notes reuses `src-tauri/tests/common` (`test_vault()` copies the fixture into a temp dir). The UI has no test runner. Before every commit run `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test`.
+Run `cargo test` in `src-tauri/` (unit, property and integration tests). Tests use invented data only. `src-tauri/tests/common` holds `test_store_dir()` and the crash harness (`crash.rs`). The UI has no test runner. Before every commit run `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test`.
 
 ## Commits and Pull Requests
 

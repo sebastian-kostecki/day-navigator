@@ -206,24 +206,24 @@ Stary `settings.json` wczytuje się bez zmian, a `spaces` jest ignorowany. Klucz
 
 #### Automated
 
-- [x] 1.1 `cargo fmt --check` przechodzi w `src-tauri/`
-- [x] 1.2 `cargo clippy --all-targets -- -D warnings` przechodzi w `src-tauri/`
-- [x] 1.3 `cargo test` przechodzi w `src-tauri/`
-- [x] 1.4 `git grep` vault/exclusion w kodzie pokazuje tylko test zgodności starego `settings.json`
-- [x] 1.5 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 1.1 `cargo fmt --check` przechodzi w `src-tauri/` — 773a7d8
+- [x] 1.2 `cargo clippy --all-targets -- -D warnings` przechodzi w `src-tauri/` — 773a7d8
+- [x] 1.3 `cargo test` przechodzi w `src-tauri/` — 773a7d8
+- [x] 1.4 `git grep` vault/exclusion w kodzie pokazuje tylko test zgodności starego `settings.json` — 773a7d8
+- [x] 1.5 `npm run lint`, `npm run format:check` i `npm run build` przechodzą — 773a7d8
 
 #### Manual
 
-- [x] 1.6 „Stan źródeł” bez kart vaultów i wykluczeń w `npm run tauri dev`
-- [x] 1.7 Stary `settings.json` z blokiem `spaces` daje „Ustawienia” OK
+- [x] 1.6 „Stan źródeł” bez kart vaultów i wykluczeń w `npm run tauri dev` — 773a7d8
+- [x] 1.7 Stary `settings.json` z blokiem `spaces` daje „Ustawienia” OK — 773a7d8
 
 ### Phase 2: Dokumentacja i UI
 
 #### Automated
 
-- [ ] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 2.2 `git grep` vault w AGENTS.md pokazuje tylko zasadę nieczytania i niezapisywania vaultów
+- [x] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 2.2 `git grep` vault w AGENTS.md pokazuje tylko zasadę nieczytania i niezapisywania vaultów
 
 #### Manual
 
-- [ ] 2.3 AGENTS.md i wpis w `## Parked` spójne z PRD Non-Goals
+- [x] 2.3 AGENTS.md i wpis w `## Parked` spójne z PRD Non-Goals

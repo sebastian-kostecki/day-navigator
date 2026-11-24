@@ -325,7 +325,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 ## Parked
 
 - **Writing to GitLab and GitHub** — Why parked: PRD Non-Goals; read-only (no closing, status changes, comments or assignment).
-- **Obsidian vault access** — Why parked: PRD Non-Goals; no reading or writing. Removing the dormant code (F-03) does not change this.
+- **Obsidian vault access** — Why parked: PRD Non-Goals; no reading or writing. The dormant vault code was removed in F-03 (`remove-vault-layer`); any future vault access starts from a new plan, and the PRD Non-Goal is unchanged.
 - **Work-time automation** — Why parked: PRD Non-Goals; no automatic holiday calendar, idle detection or activity tracking.
 - **MRs where the user is a reviewer; deleting tasks (FR-009)** — Why parked: PRD Non-Goals ("Poza v1").
 - **Editing reminder settings in the app** — Why parked: issue #3 scopes the panel as read-only; the settings stay in the file.

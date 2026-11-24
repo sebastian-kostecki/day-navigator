@@ -439,9 +439,9 @@ There are no data migrations. The publish replaces files in place. The previous 
 
 #### Automated
 
-- [x] 2.1 tokens.json equals tokens.css by name and value
-- [x] 2.2 Every type.fonts file exists in src/assets/fonts
-- [x] 2.3 No denylist term in the working copy
+- [x] 2.1 tokens.json equals tokens.css by name and value — 721793b
+- [x] 2.2 Every type.fonts file exists in src/assets/fonts — 721793b
+- [x] 2.3 No denylist term in the working copy — 721793b
 
 #### Manual
 
@@ -451,10 +451,10 @@ There are no data migrations. The publish replaces files in place. The previous 
 
 #### Automated
 
-- [ ] 3.1 bundle.js passes node --check and runtime limits
-- [ ] 3.2 Every bundle component renders with the TSX class names
-- [ ] 3.3 Component CSS copied verbatim, no hex in bundle.css
-- [ ] 3.4 Every exported type is declared in index.d.ts
+- [x] 3.1 bundle.js passes node --check and runtime limits
+- [x] 3.2 Every bundle component renders with the TSX class names
+- [x] 3.3 Component CSS copied verbatim, no hex in bundle.css
+- [x] 3.4 Every exported type is declared in index.d.ts
 
 #### Manual
 

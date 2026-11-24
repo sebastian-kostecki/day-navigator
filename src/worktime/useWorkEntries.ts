@@ -135,6 +135,15 @@ export function useWorkEntries(day: string) {
     result !== null && result.day === day ? result.value : { state: "loading" };
 
   const storedOff = entries.state === "loaded" && entries.data.dayKind === "dayOff";
+  // A request is done once the reloaded day agrees, or once another day is
+  // shown: a later change from elsewhere (the days table) must not leave it
+  // pending against the new state.
+  if (
+    dayOffRequest !== null &&
+    (dayOffRequest.day !== day || (entries.state === "loaded" && dayOffRequest.off === storedOff))
+  ) {
+    setDayOffRequest(null);
+  }
   const pending =
     dayOffRequest !== null &&
     dayOffRequest.day === day &&

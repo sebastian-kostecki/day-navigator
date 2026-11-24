@@ -483,10 +483,10 @@ Fonty dodają poniżej 1 MB do instalatora (pełne pliki woff2, sześć grubośc
 
 #### Manual
 
-- [ ] 3.3 Dodawanie z „Do wyboru”, odhaczanie i zdejmowanie działa; przy osiągniętym limicie przyciski „+” są zablokowane z podpowiedzią limitu
-- [ ] 3.4 Pozycja przeniesiona z poprzedniego dnia ma flagę „od DD.MM”, a zamknięta w źródle ma niebieską flagę i jest odhaczona
-- [ ] 3.5 GitLab bez VPN w pickerze pokazuje spokojny szary stan bez czerwieni; GitHub z błędem pokazuje czerwony blok
-- [ ] 3.6 Przy 800px panel „Do wyboru” schodzi pod listę
+- [x] 3.3 Dodawanie z „Do wyboru”, odhaczanie i zdejmowanie działa; przy osiągniętym limicie przyciski „+” są zablokowane z podpowiedzią limitu
+- [x] 3.4 Pozycja przeniesiona z poprzedniego dnia ma flagę „od DD.MM”, a zamknięta w źródle ma niebieską flagę i jest odhaczona
+- [x] 3.5 GitLab bez VPN w pickerze pokazuje spokojny szary stan bez czerwieni; GitHub z błędem pokazuje czerwony blok
+- [x] 3.6 Przy 800px panel „Do wyboru” schodzi pod listę
 
 ### Phase 4: Praca (GitLab) i Projekty (GitHub)
 

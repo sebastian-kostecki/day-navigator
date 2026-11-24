@@ -1,9 +1,10 @@
 ---
 change_id: worktime-days-table
 title: Tabela dni miesiąca w „Czas pracy” (pasek na tle 8 h)
-status: impl_reviewed
+status: archived
 created: 2026-11-24
 updated: 2026-11-24
+archived_at: 2026-11-24T12:10:42Z
 ---
 
 ## Notes

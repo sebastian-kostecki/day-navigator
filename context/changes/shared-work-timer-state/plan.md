@@ -215,9 +215,9 @@ Brak danych i ustawień do migracji. Wycofanie to revert commitów fazy 2, potem
 
 #### Manual
 
-- [ ] 1.5 START i STOP z potwierdzeniem działają jak w 0.2.x
-- [ ] 1.6 „Dziś” na dashboardzie i w „Czasie pracy” rośnie z nagłówkiem, przełączanie widoków nie zeruje
-- [ ] 1.7 Zmiana spoza nagłówka i powrót okna docierają wszędzie
+- [x] 1.5 START i STOP z potwierdzeniem działają jak w 0.2.x
+- [x] 1.6 „Dziś” na dashboardzie i w „Czasie pracy” rośnie z nagłówkiem, przełączanie widoków nie zeruje
+- [x] 1.7 Zmiana spoza nagłówka i powrót okna docierają wszędzie
 
 ### Phase 2: Jedna reguła „Dziś” i jeden tick
 
@@ -230,6 +230,6 @@ Brak danych i ustawień do migracji. Wycofanie to revert commitów fazy 2, potem
 
 #### Manual
 
-- [ ] 2.5 START i STOP z potwierdzeniem działają jak po fazie 1
-- [ ] 2.6 Nagłówek, dashboard i „Czas pracy” pokazują tę samą sumę „Dziś”
-- [ ] 2.7 Lista wpisów tyka z nagłówkiem dziś, nie tyka na poprzednim dniu
+- [x] 2.5 START i STOP z potwierdzeniem działają jak po fazie 1
+- [x] 2.6 Nagłówek, dashboard i „Czas pracy” pokazują tę samą sumę „Dziś”
+- [x] 2.7 Lista wpisów tyka z nagłówkiem dziś, nie tyka na poprzednim dniu

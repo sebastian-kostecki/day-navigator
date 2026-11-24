@@ -275,8 +275,8 @@ Brak: etykiety żyją tylko w snapshocie w pamięci; baza aplikacji i `settings.
 
 #### Manual
 
-- [ ] 2.4 Przy 1280 px etykiety są po przecinku między tytułem a wiekiem, podpowiedź pokazuje pełną listę
-- [ ] 2.5 Zgłoszenie bez etykiet wygląda jak przed zmianą
-- [ ] 2.6 Długa lista etykiet ucina się wielokropkiem, tytuł zostaje czytelny
-- [ ] 2.7 Przy 800 px etykiet nie ma, wiersz wygląda jak przed zmianą
-- [ ] 2.8 „Własne zadania” i „Do zrobienia” wyglądają jak przed zmianą
+- [x] 2.4 Przy 1280 px etykiety są po przecinku między tytułem a wiekiem, podpowiedź pokazuje pełną listę
+- [x] 2.5 Zgłoszenie bez etykiet wygląda jak przed zmianą
+- [x] 2.6 Długa lista etykiet ucina się wielokropkiem, tytuł zostaje czytelny
+- [x] 2.7 Przy 800 px etykiet nie ma, wiersz wygląda jak przed zmianą
+- [x] 2.8 „Własne zadania” i „Do zrobienia” wyglądają jak przed zmianą

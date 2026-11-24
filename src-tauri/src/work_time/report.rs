@@ -38,6 +38,22 @@ pub struct MonthReport {
     pub figures: NormFigures,
     /// `YYYY-MM-DD`, sorted, this month only.
     pub days_off: Vec<String>,
+    /// Every local day of the month, ascending.
+    pub days: Vec<DayReport>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DayReport {
+    /// `YYYY-MM-DD`.
+    pub day: String,
+    pub kind: DayKind,
+    /// Sum of the portions of entries in the day, a running one up to `now`.
+    pub worked_ms: i64,
+    pub norm_ms: i64,
+    pub deviation_ms: Option<i64>,
+    /// Entries with a non-zero portion in the day.
+    pub entry_count: u32,
 }
 
 fn days_off_between(
@@ -71,6 +87,16 @@ fn is_day_off(conn: &Connection, day: NaiveDate) -> Result<bool, WorkTimeError> 
     Ok(found)
 }
 
+fn kind_of(day: NaiveDate, days_off: &BTreeSet<NaiveDate>) -> DayKind {
+    if norm::is_weekend(day) {
+        DayKind::Weekend
+    } else if days_off.contains(&day) {
+        DayKind::DayOff
+    } else {
+        DayKind::Workday
+    }
+}
+
 pub(super) fn day_kind(conn: &Connection, day: NaiveDate) -> Result<DayKind, WorkTimeError> {
     Ok(if norm::is_weekend(day) {
         DayKind::Weekend
@@ -96,10 +122,34 @@ pub(super) fn compute<Tz: TimeZone>(
 
     let days_off = days_off_between(conn, first, next_first)?;
     let workdays = norm::workdays(first, next_first, &days_off);
-    let worked_ms = in_day(conn, month_start, month_end, now)?
+    let entries = in_day(conn, month_start, month_end, now)?;
+    let worked_ms = entries
         .iter()
         .map(|e| portion(e.start, e.end, now, month_start, month_end))
         .sum();
+
+    let mut days = Vec::new();
+    for d in first.iter_days().take_while(|d| *d < next_first) {
+        let (start, end) = day_bounds(d, tz)?;
+        let mut day_worked = 0;
+        let mut entry_count = 0;
+        for e in &entries {
+            let p = portion(e.start, e.end, now, start, end);
+            if p > 0 {
+                day_worked += p;
+                entry_count += 1;
+            }
+        }
+        let norm_ms = norm::day_norm_ms(d, &days_off);
+        days.push(DayReport {
+            day: d.format(DAY_FORMAT).to_string(),
+            kind: kind_of(d, &days_off),
+            worked_ms: day_worked,
+            norm_ms,
+            deviation_ms: norm::day_deviation_ms(d, today, norm_ms, day_worked),
+            entry_count,
+        });
+    }
 
     Ok(MonthReport {
         month: first.format("%Y-%m").to_string(),
@@ -111,6 +161,7 @@ pub(super) fn compute<Tz: TimeZone>(
             .iter()
             .map(|d| d.format(DAY_FORMAT).to_string())
             .collect(),
+        days,
     })
 }
 

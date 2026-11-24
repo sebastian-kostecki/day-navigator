@@ -24,15 +24,26 @@ export function DataTable({ label, className, children }: DataTableProps) {
 export type DataTableRowProps = {
   /** Header row: caps labels, control height, stronger bottom line. */
   head?: boolean;
+  /** The row that stands for now: raised background, accent edge, `aria-current`. */
+  current?: boolean;
+  /** Diagonal stripes (a day off); combines with `current`. */
+  hatched?: boolean;
   className?: string;
   children: ReactNode;
 };
 
-export function DataTableRow({ head, className, children }: DataTableRowProps) {
+export function DataTableRow({ head, current, hatched, className, children }: DataTableRowProps) {
   return (
     <div
       role="row"
-      className={["dn-table-row", head ? "dn-table-head label-caps" : "dn-table-body", className]
+      aria-current={current ? "true" : undefined}
+      className={[
+        "dn-table-row",
+        head ? "dn-table-head label-caps" : "dn-table-body",
+        current && "is-current",
+        hatched && "is-hatched",
+        className,
+      ]
         .filter(Boolean)
         .join(" ")}
     >
@@ -44,8 +55,8 @@ export function DataTableRow({ head, className, children }: DataTableRowProps) {
 export type DataTableCellProps = {
   /** Column header cell (role=columnheader) instead of a data cell. */
   header?: boolean;
-  /** muted = secondary text; faint = meta text (numbers, dates, labels). */
-  tone?: "muted" | "faint";
+  /** muted = secondary; faint = meta text; info / warn = a figure above / below its norm. */
+  tone?: "muted" | "faint" | "info" | "warn";
   /** One line with an ellipsis. */
   truncate?: boolean;
   className?: string;

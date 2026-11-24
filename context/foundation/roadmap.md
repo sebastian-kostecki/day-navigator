@@ -59,7 +59,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | S-02 | gitlab-new-and-hidden-date  | see a NEW flag on fresh GitLab items and the date a row was hidden                      | —             | FR-023          | done     |
 | S-03 | gitlab-filter-bar-retry     | see the active filter values and when GitLab will be tried again                        | F-01          | FR-024          | done     |
 | S-04 | github-issue-labels         | see labels on GitHub issues                                                             | —             | FR-025          | done     |
-| S-05 | worktime-days-table         | see a table of the month's days against 8 h and mark days off there                     | F-01, F-02    | FR-020          | ready    |
+| S-05 | worktime-days-table         | see a table of the month's days against 8 h and mark days off there                     | F-01, F-02    | FR-020          | done |
 | S-06 | worktime-reminders-panel    | see the reminder thresholds and whether reminders are on                                | —             | FR-021          | ready    |
 | S-07 | app-data-details            | see the last backup, kept backups and schema version, and open the backups folder       | F-03          | FR-022          | ready    |
 | S-08 | event-log                   | see today's events in a "Dziennik zdarzeń" panel on the dashboard                       | F-03          | FR-019          | in-progress |
@@ -147,7 +147,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 
 ### F-05: Design-system artifact in line with the app
 
-- **Outcome:** (foundation) the "Day Navigator — Konsola" artifact's README and components match the app: Flag tone `new`, `ItemRow` id, `ItemRow` labels, numbered navigation with shortcuts, `Notice`, START/STOP confirmation, app and tray icons.
+- **Outcome:** (foundation) the "Day Navigator — Konsola" artifact's README and components match the app: Flag tone `new`, `ItemRow` id, `ItemRow` labels, `HoursBar` with a required `norm` (from Rust), `DataTable` row states `current`/`hatched` and cell tones `info`/`warn`, numbered navigation with shortcuts, `Notice`, START/STOP confirmation, app and tray icons.
 - **Change ID:** design-system-artifact-sync
 - **PRD refs:** MS-16
 - **Unlocks:** verification path — UI reviews of the M-2 slices (the `new` flag tone in S-01/S-02, panels in S-05–S-08) check against a current design source instead of an outdated one.
@@ -219,7 +219,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Needs a per-day report from Rust; the norm rule stays in Rust and is unit-tested there, and the UI only displays it.
-- **Status:** ready
+- **Status:** done
 
 ### S-06: Reminders panel in "Work time"
 
@@ -365,3 +365,4 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-04: user can see the labels of each GitHub issue as text in its row, as in GitLab.** — Archived 2026-11-24 → `context/archive/2026-11-24-github-issue-labels/`. Lesson: —.
 - **S-02: user can see a NEW flag on GitLab items that appeared since the last check, and the date next to hidden rows ("ukryte 18.11").** — Archived 2026-11-24 → `context/archive/2026-11-24-gitlab-new-and-hidden-date/`. Lesson: —.
 - **S-03: user can see the active filter values above the GitLab list with a link to settings, and in the "GitLab unavailable" card the refresh interval and when the next try happens.** — Archived 2026-11-24 → `context/archive/2026-11-24-gitlab-filter-bar-retry/`. Lesson: —.
+- **S-05: user can see a table of the month's days — entries, a bar against 8 h, the sum, the deviation and a "day off" switch — with today highlighted and days off hatched, and mark a day off from the table.** — Archived 2026-11-24 → `context/archive/2026-11-24-worktime-days-table/`. Lesson: —.

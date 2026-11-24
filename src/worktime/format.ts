@@ -40,3 +40,16 @@ export function formatMonth(month: string): string {
   const [y, m] = month.split("-").map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString("pl-PL", { month: "long", year: "numeric" });
 }
+
+export const WEEKDAYS = ["nd", "pn", "wt", "śr", "cz", "pt", "sb"];
+
+/** `DD.MM wd` of a `YYYY-MM-DD` day, e.g. `19.11 cz`. */
+export function formatDayLabel(day: string): string {
+  const [y, m, d] = day.split("-").map(Number);
+  return `${day.slice(8, 10)}.${day.slice(5, 7)} ${WEEKDAYS[new Date(y, m - 1, d).getDay()]}`;
+}
+
+/** `1 wpis` / `2 wpisy` / `5 wpisów` (Polish plural). */
+export function formatEntryCount(n: number): string {
+  return `${n} ${plural(n, "wpis", "wpisy", "wpisów")}`;
+}

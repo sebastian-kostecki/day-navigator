@@ -60,6 +60,16 @@ export type DayKind = "workday" | "dayOff" | "weekend";
 
 export type MonthPhase = "past" | "current" | "future";
 
+export interface DayReport {
+  /** `YYYY-MM-DD`. */
+  day: string;
+  kind: DayKind;
+  workedMs: number;
+  normMs: number;
+  deviationMs: number | null;
+  entryCount: number;
+}
+
 interface MonthReportBase {
   /** `YYYY-MM`. */
   month: string;
@@ -69,6 +79,8 @@ interface MonthReportBase {
   workdays: number;
   /** `YYYY-MM-DD`, sorted, this month only. */
   daysOff: string[];
+  /** All days of the month, ascending. */
+  days: DayReport[];
 }
 
 /**

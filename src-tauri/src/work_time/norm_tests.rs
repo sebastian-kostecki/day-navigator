@@ -395,3 +395,191 @@ fn day_entries_report_all_three_day_kinds() {
     assert_eq!(kind("2026-11-11"), DayKind::DayOff);
     assert_eq!(kind("2026-11-14"), DayKind::Weekend);
 }
+
+// ---- day rows ----
+
+fn day_row<'a>(r: &'a MonthReport, day: &str) -> &'a report::DayReport {
+    r.days.iter().find(|x| x.day == day).unwrap()
+}
+
+#[test]
+fn day_norm_is_eight_hours_on_a_workday_and_zero_otherwise() {
+    let off = BTreeSet::from([d("2026-11-11"), d("2026-11-14")]);
+    assert_eq!(norm::day_norm_ms(d("2026-11-10"), &off), DAILY_NORM_MS);
+    assert_eq!(norm::day_norm_ms(d("2026-11-11"), &off), 0);
+    assert_eq!(norm::day_norm_ms(d("2026-11-15"), &off), 0);
+    // A Saturday listed in days_off is still 0.
+    assert_eq!(norm::day_norm_ms(d("2026-11-14"), &off), 0);
+}
+
+#[test]
+fn day_deviation_follows_the_month_rule() {
+    let today = d("2026-11-23");
+    let dev =
+        |day: &str, norm: i64, worked: i64| norm::day_deviation_ms(d(day), today, norm, worked);
+    assert_eq!(dev("2026-11-24", DAILY_NORM_MS, 0), None);
+    assert_eq!(dev("2026-11-23", DAILY_NORM_MS, 4 * HOUR), Some(-4 * HOUR));
+    assert_eq!(dev("2026-11-20", DAILY_NORM_MS, 0), Some(-8 * HOUR));
+    assert_eq!(dev("2026-11-21", 0, 0), None);
+    assert_eq!(dev("2026-11-21", 0, 2 * HOUR), Some(2 * HOUR));
+    assert_eq!(dev("2026-11-11", 0, 0), None);
+    assert_eq!(dev("2026-11-11", 0, 3 * HOUR), Some(3 * HOUR));
+}
+
+#[test]
+fn worked_example_days_add_up_to_the_month() {
+    let (_tmp, mut store) = open();
+    worked_example(&mut store);
+    let r = report_at(&store, "2026-11-23", now());
+    assert_eq!(r.days.len(), 30);
+    let off = day_row(&r, "2026-11-11");
+    assert_eq!(off.kind, DayKind::DayOff);
+    assert_eq!(off.norm_ms, 0);
+    assert_eq!(off.deviation_ms, None);
+    let today = day_row(&r, "2026-11-23");
+    assert_eq!(today.worked_ms, 4 * HOUR);
+    assert_eq!(today.deviation_ms, Some(-4 * HOUR));
+    let next = day_row(&r, "2026-11-24");
+    assert_eq!(next.deviation_ms, None);
+    assert_eq!(next.worked_ms, 0);
+    assert_eq!(r.days.iter().map(|x| x.worked_ms).sum::<i64>(), r.worked_ms);
+    assert_eq!(
+        r.days.iter().filter_map(|x| x.deviation_ms).sum::<i64>(),
+        -4 * HOUR
+    );
+    assert_eq!(r.figures.deviation_ms, Some(-4 * HOUR));
+    assert_eq!(
+        r.days.iter().map(|x| x.norm_ms).sum::<i64>(),
+        r.figures.norm_ms
+    );
+}
+
+#[test]
+fn an_entry_across_midnight_counts_in_both_days() {
+    let (_tmp, mut store) = open();
+    add_entry(&mut store, "2026-11-09T22:00", "2026-11-10T02:00");
+    let r = report_at(&store, "2026-11-23", now());
+    for day in ["2026-11-09", "2026-11-10"] {
+        let row = day_row(&r, day);
+        assert_eq!(row.worked_ms, 2 * HOUR, "{day}");
+        assert_eq!(row.entry_count, 1, "{day}");
+    }
+    assert_eq!(day_row(&r, "2026-11-11").entry_count, 0);
+}
+
+#[test]
+fn an_entry_across_the_month_boundary_counts_only_its_part_per_month() {
+    let (_tmp, mut store) = open();
+    add_entry(&mut store, "2026-11-30T22:00", "2026-12-01T02:00");
+    let nov = report_at(&store, "2026-11-10", t("2026-12-10T12:00"));
+    assert_eq!(day_row(&nov, "2026-11-30").worked_ms, 2 * HOUR);
+    assert_eq!(nov.worked_ms, 2 * HOUR);
+    let dec = report_at(&store, "2026-12-10", t("2026-12-10T12:00"));
+    assert_eq!(dec.days.len(), 31);
+    assert_eq!(day_row(&dec, "2026-12-01").worked_ms, 2 * HOUR);
+    assert_eq!(dec.worked_ms, 2 * HOUR);
+}
+
+#[test]
+fn dst_days_sum_their_real_lengths() {
+    let (_tmp, mut store) = open();
+    // 2026-10-25 is the fall-back day: 00:00-06:00 local lasts 7 h.
+    add_entry(&mut store, "2026-10-25T00:00", "2026-10-25T06:00");
+    let r = report_at(&store, "2026-10-15", now());
+    assert_eq!(r.days.len(), 31);
+    assert_eq!(day_row(&r, "2026-10-25").worked_ms, 7 * HOUR);
+    assert_eq!(r.days.iter().map(|x| x.worked_ms).sum::<i64>(), r.worked_ms);
+}
+
+#[test]
+fn a_running_entry_counts_up_to_now_today_and_its_part_yesterday() {
+    let (_tmp, mut store) = open();
+    start(&mut store, t("2026-11-22T22:00"), &Warsaw).unwrap();
+    let at = t("2026-11-23T01:00");
+    let r = report_at(&store, "2026-11-23", at);
+    let yesterday = day_row(&r, "2026-11-22");
+    let today = day_row(&r, "2026-11-23");
+    assert_eq!((yesterday.worked_ms, yesterday.entry_count), (2 * HOUR, 1));
+    assert_eq!((today.worked_ms, today.entry_count), (HOUR, 1));
+}
+
+#[test]
+fn a_past_month_has_every_day_deviation_and_a_future_month_none() {
+    let (_tmp, mut store) = open();
+    // Saturday 2026-10-03, 2 h.
+    add_entry(&mut store, "2026-10-03T10:00", "2026-10-03T12:00");
+    let oct = report_at(&store, "2026-10-20", now());
+    assert_eq!(oct.days.len(), 31);
+    for row in &oct.days {
+        assert_eq!(
+            row.deviation_ms.is_some(),
+            row.norm_ms > 0 || row.worked_ms > 0,
+            "{}",
+            row.day
+        );
+    }
+    assert_eq!(day_row(&oct, "2026-10-03").deviation_ms, Some(2 * HOUR));
+    assert_eq!(
+        oct.days.iter().filter_map(|x| x.deviation_ms).sum::<i64>(),
+        oct.figures.deviation_ms.unwrap()
+    );
+
+    let dec = report_at(&store, "2026-12-20", now());
+    assert_eq!(dec.days.len(), 31);
+    for row in &dec.days {
+        assert_eq!(row.deviation_ms, None, "{}", row.day);
+        assert_eq!(row.worked_ms, 0);
+        let expected = if row.kind == DayKind::Workday {
+            DAILY_NORM_MS
+        } else {
+            0
+        };
+        assert_eq!(row.norm_ms, expected, "{}", row.day);
+    }
+}
+
+proptest::proptest! {
+    #![proptest_config(proptest::prelude::ProptestConfig::with_cases(24))]
+
+    #[test]
+    fn day_rows_add_up_to_the_month_figures(
+        cuts in proptest::collection::vec(0i64..(22 * 24 * 60), 0..12),
+        off_flags in proptest::collection::vec(proptest::prelude::any::<bool>(), 30),
+    ) {
+        let (_tmp, mut store) = open();
+        let base = t("2026-11-01T00:00");
+        let mut cuts = cuts;
+        cuts.sort_unstable();
+        cuts.dedup();
+        let pairs: Vec<(i64, i64)> = cuts
+            .windows(2).step_by(2)
+            .map(|c| (base + c[0] * MIN, base + c[1] * MIN))
+            .collect();
+        store
+            .write::<_, WorkTimeError>(|tx| {
+                for (s, e) in &pairs {
+                    tx.execute(
+                        "INSERT INTO work_entries(start_ms, end_ms, created_at_ms, updated_at_ms) \
+                         VALUES (?1, ?2, ?3, ?3)",
+                        (s, e, now()),
+                    )?;
+                }
+                Ok(())
+            })
+            .unwrap();
+        for (i, flag) in off_flags.iter().enumerate() {
+            let day = d("2026-11-01") + chrono::Days::new(i as u64);
+            if *flag && !norm::is_weekend(day) {
+                report::set_day_off(&mut store, day, true, now()).unwrap();
+            }
+        }
+        let r = report_at(&store, "2026-11-23", now());
+        proptest::prop_assert_eq!(r.days.len(), 30);
+        proptest::prop_assert_eq!(r.days.iter().map(|x| x.worked_ms).sum::<i64>(), r.worked_ms);
+        proptest::prop_assert_eq!(
+            r.days.iter().map(|x| x.deviation_ms.unwrap_or(0)).sum::<i64>(),
+            r.figures.deviation_ms.unwrap()
+        );
+        proptest::prop_assert_eq!(r.days.iter().map(|x| x.norm_ms).sum::<i64>(), r.figures.norm_ms);
+    }
+}

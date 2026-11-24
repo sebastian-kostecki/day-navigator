@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { checkHealthNow, healthStatus } from "./api";
 import type { HealthSnapshot, SourceStatus } from "./types";
 
 function errorText(e: unknown): string {
@@ -19,7 +19,7 @@ export function useHealth() {
     let unlisten: (() => void) | undefined;
 
     // Keep the newer snapshot by `seq`, never by the wall clock (a slow
-    // invoke must not overwrite a newer event, and a clock moved back must
+    // load must not overwrite a newer event, and a clock moved back must
     // not freeze the panel).
     const accept = (next: HealthSnapshot) =>
       setSnapshot((cur) => (!cur || next.seq > cur.seq ? next : cur));
@@ -38,7 +38,7 @@ export function useHealth() {
           return;
         }
         unlisten = fn;
-        return invoke<HealthSnapshot>("health_status").then((s) => {
+        return healthStatus().then((s) => {
           if (cancelled) return;
           setLoadError(null);
           accept(s);
@@ -61,7 +61,7 @@ export function useHealth() {
   // readable, so it gets its own error next to the button.
   const checkNow = useCallback(async () => {
     try {
-      await invoke("check_health_now");
+      await checkHealthNow();
       setCheckError(null);
     } catch (e) {
       setCheckError(errorText(e));

@@ -24,7 +24,7 @@ use tauri_plugin_notification::NotificationExt;
 use crate::events::{self, EventError};
 use crate::github_refresh::GithubRefreshState;
 use crate::gitlab_refresh::GitlabRefreshState;
-use crate::health::{self, HealthSnapshot, Overall, SourceStatus};
+use crate::health::{self, AppDataDetails, HealthSnapshot, Overall, SourceStatus};
 use crate::store::{StoreError, StoreHandle};
 
 const TRAY_ID: &str = "health";
@@ -59,6 +59,7 @@ impl HealthState {
                 sources: Vec::new(),
                 checked_at_ms: None,
                 seq: 0,
+                app_data: None,
             }),
             wake,
             origin: Instant::now(),
@@ -253,12 +254,13 @@ fn probe_round(
     today: NaiveDate,
     gitlab: Option<SourceStatus>,
     github: Option<SourceStatus>,
-) -> Vec<SourceStatus> {
+) -> (Vec<SourceStatus>, Option<AppDataDetails>) {
     let mut sources = match settings_path {
         Some(p) => health::probe(p),
         None => health::unresolved_config_dir(),
     };
-    sources.push(health::store_status(store, today));
+    let (store_source, app_data) = health::store_probe(store, today);
+    sources.push(store_source);
     // Absent until the first GitLab round has finished.
     sources.extend(gitlab);
     // Likewise for GitHub.
@@ -267,7 +269,7 @@ fn probe_round(
     if let Some(p) = settings_path {
         sources.push(health::reminders_status(p));
     }
-    sources
+    (sources, app_data)
 }
 
 fn check_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Receiver<()>) {
@@ -293,7 +295,7 @@ fn check_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Rec
 
 fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut Vec<SourceStatus>) {
     let state = app.state::<HealthState>();
-    let sources = probe_round(
+    let (sources, app_data) = probe_round(
         settings_path,
         &app.state::<StoreHandle>(),
         Local::now().date_naive(),
@@ -319,6 +321,7 @@ fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut 
             sources,
             checked_at_ms: Some(now_ms()),
             seq,
+            app_data,
         };
     }
 

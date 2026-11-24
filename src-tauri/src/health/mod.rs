@@ -7,8 +7,11 @@ use std::time::Duration;
 
 use serde::{Serialize, Serializer};
 
+use crate::store::BackupSummary;
+
 pub use probe::{
-    github_status, gitlab_status, probe, reminders_status, store_status, unresolved_config_dir,
+    github_status, gitlab_status, probe, reminders_status, store_probe, store_status,
+    unresolved_config_dir,
 };
 
 /// Longest tooltip the Windows tray accepts, in UTF-16 units (`szTip` holds 128
@@ -105,6 +108,15 @@ pub enum Overall {
     NotRunning,
 }
 
+/// Details of the app data store for its card: schema version (`None` while
+/// the store does not open) and the summary of `backups/`. Carries no paths.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppDataDetails {
+    pub schema_version: Option<u32>,
+    pub backups: BackupSummary,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HealthSnapshot {
@@ -116,6 +128,9 @@ pub struct HealthSnapshot {
     /// snapshots by this, never by `checked_at_ms`, which jumps when the
     /// clock is changed.
     pub seq: u64,
+    /// Details of the app data store; `None` before the first round or when
+    /// the data folder is unresolved.
+    pub app_data: Option<AppDataDetails>,
 }
 
 /// A change worth telling the user about. Carries no message text.
@@ -451,6 +466,7 @@ mod tests {
             sources: vec![err(S, "Ustawienia", "SettingsInvalid", "x")],
             checked_at_ms: Some(5),
             seq: 7,
+            app_data: None,
         };
         let v = serde_json::to_value(&snap).unwrap();
         assert_eq!(v["overall"], "notRunning");
@@ -459,6 +475,61 @@ mod tests {
         assert_eq!(v["sources"][0]["id"], "settings");
         assert_eq!(v["sources"][0]["state"], "error");
         assert_eq!(v["sources"][0]["kind"], "SettingsInvalid");
+        assert!(v["appData"].is_null());
+    }
+
+    #[test]
+    fn app_data_details_serialise_camel_case() {
+        let date = chrono::NaiveDate::from_ymd_opt(2026, 3, 4).unwrap();
+        let snap = HealthSnapshot {
+            overall: Overall::Ok,
+            sources: vec![],
+            checked_at_ms: Some(1),
+            seq: 1,
+            app_data: Some(AppDataDetails {
+                schema_version: Some(3),
+                backups: BackupSummary::Listed {
+                    kept: 2,
+                    keep: 7,
+                    last: Some(crate::store::LastBackup {
+                        date,
+                        at_ms: Some(99),
+                    }),
+                    stale: false,
+                },
+            }),
+        };
+        let v = serde_json::to_value(&snap).unwrap();
+        let d = &v["appData"];
+        assert_eq!(d["schemaVersion"], 3);
+        assert_eq!(d["backups"]["state"], "listed");
+        assert_eq!(d["backups"]["kept"], 2);
+        assert_eq!(d["backups"]["keep"], 7);
+        assert_eq!(d["backups"]["stale"], false);
+        assert_eq!(d["backups"]["last"]["date"], "2026-03-04");
+        assert_eq!(d["backups"]["last"]["atMs"], 99);
+
+        let unreadable = AppDataDetails {
+            schema_version: None,
+            backups: BackupSummary::Unreadable,
+        };
+        let v = serde_json::to_value(unreadable).unwrap();
+        assert!(v["schemaVersion"].is_null());
+        assert_eq!(v["backups"], serde_json::json!({"state": "unreadable"}));
+    }
+
+    #[test]
+    fn app_data_json_carries_no_folder_name_or_path() {
+        use crate::store::StoreHandle;
+        let tmp = tempfile::tempdir().unwrap();
+        let handle = StoreHandle::new(Some(tmp.path().join("Klient-Testowy")));
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 3, 4).unwrap();
+        let (_, details) = probe::store_probe(&handle, today);
+        let json = serde_json::to_string(&details.unwrap()).unwrap();
+        assert!(!json.contains("Klient-Testowy"), "{json}");
+        assert!(!json.contains("C:"), "{json}");
+        assert!(!json.contains("\\\\"), "{json}");
+        assert!(!json.contains('/'), "{json}");
     }
 
     #[test]

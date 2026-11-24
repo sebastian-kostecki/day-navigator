@@ -243,11 +243,11 @@ Brak migracji danych. `HealthSnapshot` zyskuje pole; jedyny konsument to UI w ty
 
 #### Automated
 
-- [ ] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy podsumowania kopii, `stale`, stanu błędu bazy, kształtu JSON, braku ścieżek i `backups_folder_to_open`
-- [ ] 1.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` przechodzą
-- [ ] 1.3 `npm run build`, `npm run lint` i `npm run format:check` przechodzą
-- [ ] 1.4 `rg "invoke" src/health` pokazuje import `invoke` tylko w `src/health/api.ts`
-- [ ] 1.5 `git diff --stat` nie pokazuje zmian w `src-tauri/capabilities/default.json`, `src-tauri/Cargo.toml` ani `src-tauri/src/store/schema.rs`
+- [x] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy podsumowania kopii, `stale`, stanu błędu bazy, kształtu JSON, braku ścieżek i `backups_folder_to_open`
+- [x] 1.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` przechodzą
+- [x] 1.3 `npm run build`, `npm run lint` i `npm run format:check` przechodzą
+- [x] 1.4 `rg "invoke" src/health` pokazuje import `invoke` tylko w `src/health/api.ts`
+- [x] 1.5 `git diff --stat` nie pokazuje zmian w `src-tauri/capabilities/default.json`, `src-tauri/Cargo.toml` ani `src-tauri/src/store/schema.rs`
 
 ### Phase 2: Karta „Dane aplikacji”
 

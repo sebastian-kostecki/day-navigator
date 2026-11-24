@@ -3,7 +3,7 @@ use std::fs;
 use chrono::NaiveDate;
 
 use day_navigator_lib::health::{
-    Overall, SourceId, SourceState, SourceStatus, overall, probe, store_status,
+    Overall, SourceId, SourceState, SourceStatus, overall, probe, store_probe, store_status,
 };
 use day_navigator_lib::store::{DB_FILE, StoreError, StoreHandle};
 
@@ -161,4 +161,62 @@ fn handle_without_a_dir_is_dir_unavailable() {
         SourceState::Error { kind, .. } => assert_eq!(kind, "DirUnavailable"),
         other => panic!("expected Error, got {other:?}"),
     }
+}
+
+#[test]
+fn damaged_file_still_reports_the_backups_without_a_schema_version() {
+    use day_navigator_lib::store::BackupSummary;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let data = tmp.path().join("data");
+    fs::create_dir_all(data.join("backups")).unwrap();
+    fs::write(
+        data.join("backups")
+            .join(format!("day-navigator-{}.db", day())),
+        "invented backup",
+    )
+    .unwrap();
+    fs::write(data.join(DB_FILE), "invented text, not a database at all").unwrap();
+
+    let handle = StoreHandle::new(Some(data));
+    let (status, details) = store_probe(&handle, day());
+    assert_eq!(kind_of(&status.state), Some("Damaged"));
+    let details = details.expect("data dir is known");
+    assert_eq!(details.schema_version, None);
+    match details.backups {
+        BackupSummary::Listed {
+            kept, last, stale, ..
+        } => {
+            assert_eq!(kept, 1);
+            assert_eq!(last.unwrap().date, day());
+            assert!(!stale);
+        }
+        other => panic!("expected Listed, got {other:?}"),
+    }
+}
+
+#[test]
+fn an_open_store_reports_the_latest_schema_version_and_todays_backup() {
+    use day_navigator_lib::store::{BackupSummary, schema::MIGRATIONS};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let handle = StoreHandle::new(Some(tmp.path().join("data")));
+    let (status, details) = store_probe(&handle, day());
+    assert_eq!(status.state, SourceState::Ok);
+    let details = details.unwrap();
+    assert_eq!(
+        details.schema_version,
+        Some(MIGRATIONS.last().unwrap().version)
+    );
+    assert!(matches!(
+        details.backups,
+        BackupSummary::Listed {
+            kept: 1,
+            stale: false,
+            ..
+        }
+    ));
+
+    let (_, none) = store_probe(&StoreHandle::new(None), day());
+    assert!(none.is_none());
 }

@@ -1,7 +1,7 @@
 ---
 change_id: app-data-details
 title: Szczegóły „Dane aplikacji” w „Stanie źródeł”
-status: planned
+status: implementing
 created: 2026-11-24
 updated: 2026-11-24
 ---

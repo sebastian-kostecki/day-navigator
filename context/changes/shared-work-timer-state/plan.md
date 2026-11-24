@@ -208,10 +208,10 @@ Brak danych i ustawień do migracji. Wycofanie to revert commitów fazy 2, potem
 
 #### Automated
 
-- [x] 1.1 Lint, format i build przechodzą
-- [x] 1.2 Bramka Rust przechodzi bez zmian w `src-tauri/`
-- [x] 1.3 Jeden listener statusu licznika
-- [x] 1.4 Provider podpięty raz
+- [x] 1.1 Lint, format i build przechodzą — b90031c
+- [x] 1.2 Bramka Rust przechodzi bez zmian w `src-tauri/` — b90031c
+- [x] 1.3 Jeden listener statusu licznika — b90031c
+- [x] 1.4 Provider podpięty raz — b90031c
 
 #### Manual
 
@@ -223,10 +223,10 @@ Brak danych i ustawień do migracji. Wycofanie to revert commitów fazy 2, potem
 
 #### Automated
 
-- [ ] 2.1 Lint, format i build przechodzą
-- [ ] 2.2 Bramka Rust przechodzi bez zmian w `src-tauri/`
-- [ ] 2.3 Jeden wzór sumy w `total.ts`
-- [ ] 2.4 Jeden tick w „Czasie pracy”
+- [x] 2.1 Lint, format i build przechodzą
+- [x] 2.2 Bramka Rust przechodzi bez zmian w `src-tauri/`
+- [x] 2.3 Jeden wzór sumy w `total.ts`
+- [x] 2.4 Jeden tick w „Czasie pracy”
 
 #### Manual
 

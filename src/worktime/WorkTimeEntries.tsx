@@ -3,6 +3,7 @@ import { Button, Field, Notice, Panel } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { workTimeErrorMessage } from "./api";
 import { formatClock, formatDuration } from "./format";
+import { liveSpanMs } from "./total";
 import type { DayEntries, EntryRow } from "./types";
 import type { EntriesState } from "./useWorkEntries";
 
@@ -189,13 +190,6 @@ function EntryItem(props: {
   );
 }
 
-/** The running entry counts up to now, capped at the shown day's end. */
-function liveRunningMs(data: DayEntries, nowMs: number): number {
-  return data.runningFromMs === null
-    ? 0
-    : Math.max(0, Math.min(nowMs, data.dayEndMs) - data.runningFromMs);
-}
-
 function LoadedEntries(props: {
   data: DayEntries;
   day: string;
@@ -210,7 +204,7 @@ function LoadedEntries(props: {
   const [addingDay, setAddingDay] = useState<string | null>(null);
   const adding = addingDay === day;
   const entriesById = new Map(data.entries.map((r) => [r.id, r]));
-  const running = liveRunningMs(data, nowMs);
+  const running = liveSpanMs(data.runningFromMs, data.dayEndMs, nowMs);
 
   return (
     <>
@@ -293,7 +287,7 @@ export function EntriesPanel(props: {
     );
   } else {
     const { data } = entries;
-    const total = data.closedMs + liveRunningMs(data, nowMs);
+    const total = data.closedMs + liveSpanMs(data.runningFromMs, data.dayEndMs, nowMs);
     footer = (
       <span className="wt-total">
         <span>Razem</span>

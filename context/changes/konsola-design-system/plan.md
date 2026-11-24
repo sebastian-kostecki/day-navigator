@@ -521,10 +521,10 @@ Fonty dodają poniżej 1 MB do instalatora (pełne pliki woff2, sześć grubośc
 
 #### Automated
 
-- [x] 6.1 Pełne bramki z AGENTS.md przechodzą: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [x] 6.2 `src/App.css` nie istnieje i nic go nie importuje
-- [x] 6.3 Poza `tokens.css` nie ma literalnych kolorów w CSS: `git grep --untracked -nE "#[0-9a-fA-F]{3,8}([^0-9A-Za-z_-]|$)|rgba?\(" -- "src/**/*.css" ":!src/styles/tokens.css"` nic nie zwraca
-- [x] 6.4 W `src/` nie ma `prefers-color-scheme`: `git grep --untracked -n "prefers-color-scheme" -- src` nic nie zwraca
+- [x] 6.1 Pełne bramki z AGENTS.md przechodzą: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` — 7f5da82
+- [x] 6.2 `src/App.css` nie istnieje i nic go nie importuje — 7f5da82
+- [x] 6.3 Poza `tokens.css` nie ma literalnych kolorów w CSS: `git grep --untracked -nE "#[0-9a-fA-F]{3,8}([^0-9A-Za-z_-]|$)|rgba?\(" -- "src/**/*.css" ":!src/styles/tokens.css"` nic nie zwraca — 7f5da82
+- [x] 6.4 W `src/` nie ma `prefers-color-scheme`: `git grep --untracked -n "prefers-color-scheme" -- src` nic nie zwraca — 7f5da82
 
 #### Manual
 

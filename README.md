@@ -10,6 +10,22 @@
 </p>
 
 <p align="center">
+  <a href="../../releases/latest"><img src="https://img.shields.io/github/v/release/sebastian-kostecki/day-navigator?style=for-the-badge&label=Release" alt="Latest release"></a>
+  <a href="../../actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/sebastian-kostecki/day-navigator/ci.yml?branch=main&style=for-the-badge&label=CI" alt="CI status"></a>
+  <a href="#requirements"><img src="https://img.shields.io/badge/Platform-Windows%2011-0078D4?style=for-the-badge" alt="Platform: Windows 11"></a>
+  <a href="#license"><img src="https://img.shields.io/badge/License-All%20rights%20reserved-lightgrey?style=for-the-badge" alt="License: all rights reserved"></a>
+</p>
+
+<p align="center">
+  <a href="https://v2.tauri.app/" target="_blank"><img src="https://img.shields.io/badge/Tauri%202-24C8DB?style=for-the-badge&logo=tauri&logoColor=white" alt="Tauri 2"></a>
+  <a href="https://www.rust-lang.org/" target="_blank"><img src="https://img.shields.io/badge/Rust-000000?style=for-the-badge&logo=rust&logoColor=white" alt="Rust"></a>
+  <a href="https://react.dev/" target="_blank"><img src="https://img.shields.io/badge/React%2019-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React 19"></a>
+  <a href="https://www.typescriptlang.org/" target="_blank"><img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript"></a>
+  <a href="https://vite.dev/" target="_blank"><img src="https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite"></a>
+  <a href="https://www.sqlite.org/" target="_blank"><img src="https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white" alt="SQLite"></a>
+</p>
+
+<p align="center">
   <a href="../../releases/latest">Download</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="#development">Development</a>

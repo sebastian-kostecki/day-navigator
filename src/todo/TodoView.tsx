@@ -146,8 +146,10 @@ export default function TodoView() {
     loadError: githubLoadError,
     retry: retryGithub,
   } = useGithub({ refreshOnMount: false });
-  // Summary strip and source panel: read-only status calls and event
-  // listeners; START/STOP and "check now" stay in the header and "Źródła".
+  // Summary strip and source panel: the timer comes from the shared state
+  // (`WorkTimerProvider`); the month report and health hooks are read-only
+  // status calls and event listeners. START/STOP and "check now" stay in the
+  // header and "Źródła".
   const { timer, nowMs } = useWorkTimer();
   const { report: month, retry: retryMonth } = useMonthReport(
     load.state === "loaded" ? load.list.day : localDay(new Date()),

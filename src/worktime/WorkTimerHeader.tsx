@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Button, Notice, formatHms } from "../components";
 import { formatClock } from "./format";
+import { todayTotalMs } from "./total";
 import { useWorkTimer } from "./useWorkTimer";
 import "./WorkTimerHeader.css";
 
@@ -64,13 +65,7 @@ export function WorkTimerHeader() {
   }
 
   const { status } = timer;
-  // Capped at the day end (a late refetch must not count into tomorrow) and
-  // clamped at zero (a clock moved back must not shrink the closed total).
-  const total =
-    status.todayClosedMs +
-    (running && status.runningFromMs !== null
-      ? Math.max(0, Math.min(nowMs, status.dayEndMs) - status.runningFromMs)
-      : 0);
+  const total = todayTotalMs(status, nowMs);
   // HH:MM:SS, as in the mock: a fixed width while the day grows.
   const clock = formatHms(total).padStart(8, "0");
 

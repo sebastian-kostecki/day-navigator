@@ -51,7 +51,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | ID   | Change ID                   | Outcome (user can …)                                                                   | Prerequisites | PRD refs        | Status   |
 | ---- | --------------------------- | -------------------------------------------------------------------------------------- | ------------- | --------------- | -------- |
 | F-01 | shared-ui-tools             | (foundation) shared UI tools live in `src/components/`, not copied across views         | —             | MS-10           | done     |
-| F-02 | shared-work-timer-state     | (foundation) one work-timer state feeds the header, dashboard and "Work time"           | —             | MS-09           | ready    |
+| F-02 | shared-work-timer-state     | (foundation) one work-timer state feeds the header, dashboard and "Work time"           | —             | MS-09           | done     |
 | F-03 | remove-vault-layer          | (foundation) the vault layer and its health sources are gone                            | —             | MS-11           | done     |
 | F-04 | konsola-design-system       | (foundation) the Konsola design system is checked by hand and its change archived       | —             | MS-12           | done     |
 | F-05 | design-system-artifact-sync | (foundation) the design-system artifact matches the app                                 | F-04          | MS-16           | ready    |
@@ -117,7 +117,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** The counter is the always-visible header and a guardrail ("time is never lost"); the change must be behaviour-neutral, so START/STOP and the confirmation are re-checked by hand.
-- **Status:** ready
+- **Status:** done
 
 ### F-03: Remove the vault layer
 
@@ -361,3 +361,4 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-09: user can see in each GitHub Release what changed since the previous `app-v*` tag; the unsigned-installer note stays until signing exists.** — Archived 2026-11-24 → `context/archive/2026-11-24-release-notes/`. Lesson: —.
 - **F-01: (foundation) the tools that grew locally in views — `useNow`, `plural`, `Tabs`, a table/grid component, a `Segmented` size for 40 px fields, a priority chip, `ErrorState.message` as a node, `disabled` for `SourceState` actions — live in `src/components/` and the existing views use them, with no visible change.** — Archived 2026-11-24 → `context/archive/2026-11-24-shared-ui-tools/`. Lesson: —.
 - **F-04: (foundation) the open Manual rows of `context/changes/konsola-design-system/plan.md` are checked by the user on the real machine (offline fonts, layout at 1280 and 800 px, window state, GitLab with and without VPN, logged-out `gh`, own tasks, work time, keyboard-only navigation) and the change is archived.** — Archived 2026-11-24 → `context/archive/2026-11-23-konsola-design-system/`. Lesson: —.
+- **F-02: (foundation) one work-timer state in the UI feeds the header, the dashboard and "Work time" (one listener, one tick), with no change in behaviour or in Rust commands.** — Archived 2026-11-24 → `context/archive/2026-11-24-shared-work-timer-state/`. Lesson: —.

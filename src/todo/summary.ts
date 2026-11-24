@@ -1,10 +1,11 @@
 import { formatHm, type Stat } from "../components";
 import type { HealthSnapshot, SourceStatus } from "../health/types";
 import { formatClock, formatWorkdays } from "../worktime/format";
+import { todayTotalMs } from "../worktime/total";
 import type { MonthReportState } from "../worktime/useMonthReport";
 import type { TimerState } from "../worktime/useWorkTimer";
 
-/** Today's total: closed time plus the running span, as the header counts it. */
+/** Today's total: closed time plus the running span, counted as in `worktime/total.ts`. */
 function todayTile(timer: TimerState, nowMs: number): Stat {
   if (timer.state === "loading") return { label: "Dziś", value: "…", sub: "wczytywanie" };
   if (timer.state === "error") {
@@ -12,15 +13,9 @@ function todayTile(timer: TimerState, nowMs: number): Stat {
   }
   const { status } = timer;
   const running = status.running;
-  // Capped at the day end and clamped at zero, as in WorkTimerHeader.
-  const total =
-    status.todayClosedMs +
-    (running !== null && status.runningFromMs !== null
-      ? Math.max(0, Math.min(nowMs, status.dayEndMs) - status.runningFromMs)
-      : 0);
   return {
     label: "Dziś",
-    value: formatHm(total),
+    value: formatHm(todayTotalMs(status, nowMs)),
     sub: running !== null ? `start ${formatClock(running.startMs)}` : "licznik stoi",
   };
 }

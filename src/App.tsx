@@ -7,6 +7,7 @@ import OwnTasksView from "./own-tasks/OwnTasksView";
 import TodoView from "./todo/TodoView";
 import WorkTimeView from "./worktime/WorkTimeView";
 import { WorkTimerHeader } from "./worktime/WorkTimerHeader";
+import { WorkTimerProvider } from "./worktime/WorkTimerProvider";
 
 type View = "todo" | "gitlab" | "github" | "tasks" | "work-time" | "health";
 
@@ -54,7 +55,7 @@ function App() {
   }, []);
 
   return (
-    <>
+    <WorkTimerProvider>
       <AppHeader
         items={VIEWS.map((v, i) => ({
           id: v.id,
@@ -72,7 +73,7 @@ function App() {
       {view === "tasks" && <OwnTasksView />}
       {view === "work-time" && <WorkTimeView />}
       {view === "health" && <HealthPanel />}
-    </>
+    </WorkTimerProvider>
   );
 }
 

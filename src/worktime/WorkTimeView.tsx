@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Button, Field, Notice, Panel, formatHm, useNow, type Stat } from "../components";
+import { Button, Field, Notice, Panel, formatHm, type Stat } from "../components";
 import { workTimeErrorMessage } from "./api";
 import { formatClock, formatMonth } from "./format";
 import { MonthReport } from "./MonthReport";
+import { todayTotalMs } from "./total";
 import { EntriesPanel } from "./WorkTimeEntries";
 import { useMonthReport } from "./useMonthReport";
 import { useWorkEntries } from "./useWorkEntries";
@@ -35,21 +36,16 @@ function shiftMonth(day: string, delta: number): string {
   return first.slice(0, 7) === today.slice(0, 7) ? today : first;
 }
 
-/** Today's total from the timer status, live while the counter runs (as in the header). */
+/** Today's total from the timer status, live while the counter runs (see `total.ts`). */
 function todayStat(timer: TimerState, nowMs: number): Stat {
   if (timer.state === "loading") return { label: "Dziś", value: "…", sub: "wczytywanie" };
   if (timer.state === "error") {
     return { label: "Dziś", value: "—", sub: "licznik niedostępny", tone: "muted" };
   }
   const { status } = timer;
-  const total =
-    status.todayClosedMs +
-    (status.running !== null && status.runningFromMs !== null
-      ? Math.max(0, Math.min(nowMs, status.dayEndMs) - status.runningFromMs)
-      : 0);
   return {
     label: "Dziś",
-    value: formatHm(total),
+    value: formatHm(todayTotalMs(status, nowMs)),
     sub:
       status.running === null
         ? "licznik zatrzymany"
@@ -84,7 +80,10 @@ export default function WorkTimeView() {
   const { entries, add, update, remove, setDayOff, dayOffChecked, dayOffBusy, busyIds, retry } =
     useWorkEntries(day);
   const { report, retry: retryReport } = useMonthReport(day);
-  const { timer, nowMs: timerNowMs } = useWorkTimer();
+  // One tick for the whole app: the entries list also follows the shared timer.
+  // While the timer is unavailable (e.g. its status read fails on the month
+  // report) a running entry here stops too, until the header's retry or focus.
+  const { timer, nowMs } = useWorkTimer();
   // A refusal belongs to the day it happened on.
   const [dayOffError, setDayOffError] = useState<{ day: string; message: string } | null>(null);
 
@@ -93,14 +92,6 @@ export default function WorkTimeView() {
     const err = await setDayOff(off);
     if (err) setDayOffError({ day, message: workTimeErrorMessage(err) });
   }
-
-  // `runningFromMs` is set only while the running entry counts in a day that
-  // has not ended, so this ticks on today's view (and on a view left open past
-  // midnight, where the total stops at the day end).
-  const ticking = entries.state === "loaded" && entries.data.runningFromMs !== null;
-
-  // Tick only while a running entry counts in the shown day.
-  const nowMs = useNow(ticking ? 1000 : null);
 
   function changeDay(value: string) {
     if (value) setDay(value);
@@ -156,7 +147,7 @@ export default function WorkTimeView() {
       </div>
       <MonthReport
         state={report}
-        today={todayStat(timer, timerNowMs)}
+        today={todayStat(timer, nowMs)}
         onRetry={retryReport}
         onPickDay={setDay}
       />

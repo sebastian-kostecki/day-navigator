@@ -1,7 +1,7 @@
 ---
 change_id: todo-add-from-sources
 title: "+" do „Do zrobienia” w widokach GitLab i GitHub
-status: implementing
+status: implemented
 created: 2026-11-24
 updated: 2026-11-24
 archived_at: null

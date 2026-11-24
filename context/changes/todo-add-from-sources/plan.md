@@ -231,7 +231,7 @@ Brak: bez zmian schematu i danych.
 
 #### Manual
 
-- [ ] 1.5 Odhaczenie pozycji w „Do zrobienia” nadal działa i lista nie miga ani nie przeładowuje się w pętli
+- [x] 1.5 Odhaczenie pozycji w „Do zrobienia” nadal działa i lista nie miga ani nie przeładowuje się w pętli — 353e93d
 
 ### Phase 2: Wspólne elementy „Do zrobienia” (UI)
 
@@ -243,7 +243,7 @@ Brak: bez zmian schematu i danych.
 
 #### Manual
 
-- [ ] 2.4 Picker w „Do zrobienia” dodaje pozycje jak wcześniej, a przy limicie „+” jest wyłączony z podpowiedzią
+- [x] 2.4 Picker w „Do zrobienia” dodaje pozycje jak wcześniej, a przy limicie „+” jest wyłączony z podpowiedzią — 6db27d5
 
 ### Phase 3: „+” w widokach źródeł
 
@@ -256,9 +256,9 @@ Brak: bez zmian schematu i danych.
 
 #### Manual
 
-- [ ] 3.5 W „Praca (GitLab)” „+” na MR i zgłoszeniu dodaje je, a wiersz ma flagę i wypełniony przycisk
-- [ ] 3.6 W „Projekty (GitHub)” „+” dodaje zgłoszenie, flaga i wypełniony przycisk pojawiają się od razu
-- [ ] 3.7 Klik w wypełniony przycisk zdejmuje pozycję z „Do zrobienia”
-- [ ] 3.8 Przy pełnym limicie „+” jest wyłączony z podpowiedzią, a wypełnione przyciski nadal zdejmują
-- [ ] 3.9 Pozycja odhaczona w „Do zrobienia” nadal ma w widoku źródła flagę i wypełniony przycisk
-- [ ] 3.10 Kolumna akcji GitLaba mieści trzy przyciski bez zawijania
+- [x] 3.5 W „Praca (GitLab)” „+” na MR i zgłoszeniu dodaje je, a wiersz ma flagę i wypełniony przycisk — 6ee8a46
+- [x] 3.6 W „Projekty (GitHub)” „+” dodaje zgłoszenie, flaga i wypełniony przycisk pojawiają się od razu — 6ee8a46
+- [x] 3.7 Klik w wypełniony przycisk zdejmuje pozycję z „Do zrobienia” — 6ee8a46
+- [x] 3.8 Przy pełnym limicie „+” jest wyłączony z podpowiedzią, a wypełnione przyciski nadal zdejmują — 6ee8a46
+- [x] 3.9 Pozycja odhaczona w „Do zrobienia” nadal ma w widoku źródła flagę i wypełniony przycisk — 6ee8a46
+- [x] 3.10 Kolumna akcji GitLaba mieści trzy przyciski bez zawijania — 6ee8a46

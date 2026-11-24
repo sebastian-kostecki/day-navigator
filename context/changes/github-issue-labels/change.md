@@ -1,7 +1,7 @@
 ---
 change_id: github-issue-labels
 title: Etykiety przy zgłoszeniach w „Projekty (GitHub)”
-status: implemented
+status: impl_reviewed
 created: 2026-11-24
 updated: 2026-11-24
 archived_at: null

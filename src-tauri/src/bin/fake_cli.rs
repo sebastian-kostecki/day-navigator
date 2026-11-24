@@ -27,6 +27,8 @@ const BAD_NOTES_MARKER: &str = "LEAK-MARKER-NOTE-4b2d";
 /// Marker inside a title that parses fine (`gh-issues`, `octo-test/alpha#3`);
 /// tests assert it reaches the issue list and nothing else.
 const GH_TITLE_MARKER: &str = "LEAK-MARKER-GH-TITLE-5a8e";
+/// Marker in a label name of the same issue (`gh-issues`, `octo-test/alpha#3`);
+/// tests assert it reaches the issue's labels and nothing else.
 const GH_LABEL_MARKER: &str = "LEAK-MARKER-GH-LABEL-3d9f";
 
 /// The one issue that has notes in the notes scenarios: project and in-project

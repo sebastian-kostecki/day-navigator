@@ -16,11 +16,14 @@ pub mod work_reminders;
 pub mod work_time;
 
 use chrono::{Local, NaiveDateTime};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 use crate::own_tasks::{OwnTask, OwnTaskError, OwnTaskInput};
 use crate::space::Space;
 use crate::store::{Store, StoreError, StoreHandle};
+
+/// Emitted (no payload) when the close button hides the main window.
+const MAIN_HIDDEN_EVENT: &str = "main-hidden";
 
 /// The blocking task could not run to completion (join error text). Each
 /// command error type maps it to its own variant.
@@ -176,6 +179,10 @@ pub fn run() {
             {
                 api.prevent_close();
                 let _ = window.hide();
+                // The view stays mounted while hidden: tell it the visit ended.
+                if let Err(e) = window.emit(MAIN_HIDDEN_EVENT, ()) {
+                    log::warn!("main window: emit failed: {e}");
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -183,6 +190,7 @@ pub fn run() {
             runtime::check_health_now,
             gitlab_refresh::gitlab_snapshot,
             gitlab_refresh::refresh_gitlab,
+            gitlab_refresh::mark_gitlab_seen,
             github_refresh::github_snapshot,
             github_refresh::refresh_github,
             hidden_issues::commands::hide_gitlab_issue,

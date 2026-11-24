@@ -12,6 +12,15 @@ use crate::store::StoreError;
 pub enum NewAssignmentError {
     #[error("app data store error: {0}")]
     Store(StoreError),
+    /// The blocking task of a command could not finish (no content).
+    #[error("background task failed")]
+    BackgroundFailed,
+}
+
+impl From<crate::BackgroundFailed> for NewAssignmentError {
+    fn from(_: crate::BackgroundFailed) -> Self {
+        NewAssignmentError::BackgroundFailed
+    }
 }
 
 impl From<StoreError> for NewAssignmentError {
@@ -31,6 +40,7 @@ impl NewAssignmentError {
     pub fn kind(&self) -> &'static str {
         match self {
             NewAssignmentError::Store(e) => e.kind(),
+            NewAssignmentError::BackgroundFailed => "BackgroundFailed",
         }
     }
 }

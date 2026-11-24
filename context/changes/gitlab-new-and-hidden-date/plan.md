@@ -322,19 +322,19 @@ Migracja v9 tworzy pustą tabelę `gitlab_view_marks`. Istniejące `seen_assignm
 
 #### Automated
 
-- [x] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy: `fresh_since` (brak znacznika → nic; `first_seen == mark` → nie; `first_seen > mark` → tak), `partition` ustawia `hidden_at_ms` tylko na ukrytych, `mark_fresh` nie flaguje ukrytych
-- [x] 1.2 Testy integracyjne w `src-tauri/tests/new_assignments.rs`: upgrade bazy z v8 do v9 zachowuje wiersze `seen_assignments`; `record_round` zwraca `fresh` dla kluczy pierwszy raz widzianych po znaczniku; runda zasiewająca daje puste `fresh`; `mark_view_seen` nie cofa znacznika; znacznik jednego konta nie wpływa na drugie
-- [x] 1.3 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` bez uwag
-- [x] 1.4 `npm run build` przechodzi (TS z nowymi polami w `types.ts`)
+- [x] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy: `fresh_since` (brak znacznika → nic; `first_seen == mark` → nie; `first_seen > mark` → tak), `partition` ustawia `hidden_at_ms` tylko na ukrytych, `mark_fresh` nie flaguje ukrytych — 371442d
+- [x] 1.2 Testy integracyjne w `src-tauri/tests/new_assignments.rs`: upgrade bazy z v8 do v9 zachowuje wiersze `seen_assignments`; `record_round` zwraca `fresh` dla kluczy pierwszy raz widzianych po znaczniku; runda zasiewająca daje puste `fresh`; `mark_view_seen` nie cofa znacznika; znacznik jednego konta nie wpływa na drugie — 371442d
+- [x] 1.3 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` bez uwag — 371442d
+- [x] 1.4 `npm run build` przechodzi (TS z nowymi polami w `types.ts`) — 371442d
 
 ### Phase 2: Runda i polecenie (Rust)
 
 #### Automated
 
-- [ ] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy jednostkowe w `gitlab_refresh.rs`: `shape_items` flaguje tylko MR-y i widoczne zgłoszenia ze zbioru; `act_on_issue` zachowuje `is_new` i `hidden_at_ms` po ukryciu innego zgłoszenia; `reshape_kept` po nieudanej rundzie zachowuje flagi; `mark_seen` bez `shown_until` nic nie zapisuje i nie zmienia `seq`; `mark_seen` zapisuje `shown_until` (nie zegar), gasi flagi, podbija `seq` i ustawia `last_mark`; pozycja z rundy zapisanej po `shown_until` zostaje NOWE; błąd `save` zostawia snapshot bez zmian; świeże klucze z `first_seen_ms <= last_mark` są odrzucane
-- [ ] 2.2 Istniejące testy `tests/new_assignments.rs`, `tests/new_assignments_crash.rs` i `tests/hidden_issues_round.rs` przechodzą po zmianie typu zwracanego przez `record_round`
-- [ ] 2.3 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` bez uwag
-- [ ] 2.4 `npm run build` przechodzi
+- [x] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy jednostkowe w `gitlab_refresh.rs`: `shape_items` flaguje tylko MR-y i widoczne zgłoszenia ze zbioru; `act_on_issue` zachowuje `is_new` i `hidden_at_ms` po ukryciu innego zgłoszenia; `reshape_kept` po nieudanej rundzie zachowuje flagi; `mark_seen` bez `shown_until` nic nie zapisuje i nie zmienia `seq`; `mark_seen` zapisuje `shown_until` (nie zegar), gasi flagi, podbija `seq` i ustawia `last_mark`; pozycja z rundy zapisanej po `shown_until` zostaje NOWE; błąd `save` zostawia snapshot bez zmian; świeże klucze z `first_seen_ms <= last_mark` są odrzucane
+- [x] 2.2 Istniejące testy `tests/new_assignments.rs`, `tests/new_assignments_crash.rs` i `tests/hidden_issues_round.rs` przechodzą po zmianie typu zwracanego przez `record_round`
+- [x] 2.3 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` bez uwag
+- [x] 2.4 `npm run build` przechodzi
 
 ### Phase 3: UI i dokumentacja
 

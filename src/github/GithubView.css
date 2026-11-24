@@ -10,6 +10,12 @@
   gap: var(--space-4);
 }
 
+@media (max-width: 900px) {
+  .github-repos .dn-row-labels {
+    display: none;
+  }
+}
+
 .github-repo-title {
   display: flex;
   align-items: center;

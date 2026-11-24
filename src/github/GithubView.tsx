@@ -40,6 +40,7 @@ function IssueRow({ issue, now, todo }: { issue: GithubIssue; now: number; todo:
       title={issue.title}
       flag={found ? "W Do zrobienia" : undefined}
       flagTone={found ? "change" : undefined}
+      labels={issue.labels}
       meta={
         <span title={formatUpdated(issue.updatedAt)}>{formatIssueAge(issue.updatedAt, now)}</span>
       }

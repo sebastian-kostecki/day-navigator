@@ -258,20 +258,20 @@ Brak: etykiety żyją tylko w snapshocie w pamięci; baza aplikacji i `settings.
 
 #### Automated
 
-- [x] 1.1 `cargo test` w `src-tauri/` przechodzi (w tym `every_call_is_read_only`, `gh_assigned_issues_has_exact_arguments_name_and_tool`, test argv w `cli_runner.rs`, nowe testy parsowania i `github_fetch.rs`)
-- [x] 1.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` przechodzą
-- [x] 1.3 `npm run build` przechodzi (mirror TS się kompiluje)
-- [x] 1.4 `npm run lint` i `npm run format:check` przechodzą
-- [x] 1.5 Stary ogon bez `labels` nie występuje w `src-tauri/` (`rg -F 'number,title,url,updatedAt"' src-tauri` nic nie zwraca)
+- [x] 1.1 `cargo test` w `src-tauri/` przechodzi (w tym `every_call_is_read_only`, `gh_assigned_issues_has_exact_arguments_name_and_tool`, test argv w `cli_runner.rs`, nowe testy parsowania i `github_fetch.rs`) — 2db6c3f
+- [x] 1.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` przechodzą — 2db6c3f
+- [x] 1.3 `npm run build` przechodzi (mirror TS się kompiluje) — 2db6c3f
+- [x] 1.4 `npm run lint` i `npm run format:check` przechodzą — 2db6c3f
+- [x] 1.5 Stary ogon bez `labels` nie występuje w `src-tauri/` (`rg -F 'number,title,url,updatedAt"' src-tauri` nic nie zwraca) — 2db6c3f
 
 ### Phase 2: Etykiety w wierszu „Projekty (GitHub)”
 
 #### Automated
 
-- [ ] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 2.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą
-- [ ] 2.3 `rg -n "dn-row-labels" src` znajduje tylko `ItemRow.tsx`, `ItemRow.css` i `GithubView.css`
-- [ ] 2.9 Outcome F-05 w roadmapie wymienia `ItemRow` labels (`rg -F '`ItemRow` labels' context/foundation/roadmap.md` zwraca linię F-05)
+- [x] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 2.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą
+- [x] 2.3 `rg -n "dn-row-labels" src` znajduje tylko `ItemRow.tsx`, `ItemRow.css` i `GithubView.css`
+- [x] 2.9 Outcome F-05 w roadmapie wymienia `ItemRow` labels (`rg -F '`ItemRow` labels' context/foundation/roadmap.md` zwraca linię F-05)
 
 #### Manual
 

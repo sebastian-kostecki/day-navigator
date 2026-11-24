@@ -93,3 +93,50 @@
 .todo-source-detail.is-error {
   color: var(--danger-soft);
 }
+
+/* "Dziennik zdarzeń": scrolls inside the panel past about eight rows. */
+.todo-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: calc(var(--size-row) * 8);
+  overflow-y: auto;
+}
+
+.todo-event {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2h);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.todo-event-time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.todo-event-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.todo-event-label.is-error {
+  color: var(--danger-soft);
+  word-break: break-word;
+}
+
+.todo-event-label.is-ok {
+  color: var(--info);
+}
+
+.todo-event-subject {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

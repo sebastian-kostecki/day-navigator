@@ -337,20 +337,20 @@ Migracja v10 tworzy pustą tabelę `events`; istniejące dane bez zmian. S-07 (`
 
 #### Automated
 
-- [x] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy w `tests/todo.rs` (lub `src/todo/tests.rs`): odhaczenie GitLab/GitHub/własnej zapisuje jedno `Ticked` z referencją i tytułem (własna: bez referencji, z tytułem zadania); ponowne odhaczenie już odhaczonej i odznaczenie nie zapisują nic; `remove` zapisuje `Removed`; `reconcile_gitlab` i `reconcile_github` zapisują `ClosedInSource` tylko dla odhaczonych przez źródło, nie dla odświeżenia tytułu; odmowa (`NotFound`) nie zapisuje zdarzenia
-- [x] 2.2 Nowe testy w `tests/work_time.rs`: `start` zapisuje `WorkStarted`, `stop` zapisuje `WorkStopped`, odmowa (`AlreadyRunning`, `NotRunning`) nie zapisuje nic; czas zdarzenia to lokalna forma `now` w strefie testowej
-- [x] 2.3 Istniejące testy `todo*`, `work_time*`, `new_assignments*`, `hidden_issues_round`, `health_probe` przechodzą
-- [x] 2.4 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` bez uwag
-- [x] 2.5 `rg -n "log::(info|warn|debug|error)!" src-tauri/src/events` pokazuje tylko wpisy z `kind()` (bez referencji, tytułów i etykiet)
+- [x] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy w `tests/todo.rs` (lub `src/todo/tests.rs`): odhaczenie GitLab/GitHub/własnej zapisuje jedno `Ticked` z referencją i tytułem (własna: bez referencji, z tytułem zadania); ponowne odhaczenie już odhaczonej i odznaczenie nie zapisują nic; `remove` zapisuje `Removed`; `reconcile_gitlab` i `reconcile_github` zapisują `ClosedInSource` tylko dla odhaczonych przez źródło, nie dla odświeżenia tytułu; odmowa (`NotFound`) nie zapisuje zdarzenia — bd0d006
+- [x] 2.2 Nowe testy w `tests/work_time.rs`: `start` zapisuje `WorkStarted`, `stop` zapisuje `WorkStopped`, odmowa (`AlreadyRunning`, `NotRunning`) nie zapisuje nic; czas zdarzenia to lokalna forma `now` w strefie testowej — bd0d006
+- [x] 2.3 Istniejące testy `todo*`, `work_time*`, `new_assignments*`, `hidden_issues_round`, `health_probe` przechodzą — bd0d006
+- [x] 2.4 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` bez uwag — bd0d006
+- [x] 2.5 `rg -n "log::(info|warn|debug|error)!" src-tauri/src/events` pokazuje tylko wpisy z `kind()` (bez referencji, tytułów i etykiet) — bd0d006
 
 ### Phase 3: Panel i dokumentacja (UI)
 
 #### Automated
 
-- [ ] 3.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 3.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą
-- [ ] 3.3 `rg -n "#[0-9a-fA-F]{3,6}" src --glob "*.css" --glob "!src/styles/tokens.css"` nie znajduje nowych literalnych kolorów
-- [ ] 3.4 `rg -n "invoke" src/events src/todo/EventLogPanel.tsx` znajduje `invoke` tylko w `src/events/api.ts`
+- [x] 3.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 3.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą
+- [x] 3.3 `rg -n "#[0-9a-fA-F]{3,6}" src --glob "*.css" --glob "!src/styles/tokens.css"` nie znajduje nowych literalnych kolorów
+- [x] 3.4 `rg -n "invoke" src/events src/todo/EventLogPanel.tsx` znajduje `invoke` tylko w `src/events/api.ts`
 
 #### Manual
 

@@ -54,6 +54,7 @@ fn github_issue(n: i64) -> GithubIssue {
         title: format!("Zgloszenie testowe {n}"),
         web_url: Some(format!("https://github.com/octo-test/alpha/issues/{n}")),
         updated_at: "2026-11-20T10:00:00Z".into(),
+        labels: vec![],
     }
 }
 

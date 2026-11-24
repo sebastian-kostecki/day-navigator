@@ -614,6 +614,7 @@ fn gh(repo: &str, n: u64) -> GithubIssue {
         title: format!("Zgloszenie testowe {n}"),
         web_url: Some(format!("https://github.com/{repo}/issues/{n}")),
         updated_at: "2026-11-20T10:00:00Z".into(),
+        labels: vec![],
     }
 }
 

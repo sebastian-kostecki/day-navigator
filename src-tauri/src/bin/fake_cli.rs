@@ -27,6 +27,9 @@ const BAD_NOTES_MARKER: &str = "LEAK-MARKER-NOTE-4b2d";
 /// Marker inside a title that parses fine (`gh-issues`, `octo-test/alpha#3`);
 /// tests assert it reaches the issue list and nothing else.
 const GH_TITLE_MARKER: &str = "LEAK-MARKER-GH-TITLE-5a8e";
+/// Marker in a label name of the same issue (`gh-issues`, `octo-test/alpha#3`);
+/// tests assert it reaches the issue's labels and nothing else.
+const GH_LABEL_MARKER: &str = "LEAK-MARKER-GH-LABEL-3d9f";
 
 /// The one issue that has notes in the notes scenarios: project and in-project
 /// number of "Widget crashes on start". Any other issue gets an empty array.
@@ -402,12 +405,31 @@ fn gh_repo_arg() -> Option<String> {
     args.get(at + 1).cloned()
 }
 
-fn gh_issue_value(repo: &str, number: u64, title: &str, updated: &str) -> serde_json::Value {
+fn gh_issue_value(
+    repo: &str,
+    number: u64,
+    title: &str,
+    updated: &str,
+    labels: &[&str],
+) -> serde_json::Value {
+    let labels: Vec<serde_json::Value> = labels
+        .iter()
+        .enumerate()
+        .map(|(i, name)| {
+            serde_json::json!({
+                "id": format!("LA_invented{i}"),
+                "name": name,
+                "description": "Invented label description",
+                "color": "ededed"
+            })
+        })
+        .collect();
     serde_json::json!({
         "number": number,
         "title": title,
         "url": format!("https://github.com/{repo}/issues/{number}"),
-        "updatedAt": updated
+        "updatedAt": updated,
+        "labels": labels
     })
 }
 
@@ -428,12 +450,14 @@ fn gh_issues_scenario() -> i32 {
                     3,
                     &format!("Gizmo jitters {GH_TITLE_MARKER}"),
                     "2026-02-20T08:00:00Z",
+                    &[GH_LABEL_MARKER],
                 ),
                 gh_issue_value(
                     "octo-test/alpha",
                     11,
                     "Widget crashes on start",
                     "2026-03-03T08:00:00Z",
+                    &["bug", "needs-triage"],
                 ),
             ];
             println!("{}", serde_json::Value::Array(issues));
@@ -463,6 +487,7 @@ fn gh_issues_scenario() -> i32 {
                         n,
                         "Invented issue",
                         "2026-01-01T00:00:00Z",
+                        &[],
                     )
                 })
                 .collect();

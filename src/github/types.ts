@@ -11,6 +11,8 @@ export type GithubIssue = {
   webUrl: string | null;
   /** RFC 3339 text as GitHub sent it. */
   updatedAt: string;
+  /** Label names in the order GitHub sent them; empty when there are none. */
+  labels: string[];
 };
 
 /** Why one repository has no list. Fixed Polish text, no repo name. */

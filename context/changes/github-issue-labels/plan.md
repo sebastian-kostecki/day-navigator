@@ -268,10 +268,10 @@ Brak: etykiety żyją tylko w snapshocie w pamięci; baza aplikacji i `settings.
 
 #### Automated
 
-- [x] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [x] 2.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą
-- [x] 2.3 `rg -n "dn-row-labels" src` znajduje tylko `ItemRow.tsx`, `ItemRow.css` i `GithubView.css`
-- [x] 2.9 Outcome F-05 w roadmapie wymienia `ItemRow` labels (`rg -F '`ItemRow` labels' context/foundation/roadmap.md` zwraca linię F-05)
+- [x] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą — a0a9534
+- [x] 2.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą — a0a9534
+- [x] 2.3 `rg -n "dn-row-labels" src` znajduje tylko `ItemRow.tsx`, `ItemRow.css` i `GithubView.css` — a0a9534
+- [x] 2.9 Outcome F-05 w roadmapie wymienia `ItemRow` labels (`rg -F '`ItemRow` labels' context/foundation/roadmap.md` zwraca linię F-05) — a0a9534
 
 #### Manual
 

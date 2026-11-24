@@ -116,7 +116,8 @@ pub fn github_status(snapshot: &GithubSnapshot) -> Option<SourceStatus> {
 }
 
 /// Fixed text for an invalid `reminders` block. Names the accepted shape and
-/// never echoes the user's values.
+/// never echoes the user's values. The "Przypomnienia" panel in "Czas pracy"
+/// shows the same text from `src/worktime/api.ts`; a test keeps the two equal.
 const REMINDERS_INVALID_PL: &str = "Blok „reminders” w settings.json jest nieprawidłowy: longRunningHours to liczba godzin 1–24 albo false, notRunningAfter to godzina „GG:MM” albo false.";
 
 /// The "Przypomnienia" source: Ok when the `reminders` block parses (also when
@@ -383,6 +384,15 @@ mod tests {
             }
         );
         assert!(!REMINDERS_INVALID_PL.contains("99999"));
+    }
+
+    #[test]
+    fn reminders_invalid_text_matches_the_worktime_panel() {
+        let api_ts = include_str!("../../../src/worktime/api.ts");
+        assert!(
+            api_ts.contains(&format!("\"{REMINDERS_INVALID_PL}\"")),
+            "src/worktime/api.ts must carry REMINDERS_INVALID_PL verbatim"
+        );
     }
 
     #[test]

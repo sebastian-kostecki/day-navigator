@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use chrono::NaiveTime;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::cli::{GithubConfig, GithubRepo, GitlabConfig, GitlabHost, GitlabUser};
 use crate::github::GithubError;
@@ -270,7 +270,17 @@ impl Default for ReminderSettings {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+/// Which reminder fields `settings.json` set. A value or `false` counts as
+/// set; an absent or `null` field, an absent or `null` block and a missing
+/// file count as not set.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ReminderOrigin {
+    pub long_running_from_file: bool,
+    pub not_running_after_from_file: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error, Serialize)]
+#[serde(tag = "kind", content = "detail")]
 pub enum ReminderSettingsError {
     #[error("the reminders settings block is invalid")]
     SettingsInvalid,
@@ -300,10 +310,17 @@ struct RawReminders {
 /// the defaults. Anything else is `SettingsInvalid`, with no detail: serde
 /// errors can quote the value.
 pub fn load_reminder_settings(path: &Path) -> Result<ReminderSettings, ReminderSettingsError> {
+    load_reminder_settings_detailed(path).map(|(settings, _)| settings)
+}
+
+/// Same parse as `load_reminder_settings`, plus which fields the file set.
+pub fn load_reminder_settings_detailed(
+    path: &Path,
+) -> Result<(ReminderSettings, ReminderOrigin), ReminderSettingsError> {
     let bytes = match fs::read(path) {
         Ok(b) => b,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            return Ok(ReminderSettings::default());
+            return Ok((ReminderSettings::default(), ReminderOrigin::default()));
         }
         Err(_) => return Err(ReminderSettingsError::SettingsInvalid),
     };
@@ -327,42 +344,54 @@ fn parse_hhmm(text: &str) -> Option<NaiveTime> {
     NaiveTime::from_hms_opt(hours, minutes, 0)
 }
 
-fn parse_reminder_settings(text: &str) -> Result<ReminderSettings, ReminderSettingsError> {
+fn parse_reminder_settings(
+    text: &str,
+) -> Result<(ReminderSettings, ReminderOrigin), ReminderSettingsError> {
     const INVALID: ReminderSettingsError = ReminderSettingsError::SettingsInvalid;
+    let defaults = || (ReminderSettings::default(), ReminderOrigin::default());
     let value: serde_json::Value = serde_json::from_str(text).map_err(|_| INVALID)?;
     if value.get("version").and_then(|v| v.as_u64()) != Some(SUPPORTED_VERSION) {
         return Err(INVALID);
     }
     let Some(block) = value.get("reminders") else {
-        return Ok(ReminderSettings::default());
+        return Ok(defaults());
     };
     if block.is_null() {
-        return Ok(ReminderSettings::default());
+        return Ok(defaults());
     }
     if !block.is_object() {
         return Err(INVALID);
     }
     let raw: RawReminders = serde_json::from_value(block.clone()).map_err(|_| INVALID)?;
     let mut settings = ReminderSettings::default();
+    let mut origin = ReminderOrigin::default();
     match raw.long_running_hours {
         None => {}
-        Some(serde_json::Value::Bool(false)) => settings.long_running = None,
+        Some(serde_json::Value::Bool(false)) => {
+            settings.long_running = None;
+            origin.long_running_from_file = true;
+        }
         Some(v) => match v.as_u64() {
             Some(n) if (1..=LONG_RUNNING_HOURS_MAX).contains(&n) => {
                 settings.long_running = Some(Duration::from_secs(n * 3600));
+                origin.long_running_from_file = true;
             }
             _ => return Err(INVALID),
         },
     }
     match raw.not_running_after {
         None => {}
-        Some(serde_json::Value::Bool(false)) => settings.not_running_after = None,
+        Some(serde_json::Value::Bool(false)) => {
+            settings.not_running_after = None;
+            origin.not_running_after_from_file = true;
+        }
         Some(serde_json::Value::String(s)) => {
             settings.not_running_after = Some(parse_hhmm(&s).ok_or(INVALID)?);
+            origin.not_running_after_from_file = true;
         }
         Some(_) => return Err(INVALID),
     }
-    Ok(settings)
+    Ok((settings, origin))
 }
 
 pub const DEFAULT_REFRESH_MINUTES: u32 = 10;
@@ -1209,6 +1238,146 @@ mod tests {
             assert_eq!(load_todo_limit(&p).unwrap(), 3, "{block}");
             assert!(load_reminder_settings(&p).is_err(), "{block}");
         }
+    }
+
+    fn origin(long: bool, not_running: bool) -> ReminderOrigin {
+        ReminderOrigin {
+            long_running_from_file: long,
+            not_running_after_from_file: not_running,
+        }
+    }
+
+    #[test]
+    fn reminder_origin_missing_file_and_absent_block_are_not_set() {
+        let dir = tempfile::tempdir().unwrap();
+        let (s, o) = load_reminder_settings_detailed(&dir.path().join("settings.json")).unwrap();
+        assert_eq!(s, ReminderSettings::default());
+        assert_eq!(o, origin(false, false));
+        for text in [
+            r#"{"version":1,"spaces":{}}"#.to_string(),
+            reminders_text("null"),
+            reminders_text("{}"),
+            reminders_text(r#"{"longRunningHours":null,"notRunningAfter":null}"#),
+        ] {
+            let (s, o) = load_reminder_settings_detailed(&write(&dir, &text)).unwrap();
+            assert_eq!(s, ReminderSettings::default(), "{text}");
+            assert_eq!(o, origin(false, false), "{text}");
+        }
+    }
+
+    #[test]
+    fn reminder_origin_follows_each_field() {
+        let dir = tempfile::tempdir().unwrap();
+        let cases = [
+            (r#"{"longRunningHours":4}"#, origin(true, false)),
+            (r#"{"notRunningAfter":"08:15"}"#, origin(false, true)),
+            (
+                r#"{"longRunningHours":4,"notRunningAfter":null}"#,
+                origin(true, false),
+            ),
+            (
+                r#"{"longRunningHours":null,"notRunningAfter":"08:15"}"#,
+                origin(false, true),
+            ),
+            (
+                r#"{"longRunningHours":4,"notRunningAfter":"08:15"}"#,
+                origin(true, true),
+            ),
+        ];
+        for (block, want) in cases {
+            let (_, o) =
+                load_reminder_settings_detailed(&write(&dir, &reminders_text(block))).unwrap();
+            assert_eq!(o, want, "{block}");
+        }
+    }
+
+    #[test]
+    fn reminder_origin_false_counts_as_set_and_switches_off() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = reminders_text(r#"{"longRunningHours":false}"#);
+        let (s, o) = load_reminder_settings_detailed(&write(&dir, &text)).unwrap();
+        assert_eq!((s.long_running, s.not_running_after), (None, hm(9, 0)));
+        assert_eq!(o, origin(true, false));
+        let text = reminders_text(r#"{"notRunningAfter":false}"#);
+        let (s, o) = load_reminder_settings_detailed(&write(&dir, &text)).unwrap();
+        assert_eq!((s.long_running, s.not_running_after), (hours(10), None));
+        assert_eq!(o, origin(false, true));
+    }
+
+    #[test]
+    fn reminder_detailed_loader_agrees_with_the_plain_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let valid = [
+            r#"null"#,
+            r#"{}"#,
+            r#"{"longRunningHours":null,"notRunningAfter":null}"#,
+            r#"{"longRunningHours":false}"#,
+            r#"{"notRunningAfter":false}"#,
+            r#"{"longRunningHours":false,"notRunningAfter":false}"#,
+            r#"{"longRunningHours":1,"notRunningAfter":"00:00"}"#,
+            r#"{"longRunningHours":24,"notRunningAfter":"23:59"}"#,
+            r#"{"longRunningHours":7,"notRunningAfter":"09:30"}"#,
+        ];
+        for block in valid {
+            let p = write(&dir, &reminders_text(block));
+            assert_eq!(
+                load_reminder_settings_detailed(&p).unwrap().0,
+                load_reminder_settings(&p).unwrap(),
+                "{block}"
+            );
+        }
+        let invalid_blocks = [
+            r#"{"longRunningHours":0}"#,
+            r#"{"longRunningHours":25}"#,
+            r#"{"longRunningHours":true}"#,
+            r#"{"notRunningAfter":true}"#,
+            r#"{"notRunningAfter":"9:00"}"#,
+            r#"{"notRunningAfter":"24:00"}"#,
+            r#"{"extra":1}"#,
+            r#""10""#,
+        ];
+        for block in invalid_blocks {
+            let p = write(&dir, &reminders_text(block));
+            assert_eq!(
+                load_reminder_settings_detailed(&p),
+                Err(ReminderSettingsError::SettingsInvalid),
+                "{block}"
+            );
+            assert!(load_reminder_settings(&p).is_err(), "{block}");
+        }
+        for text in [
+            "{ not json",
+            r#"{"reminders":{"longRunningHours":5}}"#,
+            r#"{"version":2,"reminders":{"longRunningHours":5}}"#,
+        ] {
+            let p = write(&dir, text);
+            assert_eq!(
+                load_reminder_settings_detailed(&p),
+                Err(ReminderSettingsError::SettingsInvalid),
+                "{text}"
+            );
+        }
+        let p = dir.path().join("settings.json");
+        fs::write(&p, [0xFF, 0xFE, 0x00]).unwrap();
+        assert!(load_reminder_settings_detailed(&p).is_err());
+    }
+
+    #[test]
+    fn reminder_detailed_loader_strips_the_bom() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("settings.json");
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(reminders_text(r#"{"longRunningHours":3}"#).as_bytes());
+        fs::write(&p, bytes).unwrap();
+        let (s, o) = load_reminder_settings_detailed(&p).unwrap();
+        assert_eq!(s.long_running, hours(3));
+        assert_eq!(o, origin(true, false));
+    }
+
+    #[test]
+    fn reminder_error_serializes_as_a_tagged_kind() {
+        let json = serde_json::to_string(&ReminderSettingsError::SettingsInvalid).unwrap();
+        assert_eq!(json, r#"{"kind":"SettingsInvalid"}"#);
     }
 
     fn refresh_text(block: &str) -> String {

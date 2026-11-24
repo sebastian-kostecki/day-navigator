@@ -18,6 +18,20 @@ export type WorkTimeError =
   | { kind: "NotAWorkday" }
   | { kind: "Background" };
 
+/**
+ * Mirror of Rust `ReminderThresholds` (camelCase). `null` means that reminder
+ * is off; `fromFile` is true when `settings.json` set the field (a value or
+ * `false`).
+ */
+export interface ReminderThresholds {
+  longRunning: { hours: number | null; fromFile: boolean };
+  /** `time` is a zero-padded `HH:MM`. */
+  notRunningAfter: { time: string | null; fromFile: boolean };
+}
+
+/** Mirror of Rust `ReminderSettingsQueryError` (tag "kind", content "detail"). */
+export type ReminderSettingsError = { kind: "SettingsInvalid" } | { kind: "Background" };
+
 export interface RunningEntry {
   id: number;
   startMs: number;

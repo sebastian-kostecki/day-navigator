@@ -57,7 +57,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | F-05 | design-system-artifact-sync | (foundation) the design-system artifact matches the app                                 | F-04          | MS-16           | ready    |
 | S-01 | todo-add-from-sources       | add an item to "To do" with "+" from the GitLab and GitHub views                        | —             | FR-026, US-01   | done     |
 | S-02 | gitlab-new-and-hidden-date  | see a NEW flag on fresh GitLab items and the date a row was hidden                      | —             | FR-023          | done     |
-| S-03 | gitlab-filter-bar-retry     | see the active filter values and when GitLab will be tried again                        | F-01          | FR-024          | in-progress |
+| S-03 | gitlab-filter-bar-retry     | see the active filter values and when GitLab will be tried again                        | F-01          | FR-024          | done     |
 | S-04 | github-issue-labels         | see labels on GitHub issues                                                             | —             | FR-025          | done     |
 | S-05 | worktime-days-table         | see a table of the month's days against 8 h and mark days off there                     | F-01, F-02    | FR-020          | proposed |
 | S-06 | worktime-reminders-panel    | see the reminder thresholds and whether reminders are on                                | —             | FR-021          | ready    |
@@ -195,7 +195,7 @@ Foundations below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Filter values are work data (project names, labels); they may be shown in the UI but must not reach logs.
-- **Status:** in-progress
+- **Status:** done
 
 ### S-04: GitHub issue labels
 
@@ -364,3 +364,4 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **F-02: (foundation) one work-timer state in the UI feeds the header, the dashboard and "Work time" (one listener, one tick), with no change in behaviour or in Rust commands.** — Archived 2026-11-24 → `context/archive/2026-11-24-shared-work-timer-state/`. Lesson: —.
 - **S-04: user can see the labels of each GitHub issue as text in its row, as in GitLab.** — Archived 2026-11-24 → `context/archive/2026-11-24-github-issue-labels/`. Lesson: —.
 - **S-02: user can see a NEW flag on GitLab items that appeared since the last check, and the date next to hidden rows ("ukryte 18.11").** — Archived 2026-11-24 → `context/archive/2026-11-24-gitlab-new-and-hidden-date/`. Lesson: —.
+- **S-03: user can see the active filter values above the GitLab list with a link to settings, and in the "GitLab unavailable" card the refresh interval and when the next try happens.** — Archived 2026-11-24 → `context/archive/2026-11-24-gitlab-filter-bar-retry/`. Lesson: —.

@@ -11,6 +11,34 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-24
+
+### Added
+
+- Dashboard: a "Dziennik zdarzeń" panel under "Stan źródeł" lists today's
+  events: new GitLab assignments, ticking or removing "Do zrobienia" items,
+  START/STOP, and a source going into error and back.
+- "Czas pracy": a table of the month's days with entries, a bar against the
+  day's norm, the sum and the deviation. Today is highlighted, days off are
+  hatched, and a day off can be marked straight from the table.
+- "Czas pracy": a read-only "Przypomnienia" panel shows the reminder
+  thresholds, whether each one is on, and which values are defaults. An
+  "Ustawienia" button opens the settings file.
+- "Praca (GitLab)": a NOWE flag on items that appeared since the last visit,
+  and the date next to hidden rows ("ukryte 18.11").
+- "Praca (GitLab)": a FILTR bar shows the active filter values with a link to
+  the settings, and the "GitLab niedostępny" card shows the refresh interval
+  and when the next try happens.
+- "Projekty (GitHub)": each issue row shows its labels.
+- "Stan źródeł": the "Dane aplikacji" card shows the time of the last backup,
+  the number of kept backups, the schema version, and a button that opens the
+  backups folder.
+
+### Changed
+
+- The header, the dashboard and "Czas pracy" share one work-timer state, and
+  the views share common UI components. No change in behaviour.
+
 ## [0.2.1] - 2026-11-24
 
 ### Added

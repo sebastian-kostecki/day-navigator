@@ -11,8 +11,25 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-25
+
+### Added
+
+- "Praca (GitLab)": labels show as chips in their GitLab colours, with scoped
+  `key::value` labels split as in GitLab, on assigned, hidden and closed rows.
+- "Praca (GitLab)": "Projekty", "Etykiety" and "Kamienie milowe" lists with
+  counts narrow the list inside the view. Clicking a label chip or a project
+  in a row toggles it, active choices show as removable chips with
+  "Wyczyść", and they last until the app closes. The `settings.json` filter
+  still applies first.
+
 ### Changed
 
+- The window has a dark title bar, starts in the app's background colour
+  instead of white, and opens centred on first start.
+- The app sets a Content Security Policy (only its own files and the
+  backend) and freezes `Object.prototype` against prototype pollution.
+- The entry in Windows Settings > Apps links to the project repository.
 - The project is open source under the MIT license (`LICENSE`). The README
   has a contributing section, and `Cargo.toml` and `package.json` declare the
   license.

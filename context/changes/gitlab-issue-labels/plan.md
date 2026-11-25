@@ -353,8 +353,8 @@ Bez migracji bazy. Rekordy ukrytych przechowują nazwy etykiet scoped, a te się
 
 #### Automated
 
-- [x] 3.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [x] 3.2 Pełny zestaw bramek Rust z AGENTS.md zielony
+- [x] 3.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą — 584f64d
+- [x] 3.2 Pełny zestaw bramek Rust z AGENTS.md zielony — 584f64d
 
 #### Manual
 

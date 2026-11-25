@@ -16,7 +16,10 @@
         "height": 800,
         "minWidth": 800,
         "minHeight": 600,
-        "visible": false
+        "visible": false,
+        "theme": "Dark",
+        "backgroundColor": "#0f1115",
+        "center": true
       }
     ],
     "security": {
@@ -27,6 +30,7 @@
     "active": true,
     "targets": ["nsis"],
     "copyright": "© 2026 Sebastian Kostecki",
+    "homepage": "https://github.com/sebastian-kostecki/day-navigator",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

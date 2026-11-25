@@ -1,10 +1,10 @@
 ---
 change_id: gitlab-issue-labels
 title: GitLab label chips in GitLab colours and list filters by project and label
-status: impl_reviewed
+status: archived
 created: 2026-11-25
 updated: 2026-11-25
-archived_at: null
+archived_at: 2026-11-25T07:56:06Z
 ---
 
 ## Notes

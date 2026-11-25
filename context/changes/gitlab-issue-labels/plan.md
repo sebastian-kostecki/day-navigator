@@ -37,6 +37,7 @@ Weryfikacja: bramki z AGENTS.md są zielone, a ręczny przegląd na prawdziwym G
 ## What We're NOT Doing
 
 - Zmiany filtra z `settings.json` (`gitlabFilter`), jego reguł w Rust i paska `GitlabFilterBar` poza zmianą podpisu na „Filtr z ustawień”.
+- Opisu ustawień wewnątrz aplikacji: docs to README na GitHubie, a aplikacja tylko do niego linkuje.
 - Zapisu wyborów filtra widoku na dysk (ustawienia, baza) i migracji bazy.
 - Filtrowania powiadomień, „Do zrobienia”, pickera, śledzenia ukrytych i licznika w nagłówku widoku. Filtr widoku zmienia tylko to, co widać w tabelach.
 - Wyszukiwania po tytule, filtrów po flagach (nowe / zmienione / draft), opcji „bez kamienia” i „bez etykiet” oraz przełącznika LUB/I.
@@ -237,7 +238,15 @@ Stan listy (typ, „Pokaż ukryte”, wybory filtra) przenosi się do kontekstu 
 
 **Contract**: Chipy w kolumnie etykiet dostają `onToggle={() => toggle("labels", name)}`, `pressed` i `toggleLabel="Filtruj po etykiecie: <nazwa>"`. Komórka projektu staje się `button.link-button` z `aria-pressed`, `title` = pełna ścieżka i `aria-label="Filtruj po projekcie: <ścieżka>"`, przełączając `toggle("projects", path)`. Tytuł dalej otwiera pozycję w GitLabie.
 
-#### 7. Konwencja w AGENTS.md
+#### 7. Link do dokumentacji ustawień
+
+**Files**: `src/gitlab/GitlabFilterBar.tsx`, `src/gitlab/api.ts`, `README.md`
+
+**Intent**: Kto chce zmienić filtr z `settings.json`, znajduje opis ustawień jednym klikiem. Docs ustawień zostają w README na GitHubie (sekcja „Configuration”), a aplikacja tylko do nich linkuje. Nie powstaje drugi opis ustawień w aplikacji.
+
+**Contract**: Stała `SETTINGS_DOCS_URL = "https://github.com/sebastian-kostecki/day-navigator#configuration"` w `src/gitlab/api.ts` i `openSettingsDocs()` przez `openUrl` z `@tauri-apps/plugin-opener` (jak `openGitlabItem`), bez adresu z danych. W `GitlabFilterBar` obok przycisku otwierającego `settings.json` stoi przycisk „Dokumentacja ustawień”, a błąd otwarcia pokazuje się tak jak błąd otwarcia pliku. Sprawdzić, czy `capabilities/default.json` pozwala pluginowi opener otworzyć ten adres; dodać uprawnienie tylko, jeśli go brakuje. README zostaje źródłem opisu: sekcja „Configuration” dostaje zdanie, że filtr widoku nie jest w `settings.json` i działa do zamknięcia aplikacji.
+
+#### 8. Konwencja w AGENTS.md
 
 **File**: `AGENTS.md`
 
@@ -254,6 +263,7 @@ Stan listy (typ, „Pokaż ukryte”, wybory filtra) przenosi się do kontekstu 
 
 #### Manual Verification:
 
+- „Dokumentacja ustawień” w pasku filtra z ustawień otwiera sekcję „Configuration” README na GitHubie w przeglądarce
 - Wybór dwóch etykiet pokazuje pozycje z jedną LUB drugą; dodanie projektu zawęża do pozycji z tego projektu z którąkolwiek z tych etykiet
 - Kamień milowy w filtrze ukrywa pozycje bez kamienia i z innym kamieniem
 - Klik w chip etykiety lub w nazwę projektu w wierszu przełącza wartość, a stan wciśnięty i licznik na przycisku się zgadzają; klik w tytuł dalej otwiera GitLaba
@@ -329,8 +339,8 @@ Bez migracji bazy. Rekordy ukrytych przechowują nazwy etykiet scoped, a te się
 
 #### Automated
 
-- [x] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [x] 2.2 Brak literalnych kolorów poza `tokens.css`
+- [x] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą — 78996ff
+- [x] 2.2 Brak literalnych kolorów poza `tokens.css` — 78996ff
 
 #### Manual
 
@@ -343,8 +353,8 @@ Bez migracji bazy. Rekordy ukrytych przechowują nazwy etykiet scoped, a te się
 
 #### Automated
 
-- [ ] 3.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 3.2 Pełny zestaw bramek Rust z AGENTS.md zielony
+- [x] 3.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 3.2 Pełny zestaw bramek Rust z AGENTS.md zielony
 
 #### Manual
 
@@ -356,3 +366,4 @@ Bez migracji bazy. Rekordy ukrytych przechowują nazwy etykiet scoped, a te się
 - [ ] 3.8 Stan przeżywa zmianę zakładki, restart go czyści
 - [ ] 3.9 Lista wyboru: Escape, klik poza, klawiatura, zniknięta wartość z licznikiem 0
 - [ ] 3.10 „Do zrobienia” i powiadomienia bez zmian
+- [ ] 3.11 „Dokumentacja ustawień” otwiera README (sekcja „Configuration”) na GitHubie

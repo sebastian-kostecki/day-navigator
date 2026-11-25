@@ -120,9 +120,6 @@ The app reads it and never changes it. Every block is optional. The **Czas pracy
 
 An invalid block is reported in the **Źródła** view and does not affect the other blocks.
 
-The GitLab view's own filter (the one set in the view) is not stored in `settings.json`; it
-lasts until the app is closed. The `gitlabFilter` block above is the saved default.
-
 ## Development
 
 Prerequisites: [Node.js](https://nodejs.org/) with npm, and Rust 1.90 or newer. See also the

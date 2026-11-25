@@ -22,15 +22,6 @@ export function openGitlabItem(url: string): Promise<void> {
   return openUrl(url);
 }
 
-/** Settings docs live in the README on GitHub; the app only links to them. */
-export const SETTINGS_DOCS_URL =
-  "https://github.com/sebastian-kostecki/day-navigator#configuration";
-
-/** Opens the settings documentation in the default browser. */
-export function openSettingsDocs(): Promise<void> {
-  return openUrl(SETTINGS_DOCS_URL);
-}
-
 /** Hides an issue of the current list; the new snapshot arrives as a `gitlab-changed` event. */
 export function hideGitlabIssue(id: number): Promise<void> {
   return invoke<void>("hide_gitlab_issue", { id });

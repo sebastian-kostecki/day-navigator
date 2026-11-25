@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button, Chip, Notice, plural } from "../components";
-import { openSettingsDocs, openSettingsErrorMessage, openSettingsFile } from "./api";
+import { openSettingsErrorMessage, openSettingsFile } from "./api";
 import type { FilterRule, GitlabFilterValues } from "./types";
 
 function ruleHasValues(rule: FilterRule): boolean {
@@ -48,11 +48,6 @@ export function GitlabFilterBar({ filter }: { filter: GitlabFilterValues }) {
     openSettingsFile().catch((e: unknown) => setOpenError(openSettingsErrorMessage(e)));
   };
 
-  const openDocs = () => {
-    setOpenError(null);
-    openSettingsDocs().catch(() => setOpenError("Nie udało się otworzyć dokumentacji ustawień."));
-  };
-
   return (
     <div className="gitlab-filter" role="region" aria-label="Aktywny filtr">
       <div className="gitlab-filter-bar">
@@ -74,15 +69,6 @@ export function GitlabFilterBar({ filter }: { filter: GitlabFilterValues }) {
           onClick={openSettings}
         >
           Ustawienia
-        </Button>
-        <Button
-          variant="quiet"
-          size="sm"
-          icon="external"
-          title="Otwórz opis ustawień w przeglądarce"
-          onClick={openDocs}
-        >
-          Dokumentacja ustawień
         </Button>
       </div>
       {openError && <Notice tone="error">{openError}</Notice>}

@@ -51,7 +51,7 @@ export function GitlabFilterBar({ filter }: { filter: GitlabFilterValues }) {
   return (
     <div className="gitlab-filter" role="region" aria-label="Aktywny filtr">
       <div className="gitlab-filter-bar">
-        <span className="meta">Filtr</span>
+        <span className="meta">Filtr z ustawień</span>
         <FilterDimension label="Projekty" rule={filter.projects} />
         <FilterDimension label="Etykiety" rule={filter.labels} />
         <FilterDimension label="Kamienie milowe" rule={filter.milestones} />

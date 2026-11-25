@@ -11,7 +11,7 @@ use chrono::NaiveDate;
 use common::crash::{KillAt, MAX_WRITER_COMMITS, WRITER_DIR_ENV, run_writer_until};
 use common::test_store_dir;
 use day_navigator_lib::cli::GitlabHost;
-use day_navigator_lib::gitlab::{ChangeReason, GitlabItem, ItemKind};
+use day_navigator_lib::gitlab::{ChangeReason, GitlabItem, GitlabLabel, ItemKind};
 use day_navigator_lib::hidden_issues::{self, Transition};
 use day_navigator_lib::store::{Store, StoreError, schema};
 
@@ -26,8 +26,15 @@ fn host() -> GitlabHost {
     GitlabHost::parse("gitlab.example.invalid").unwrap()
 }
 
-fn labels(n: u64) -> Vec<String> {
-    vec![format!("workflow::step{}", n % 5), format!("plain{n}")]
+fn labels(n: u64) -> Vec<GitlabLabel> {
+    [format!("workflow::step{}", n % 5), format!("plain{n}")]
+        .into_iter()
+        .map(|name| GitlabLabel {
+            name,
+            color: None,
+            text_color: None,
+        })
+        .collect()
 }
 
 fn updated(n: u64) -> String {

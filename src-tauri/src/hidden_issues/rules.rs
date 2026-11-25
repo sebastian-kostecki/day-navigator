@@ -77,11 +77,11 @@ pub enum Transition {
 }
 
 /// Labels containing `::`, sorted and deduplicated.
-pub fn scoped_labels(labels: &[String]) -> Vec<String> {
-    let mut out: Vec<String> = labels
-        .iter()
+pub fn scoped_labels<'a>(names: impl IntoIterator<Item = &'a str>) -> Vec<String> {
+    let mut out: Vec<String> = names
+        .into_iter()
         .filter(|l| l.contains("::"))
-        .cloned()
+        .map(str::to_string)
         .collect();
     out.sort();
     out.dedup();
@@ -90,7 +90,7 @@ pub fn scoped_labels(labels: &[String]) -> Vec<String> {
 
 /// The scoped label set differs from the one stored at hide time.
 pub fn status_changed(record: &HiddenRecord, item: &GitlabItem) -> bool {
-    record.scoped_labels != scoped_labels(&item.labels)
+    record.scoped_labels != scoped_labels(item.label_names())
 }
 
 /// The listed `updated_at` is strictly later than the baseline. Unreadable

@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useMemo } from "react";
 import {
   Button,
+  Chip,
   DataTable,
   DataTableCell,
   DataTableRow,
   Flag,
+  LabelChip,
+  MultiSelect,
   Notice,
   Panel,
   RELATIVE_TICK_MS,
@@ -27,6 +30,15 @@ import { openGitlabItem } from "./api";
 import { GitlabFilterBar } from "./GitlabFilterBar";
 import type { ChangeReason, ClosedSection, GitlabItem, GitlabSnapshot } from "./types";
 import { useGitlab } from "./useGitlab";
+import { useGitlabListView, type KindFilter } from "./useGitlabListView";
+import {
+  isSelectionActive,
+  matchesView,
+  splitReference,
+  viewOptions,
+  type ViewDimension,
+  type ViewSelection,
+} from "./viewFilter";
 import "./GitlabView.css";
 
 function formatUpdated(iso: string): string {
@@ -39,14 +51,6 @@ function formatChange(iso: string, now: number): string {
   const ms = Date.parse(iso);
   if (Number.isNaN(ms)) return "—";
   return formatAge(ms, now) === "dziś" ? formatAgo(ms, now) : formatAge(ms, now);
-}
-
-/** `group/sub/project#12` → nr `#12`, project `project`, path `group/sub/project`. */
-function splitReference(reference: string): { nr: string; project: string; path: string } {
-  const at = Math.max(reference.lastIndexOf("#"), reference.lastIndexOf("!"));
-  if (at <= 0) return { nr: reference, project: "", path: "" };
-  const path = reference.slice(0, at);
-  return { nr: reference.slice(at), project: path.slice(path.lastIndexOf("/") + 1), path };
 }
 
 /** Newest first, ties by reference: the order the backend uses inside each list. */
@@ -75,8 +79,6 @@ function retryText(
   if (left <= 0) return `${every} — następna próba lada chwila.`;
   return `${every} — następna próba za ${Math.ceil(left / 60_000)} min (${formatClock(nextRefreshAtMs)}).`;
 }
-
-type KindFilter = "all" | "issue" | "mergeRequest";
 
 const KIND_OPTIONS = [
   { value: "all", label: "Wszystko" },
@@ -166,11 +168,12 @@ function GitlabRow({
   actions?: RowActions;
 }) {
   const { item, hidden = false } = row;
+  const { selection, toggle } = useGitlabListView();
   const todoFound = actions?.todo.find(gitlabKey(item.kind, item.reference));
   const at = row.at ?? item.updatedAt;
   const { nr, project, path } = splitReference(item.reference);
   const url = item.webUrl;
-  const labels = item.labels.join(", ");
+  const labels = item.labels.map((l) => l.name).join(", ");
   return (
     <DataTableRow className={hidden ? "gitlab-row is-hidden" : "gitlab-row"}>
       <DataTableCell>
@@ -207,16 +210,34 @@ function GitlabRow({
         {item.draft && <Flag tone="change">Draft</Flag>}
         {todoFound && <Flag tone="change">W Do zrobienia</Flag>}
       </DataTableCell>
-      <DataTableCell tone="muted" truncate className="gitlab-col-project" title={path || undefined}>
-        {project}
+      <DataTableCell tone="muted" truncate className="gitlab-col-project">
+        {path ? (
+          <button
+            type="button"
+            className="link-button gitlab-project-btn"
+            aria-pressed={selection.projects.includes(path)}
+            title={path}
+            aria-label={`Filtruj po projekcie: ${path}`}
+            onClick={() => toggle("projects", path)}
+          >
+            {project}
+          </button>
+        ) : (
+          project
+        )}
       </DataTableCell>
-      <DataTableCell
-        tone="faint"
-        truncate
-        className="gitlab-col-labels code"
-        title={labels || undefined}
-      >
-        {labels}
+      <DataTableCell tone="faint" className="gitlab-col-labels" title={labels || undefined}>
+        {item.labels.map((l) => (
+          <LabelChip
+            key={l.name}
+            name={l.name}
+            color={l.color}
+            textColor={l.textColor}
+            pressed={selection.labels.includes(l.name)}
+            onToggle={() => toggle("labels", l.name)}
+            toggleLabel={`Filtruj po etykiecie: ${l.name}`}
+          />
+        ))}
       </DataTableCell>
       <DataTableCell tone="faint" className="gitlab-col-when code" title={formatUpdated(at)}>
         {formatChange(at, now)}
@@ -288,8 +309,24 @@ function GitlabTable({
   );
 }
 
-function filteredNote(count: number): string | undefined {
-  return count > 0 ? `Ukryte filtrem: ${count}` : undefined;
+/** "Ukryte filtrem" (settings) and "Poza filtrem widoku" (toolbar); zero parts are left out. */
+function footerNote(filteredOut: number, outByView: number): string | undefined {
+  const parts = [
+    filteredOut > 0 ? `Ukryte filtrem: ${filteredOut}` : null,
+    outByView > 0 ? `Poza filtrem widoku: ${outByView}` : null,
+  ].filter((p) => p !== null);
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
+function ViewEmpty({ onClear }: { onClear: () => void }) {
+  return (
+    <div className="gitlab-view-empty">
+      <p className="dn-empty">Brak pozycji pasujących do filtra widoku.</p>
+      <Button size="sm" variant="quiet" onClick={onClear}>
+        Wyczyść filtr widoku
+      </Button>
+    </div>
+  );
 }
 
 function emptyText(kind: KindFilter, filterActive: boolean): string {
@@ -309,24 +346,32 @@ function emptyText(kind: KindFilter, filterActive: boolean): string {
 function ClosedBlock({
   closed,
   kind,
+  selection,
+  clear,
   now,
 }: {
   closed: ClosedSection;
   kind: KindFilter;
+  selection: ViewSelection;
+  clear: () => void;
   now: number;
 }) {
   const oneDay = closed.days === 1;
-  const items = closed.items.filter((i) => matchesKind(i, kind));
+  const ofKind = closed.items.filter((i) => matchesKind(i, kind));
+  const items = ofKind.filter((i) => matchesView(i, selection));
+  const viewEmpty = items.length === 0 && ofKind.length > 0 && isSelectionActive(selection);
   return (
     <Panel
       title={oneDay ? "Zamknięte (ostatni dzień)" : `Zamknięte (ostatnie ${closed.days} dni)`}
       meta={closed.error ? undefined : items.length}
-      footer={filteredNote(closed.filteredOut)}
+      footer={footerNote(closed.filteredOut, ofKind.length - items.length)}
     >
       {closed.error ? (
         <Notice tone="warn" inset>
           {closed.error}
         </Notice>
+      ) : viewEmpty ? (
+        <ViewEmpty onClear={clear} />
       ) : items.length === 0 ? (
         <p className="dn-empty">
           {oneDay
@@ -345,49 +390,121 @@ function ClosedBlock({
   );
 }
 
-/** UI-only list state, kept in the view so it survives the list being hidden offline. */
-type ListView = {
-  kind: KindFilter;
-  setKind: (kind: KindFilter) => void;
-  showHidden: boolean;
-  setShowHidden: (update: (on: boolean) => boolean) => void;
-};
+/** The active view-filter values with a way to drop each one or all of them. */
+function ViewFilterRow({
+  selection,
+  toggle,
+  clear,
+}: {
+  selection: ViewSelection;
+  toggle: (dimension: ViewDimension, value: string) => void;
+  clear: () => void;
+}) {
+  const groups: { dimension: ViewDimension; values: string[] }[] = [
+    { dimension: "projects", values: selection.projects },
+    { dimension: "labels", values: selection.labels },
+    { dimension: "milestones", values: selection.milestones },
+  ];
+  return (
+    <div className="gitlab-view-filter" role="region" aria-label="Filtr widoku">
+      <span className="meta">Filtr widoku:</span>
+      {groups.flatMap(({ dimension, values }) =>
+        values.map((value) => (
+          <span key={`${dimension}:${value}`} className="gitlab-view-chip" title={value}>
+            <Chip>{value}</Chip>
+            <Button
+              variant="quiet"
+              size="sm"
+              iconOnly
+              icon="close"
+              aria-label={`Usuń z filtra widoku: ${value}`}
+              onClick={() => toggle(dimension, value)}
+            />
+          </span>
+        )),
+      )}
+      <Button variant="quiet" size="sm" onClick={clear}>
+        Wyczyść
+      </Button>
+    </div>
+  );
+}
 
 function Lists({
   snapshot,
   stale,
   actions,
   now,
-  view,
 }: {
   snapshot: GitlabSnapshot & { items: NonNullable<GitlabSnapshot["items"]> };
   stale: boolean;
   actions: RowActions;
   now: number;
-  view: ListView;
 }) {
-  const { kind, setKind, showHidden, setShowHidden } = view;
+  const { kind, setKind, showHidden, setShowHidden, selection, toggle, clear } =
+    useGitlabListView();
   const { items, filterActive, filteredOut, closed } = snapshot;
 
-  const visible = [...items.mergeRequests, ...items.issues]
+  const options = useMemo(
+    () =>
+      viewOptions(
+        [...items.mergeRequests, ...items.issues, ...items.hiddenIssues, ...(closed?.items ?? [])],
+        selection,
+      ),
+    [items, closed, selection],
+  );
+
+  const viewActive = isSelectionActive(selection);
+  const ofKind = [...items.mergeRequests, ...items.issues]
     .filter((i) => matchesKind(i, kind))
     .sort(byUpdated);
-  const hidden = showHidden ? items.hiddenIssues.filter((i) => matchesKind(i, kind)) : [];
+  const hiddenOfKind = showHidden ? items.hiddenIssues.filter((i) => matchesKind(i, kind)) : [];
+  const visible = ofKind.filter((i) => matchesView(i, selection));
+  const hidden = hiddenOfKind.filter((i) => matchesView(i, selection));
   const rows: TableRow[] = [
     ...visible.map((item) => ({ item })),
     ...hidden.map((item) => ({ item, hidden: true })),
   ];
+  const beforeView = ofKind.length + hiddenOfKind.length;
+  const outByView = beforeView - rows.length;
   const outByFilter =
     (kind !== "issue" ? filteredOut.mergeRequests : 0) +
     (kind !== "mergeRequest" ? filteredOut.issues : 0) +
     (showHidden && kind !== "mergeRequest" ? filteredOut.hiddenIssues : 0);
   const hiddenCount = items.hiddenIssues.length;
 
+  const adorned = options.labels.map((o) => ({
+    value: o.value,
+    count: o.count,
+    adornment: <LabelChip name={o.value} color={o.color ?? null} textColor={o.textColor ?? null} />,
+  }));
+
   return (
     <div className={stale ? "gitlab-lists is-stale" : "gitlab-lists"}>
       <GitlabFilterBar filter={snapshot.filter} />
       <div className="gitlab-toolbar">
         <h2 className="dn-sr-only">Przypisane</h2>
+        <MultiSelect
+          label="Projekty"
+          options={options.projects}
+          selected={selection.projects}
+          onToggle={(v) => toggle("projects", v)}
+          emptyText="Brak projektów"
+        />
+        <MultiSelect
+          label="Etykiety"
+          options={adorned}
+          selected={selection.labels}
+          onToggle={(v) => toggle("labels", v)}
+          emptyText="Brak etykiet"
+        />
+        <MultiSelect
+          label="Kamienie milowe"
+          options={options.milestones}
+          selected={selection.milestones}
+          onToggle={(v) => toggle("milestones", v)}
+          emptyText="Brak kamieni milowych"
+        />
         <span className="dn-spacer" />
         <Segmented
           label="Typ"
@@ -405,10 +522,15 @@ function Lists({
           Pokaż ukryte ({hiddenCount})
         </Button>
       </div>
+      {viewActive && <ViewFilterRow selection={selection} toggle={toggle} clear={clear} />}
       <div className="gitlab-main">
-        <Panel footer={filteredNote(outByFilter)}>
+        <Panel footer={footerNote(outByFilter, outByView)}>
           {rows.length === 0 ? (
-            <p className="dn-empty">{emptyText(kind, filterActive)}</p>
+            viewActive && beforeView > 0 ? (
+              <ViewEmpty onClear={clear} />
+            ) : (
+              <p className="dn-empty">{emptyText(kind, filterActive)}</p>
+            )
           ) : (
             <GitlabTable label="Przypisane z GitLaba" rows={rows} now={now} actions={actions} />
           )}
@@ -422,7 +544,9 @@ function Lists({
           albo zgłoszenie wróci na listę po zniknięciu z niej.
         </p>
       </div>
-      {closed && <ClosedBlock closed={closed} kind={kind} now={now} />}
+      {closed && (
+        <ClosedBlock closed={closed} kind={kind} selection={selection} clear={clear} now={now} />
+      )}
     </div>
   );
 }
@@ -441,8 +565,6 @@ export function GitlabView() {
     dismiss,
   } = useGitlab();
   const todo = useTodoPicks();
-  const [kind, setKind] = useState<KindFilter>("all");
-  const [showHidden, setShowHidden] = useState(false);
   const now = useNow(RELATIVE_TICK_MS);
 
   if (loadError) {
@@ -578,7 +700,6 @@ export function GitlabView() {
           stale={state.state !== "ok"}
           actions={actions}
           now={nowMs}
-          view={{ kind, setKind, showHidden, setShowHidden }}
         />
       )}
       {refreshError && (

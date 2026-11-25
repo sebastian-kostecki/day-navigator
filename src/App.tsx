@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AppHeader } from "./components";
+import { GitlabListViewProvider } from "./gitlab/GitlabListViewProvider";
 import { GitlabView } from "./gitlab/GitlabView";
 import { useGitlabSeenMark } from "./gitlab/useGitlabSeenMark";
 import { GithubView } from "./github/GithubView";
@@ -69,12 +70,14 @@ function App() {
       >
         <WorkTimerHeader />
       </AppHeader>
-      {view === "todo" && <TodoView />}
-      {view === "gitlab" && <GitlabView />}
-      {view === "github" && <GithubView />}
-      {view === "tasks" && <OwnTasksView />}
-      {view === "work-time" && <WorkTimeView />}
-      {view === "health" && <HealthPanel />}
+      <GitlabListViewProvider>
+        {view === "todo" && <TodoView />}
+        {view === "gitlab" && <GitlabView />}
+        {view === "github" && <GithubView />}
+        {view === "tasks" && <OwnTasksView />}
+        {view === "work-time" && <WorkTimeView />}
+        {view === "health" && <HealthPanel />}
+      </GitlabListViewProvider>
     </WorkTimerProvider>
   );
 }

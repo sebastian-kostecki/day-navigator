@@ -15,7 +15,7 @@ use chrono::Local;
 use common::test_store_dir;
 use day_navigator_lib::cli::{CliRunner, GitlabConfig, GitlabHost, GitlabUser};
 use day_navigator_lib::gitlab::fetch::fetch_assigned;
-use day_navigator_lib::gitlab::{AssignedItems, ChangeReason};
+use day_navigator_lib::gitlab::{AssignedItems, ChangeReason, GitlabLabel};
 use day_navigator_lib::hidden_issues::{
     self, HiddenIssueError, HiddenRecord, RoundOutcome, SETTLE_MS, check_round, commit_round,
 };
@@ -89,7 +89,14 @@ impl Env {
     fn hide(&self, full: &AssignedItems, id: u64, labels: &[&str], updated: &str) {
         let mut item = full.issues.iter().find(|i| i.id == id).unwrap().clone();
         item.updated_at = updated.to_string();
-        item.labels = labels.iter().map(|l| l.to_string()).collect();
+        item.labels = labels
+            .iter()
+            .map(|l| GitlabLabel {
+                name: l.to_string(),
+                color: None,
+                text_color: None,
+            })
+            .collect();
         self.store
             .with_store(Self::today(), |s| {
                 hidden_issues::hide(s, &host(), &item, NOW)
@@ -217,7 +224,12 @@ fn two_due_issues_and_notes_unavailable_run_one_call_and_fail_two_checks() {
     let cfg = config(Some("invented.user"));
     let runner = env.runner("gitlab-notes-unavailable");
     let full = fetch(&runner, &cfg);
-    env.hide(&full, GIZMO, &[], "2026-02-19T08:00:00.000Z");
+    env.hide(
+        &full,
+        GIZMO,
+        &["workflow::doing"],
+        "2026-02-19T08:00:00.000Z",
+    );
     env.hide(&full, WIDGET, &[], OLD);
 
     let out = round(&env, &runner, &cfg, &full);
@@ -309,7 +321,12 @@ fn a_call_that_keeps_failing_does_not_starve_the_checks_after_it() {
     // GIZMO's notes call is unreachable every time; WIDGET has another's comment.
     let runner = env.runner("gitlab-notes-one-unavailable");
     let full = fetch(&runner, &cfg);
-    env.hide(&full, GIZMO, &[], "2026-02-19T08:00:00.000Z");
+    env.hide(
+        &full,
+        GIZMO,
+        &["workflow::doing"],
+        "2026-02-19T08:00:00.000Z",
+    );
     env.hide(&full, WIDGET, &[], OLD);
 
     // First round: GIZMO comes first, fails and stops the round.

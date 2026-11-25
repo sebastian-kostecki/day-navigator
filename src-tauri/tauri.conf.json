@@ -16,17 +16,22 @@
         "height": 800,
         "minWidth": 800,
         "minHeight": 600,
-        "visible": false
+        "visible": false,
+        "theme": "Dark",
+        "backgroundColor": "#0f1115",
+        "center": true
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+      "freezePrototype": true
     }
   },
   "bundle": {
     "active": true,
     "targets": ["nsis"],
     "copyright": "© 2026 Sebastian Kostecki",
+    "homepage": "https://github.com/sebastian-kostecki/day-navigator",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

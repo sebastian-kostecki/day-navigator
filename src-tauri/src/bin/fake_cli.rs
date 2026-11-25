@@ -85,6 +85,18 @@ fn endpoint() -> Endpoint {
     Endpoint::Other
 }
 
+/// A label as GitLab sends it with `with_labels_details=true`. Invented values;
+/// a colour may be deliberately invalid.
+fn label_value(id: u64, name: &str, color: &str, text_color: &str) -> serde_json::Value {
+    serde_json::json!({
+        "id": id,
+        "name": name,
+        "color": color,
+        "text_color": text_color,
+        "description": "Invented label description"
+    })
+}
+
 /// The assigned issues of the fake GitLab, in list order.
 fn issue_values() -> Vec<serde_json::Value> {
     vec![
@@ -95,7 +107,10 @@ fn issue_values() -> Vec<serde_json::Value> {
             "title": "Gizmo jitters",
             "web_url": "https://gitlab.example.invalid/acme/gizmo/-/issues/5",
             "updated_at": "2026-02-20T08:00:00.000Z",
-            "labels": ["bug"],
+            "labels": [
+                label_value(1, "bug", "#d9534f", "#FFFFFF"),
+                label_value(2, "workflow::doing", "#5843AD", "#FFFFFF")
+            ],
             "references": { "full": "acme/gizmo#5" }
         }),
         serde_json::json!({
@@ -105,7 +120,7 @@ fn issue_values() -> Vec<serde_json::Value> {
             "title": "Widget crashes on start",
             "web_url": "https://gitlab.example.invalid/acme/widgets/-/issues/12",
             "updated_at": "2026-03-03T08:00:00.000Z",
-            "labels": [],
+            "labels": [label_value(3, "needs-triage", "red", "#FFFFFF")],
             "references": { "full": "acme/widgets#12" }
         }),
     ]
@@ -207,7 +222,9 @@ fn gitlab_closed_body(endpoint: &Endpoint) -> Option<String> {
     Some(body.to_string())
 }
 
-/// Invented assigned items on `gitlab.example.invalid`: a draft MR with labels,
+/// Invented assigned items on `gitlab.example.invalid`: a draft MR whose labels
+/// are bare names (the older response shape), issues whose labels are detailed
+/// objects (one scoped label, one invalid colour),
 /// a tie on `updated_at`, an MR with a link on a foreign host. With `paged`,
 /// the issues come as two concatenated arrays (`[...][...]`), as `glab api
 /// --paginate` prints them.

@@ -1,0 +1,67 @@
+.dn-multiselect {
+  position: relative;
+  display: inline-block;
+}
+
+.dn-multiselect-btn {
+  font: inherit;
+  min-height: var(--size-control);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.dn-multiselect-btn.is-active {
+  border-color: var(--accent);
+  color: var(--ink-strong);
+}
+
+.dn-multiselect-btn:disabled {
+  color: var(--ink-disabled);
+  cursor: default;
+}
+
+.dn-multiselect-panel {
+  position: absolute;
+  top: calc(100% + var(--space-1));
+  left: 0;
+  /* Below the sticky .dn-header (z-index 10) so the panel never paints over it. */
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 100%;
+  width: max-content;
+  max-width: 360px;
+  max-height: 320px;
+  padding: var(--space-1);
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.dn-multiselect-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.dn-multiselect-option:hover {
+  background: var(--surface-active);
+}
+
+.dn-multiselect-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

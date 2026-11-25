@@ -9,7 +9,7 @@ use day_navigator_lib::cli::{
 };
 use day_navigator_lib::gitlab::fetch::{fetch_assigned, fetch_issue_notes, fetch_recently_closed};
 use day_navigator_lib::gitlab::notes::IssueNote;
-use day_navigator_lib::gitlab::{GitlabError, ItemKind};
+use day_navigator_lib::gitlab::{GitlabError, GitlabLabel, ItemKind};
 
 const MARKER: &str = "LEAK-MARKER-TITLE-7c1e";
 
@@ -58,12 +58,46 @@ fn assigned_data_is_parsed_sorted_and_foreign_urls_are_dropped() {
     let widget = &got.merge_requests[1];
     assert_eq!(widget.title, "Add widget parser");
     assert!(widget.draft);
-    assert_eq!(widget.labels, ["backend", "review"]);
+    // Bare-name labels (an older response shape) carry no colours.
+    assert_eq!(
+        widget.labels,
+        ["backend", "review"].map(|name| GitlabLabel {
+            name: name.to_string(),
+            color: None,
+            text_color: None,
+        })
+    );
     assert_eq!(
         widget.web_url.as_deref(),
         Some("https://gitlab.example.invalid/acme/widgets/-/merge_requests/34")
     );
     assert!(!got.merge_requests[0].draft);
+
+    // Detailed labels: validated lowercase colours, or none when one is invalid.
+    let gizmo = &got.issues[1];
+    assert_eq!(
+        gizmo.labels,
+        [
+            GitlabLabel {
+                name: "bug".into(),
+                color: Some("#d9534f".into()),
+                text_color: Some("#ffffff".into()),
+            },
+            GitlabLabel {
+                name: "workflow::doing".into(),
+                color: Some("#5843ad".into()),
+                text_color: Some("#ffffff".into()),
+            },
+        ]
+    );
+    assert_eq!(
+        got.issues[0].labels,
+        [GitlabLabel {
+            name: "needs-triage".into(),
+            color: None,
+            text_color: None,
+        }]
+    );
 
     // The link on another host is not kept.
     assert!(got.merge_requests[2].web_url.is_none());

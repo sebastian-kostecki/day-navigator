@@ -207,27 +207,27 @@ fn gitlab_calls_with_a_user_pass_exactly_these_arguments() {
     let cases = [
         (
             CliCall::GlabRecentlyClosedIssues(host.clone(), Some(user.clone()), after),
-            "issues?scope=all&state=closed&assignee_username=invented.user&updated_after=2026-03-01&per_page=100",
+            "issues?scope=all&state=closed&assignee_username=invented.user&updated_after=2026-03-01&with_labels_details=true&per_page=100",
         ),
         (
             CliCall::GlabRecentlyClosedMergeRequests(host.clone(), None, after),
-            "merge_requests?scope=assigned_to_me&state=all&updated_after=2026-03-01&per_page=100",
+            "merge_requests?scope=assigned_to_me&state=all&updated_after=2026-03-01&with_labels_details=true&per_page=100",
         ),
         (
             CliCall::GlabAssignedIssues(host.clone(), Some(user.clone())),
-            "issues?scope=all&state=opened&assignee_username=invented.user&per_page=100",
+            "issues?scope=all&state=opened&assignee_username=invented.user&with_labels_details=true&per_page=100",
         ),
         (
             CliCall::GlabAssignedMergeRequests(host.clone(), Some(user.clone())),
-            "merge_requests?scope=all&state=opened&assignee_username=invented.user&per_page=100",
+            "merge_requests?scope=all&state=opened&assignee_username=invented.user&with_labels_details=true&per_page=100",
         ),
         (
             CliCall::GlabAssignedIssues(host.clone(), None),
-            "issues?scope=assigned_to_me&state=opened&per_page=100",
+            "issues?scope=assigned_to_me&state=opened&with_labels_details=true&per_page=100",
         ),
         (
             CliCall::GlabAssignedMergeRequests(host.clone(), None),
-            "merge_requests?scope=assigned_to_me&state=opened&per_page=100",
+            "merge_requests?scope=assigned_to_me&state=opened&with_labels_details=true&per_page=100",
         ),
         (
             CliCall::GlabIssueNotes(

@@ -100,7 +100,8 @@ pub fn hide(
     if item.kind != ItemKind::Issue {
         return Err(HiddenIssueError::NotInList);
     }
-    let labels = serde_json::to_string(&scoped_labels(&item.labels)).map_err(|_| corrupt())?;
+    let labels =
+        serde_json::to_string(&scoped_labels(item.label_names())).map_err(|_| corrupt())?;
     store.write(|tx| {
         tx.execute(
             "INSERT INTO hidden_issues(host, issue_id, project_id, iid, scoped_labels, \

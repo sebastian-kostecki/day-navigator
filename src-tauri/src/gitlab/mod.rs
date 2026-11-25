@@ -52,6 +52,17 @@ pub enum ChangeReason {
     Returned,
 }
 
+/// One label: its name and, when GitLab sent valid colours, the background and
+/// text colour (`#rgb` or `#rrggbb`, lowercase). Both colours are set or both
+/// are `None`. Work data: serde to the UI only.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitlabLabel {
+    pub name: String,
+    pub color: Option<String>,
+    pub text_color: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GitlabItem {
@@ -72,13 +83,13 @@ pub struct GitlabItem {
     pub web_url: Option<String>,
     /// RFC 3339 text exactly as GitLab sent it.
     pub updated_at: String,
-    pub labels: Vec<String>,
+    pub labels: Vec<GitlabLabel>,
     pub draft: bool,
     /// Set on a visible issue that carries a "changed" mark (S-03).
     pub changed: Option<ChangeReason>,
-    /// Rust-only: the milestone title, matched by the visibility filter. Not
-    /// sent to the UI.
-    #[serde(skip)]
+    /// The milestone title, matched by the visibility filter and shown for the
+    /// view's milestone filter. Work data: it travels to the UI only through
+    /// serde, never into a log or an error.
     pub milestone: Option<String>,
     /// First seen after the view's seen-until mark (S-02). Set by the round,
     /// only on merge requests and visible issues; the parser gives `false`.
@@ -86,6 +97,13 @@ pub struct GitlabItem {
     /// When the user hid the issue, UTC ms (S-02). Only on `hidden_issues`
     /// items; the parser gives `None`.
     pub hidden_at_ms: Option<i64>,
+}
+
+impl GitlabItem {
+    /// The label names in the order GitLab sent them.
+    pub fn label_names(&self) -> impl Iterator<Item = &str> {
+        self.labels.iter().map(|l| l.name.as_str())
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -201,6 +219,63 @@ struct RawMilestone {
     title: String,
 }
 
+/// A label as GitLab sends it: a bare name (a server that ignores
+/// `with_labels_details`) or an object with details. Any other type fails the
+/// parse.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum RawLabel {
+    Name(String),
+    Detailed {
+        name: String,
+        #[serde(default)]
+        color: Option<String>,
+        #[serde(default)]
+        text_color: Option<String>,
+    },
+}
+
+/// `#` and 3 or 6 hex digits, written lowercase; anything else is `None`.
+fn checked_color(color: &str) -> Option<String> {
+    let digits = color.strip_prefix('#')?;
+    if !matches!(digits.len(), 3 | 6) || !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+    Some(color.to_ascii_lowercase())
+}
+
+impl RawLabel {
+    fn into_label(self) -> GitlabLabel {
+        match self {
+            RawLabel::Name(name) => GitlabLabel {
+                name,
+                color: None,
+                text_color: None,
+            },
+            RawLabel::Detailed {
+                name,
+                color,
+                text_color,
+            } => {
+                // Both colours or neither: a lone colour could be unreadable.
+                let pair = color
+                    .as_deref()
+                    .and_then(checked_color)
+                    .zip(text_color.as_deref().and_then(checked_color));
+                let (color, text_color) = match pair {
+                    Some((c, t)) => (Some(c), Some(t)),
+                    None => (None, None),
+                };
+                GitlabLabel {
+                    name,
+                    color,
+                    text_color,
+                }
+            }
+        }
+    }
+}
+
 #[derive(Deserialize)]
 struct RawItem {
     id: u64,
@@ -210,7 +285,7 @@ struct RawItem {
     web_url: String,
     updated_at: String,
     #[serde(default)]
-    labels: Vec<String>,
+    labels: Vec<RawLabel>,
     references: RawRefs,
     #[serde(default)]
     draft: bool,
@@ -277,7 +352,7 @@ fn build_item(
         title: r.title,
         web_url: checked_url(&r.web_url, host),
         updated_at: r.updated_at,
-        labels: r.labels,
+        labels: r.labels.into_iter().map(RawLabel::into_label).collect(),
         draft: kind == ItemKind::MergeRequest && r.draft,
         changed: None,
         milestone: r.milestone.map(|m| m.title),
@@ -592,7 +667,7 @@ mod tests {
             Some("https://gitlab.example.invalid/acme/widgets/-/merge_requests/34")
         );
         assert_eq!(i.updated_at, "2026-03-02T10:00:00.000Z");
-        assert_eq!(i.labels, ["backend", "review"]);
+        assert_eq!(i.label_names().collect::<Vec<_>>(), ["backend", "review"]);
         assert!(i.draft);
     }
 
@@ -625,6 +700,165 @@ mod tests {
             )
         );
         assert!(!parse_merge_requests(&json, &host()).unwrap()[0].draft);
+    }
+
+    fn labelled(labels_json: &str) -> String {
+        format!(
+            "[{}]",
+            mr_json(
+                "T",
+                &url("a"),
+                "2026-03-02T10:00:00Z",
+                "g/p#1",
+                &format!(r#","labels":{labels_json}"#)
+            )
+        )
+    }
+
+    fn parsed_labels(labels_json: &str) -> Vec<GitlabLabel> {
+        let json = labelled(labels_json);
+        let issues = parse_issues(&json, &host()).unwrap();
+        assert_eq!(
+            parse_merge_requests(&json, &host()).unwrap()[0].labels,
+            issues[0].labels
+        );
+        issues.into_iter().next().unwrap().labels
+    }
+
+    fn label(name: &str, colors: Option<(&str, &str)>) -> GitlabLabel {
+        GitlabLabel {
+            name: name.to_string(),
+            color: colors.map(|c| c.0.to_string()),
+            text_color: colors.map(|c| c.1.to_string()),
+        }
+    }
+
+    #[test]
+    fn detailed_labels_keep_name_order_and_lowercase_colours() {
+        let got = parsed_labels(
+            r##"[{"id":1,"name":"workflow::doing","color":"#AABBCC","text_color":"#FFFFFF","description":"d"},{"id":2,"name":"bug","color":"#abc","text_color":"#000"}]"##,
+        );
+        assert_eq!(
+            got,
+            [
+                label("workflow::doing", Some(("#aabbcc", "#ffffff"))),
+                label("bug", Some(("#abc", "#000"))),
+            ]
+        );
+    }
+
+    #[test]
+    fn plain_name_labels_have_no_colours() {
+        assert_eq!(
+            parsed_labels(r#"["backend","review"]"#),
+            [label("backend", None), label("review", None)]
+        );
+        // The two forms may be mixed in one list.
+        assert_eq!(
+            parsed_labels(r##"["backend",{"name":"bug","color":"#ff0000","text_color":"#fff"}]"##),
+            [
+                label("backend", None),
+                label("bug", Some(("#ff0000", "#fff")))
+            ]
+        );
+    }
+
+    #[test]
+    fn colour_validation_accepts_hex_in_three_or_six_digits_only() {
+        assert_eq!(checked_color("#abc").as_deref(), Some("#abc"));
+        assert_eq!(checked_color("#AABBCC").as_deref(), Some("#aabbcc"));
+        assert_eq!(checked_color("#0a9F3c").as_deref(), Some("#0a9f3c"));
+        for bad in [
+            "",
+            "#",
+            "red",
+            "abc",
+            "aabbcc",
+            "#abcd",
+            "#ab",
+            "#abcde",
+            "#aabbccd",
+            "#ggg000",
+            "#abc ",
+            " #abc",
+            "##abc",
+            "#ab;c",
+            "#ÀBC",
+            "rgb(1,2,3)",
+            "#abc\n",
+        ] {
+            assert_eq!(checked_color(bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn an_invalid_or_missing_colour_makes_both_colours_none() {
+        for body in [
+            r##"{"name":"x","color":"red","text_color":"#fff"}"##,
+            r##"{"name":"x","color":"#fff","text_color":"white"}"##,
+            r##"{"name":"x","color":"#abcd","text_color":"#fff"}"##,
+            r##"{"name":"x","color":"#ggg000","text_color":"#fff"}"##,
+            // a missing or null text colour
+            r##"{"name":"x","color":"#fff"}"##,
+            r##"{"name":"x","color":"#fff","text_color":null}"##,
+            // a missing or null colour
+            r##"{"name":"x","text_color":"#fff"}"##,
+            r##"{"name":"x","color":null,"text_color":"#fff"}"##,
+            r#"{"name":"x"}"#,
+        ] {
+            assert_eq!(
+                parsed_labels(&format!("[{body}]")),
+                [label("x", None)],
+                "{body}"
+            );
+        }
+    }
+
+    #[test]
+    fn labels_of_the_wrong_shape_are_response_invalid_without_content() {
+        const MARKER: &str = "LEAK-MARKER-LABEL-6e21";
+        for labels in [
+            r#"[5]"#.to_string(),
+            r#"[null]"#.to_string(),
+            r#"[["a"]]"#.to_string(),
+            r##"[{"color":"#fff"}]"##.to_string(),
+            r#"[{"name":5}]"#.to_string(),
+            format!(r#"[{{"name":"{MARKER}","color":5}}]"#),
+            format!(r#"[{{"name":["{MARKER}"]}}]"#),
+            format!(r#""{MARKER}""#),
+        ] {
+            let json = labelled(&labels);
+            for err in [
+                parse_issues(&json, &host()).unwrap_err(),
+                parse_merge_requests(&json, &host()).unwrap_err(),
+            ] {
+                assert_eq!(err, GitlabError::ResponseInvalid, "{labels}");
+                let shown = [
+                    format!("{err:?}"),
+                    err.to_string(),
+                    serde_json::to_string(&err).unwrap(),
+                    err.message_pl(),
+                ];
+                for text in shown {
+                    assert!(!text.contains(MARKER), "leak: {text}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn labels_serialize_as_objects_with_camel_case_colours() {
+        let json = labelled(r##"[{"name":"bug","color":"#D9534F","text_color":"#FFF"},"plain"]"##);
+        let item = &parse_issues(&json, &host()).unwrap()[0];
+        let v = serde_json::to_value(item).unwrap();
+        assert_eq!(
+            v["labels"],
+            serde_json::json!([
+                {"name": "bug", "color": "#d9534f", "textColor": "#fff"},
+                {"name": "plain", "color": null, "textColor": null}
+            ])
+        );
+        assert_eq!(item.label_names().collect::<Vec<_>>(), ["bug", "plain"]);
     }
 
     fn raw_json(id: u64, iid: u64, project_id: u64, reference: &str) -> String {
@@ -784,7 +1018,7 @@ mod tests {
     }
 
     #[test]
-    fn milestone_title_is_read_when_present_and_not_serialized() {
+    fn milestone_title_is_read_when_present_and_serialized() {
         let present = mr_json(
             "T",
             &url("a"),
@@ -808,7 +1042,7 @@ mod tests {
             ] {
                 assert_eq!(items[0].milestone.as_deref(), want);
                 let v = serde_json::to_value(&items[0]).unwrap();
-                assert!(v.get("milestone").is_none());
+                assert_eq!(v["milestone"], serde_json::json!(want));
             }
         }
         for wrong in [

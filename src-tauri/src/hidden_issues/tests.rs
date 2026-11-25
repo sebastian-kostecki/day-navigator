@@ -8,6 +8,7 @@ use tempfile::TempDir;
 use super::rules::*;
 use super::*;
 use crate::cli::GitlabUser;
+use crate::gitlab::GitlabLabel;
 use crate::gitlab::notes::IssueNote;
 use crate::store::schema;
 
@@ -36,7 +37,14 @@ fn issue(id: u64, labels: &[&str], updated: &str) -> GitlabItem {
         title: format!("Invented issue {id}"),
         web_url: None,
         updated_at: updated.into(),
-        labels: labels.iter().map(|s| s.to_string()).collect(),
+        labels: labels
+            .iter()
+            .map(|s| GitlabLabel {
+                name: s.to_string(),
+                color: None,
+                text_color: None,
+            })
+            .collect(),
         draft: false,
         changed: None,
         milestone: None,
@@ -50,7 +58,7 @@ fn record(item: &GitlabItem) -> HiddenRecord {
         issue_id: item.id,
         project_id: item.project_id,
         iid: item.iid,
-        scoped_labels: scoped_labels(&item.labels),
+        scoped_labels: scoped_labels(item.label_names()),
         baseline_updated_at: item.updated_at.clone(),
         settle_after_ms: None,
         hidden_at_ms: NOW - DAY,
@@ -79,13 +87,28 @@ fn checks(id: u64, v: Result<CommentVerdict, ()>) -> HashMap<u64, Result<Comment
 
 #[test]
 fn scoped_labels_keep_only_scoped_sorted_and_unique() {
-    let labels: Vec<String> = ["bug", "workflow::doing", "area::api", "workflow::doing"]
-        .map(String::from)
-        .to_vec();
+    let names = ["bug", "workflow::doing", "area::api", "workflow::doing"];
     assert_eq!(
-        scoped_labels(&labels),
+        scoped_labels(names),
         ["area::api", "workflow::doing"].map(String::from)
     );
+    // The same names as a label list give the same result.
+    let item = issue(1, &names, T0);
+    assert_eq!(scoped_labels(item.label_names()), scoped_labels(names));
+}
+
+#[test]
+fn coloured_labels_do_not_change_the_status() {
+    let plain = issue(1, &["workflow::doing", "bug"], T0);
+    let rec = record(&plain);
+    let mut coloured = plain.clone();
+    for (i, l) in coloured.labels.iter_mut().enumerate() {
+        l.color = Some(format!("#00{i}"));
+        l.text_color = Some("#fff".to_string());
+    }
+    assert!(!status_changed(&rec, &coloured));
+    // A stored record is made from names only, whatever the colours were.
+    assert_eq!(record(&coloured).scoped_labels, ["workflow::doing"]);
 }
 
 #[test]

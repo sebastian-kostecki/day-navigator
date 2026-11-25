@@ -7,6 +7,13 @@ export type ItemKind = "issue" | "mergeRequest";
 /** Why a hidden issue came back to the list. Mirrors `gitlab::ChangeReason`. */
 export type ChangeReason = "status" | "comment" | "returned";
 
+/** A label with its validated colours (`#rgb` or `#rrggbb`, lowercase); both null when GitLab sent none or an invalid one. */
+export type GitlabLabel = {
+  name: string;
+  color: string | null;
+  textColor: string | null;
+};
+
 export type GitlabItem = {
   kind: ItemKind;
   /** GitLab's global id: the key for hide, unhide and dismiss. */
@@ -18,10 +25,12 @@ export type GitlabItem = {
   webUrl: string | null;
   /** RFC 3339 text as GitLab sent it. */
   updatedAt: string;
-  labels: string[];
+  labels: GitlabLabel[];
   draft: boolean;
   /** Set on a visible issue that carries a "changed" mark. */
   changed: ChangeReason | null;
+  /** Milestone title, or null when the item has none. */
+  milestone: string | null;
   /** First seen after the view's seen-until mark; set on MRs and visible issues. */
   isNew: boolean;
   /** When the user hid the issue (UTC ms); only on hidden issues. */

@@ -204,8 +204,8 @@ Brak migracji danych. Publisher i `productName` się nie zmieniają, więc klucz
 
 #### Automated
 
-- [x] 1.1 Config przechodzi walidację Tauri i build Rust: `cargo build` w `src-tauri/`
-- [x] 1.2 Bramki przed commitem przechodzą: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 1.1 Config przechodzi walidację Tauri i build Rust: `cargo build` w `src-tauri/` — 46d593d
+- [x] 1.2 Bramki przed commitem przechodzą: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` — 46d593d
 
 #### Manual
 
@@ -216,9 +216,9 @@ Brak migracji danych. Publisher i `productName` się nie zmieniają, więc klucz
 
 #### Automated
 
-- [ ] 2.1 Config przechodzi walidację Tauri i build Rust: `cargo build` w `src-tauri/`
-- [ ] 2.2 Build debug z produkcyjnymi zasobami powstaje: `npm run tauri build -- --debug --no-bundle`
-- [ ] 2.3 Bramki przed commitem przechodzą: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 2.1 Config przechodzi walidację Tauri i build Rust: `cargo build` w `src-tauri/`
+- [x] 2.2 Build debug z produkcyjnymi zasobami powstaje: `npm run tauri build -- --debug --no-bundle`
+- [x] 2.3 Bramki przed commitem przechodzą: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
 
 #### Manual
 

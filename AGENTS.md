@@ -47,6 +47,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 
 - No v1 idioms: no `allowlist` in `tauri.conf.json`, no `tauri::api::*`, no `@tauri-apps/api/tauri` (use `@tauri-apps/api/core`).
 - Adding a plugin = crate in `src-tauri/Cargo.toml` + `.plugin(...)` in `lib.rs` + npm `@tauri-apps/plugin-*` on the same major.minor + its permissions in `capabilities/default.json`. A plugin used only from Rust gets no npm package and no permissions (`window-state`).
+- CSP: `app.security.csp` in `tauri.conf.json` allows only same-origin and IPC, and `freezePrototype` is on. A new kind of webview resource or connection (image, external request, inline `<style>`, a plugin with its own protocol, the asset protocol) needs a policy change. CSP applies only in a built app (`npm run tauri build -- --debug --no-bundle`), not in `tauri dev`, so check it there.
 - Docs: https://v2.tauri.app/ , https://v2.tauri.app/plugin/ , https://docs.rs/tauri/2
 
 ## Build and Development Commands

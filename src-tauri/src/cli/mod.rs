@@ -205,14 +205,15 @@ fn gh_assigned_issues_args(repo: &GithubRepo) -> Vec<String> {
 
 /// Fixed endpoints for the two assigned-items calls without a user (GET: the
 /// query string is part of the endpoint, no `-f` / `-F` fields).
-pub const ASSIGNED_ISSUES_ENDPOINT: &str = "issues?scope=assigned_to_me&state=opened&per_page=100";
+pub const ASSIGNED_ISSUES_ENDPOINT: &str =
+    "issues?scope=assigned_to_me&state=opened&with_labels_details=true&per_page=100";
 pub const ASSIGNED_MRS_ENDPOINT: &str =
-    "merge_requests?scope=assigned_to_me&state=opened&per_page=100";
+    "merge_requests?scope=assigned_to_me&state=opened&with_labels_details=true&per_page=100";
 
 /// Endpoint shape with a user: `<PREFIX><login><SUFFIX>`.
 pub const ISSUES_USER_PREFIX: &str = "issues?scope=all&state=opened&assignee_username=";
 pub const MRS_USER_PREFIX: &str = "merge_requests?scope=all&state=opened&assignee_username=";
-pub const USER_SUFFIX: &str = "&per_page=100";
+pub const USER_SUFFIX: &str = "&with_labels_details=true&per_page=100";
 
 fn assigned_args(
     fixed: &str,
@@ -250,9 +251,9 @@ impl UpdatedAfter {
 }
 
 /// Endpoint shapes of the recently-closed calls: `<resource>?scope=assigned_to_me
-/// &state=<S>&updated_after=<D>&per_page=100` without a user, and
+/// &state=<S>&updated_after=<D>&with_labels_details=true&per_page=100` without a user, and
 /// `<resource>?scope=all&state=<S>&assignee_username=<login>&updated_after=<D>
-/// &per_page=100` with one. Issues use `state=closed`, merge requests `state=all`.
+/// &with_labels_details=true&per_page=100` with one. Issues use `state=closed`, merge requests `state=all`.
 pub const CLOSED_ISSUES_FIXED_PREFIX: &str =
     "issues?scope=assigned_to_me&state=closed&updated_after=";
 pub const CLOSED_MRS_FIXED_PREFIX: &str =
@@ -260,7 +261,7 @@ pub const CLOSED_MRS_FIXED_PREFIX: &str =
 pub const CLOSED_ISSUES_USER_PREFIX: &str = "issues?scope=all&state=closed&assignee_username=";
 pub const CLOSED_MRS_USER_PREFIX: &str = "merge_requests?scope=all&state=all&assignee_username=";
 pub const CLOSED_USER_MIDDLE: &str = "&updated_after=";
-pub const CLOSED_SUFFIX: &str = "&per_page=100";
+pub const CLOSED_SUFFIX: &str = "&with_labels_details=true&per_page=100";
 
 fn closed_args(
     fixed_prefix: &str,
@@ -645,8 +646,8 @@ mod tests {
     }
 
     /// The recently-closed shapes, spelled out in full: the fixed form
-    /// `<R>?scope=assigned_to_me&state=<S>&updated_after=<D>&per_page=100` and
-    /// the user form `<R>?scope=all&state=<S>&assignee_username=<login>&updated_after=<D>&per_page=100`,
+    /// `<R>?scope=assigned_to_me&state=<S>&updated_after=<D>&with_labels_details=true&per_page=100` and
+    /// the user form `<R>?scope=all&state=<S>&assignee_username=<login>&updated_after=<D>&with_labels_details=true&per_page=100`,
     /// with `issues` + `closed` or `merge_requests` + `all`.
     fn closed_endpoint_allowed(endpoint: &str) -> bool {
         const FORMS: [(&str, &str); 2] = [("issues", "closed"), ("merge_requests", "all")];
@@ -655,11 +656,11 @@ mod tests {
             let user = format!("{resource}?scope=all&state={state}&assignee_username=");
             let fixed_ok = endpoint
                 .strip_prefix(fixed.as_str())
-                .and_then(|rest| rest.strip_suffix("&per_page=100"))
+                .and_then(|rest| rest.strip_suffix("&with_labels_details=true&per_page=100"))
                 .is_some_and(guard_date_ok);
             let user_ok = endpoint
                 .strip_prefix(user.as_str())
-                .and_then(|rest| rest.strip_suffix("&per_page=100"))
+                .and_then(|rest| rest.strip_suffix("&with_labels_details=true&per_page=100"))
                 .and_then(|rest| rest.split_once("&updated_after="))
                 .is_some_and(|(login, date)| guard_login_ok(login) && guard_date_ok(date));
             fixed_ok || user_ok
@@ -667,7 +668,7 @@ mod tests {
     }
 
     /// A fixed endpoint, the notes shape, a recently-closed shape, or
-    /// `<prefix><valid login><suffix>` with one query and exactly its three
+    /// `<prefix><valid login><suffix>` with one query and exactly its four
     /// fixed parameters.
     fn endpoint_allowed(endpoint: &str) -> bool {
         if ALLOWED_ENDPOINTS.contains(&endpoint)
@@ -677,7 +678,7 @@ mod tests {
             return true;
         }
         let shape_ok = endpoint.matches('?').count() == 1
-            && endpoint.matches('&').count() == 3
+            && endpoint.matches('&').count() == 4
             && !endpoint
                 .chars()
                 .any(|c| c.is_whitespace() || c.is_control() || "#%:/+".contains(c));
@@ -1248,7 +1249,7 @@ mod tests {
             issues_user.args(),
             [
                 "api",
-                "issues?scope=all&state=opened&assignee_username=invented.user&per_page=100",
+                "issues?scope=all&state=opened&assignee_username=invented.user&with_labels_details=true&per_page=100",
                 "--paginate",
                 "--hostname",
                 "gitlab.example.invalid"
@@ -1258,7 +1259,7 @@ mod tests {
             mrs_user.args(),
             [
                 "api",
-                "merge_requests?scope=all&state=opened&assignee_username=invented.user&per_page=100",
+                "merge_requests?scope=all&state=opened&assignee_username=invented.user&with_labels_details=true&per_page=100",
                 "--paginate",
                 "--hostname",
                 "gitlab.example.invalid"
@@ -1270,7 +1271,7 @@ mod tests {
             issues.args(),
             [
                 "api",
-                "issues?scope=assigned_to_me&state=opened&per_page=100",
+                "issues?scope=assigned_to_me&state=opened&with_labels_details=true&per_page=100",
                 "--paginate",
                 "--hostname",
                 "gitlab.example.invalid"
@@ -1280,7 +1281,7 @@ mod tests {
             mrs.args(),
             [
                 "api",
-                "merge_requests?scope=assigned_to_me&state=opened&per_page=100",
+                "merge_requests?scope=assigned_to_me&state=opened&with_labels_details=true&per_page=100",
                 "--paginate",
                 "--hostname",
                 "gitlab.example.invalid"
@@ -1303,17 +1304,17 @@ mod tests {
         let cases = [
             (
                 CliCall::GlabRecentlyClosedIssues(example_host(), None, after),
-                "issues?scope=assigned_to_me&state=closed&updated_after=2026-03-01&per_page=100",
+                "issues?scope=assigned_to_me&state=closed&updated_after=2026-03-01&with_labels_details=true&per_page=100",
                 "glab:closed-issues",
             ),
             (
                 CliCall::GlabRecentlyClosedIssues(example_host(), Some(example_user()), after),
-                "issues?scope=all&state=closed&assignee_username=invented.user&updated_after=2026-03-01&per_page=100",
+                "issues?scope=all&state=closed&assignee_username=invented.user&updated_after=2026-03-01&with_labels_details=true&per_page=100",
                 "glab:closed-issues",
             ),
             (
                 CliCall::GlabRecentlyClosedMergeRequests(example_host(), None, after),
-                "merge_requests?scope=assigned_to_me&state=all&updated_after=2026-03-01&per_page=100",
+                "merge_requests?scope=assigned_to_me&state=all&updated_after=2026-03-01&with_labels_details=true&per_page=100",
                 "glab:closed-mrs",
             ),
             (
@@ -1322,7 +1323,7 @@ mod tests {
                     Some(example_user()),
                     after,
                 ),
-                "merge_requests?scope=all&state=all&assignee_username=invented.user&updated_after=2026-03-01&per_page=100",
+                "merge_requests?scope=all&state=all&assignee_username=invented.user&updated_after=2026-03-01&with_labels_details=true&per_page=100",
                 "glab:closed-mrs",
             ),
         ];
@@ -1355,7 +1356,7 @@ mod tests {
             "merge_requests?scope=all&state=all&assignee_username=invented.user&updated_after=";
         for prefix in [fixed_issues, fixed_mrs, user_issues, user_mrs] {
             assert!(guard_accepts_endpoint(&format!(
-                "{prefix}2026-03-01&per_page=100"
+                "{prefix}2026-03-01&with_labels_details=true&per_page=100"
             )));
             for bad_date in [
                 "2026-03-01T00:00:00Z",
@@ -1370,7 +1371,9 @@ mod tests {
                 "2026-03-01&x=1",
             ] {
                 assert!(
-                    !guard_accepts_endpoint(&format!("{prefix}{bad_date}&per_page=100")),
+                    !guard_accepts_endpoint(&format!(
+                        "{prefix}{bad_date}&with_labels_details=true&per_page=100"
+                    )),
                     "{prefix}{bad_date}"
                 );
             }
@@ -1380,28 +1383,28 @@ mod tests {
                 "{prefix}2026-03-01&per_page=50"
             )));
             assert!(!guard_accepts_endpoint(&format!(
-                "{prefix}2026-03-01&per_page=100&extra=1"
+                "{prefix}2026-03-01&with_labels_details=true&per_page=100&extra=1"
             )));
             assert!(!guard_accepts_endpoint(&format!(
-                "{prefix}2026-03-01&extra=1&per_page=100"
+                "{prefix}2026-03-01&extra=1&with_labels_details=true&per_page=100"
             )));
         }
         // missing updated_after
         assert!(!guard_accepts_endpoint(
-            "issues?scope=assigned_to_me&state=closed&per_page=100"
+            "issues?scope=assigned_to_me&state=closed&with_labels_details=true&per_page=100"
         ));
         // wrong state for the resource, other scope or resource
         for ep in [
-            "issues?scope=assigned_to_me&state=all&updated_after=2026-03-01&per_page=100",
-            "merge_requests?scope=assigned_to_me&state=closed&updated_after=2026-03-01&per_page=100",
-            "issues?scope=assigned_to_me&state=opened&updated_after=2026-03-01&per_page=100",
-            "issues?scope=created_by_me&state=closed&updated_after=2026-03-01&per_page=100",
-            "projects?scope=assigned_to_me&state=closed&updated_after=2026-03-01&per_page=100",
-            "issues?scope=all&state=closed&updated_after=2026-03-01&per_page=100",
-            "issues?scope=all&state=closed&assignee_username=&updated_after=2026-03-01&per_page=100",
-            "issues?scope=all&state=closed&assignee_username=a&b&updated_after=2026-03-01&per_page=100",
-            "issues?scope=all&state=closed&assignee_username=a:b&updated_after=2026-03-01&per_page=100",
-            "issues?scope=all&state=closed&assignee_username=-a&updated_after=2026-03-01&per_page=100",
+            "issues?scope=assigned_to_me&state=all&updated_after=2026-03-01&with_labels_details=true&per_page=100",
+            "merge_requests?scope=assigned_to_me&state=closed&updated_after=2026-03-01&with_labels_details=true&per_page=100",
+            "issues?scope=assigned_to_me&state=opened&updated_after=2026-03-01&with_labels_details=true&per_page=100",
+            "issues?scope=created_by_me&state=closed&updated_after=2026-03-01&with_labels_details=true&per_page=100",
+            "projects?scope=assigned_to_me&state=closed&updated_after=2026-03-01&with_labels_details=true&per_page=100",
+            "issues?scope=all&state=closed&updated_after=2026-03-01&with_labels_details=true&per_page=100",
+            "issues?scope=all&state=closed&assignee_username=&updated_after=2026-03-01&with_labels_details=true&per_page=100",
+            "issues?scope=all&state=closed&assignee_username=a&b&updated_after=2026-03-01&with_labels_details=true&per_page=100",
+            "issues?scope=all&state=closed&assignee_username=a:b&updated_after=2026-03-01&with_labels_details=true&per_page=100",
+            "issues?scope=all&state=closed&assignee_username=-a&updated_after=2026-03-01&with_labels_details=true&per_page=100",
         ] {
             assert!(!guard_accepts_endpoint(ep), "{ep}");
         }
@@ -1410,7 +1413,7 @@ mod tests {
             assert!(
                 check_read_only(&[
                     "api",
-                    &format!("{fixed_issues}2026-03-01&per_page=100"),
+                    &format!("{fixed_issues}2026-03-01&with_labels_details=true&per_page=100"),
                     "--paginate",
                     "--hostname",
                     "gitlab.example.invalid",
@@ -1439,6 +1442,51 @@ mod tests {
                 let args: Vec<&str> = args.iter().map(String::as_str).collect();
                 proptest::prop_assert!(check_read_only(&args).is_ok(), "{:?}", args);
             }
+        }
+    }
+
+    #[test]
+    fn guard_requires_the_exact_labels_details_parameter() {
+        const GOOD: &str = "with_labels_details=true&per_page=100";
+        let accepted = [
+            format!("issues?scope=assigned_to_me&state=opened&{GOOD}"),
+            format!("merge_requests?scope=assigned_to_me&state=opened&{GOOD}"),
+            format!("issues?scope=all&state=opened&assignee_username=invented.user&{GOOD}"),
+            format!("merge_requests?scope=all&state=opened&assignee_username=invented.user&{GOOD}"),
+            format!("issues?scope=assigned_to_me&state=closed&updated_after=2026-03-01&{GOOD}"),
+            format!(
+                "merge_requests?scope=all&state=all&assignee_username=invented.user&updated_after=2026-03-01&{GOOD}"
+            ),
+        ];
+        for ep in &accepted {
+            assert!(guard_accepts_endpoint(ep), "{ep}");
+        }
+        let rejected = [
+            // the old shape without the parameter
+            "issues?scope=assigned_to_me&state=opened&per_page=100",
+            "merge_requests?scope=assigned_to_me&state=opened&per_page=100",
+            "issues?scope=all&state=opened&assignee_username=invented.user&per_page=100",
+            "merge_requests?scope=all&state=opened&assignee_username=invented.user&per_page=100",
+            "issues?scope=assigned_to_me&state=closed&updated_after=2026-03-01&per_page=100",
+            "merge_requests?scope=all&state=all&assignee_username=invented.user&updated_after=2026-03-01&per_page=100",
+            // a different value
+            "issues?scope=assigned_to_me&state=opened&with_labels_details=false&per_page=100",
+            "issues?scope=all&state=opened&assignee_username=invented.user&with_labels_details=false&per_page=100",
+            "issues?scope=assigned_to_me&state=closed&updated_after=2026-03-01&with_labels_details=false&per_page=100",
+            // an extra parameter next to it
+            "issues?scope=assigned_to_me&state=opened&with_labels_details=true&extra=1&per_page=100",
+            "issues?scope=all&state=opened&assignee_username=invented.user&with_labels_details=true&extra=1&per_page=100",
+            "issues?scope=assigned_to_me&state=closed&updated_after=2026-03-01&with_labels_details=true&extra=1&per_page=100",
+            // the parameter in another place
+            "issues?scope=assigned_to_me&with_labels_details=true&state=opened&per_page=100",
+            "issues?with_labels_details=true&scope=all&state=opened&assignee_username=invented.user&per_page=100",
+            "issues?scope=assigned_to_me&state=closed&with_labels_details=true&updated_after=2026-03-01&per_page=100",
+            "issues?scope=assigned_to_me&state=opened&per_page=100&with_labels_details=true",
+            // the notes call takes no such parameter
+            "projects/77/issues/12/notes?sort=desc&order_by=created_at&with_labels_details=true&per_page=100",
+        ];
+        for ep in rejected {
+            assert!(!guard_accepts_endpoint(ep), "{ep}");
         }
     }
 

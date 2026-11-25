@@ -170,7 +170,7 @@ function GitlabRow({
   const at = row.at ?? item.updatedAt;
   const { nr, project, path } = splitReference(item.reference);
   const url = item.webUrl;
-  const labels = item.labels.join(", ");
+  const labels = item.labels.map((l) => l.name).join(", ");
   return (
     <DataTableRow className={hidden ? "gitlab-row is-hidden" : "gitlab-row"}>
       <DataTableCell>

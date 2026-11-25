@@ -108,7 +108,7 @@ impl GitlabFilter {
     }
 
     fn labels_allow(&self, item: &GitlabItem) -> bool {
-        let labels: Vec<String> = item.labels.iter().map(|l| l.to_lowercase()).collect();
+        let labels: Vec<String> = item.label_names().map(str::to_lowercase).collect();
         if labels
             .iter()
             .any(|l| self.labels.exclude.iter().any(|e| e == l))
@@ -132,6 +132,7 @@ impl GitlabFilter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gitlab::GitlabLabel;
 
     fn item(kind: ItemKind, reference: &str) -> GitlabItem {
         GitlabItem {
@@ -157,7 +158,14 @@ mod tests {
     }
 
     fn with_labels(mut i: GitlabItem, labels: &[&str]) -> GitlabItem {
-        i.labels = labels.iter().map(|l| l.to_string()).collect();
+        i.labels = labels
+            .iter()
+            .map(|l| GitlabLabel {
+                name: l.to_string(),
+                color: None,
+                text_color: None,
+            })
+            .collect();
         i
     }
 
@@ -230,6 +238,26 @@ mod tests {
     }
 
     #[test]
+    fn label_colours_do_not_change_what_the_filter_keeps() {
+        let plain = with_labels(issue("g/p#1"), &["Blue", "wip"]);
+        let mut coloured = plain.clone();
+        for l in &mut coloured.labels {
+            l.color = Some("#0000ff".to_string());
+            l.text_color = Some("#ffffff".to_string());
+        }
+        for f in [
+            labels(&["blue"], &[]),
+            labels(&[], &["wip"]),
+            labels(&["red"], &[]),
+            labels(&[], &["red"]),
+        ] {
+            assert_eq!(f.keeps(&plain), f.keeps(&coloured));
+        }
+        assert!(labels(&["blue"], &[]).keeps(&coloured));
+        assert!(!labels(&[], &["wip"]).keeps(&coloured));
+    }
+
+    #[test]
     fn exclude_removes_on_any_entry_and_wins_over_include() {
         let f = labels(&[], &["blocked", "wip"]);
         assert!(!f.keeps(&with_labels(issue("g/p#1"), &["ok", "wip"])));
@@ -255,7 +283,7 @@ mod tests {
         let mut wrong_project = good.clone();
         wrong_project.reference = "other/p#1".into();
         let mut wrong_label = good.clone();
-        wrong_label.labels = vec!["blue".into()];
+        wrong_label.labels = with_labels(issue("acme/p#1"), &["blue"]).labels;
         let mut wrong_milestone = good.clone();
         wrong_milestone.milestone = Some("Sprint 2".into());
         for i in [wrong_project, wrong_label, wrong_milestone] {

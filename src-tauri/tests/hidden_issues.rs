@@ -5,7 +5,7 @@ mod common;
 use chrono::NaiveDate;
 use common::test_store_dir;
 use day_navigator_lib::cli::GitlabHost;
-use day_navigator_lib::gitlab::{ChangeReason, GitlabItem, ItemKind};
+use day_navigator_lib::gitlab::{ChangeReason, GitlabItem, GitlabLabel, ItemKind};
 use day_navigator_lib::hidden_issues::{self, HiddenIssueError, SETTLE_MS, Transition};
 use day_navigator_lib::store::{Store, StoreError, schema};
 
@@ -40,7 +40,14 @@ fn issue(id: u64, labels: &[&str]) -> GitlabItem {
         title: format!("Invented issue {id}"),
         web_url: None,
         updated_at: T0.into(),
-        labels: labels.iter().map(|s| s.to_string()).collect(),
+        labels: labels
+            .iter()
+            .map(|s| GitlabLabel {
+                name: s.to_string(),
+                color: None,
+                text_color: None,
+            })
+            .collect(),
         draft: false,
         changed: None,
         milestone: None,

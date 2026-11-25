@@ -1,7 +1,7 @@
 ---
 change_id: tauri-config-hardening
 title: Konfiguracja Tauri - CSP, wygląd okna i metadane instalatora (#21)
-status: implemented
+status: impl_reviewed
 created: 2026-11-25
 updated: 2026-11-25
 archived_at: null

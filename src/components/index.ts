@@ -15,6 +15,7 @@ export { Flag, type FlagProps } from "./Flag/Flag";
 export { Icon, type IconName, type IconProps } from "./Icon/Icon";
 export { HoursBar, type HoursBarProps } from "./HoursBar/HoursBar";
 export { ItemRow, type ItemRowProps } from "./ItemRow/ItemRow";
+export { LabelChip, type LabelChipProps } from "./LabelChip/LabelChip";
 export { Notice, type NoticeProps, type NoticeTone } from "./Notice/Notice";
 export { Panel, type PanelProps } from "./Panel/Panel";
 export { Segmented, type SegmentedOption, type SegmentedProps } from "./Segmented/Segmented";

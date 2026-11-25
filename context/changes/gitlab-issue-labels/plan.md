@@ -314,12 +314,12 @@ Bez migracji bazy. Rekordy ukrytych przechowują nazwy etykiet scoped, a te się
 
 #### Automated
 
-- [x] 1.1 Strażnik i testy argumentów przyjmują nowe kształty z `with_labels_details=true` i odrzucają stary kształt oraz `with_labels_details=false`
-- [x] 1.2 Parser etykiet: obie postaci, walidacja kolorów, zła postać daje `ResponseInvalid`
-- [x] 1.3 `scoped_labels` bez zmiany wyniku, ukryte z kolorowymi etykietami nie wraca jako zmienione
-- [x] 1.4 `milestone` serializowany w migawce
-- [x] 1.5 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` czyste
-- [x] 1.6 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 1.1 Strażnik i testy argumentów przyjmują nowe kształty z `with_labels_details=true` i odrzucają stary kształt oraz `with_labels_details=false` — f1aadd4
+- [x] 1.2 Parser etykiet: obie postaci, walidacja kolorów, zła postać daje `ResponseInvalid` — f1aadd4
+- [x] 1.3 `scoped_labels` bez zmiany wyniku, ukryte z kolorowymi etykietami nie wraca jako zmienione — f1aadd4
+- [x] 1.4 `milestone` serializowany w migawce — f1aadd4
+- [x] 1.5 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` czyste — f1aadd4
+- [x] 1.6 `npm run lint`, `npm run format:check` i `npm run build` przechodzą — f1aadd4
 
 #### Manual
 
@@ -329,8 +329,8 @@ Bez migracji bazy. Rekordy ukrytych przechowują nazwy etykiet scoped, a te się
 
 #### Automated
 
-- [ ] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 2.2 Brak literalnych kolorów poza `tokens.css`
+- [x] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 2.2 Brak literalnych kolorów poza `tokens.css`
 
 #### Manual
 

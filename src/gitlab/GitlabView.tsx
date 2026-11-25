@@ -5,6 +5,7 @@ import {
   DataTableCell,
   DataTableRow,
   Flag,
+  LabelChip,
   Notice,
   Panel,
   RELATIVE_TICK_MS,
@@ -210,13 +211,10 @@ function GitlabRow({
       <DataTableCell tone="muted" truncate className="gitlab-col-project" title={path || undefined}>
         {project}
       </DataTableCell>
-      <DataTableCell
-        tone="faint"
-        truncate
-        className="gitlab-col-labels code"
-        title={labels || undefined}
-      >
-        {labels}
+      <DataTableCell tone="faint" className="gitlab-col-labels" title={labels || undefined}>
+        {item.labels.map((l) => (
+          <LabelChip key={l.name} name={l.name} color={l.color} textColor={l.textColor} />
+        ))}
       </DataTableCell>
       <DataTableCell tone="faint" className="gitlab-col-when code" title={formatUpdated(at)}>
         {formatChange(at, now)}

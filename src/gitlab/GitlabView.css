@@ -52,7 +52,7 @@
    structure and type come from DataTable. */
 
 .gitlab-table {
-  --dn-table-cols: 56px 72px minmax(0, 1fr) 120px 150px 104px 136px;
+  --dn-table-cols: 56px 72px minmax(0, 1fr) 120px 200px 104px 136px;
 }
 
 .gitlab-row.is-hidden {
@@ -60,6 +60,10 @@
 }
 
 .gitlab-col-labels {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
   font-size: 11px;
 }
 

@@ -1,0 +1,54 @@
+.dn-label-chip {
+  display: inline-flex;
+  align-items: stretch;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--dn-label-bg, var(--label-fallback-bg));
+  color: var(--dn-label-ink, var(--label-fallback-ink));
+  font: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  vertical-align: middle;
+}
+
+.dn-label-chip-text,
+.dn-label-chip-key,
+.dn-label-chip-value {
+  min-width: 0;
+  padding: var(--space-hair) var(--space-1h);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Scoped: the key is filled, the value is outlined in the label colour with app ink. */
+.dn-label-chip-scoped {
+  border-color: var(--dn-label-bg, var(--label-fallback-bg));
+  background: transparent;
+  color: var(--ink);
+}
+
+.dn-label-chip-scoped .dn-label-chip-key {
+  flex: none;
+  max-width: 60%;
+  background: var(--dn-label-bg, var(--label-fallback-bg));
+  color: var(--dn-label-ink, var(--label-fallback-ink));
+}
+
+button.dn-label-chip {
+  cursor: pointer;
+}
+
+.dn-label-chip.is-pressed {
+  border-color: var(--accent);
+}
+
+button.dn-label-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}

@@ -85,6 +85,8 @@
   --src-github: #c9ced6;
   --src-own: #7cc4ff;
   --kind-mr: #b48cff;
+  --label-fallback-bg: var(--surface-active);
+  --label-fallback-ink: var(--ink-soft);
 
   /* Day-off stripes (a row background), visible on --surface and --surface-raised */
   --hatch-stripe: var(--line-control);

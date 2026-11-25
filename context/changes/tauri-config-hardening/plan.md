@@ -209,8 +209,8 @@ Brak migracji danych. Publisher i `productName` się nie zmieniają, więc klucz
 
 #### Manual
 
-- [ ] 1.3 `npm run tauri dev`: pasek tytułu jest ciemny także przy jasnym motywie Windows, a przy starcie nie widać białego tła
-- [ ] 1.4 Po usunięciu pliku stanu window-state okno startuje na środku ekranu w 1280×800, a po przesunięciu i restarcie wraca na zapisaną pozycję
+- [x] 1.3 `npm run tauri dev`: pasek tytułu jest ciemny także przy jasnym motywie Windows, a przy starcie nie widać białego tła
+- [x] 1.4 Po usunięciu pliku stanu window-state okno startuje na środku ekranu w 1280×800, a po przesunięciu i restarcie wraca na zapisaną pozycję — 46d593d
 
 ### Phase 2: CSP i freezePrototype
 
@@ -222,7 +222,7 @@ Brak migracji danych. Publisher i `productName` się nie zmieniają, więc klucz
 
 #### Manual
 
-- [ ] 2.4 `npm run tauri dev` działa jak przed zmianą, konsola bez `TypeError` od `freezePrototype`
-- [ ] 2.5 Build debug: nagłówek CSP z hashami w `script-src`, konsola bez naruszeń CSP i bez „IPC custom protocol failed”
-- [ ] 2.6 Build debug: widoki ostylowane, live update stanu źródeł, licznik, linki GitLab/GitHub i formularze działają
-- [ ] 2.7 Instalator release na istniejącą instalację: aktualizacja bez błędu, link i publisher „sebas” w Aplikacjach, aplikacja działa
+- [x] 2.4 `npm run tauri dev` działa jak przed zmianą, konsola bez `TypeError` od `freezePrototype` — bee6435
+- [x] 2.5 Build debug: nagłówek CSP z hashami w `script-src`, konsola bez naruszeń CSP i bez „IPC custom protocol failed” — bee6435
+- [x] 2.6 Build debug: widoki ostylowane, live update stanu źródeł, licznik, linki GitLab/GitHub i formularze działają — bee6435
+- [x] 2.7 Instalator release na istniejącą instalację: aktualizacja bez błędu, link i publisher „sebas” w Aplikacjach, aplikacja działa

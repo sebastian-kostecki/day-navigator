@@ -1,6 +1,6 @@
 ---
 project: "Nawigator dnia"
-version: 5
+version: 6
 status: draft
 created: 2026-11-20
 updated: 2026-11-26
@@ -51,13 +51,13 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | ID   | Change ID               | Outcome (user can …)                                                          | Prerequisites | PRD refs              | Status   |
 | ---- | ----------------------- | ----------------------------------------------------------------------------- | ------------- | --------------------- | -------- |
 | S-01 | public-holidays-norm    | see Polish public holidays counted out of the month's norm                     | —             | MS-25, FR-014, FR-020 | done |
-| S-02 | configurable-daily-norm | set the daily norm and mark a half day off                                     | S-01          | MS-26, FR-014, FR-020 | proposed |
+| S-02 | configurable-daily-norm | set the daily norm and mark a half day off                                     | S-01          | MS-26, FR-014, FR-020 | ready    |
 | S-03 | tray-timer-control      | start and stop the counter from the tray and see today's time in its tooltip   | —             | MS-23, FR-013         | done |
 | S-04 | windows-autostart       | have the app start with Windows into the tray                                  | —             | MS-17, FR-018         | ready    |
 | S-05 | month-report-copy       | copy the month report to the clipboard and paste it into a spreadsheet         | —             | MS-24, FR-014, FR-020 | ready    |
 | S-06 | work-entry-note         | add a short note to a work-time entry                                          | —             | MS-27, FR-017         | done |
 | S-07 | end-of-day-summary      | see a summary of the day after STOP                                            | —             | MS-19, FR-013, FR-014 | ready    |
-| S-08 | week-summary            | see the week's sum against the week's norm in "Work time"                      | S-01          | MS-18, FR-014         | proposed |
+| S-08 | week-summary            | see the week's sum against the week's norm in "Work time"                      | S-01          | MS-18, FR-014         | ready    |
 
 ## Streams
 
@@ -115,7 +115,7 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
   - Can the norm change within a month (a change of contract), which needs a norm history rather than one setting? — Owner: user. Block: no (settled in `/10x-plan`).
   - Is a half day off really needed, or is a full day enough? — Owner: user. Block: no (settled in `/10x-plan`).
 - **Risk:** Extends the same norm rule as S-01; planned after it so the two do not change the rule at once.
-- **Status:** proposed
+- **Status:** ready
 
 ### S-03: START/STOP from the tray
 
@@ -196,20 +196,20 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
 - **Unknowns:**
   - A section in "Work time" or a separate view; a week that crosses months. — Owner: user. Block: no (settled in `/10x-plan`).
 - **Risk:** The week's norm must use the same rule as the month (holidays from S-01), computed in Rust, not summed again in the UI.
-- **Status:** proposed
+- **Status:** ready
 
 ## Backlog Handoff
 
 | Roadmap ID | Change ID               | Suggested issue title                                        | Ready for `/10x-plan` | Notes |
 | ---------- | ----------------------- | ------------------------------------------------------------ | --------------------- | ----- |
 | S-01       | public-holidays-norm    | Czas pracy: polskie święta państwowe w normie                | yes                   | Issue #25; north star |
-| S-02       | configurable-daily-norm | Czas pracy: konfigurowalna norma dzienna i pół dnia wolnego  | no                    | Issue #26; after S-01 |
+| S-02       | configurable-daily-norm | Czas pracy: konfigurowalna norma dzienna i pół dnia wolnego  | yes                   | Issue #26; after S-01 |
 | S-03       | tray-timer-control      | Zasobnik: START/STOP i bieżący czas pracy                    | yes                   | Issue #23 |
 | S-04       | windows-autostart       | Decyzja: autostart z Windows                                 | yes                   | Issue #17; plan after S-03 or before it, not at once |
 | S-05       | month-report-copy       | Czas pracy: kopiowanie raportu miesiąca do schowka           | yes                   | Issue #24 |
 | S-06       | work-entry-note         | Czas pracy: notatka przy wpisie                              | yes                   | Issue #27 |
 | S-07       | end-of-day-summary      | Decyzja: zamknięcie dnia                                     | yes                   | Issue #19 |
-| S-08       | week-summary            | Decyzja: widok tygodnia                                      | no                    | Issue #18; after S-01 |
+| S-08       | week-summary            | Decyzja: widok tygodnia                                      | yes                   | Issue #18; after S-01 |
 
 ## Open Roadmap Questions
 

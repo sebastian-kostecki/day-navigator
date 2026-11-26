@@ -26,6 +26,7 @@ Header STOP opens a calm "Podsumowanie dnia" panel between the header and the vi
 | PRD             | MS-19, no new FR; delete "zamknięcie dnia, " and add one line        | The PRD must not claim it is unbuilt; minimal hotspot edit.       | User                 |
 | Panel form      | `Panel` in `App.tsx`, figures in `role="status"`, no overlay         | Shared components only; no new tokens or component.               | Plan (agent default) |
 | Reopen          | No persistence; START or "Zamknij" closes; next STOP shows again     | Simplest honest behaviour; no stored "seen" state.                | Plan (agent default) |
+| Panel freshness | Re-reads on `todo-changed` while open                                | A tick in "Do zrobienia" below the panel must not contradict it.  | Plan review (F3)     |
 | Header signal   | `stop()` resolves `true` → `onStopped` prop → app state              | No second timer subscription, no new context.                     | Plan (agent default) |
 | Command         | New `day_summary` command in a new module                            | `stop_work` and `WorkTimerStatus` stay unchanged for S-02/S-08.   | Plan (agent default) |
 | Tray read fails | Fixed toast without figures                                          | Never a wrong figure, never a silent skip after a committed STOP. | Plan (agent default) |
@@ -40,7 +41,7 @@ Header STOP opens a calm "Podsumowanie dnia" panel between the header and the vi
 
 ## Architecture / Approach
 
-Pure Rust (`compose`, `today_ms`, `stop_notice`, `format_signed_hm`) sits in `tauri`-free files and is unit-tested; `day_summary/commands.rs` is the only `tauri` file: the `day_summary` command (settings read, then `status` + `todo::list` in one `with_store`) and the tray helper `stop_notice(app)` (reads `status` only, lock released before `toast`). The window calls the command once when the panel mounts after a successful header STOP.
+Pure Rust (`compose`, `today_ms`, `stop_notice`, `format_signed_hm`) sits in `tauri`-free files and is unit-tested; `day_summary/commands.rs` is the only `tauri` file: the `day_summary` command (settings read, then `status` + `todo::list` in one `with_store`) and the tray helper `stop_notice(app)` (reads `status` only, lock released before `toast`). The window calls the command when the panel mounts after a successful header STOP (`stop()` resolves `true` as soon as `stop_work` resolved, even if a racing refresh already applied the newer status), and again on each `todo-changed` while the panel is open.
 
 ## Phases at a Glance
 
@@ -56,7 +57,9 @@ Pure Rust (`compose`, `today_ms`, `stop_notice`, `format_signed_hm`) sits in `ta
 
 ## Open Risks & Assumptions
 
-- S-02 changes the norm rule; the tests compare against `work_time::status` instead of literal hours so they survive it.
+- S-02 changes the norm rule; the tests compare against `work_time::status` instead of literal hours so they survive it. If S-02 changes the signature of `work_time::status` or `work_time_settings`, the two call sites in `day_summary/` need a one-line update at merge.
+- `lib.rs` and `CHANGELOG.md` are shared with every parallel slice: the handler goes mid-list (after `own_task_default_space`), not at the end; a CHANGELOG `[Unreleased]` conflict is expected and kept by union.
+- Gate hygiene: new files are untracked until committed, so the checks use `git grep --untracked` and `git status --porcelain`; run them from the worktree root after `npm install`.
 - S-04 and S-08 edit the same PRD sentence; the merge keeps each slice's own removal.
 - Focus Assist can swallow the toast; `show()` reports success before Windows shows anything (known from timer-reminders).
 - The deviation counts today's full norm (existing header semantics), labelled "do dziś".

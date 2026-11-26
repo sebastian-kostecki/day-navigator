@@ -16,7 +16,7 @@ After STOP the user sees a summary of the day: time worked today, the month's de
 
 ## Desired End State
 
-- Header STOP (after "TAK, STOP") succeeds → a "Podsumowanie dnia" panel appears between the header and the active view, showing "Dziś" (H:MM), "Odchylenie miesiąca" (±H:MM, "do dziś"), the counts and two lists: "Zrobione dziś" and "Przechodzi na jutro", each with an explicit empty message. One "Zamknij" button dismisses it; nothing else is asked. It survives view switches, disappears on the next START (header or tray), and a later STOP shows it again with fresh data. A failed read shows `ErrorState` with "Spróbuj ponownie" inside the panel, never an empty summary.
+- Header STOP (after "TAK, STOP") succeeds → a "Podsumowanie dnia" panel appears between the header and the active view, showing "Dziś" (H:MM), "Odchylenie miesiąca" (±H:MM, "do dziś"), the counts and two lists: "Zrobione dziś" and "Przechodzi na jutro", each with an explicit empty message. One "Zamknij" button dismisses it; nothing else is asked. It survives view switches, follows ticks made in "Do zrobienia" while it is open, disappears on the next START (header or tray), and a later STOP shows it again with fresh data. A failed read shows `ErrorState` with "Spróbuj ponownie" inside the panel, never an empty summary.
 - Tray STOP succeeds → one toast "Nawigator dnia — koniec pracy" / "Dziś: 7:45. Odchylenie miesiąca: −0:15." (the figures follow the header); if the figures cannot be read, a fixed text without figures. No item titles or counts in the toast; no in-window panel on a tray STOP.
 - `cargo test` covers the summary rules (done vs carry-over split, totals, pass-through deviation, midnight, errors) and the toast texts, including a signed formatter that matches TS `formatHm(ms, true)`.
 - CHANGELOG, README and the PRD sentence describe the feature; `norm.rs`, `report.rs` and `store/schema.rs` are unchanged.
@@ -29,7 +29,9 @@ Verify with the Progress rows below: the automated gates per phase, then the man
 - `work_time::commands::work_time_settings(path, Policy::Lenient)` and `Policy` are `pub` (`commands.rs:23-53`), so a new module can read the holiday settings before taking the store lock, like `run_with_settings` does (`commands.rs:80-106`).
 - `work_time::rules::local_day(ms, tz)` is `pub` (`work_time/rules.rs:33`); deriving one local day from `now` and passing it to `todo::list` keeps both halves of the summary on the same day.
 - The live total is `today_closed_ms + (now − running_from_ms)` (`work_time/mod.rs:50`); after a STOP `running_from_ms` is `None`, but a START between STOP and the read must still give a correct figure.
-- `act` in `useWorkTimer.ts` applies the status returned by `stop_work` before it resolves (`useWorkTimer.ts:160-162`), so when `stop()` resolves `true` the shared timer already shows "stopped".
+- `act` in `useWorkTimer.ts` hands the status returned by `stop_work` to `apply` before it resolves (`useWorkTimer.ts:160-162`). `apply` may drop it as stale: `stop_timer` emits `work-time-changed` before `stop_work` reads the status, and the listener's `refresh` takes a higher request id, so its answer can land first (`useWorkTimer.ts:59-65,96-98`). Either way, once `call()` has resolved, the shared timer already shows the state after the STOP (a refresh issued after the commit or the STOP's own status). So "STOP committed" is "`call()` resolved", not "its status was applied".
+- The dashboard's "Odchylenie" tile reads `work_month_report` (`Policy::Strict`, `src/todo/summary.ts:39-46`); `WorkTimerStatus.monthDeviationMs` comes from `report::compute` with `Policy::Lenient` and no view displays it today (`src/worktime/types.ts:52`). They agree unless the `workTime` block in `settings.json` is invalid (then the tile shows "—" and the summary uses the default calendar, like the header's START/STOP).
+- The worktree has no `node_modules`; run `npm install` once before the first frontend gate.
 - Unit-test helpers to copy: `open()` with `Store::open(..., schema::MIGRATIONS, day)` and `Europe/Warsaw` instants (`work_time/tests.rs:1-30`), own-task and GitLab item builders (`todo/tests.rs:1-60`).
 - Value-free error mapping precedent: `own_task_default_space` maps a foreign error to `StoreError::Sql { reason }` (`lib.rs:110-124`).
 
@@ -51,14 +53,16 @@ Verify with the Progress rows below: the automated gates per phase, then the man
 New logic sits in new files so the shared files (`lib.rs`, `runtime.rs`, `useWorkTimer.ts`, `WorkTimerHeader.tsx`, `App.tsx`, docs, PRD) get a few lines each; this matters because S-02, S-04, S-05 and S-08 run in parallel.
 
 - **Rust `src-tauri/src/day_summary/`**: `mod.rs` (types, pure `compose`, `today_ms`, `read` over a `Store`), `error.rs` (`DaySummaryError`), `notice.rs` (pure toast texts and the signed formatter), `commands.rs` (the only file importing `tauri`: the `day_summary` command and the tray helper), `tests.rs`.
-- **Header path**: `stop()` resolves `true` on success → `WorkTimerHeader` calls a new `onStopped` prop → `App` mounts `DaySummaryPanel` (new folder `src/day-summary/`), which calls the one-shot `day_summary` command once on mount. That is a read, not a second timer subscription; the panel reads the shared timer only through `useWorkTimer()` to close itself on START.
+- **Header path**: `stop()` resolves `true` on success → `WorkTimerHeader` calls a new `onStopped` prop → `App` mounts `DaySummaryPanel` (new folder `src/day-summary/`), which calls the `day_summary` command on mount and again on each `todo-changed` while open. That is a read, not a second timer subscription; the panel reads the shared timer only through `useWorkTimer()` to close itself on START.
 - **Tray path**: `run_tray_action`'s success branch for STOP awaits `day_summary::commands::stop_notice(&app)` (a read of `work_time::status` on the blocking pool, lock released when it returns) and passes the returned `Notice` to `toast`.
 
 Phases are ordered so each one is green on its own: Rust domain and command (with the TS mirror) → tray toast → window panel → docs and PRD.
 
+Run every `git` check in the Success Criteria from the worktree root (pathspecs are relative to the current directory). New files are untracked until committed, so the grep checks use `git grep --untracked` and the "no change" checks use `git status --porcelain -- <paths>` (empty output = pass), which also sees new files; `git diff --quiet` alone does not.
+
 ## Critical Implementation Details
 
-- **Timing & lifecycle**: the tray toast is sent only after the blocking read has returned, so the store lock is never held across `toast` (timer-reminders rule). The panel opens only after `stop()` resolved `true`, which happens after the stopped status was applied; so the panel's "close when running" rule cannot close it at mount.
+- **Timing & lifecycle**: the tray toast is sent only after the blocking read has returned, so the store lock is never held across `toast` (timer-reminders rule). The panel opens only after `stop()` resolved `true`, and by then the shared timer shows the post-STOP state (its own status or a newer refresh, Key Discoveries); so the panel's "close when running" rule cannot close it at mount.
 - **State sequencing**: `day_summary::read` takes `status` first and then `todo::list` inside one `with_store` call, with the same local day for both; `todo::list` is a write (roll-over), so it must stay inside `with_store` on the blocking pool, never in a sync command.
 
 ## Phase 1: Day summary in the domain and the command
@@ -81,7 +85,7 @@ Add the `day_summary` Rust module with its types, the pure rules, the store read
 - `#[derive(Debug, Clone, PartialEq, Eq, Serialize)] #[serde(rename_all = "camelCase")] pub struct DaySummary { pub day: String /* YYYY-MM-DD, the list's day */, pub today_ms: i64, pub month_deviation_ms: i64, pub done: Vec<TodoItem>, pub carry_over: Vec<TodoItem> }`. `TodoItem` needs `PartialEq`/`Eq` (it has them).
 - `pub fn today_ms(status: &WorkTimerStatus) -> i64` = `today_closed_ms + running_from_ms.map_or(0, |from| (as_of_ms - from).max(0))` (the header's live total at `as_of_ms`).
 - `pub fn compose(status: &WorkTimerStatus, list: TodoList) -> DaySummary`: `day = list.day`, `today_ms = today_ms(status)`, `month_deviation_ms = status.month_deviation_ms` (pass-through), `done` = items with `ticked`, `carry_over` = items without, each keeping the order `todo::list` returned.
-- `pub fn read<Tz: TimeZone>(store: &mut Store, now_ms: i64, tz: &Tz, settings: &WorkTimeSettings) -> Result<DaySummary, DaySummaryError>`: `today = work_time::rules::local_day(now_ms, tz)?`; `status = work_time::status(store, now_ms, tz, settings)?`; `list = todo::list(store, today, <local date-time of now_ms>, Ok(todo::DEFAULT_TODO_LIMIT))?`; `Ok(compose(&status, list))`.
+- `pub fn read<Tz: TimeZone>(store: &mut Store, now_ms: i64, tz: &Tz, settings: &WorkTimeSettings) -> Result<DaySummary, DaySummaryError>`: `let local = tz.timestamp_millis_opt(now_ms).earliest().ok_or(DaySummaryError::InvalidLocalTime)?.naive_local();` (the same resolution as `work_time::rules::local_day`, `rules.rs:33-39`); `status = work_time::status(store, now_ms, tz, settings)?` (`status` takes `&Store`; `&mut Store` coerces); `list = todo::list(store, local.date(), local, Ok(todo::DEFAULT_TODO_LIMIT))?` (the limit only fills `TodoList.limit`, which the summary drops); `Ok(compose(&status, list))`.
 - Declares `pub mod commands; pub mod error;` and `#[cfg(test)] mod tests;` (Phase 2 adds `pub mod notice;`); re-exports `DaySummaryError`.
 
 #### 2. Error enum
@@ -92,7 +96,7 @@ Add the `day_summary` Rust module with its types, the pure rules, the store read
 
 **Contract**:
 
-- `#[derive(Debug, Clone, thiserror::Error, Serialize)] #[serde(tag = "kind", content = "detail", rename_all_fields = "camelCase")] pub enum DaySummaryError { Store(StoreError), InvalidLocalTime, Background }` with `kind()` for logs (the store's own kind for `Store`, as `WorkTimeError::kind` does).
+- `#[derive(Debug, Clone, thiserror::Error, Serialize)] #[serde(tag = "kind", content = "detail")] pub enum DaySummaryError { Store(StoreError), InvalidLocalTime, Background }` (no struct variants, so no `rename_all_fields`), each variant with an `#[error("…")]` message in the style of `work_time/error.rs` (e.g. `"app data store error: {0}"`, `"local time is invalid or does not exist"`, `"background task failed"`), and `kind()` for logs (the store's own kind for `Store`, as `WorkTimeError::kind` does).
 - `From<StoreError>`, `From<crate::BackgroundFailed>` (→ `Background`).
 - `From<WorkTimeError>`: `Store(e)` → `Store(e)`, `InvalidLocalTime` → `InvalidLocalTime`, `Background` → `Background`, anything else → `Store(StoreError::Sql { reason: "work-time state unreadable".into() })`.
 - `From<TodoError>`: `Store(e)` → `Store(e)`, `Background` → `Background`, anything else → `Store(StoreError::Sql { reason: "todo state unreadable".into() })`.
@@ -113,7 +117,7 @@ Add the `day_summary` Rust module with its types, the pure rules, the store read
 
 **Intent**: Register the module and the command.
 
-**Contract**: `pub mod day_summary;` in the module list; `day_summary::commands::day_summary` added to `generate_handler!` (one line each, nothing else).
+**Contract**: `pub mod day_summary;` in the module list between `pub mod cli;` and `pub mod events;`; `day_summary::commands::day_summary,` in `generate_handler!` right after `own_task_default_space,` (not at the end: the last line `work_reminders::reminder_settings` has no trailing comma, so every slice that appends there conflicts). One line each, nothing else.
 
 #### 4. Unit tests
 
@@ -151,8 +155,8 @@ Add the `day_summary` Rust module with its types, the pure rules, the store read
 - Formatting passes: `cargo fmt --check` (in `src-tauri/`)
 - Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
 - Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- Only `commands.rs` in the module imports `tauri`: `git grep -n -E "use tauri|tauri::" -- src-tauri/src/day_summary` lists only lines in `src-tauri/src/day_summary/commands.rs`
-- No norm in the module: `git grep -n -E "DAILY_NORM_MS|3_600_000" -- src-tauri/src/day_summary ':!src-tauri/src/day_summary/tests.rs'` returns nothing
+- Only `commands.rs` in the module imports `tauri`: `git grep --untracked -n -E "use tauri|tauri::" -- src-tauri/src/day_summary` lists lines in `src-tauri/src/day_summary/commands.rs` and nowhere else (and does list that file, so the new files were searched)
+- No norm in the module: `git grep --untracked -n -E "DAILY_NORM_MS|3_600_000" -- src-tauri/src/day_summary ':!src-tauri/src/day_summary/tests.rs'` returns nothing
 - Norm, report and schema untouched: `git diff --quiet HEAD -- src-tauri/src/work_time/norm.rs src-tauri/src/work_time/report.rs src-tauri/src/store/schema.rs`
 
 **Implementation Note**: After all automated verification passes, commit (`feat(end-of-day-summary): day summary in the domain and command`). No manual check in this phase.
@@ -178,7 +182,7 @@ Add the pure toast texts with a signed H:MM formatter and send the toast from th
 - `pub fn format_signed_hm(ms: i64) -> String`: whole minutes rounded toward zero (`ms / 60_000`); `0:00` when that is 0; otherwise `+H:MM` or `−H:MM` with U+2212. Mirrors TS `formatHm(ms, true)` (`src/components/time.ts:79-89`).
 - `pub fn stop_notice(today_ms: i64, month_deviation_ms: i64) -> Notice`: title `format!("{APP_NAME} — koniec pracy")`; body `format!("Dziś: {}. Odchylenie miesiąca: {}.", tray_view::format_hm(today_ms), format_signed_hm(month_deviation_ms))`.
 - `pub fn stop_notice_unavailable() -> Notice`: same title; body "Licznik zatrzymany. Czas pracy chwilowo niedostępny — otwórz „Czas pracy”."
-- No `tauri` import. Tests (in this file or `tests.rs`): `format_signed_hm` for 0, ±59 999 ms (`0:00`), 60 000 (`+0:01`), −90 min (`−1:30`), 125 h (`+125:00`); exact title and both bodies; a proptest that every `stop_notice` body matches `^Dziś: \d+:\d{2}\. Odchylenie miesiąca: (0:00|[+−]\d+:\d{2})\.$` (so no title, reference or count can appear).
+- No `tauri` import. Tests (in this file or `tests.rs`): `format_signed_hm` for 0, ±59 999 ms (`0:00`), 60 000 (`+0:01`), −90 min (`−1:30`), 125 h (`+125:00`); exact title and both bodies; a proptest over any `today_ms` and `month_deviation_ms` (`i64` ranges) that the body is exactly `"Dziś: " + A + ". Odchylenie miesiąca: " + B + "."`, where `A` is digits, `:`, two digits and `B` is `0:00` or `+`/`−` followed by digits, `:`, two digits (so no title, reference or count can appear). Check the shape by hand (`strip_prefix`/`strip_suffix`, `split_once(':')`, `chars().all(|c| c.is_ascii_digit())`): `regex` is not a dependency of the crate and this slice adds no dependency.
 
 #### 2. Tray helper
 
@@ -204,8 +208,8 @@ Add the pure toast texts with a signed H:MM formatter and send the toast from th
 - Formatting passes: `cargo fmt --check` (in `src-tauri/`)
 - Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
 - Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- `notice.rs` imports nothing from `tauri`: `git grep -n -E "use tauri|tauri::" -- src-tauri/src/day_summary/notice.rs` returns nothing
-- No frontend, capability or config change: `git diff --quiet HEAD -- src src-tauri/capabilities src-tauri/tauri.conf.json`
+- `notice.rs` imports nothing from `tauri`: `git grep --untracked -n -E "use tauri|tauri::" -- src-tauri/src/day_summary/notice.rs` returns nothing
+- No frontend, capability or config change: `git status --porcelain -- src src-tauri/capabilities src-tauri/tauri.conf.json src-tauri/Cargo.toml` prints nothing
 
 #### Manual Verification:
 
@@ -230,7 +234,7 @@ Let the header learn that its STOP succeeded, and show a dismissible summary pan
 
 **Intent**: The header needs to know that its own STOP committed, without a second subscription.
 
-**Contract**: `act` resolves `true` when `call()` resolved and its status was applied, `false` otherwise (the `AlreadyRunning`/`NotRunning` refresh path and every error). `WorkTimer.start` and `WorkTimer.stop` become `() => Promise<boolean>`. Nothing else changes.
+**Contract**: `act` resolves `true` when `call()` resolved (the action committed and its status went to `apply`), `false` otherwise (the `AlreadyRunning`/`NotRunning` refresh path and every error). Do not make the result depend on whether `apply` kept the status: the `work-time-changed` refresh can win the race and drop it as stale (Key Discoveries), and the STOP still committed. `WorkTimer.start` and `WorkTimer.stop` become `() => Promise<boolean>`. Nothing else changes; the only caller is `WorkTimerHeader.confirm` (`TodoView` and `WorkTimeView` read only `timer` and `nowMs`).
 
 #### 2. Header callback
 
@@ -246,7 +250,7 @@ Let the header learn that its STOP succeeded, and show a dismissible summary pan
 
 **Intent**: Loading/error/data state for one summary read, per the feature-folder convention.
 
-**Contract**: `useDaySummary(): { state: { state: "loading" } | { state: "error"; message: string } | { state: "loaded"; summary: DaySummary }; retry: () => void }`; loads once on mount and again on `retry`; latest request wins (request counter, as in `useWorkTimer`); messages from `daySummaryErrorMessage`.
+**Contract**: `useDaySummary(): { state: { state: "loading" } | { state: "error"; message: string; lastOkAt: number | null } | { state: "loaded"; summary: DaySummary }; retry: () => void }`; messages from `daySummaryErrorMessage`. Loads on mount, again on `retry`, and again on every `todo-changed` event, so a tick or untick in "Do zrobienia" (right below the panel) after STOP updates both lists. Follow `useTodo` (`src/todo/useTodo.ts:65-117`): subscribe to `todo-changed` with `listen` from `@tauri-apps/api/event` first and load only once the listener is registered; latest request wins (request counter); unlisten on unmount. A failed reload replaces the data with the error state carrying `lastOkAt` (time of the last successful read), never stale lists without a warning. This is not a timer subscription; `work-time-changed` is not listened to here. Set `loading` in `retry` (event handler), not synchronously in the effect body (`react-hooks/set-state-in-effect` from eslint-plugin-react-hooks 7). Known residue: "done" in "Moje zadania" emits no `todo-changed` (`lib.rs:92-107`), so the panel catches it only on the next tick, retry or STOP.
 
 #### 4. Summary panel
 
@@ -257,9 +261,9 @@ Let the header learn that its STOP succeeded, and show a dismissible summary pan
 **Contract**:
 
 - Props `{ onClose: () => void }`. Wrapper `<div className="container dn-day-summary">` holding a `Panel` titled "Podsumowanie dnia", `meta` = the summary day as `DD.MM` (sliced from `YYYY-MM-DD`, no `Date` parsing), footer = hint "Nieodhaczone pozycje przejdą na jutro same." (only when `carryOver` is non-empty) and a `Button` "Zamknij" calling `onClose`.
-- Loading: "Wczytywanie podsumowania…". Error: `ErrorState` title "Podsumowanie dnia niedostępne", the message, `onRetry = retry` (no last-success time: the panel has no earlier read). The close button stays available in every state.
-- Data: a `<div role="status">` around a `StatStrip` with "Dziś" (`formatHm(todayMs)`), "Odchylenie miesiąca" (`formatHm(monthDeviationMs, true)`, sub "do dziś", tone `warn` when negative else `info`, as `src/todo/summary.ts`), "Zrobione" (count of `done`), "Na jutro" (count of `carryOver`); then two lists of read-only `ItemRow`s (no checkbox) headed "Zrobione dziś" and "Przechodzi na jutro", with the same source chip and reference as TodoView's rows (`shortRef` from `src/todo/shortRef.ts`; own entries show "praca"/"prywatne"), plain-text titles, the "zamknięte w GitLabie/GitHubie" flag on done rows closed in source; empty messages "Dziś nic nie odhaczono w „Do zrobienia”." and "Nic nie przechodzi na jutro."
-- Reads `useWorkTimer()` (no new subscription): when the shared timer is loaded and running, an effect calls `onClose`, so a later START (header or tray) removes a stale summary.
+- Loading: "Wczytywanie podsumowania…". Error: `ErrorState` title "Podsumowanie dnia niedostępne", the message, `onRetry = retry`, `lastSuccess` = `formatClock(lastOkAt)` when a read succeeded earlier (a failed reload after `todo-changed`), omitted otherwise. The close button stays available in every state.
+- Data: a `<div role="status">` around a `StatStrip` with "Dziś" (`formatHm(todayMs)`), "Odchylenie miesiąca" (`formatHm(monthDeviationMs, true)`, sub "do dziś", tone `warn` when negative else `info`, as `src/todo/summary.ts`), "Zrobione" (count of `done`), "Na jutro" (count of `carryOver`); then two lists of read-only `ItemRow`s (no checkbox) headed "Zrobione dziś" and "Przechodzi na jutro", with the same source chip and reference as TodoView's rows (`source` `my`/`gl`/`gh`; `shortRef` from `src/todo/shortRef.ts`; own entries show "praca"/"prywatne" from a local `Record<Space, string>` in the panel, because `SPACE_REF` is private to `TodoView.tsx:38` and this slice does not edit TodoView), plain-text titles, the "zamknięte w GitLabie/GitHubie" flag on done rows closed in source; empty messages "Dziś nic nie odhaczono w „Do zrobienia”." and "Nic nie przechodzi na jutro."
+- Reads `useWorkTimer()` (no new subscription): when the shared timer is loaded and running, an effect calls `onClose`, so a later START (header or tray) removes a stale summary. (Calling the `onClose` prop from the effect is fine; the panel must not instead just render `null` while running, or a tray STOP would bring the old summary back.)
 - CSS: layout only, `dn-` prefix, tokens only (no literal colours, no z-index, no shadow); it must not double the gap to the view below.
 
 #### 5. Mount in the app
@@ -276,10 +280,10 @@ Let the header learn that its STOP succeeded, and show a dismissible summary pan
 
 - Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 - Rust gates still pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (in `src-tauri/`)
-- One timer subscription: `git grep -n "listen(WORK_TIME_CHANGED" -- src` lists only `src/worktime/useWorkTimer.ts`
-- `invoke` stays in `api.ts` files: `git grep -n "@tauri-apps/api/core" -- src/day-summary` lists only `src/day-summary/api.ts`
-- No literal colours in the new CSS: `git grep -n -E "#[0-9a-fA-F]{3,8}\b|rgba?\(" -- src/day-summary` returns nothing
-- No Rust, capability or config change: `git diff --quiet HEAD -- src-tauri`
+- One timer subscription: `git grep --untracked -n -E "workTimerStatus|WORK_TIME_CHANGED|work-time-changed|stopWork|startWork" -- src/day-summary src/App.tsx` returns nothing, and `git grep --untracked -n "workTimerStatus()" -- src` lists only `src/worktime/useWorkTimer.ts` (today `listen(WORK_TIME_CHANGED` also sits in `useMonthReport.ts` and `useWorkEntries.ts`, which reload their own data, so a repo-wide `listen` grep is not the check)
+- `invoke` stays in `api.ts` files: `git grep --untracked -n "@tauri-apps/api/core" -- src/day-summary` lists only `src/day-summary/api.ts`
+- No literal colours in the new CSS: `git grep --untracked -n -E "#[0-9a-fA-F]{3,8}\b|rgba?\(" -- src/day-summary` returns nothing
+- No Rust, capability or config change: `git status --porcelain -- src-tauri` prints nothing
 
 #### Manual Verification:
 
@@ -287,6 +291,7 @@ Let the header learn that its STOP succeeded, and show a dismissible summary pan
 - "Zrobione dziś" lists exactly the ticked rows of "Do zrobienia" and "Przechodzi na jutro" exactly the unticked ones, with explicit empty messages when a list is empty
 - "Zamknij" removes the panel with no other prompt; switching views keeps an open panel; a header or tray START removes it; a later STOP shows it again
 - A tray STOP shows no panel in the window (only the toast)
+- With the panel open on "Do zrobienia", ticking an unticked row moves it from "Przechodzi na jutro" to "Zrobione dziś" and the counts follow
 - In a built app (`npm run tauri build -- --debug --no-bundle`) the panel works and the DevTools console shows no CSP violation and no "IPC custom protocol failed"
 
 **Implementation Note**: After all automated verification passes, commit (`feat(end-of-day-summary): summary panel after header STOP`) and leave the manual rows for the human.
@@ -331,7 +336,7 @@ Record the feature for users and the next release, and correct the PRD sentence 
 
 - Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 - Rust gates still pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (in `src-tauri/`)
-- Only docs change: `git diff --name-only HEAD` lists only `CHANGELOG.md`, `README.md`, `context/foundation/prd.md` (and this plan's Progress)
+- Only docs change: `git status --porcelain` lists only `CHANGELOG.md`, `README.md`, `context/foundation/prd.md` (and this plan's Progress)
 - The PRD no longer lists it as unbuilt: `git grep -n "skrzynka, zamknięcie dnia" -- context/foundation/prd.md` returns nothing and `git grep -n "MS-19" -- context/foundation/prd.md` finds the new line
 - Across the slice, norm, report and schema are untouched: `git diff --quiet $(git merge-base HEAD develop) -- src-tauri/src/work_time/norm.rs src-tauri/src/work_time/report.rs src-tauri/src/store/schema.rs`
 
@@ -354,14 +359,14 @@ Record the feature for users and the next release, and correct the PRD sentence 
 ### Manual Testing Steps:
 
 1. Start the counter in the header, tick one item in "Do zrobienia", leave another unticked; STOP in the header and confirm: the panel shows the times and both lists.
-2. Click "Zamknij": the panel disappears with nothing asked; the unticked item is still on the list.
+2. With the panel open, tick the open item in "Do zrobienia": it moves to "Zrobione dziś" in the panel; untick it again. Click "Zamknij": the panel disappears with nothing asked; the unticked item is still on the list.
 3. START from the tray: no toast; STOP from the tray: the toast shows "Dziś" and "Odchylenie miesiąca" matching the header and the dashboard; no panel appears.
 4. STOP in the header again, switch views: the panel stays; START from the header: the panel disappears.
 5. Build with `npm run tauri build -- --debug --no-bundle`, repeat step 1 and check the DevTools console for CSP or IPC errors.
 
 ## Performance Considerations
 
-One extra read per STOP: the header's panel runs `status` (month report) and `todo::list` (one small write) once; the tray runs one `status`. Both are the same queries the header and the dashboard already run on every refresh, so the cost is negligible.
+One extra read per STOP: the header's panel runs `status` (month report) and `todo::list` (one small write) once, and once more per `todo-changed` while it is open (no loop: `day_summary` emits nothing); the tray runs one `status`. Both are the same queries the header and the dashboard already run on every refresh, so the cost is negligible.
 
 ## Migration Notes
 
@@ -380,13 +385,13 @@ User decisions (binding, given with the task):
 Agent defaults (no user was reachable; default chosen by agent, user may revise):
 
 - **A1.** In-window form: a `Panel` "Podsumowanie dnia" mounted in `App.tsx` between the header and the active view, figures in a `role="status"` region, "Zamknij" in the footer; no modal, overlay or new tokens.
-- **A2.** No persistence: the panel lives in app state until "Zamknij", a reload, or a START (header or tray); a later STOP shows it again with fresh data; no reopen button.
-- **A3.** The header learns of its own successful STOP through `stop()` resolving `true`; a STOP that ends in `AlreadyRunning`/`NotRunning` or an error opens nothing.
+- **A2.** No persistence: the panel lives in app state until "Zamknij", a reload, or a START (header or tray); a later STOP shows it again with fresh data; no reopen button. While open it re-reads on `todo-changed`, so a tick in "Do zrobienia" below it after STOP is reflected (plan review F3).
+- **A3.** The header learns of its own successful STOP through `stop()` resolving `true` (= `stop_work` resolved, whether or not `apply` kept its status); a STOP that ends in `AlreadyRunning`/`NotRunning` or an error opens nothing. Pre-existing edge kept as is: when the STOP commits but `stop_work`'s follow-up status read fails, the header shows its action error and no panel opens.
 - **A4.** A new one-shot command `day_summary` in a new module; `stop_work` and `WorkTimerStatus` stay unchanged (smaller diff against S-02/S-08).
 - **A5.** Item titles appear in the window panel (read-only rows, same chips and references as "Do zrobienia"); never in the toast or the app log (logs carry error kinds only).
 - **A6.** Tray notice texts: title "Nawigator dnia — koniec pracy"; body "Dziś: H:MM. Odchylenie miesiąca: ±H:MM."; if the figures cannot be read after a committed STOP, the body is "Licznik zatrzymany. Czas pracy chwilowo niedostępny — otwórz „Czas pracy”." (never a wrong figure, never a silent skip).
 - **A7.** The tray notice reads only `work_time::status` (no todo write); the window summary reads `status` and `todo::list` in one `with_store` call on the same local day.
-- **A8.** Deviation shown as the header shows it: the current month's deviation including today's full norm, labelled "do dziś"; passed through from `status`, never computed.
+- **A8.** Deviation = `WorkTimerStatus.monthDeviationMs` (the header's status; no view displays it today), equal to the dashboard's "Odchylenie" tile: the current month's deviation including today's full norm, labelled "do dziś"; passed through from `status`, never computed. With an invalid `workTime` block the tile shows "—" while the summary uses the default calendar (`Policy::Lenient`, as START/STOP do).
 - **A9.** STOP after midnight: the summary is about the new day (only the part after midnight; yesterday's ticks have rolled over). Accepted and documented, like the header.
 - **A10.** The event log is not read: the todo store is the reliable source for ticks (research §3).
 - **A11.** Signed H:MM in Rust lives in `day_summary/notice.rs` and mirrors TS `formatHm(ms, true)`; today's time reuses `tray_view::format_hm`.
@@ -432,7 +437,7 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 - [ ] 2.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
 - [ ] 2.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 - [ ] 2.5 `notice.rs` imports nothing from `tauri`
-- [ ] 2.6 No frontend, capability or config change: `git diff --quiet HEAD -- src src-tauri/capabilities src-tauri/tauri.conf.json`
+- [ ] 2.6 No frontend, capability, config or dependency change (`git status --porcelain` on those paths prints nothing)
 
 #### Manual
 
@@ -445,7 +450,7 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 - [ ] 3.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 - [ ] 3.2 Rust gates still pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (in `src-tauri/`)
-- [ ] 3.3 One timer subscription (grep for `listen(WORK_TIME_CHANGED` lists only `useWorkTimer.ts`)
+- [ ] 3.3 One timer subscription (no timer-status read or `work-time-changed` listener in `src/day-summary` or `App.tsx`; `workTimerStatus()` called only in `useWorkTimer.ts`)
 - [ ] 3.4 `invoke` stays in `src/day-summary/api.ts`
 - [ ] 3.5 No literal colours in `src/day-summary`
 - [ ] 3.6 No Rust, capability or config change: `git diff --quiet HEAD -- src-tauri`
@@ -457,6 +462,7 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 - [ ] 3.9 "Zamknij" dismisses with no prompt; view switches keep it; START removes it; a later STOP shows it again
 - [ ] 3.10 A tray STOP shows no panel in the window
 - [ ] 3.11 Built app: panel works, no CSP violation and no "IPC custom protocol failed" in DevTools
+- [ ] 3.12 A tick in "Do zrobienia" while the panel is open moves the row between the panel's lists
 
 ### Phase 4: Docs and PRD wording
 

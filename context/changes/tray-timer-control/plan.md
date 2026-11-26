@@ -443,12 +443,12 @@ Agent defaults added by the plan review (`reviews/plan-review.md`; no user was r
 
 #### Automated
 
-- [ ] 2.1 Rust tests pass, including the new `tray_view::tests` and the unchanged `health` tooltip tests: `cargo test` (in `src-tauri/`)
-- [ ] 2.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
-- [ ] 2.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
-- [ ] 2.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 2.5 `tray_view.rs` imports nothing from `tauri`: `git grep -n -E "use tauri|tauri::" -- src-tauri/src/tray_view.rs` returns nothing
-- [ ] 2.6 No frontend, capability or config change: `git diff --quiet HEAD -- src src-tauri/capabilities src-tauri/tauri.conf.json`
+- [x] 2.1 Rust tests pass, including the new `tray_view::tests` and the unchanged `health` tooltip tests: `cargo test` (in `src-tauri/`)
+- [x] 2.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
+- [x] 2.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
+- [x] 2.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 2.5 `tray_view.rs` imports nothing from `tauri`: `git grep -n -E "use tauri|tauri::" -- src-tauri/src/tray_view.rs` returns nothing
+- [x] 2.6 No frontend, capability or config change: `git diff --quiet HEAD -- src src-tauri/capabilities src-tauri/tauri.conf.json`
 
 ### Phase 3: Running tray icon
 

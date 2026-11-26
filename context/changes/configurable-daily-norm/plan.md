@@ -20,6 +20,7 @@ Pełna mapa miejsc: `context/changes/configurable-daily-norm/research.md`. Najwa
 
 ## Desired End State
 
+- „Odchylenie w nagłówku” z outcome to pole statusu `WorkTimerStatus.monthDeviationMs` (`mod.rs:211`, liczone z `report::compute`), więc dostaje normę z ustawień i pół dnia bez osobnego kodu i jest pokryte testami (faza 1 pkt 6, faza 2 pkt 7). Nagłówek (`WorkTimerHeader.tsx`) pokazuje dziś tylko sumę dnia i ten slice nie dodaje do niego odchylenia.
 - `"workTime": { "dailyNormHours": 7.5 }` daje normę 7:30 na dzień roboczy we wszystkich liczbach raportu, w statusie i w kafelkach pulpitu; brak klucza lub `null` = 8 h. Wartość spoza 1–10 h albo niebędąca pełną liczbą minut unieważnia blok `workTime`: raport i przełącznik dnia pokazują błąd (Strict), START/STOP działa dalej (Lenient).
 - W tabeli dni i w panelu „Wybrany dzień” dzień roboczy ma trzystanowy przełącznik: roboczy / pół dnia wolnego / cały dzień wolny. Pół dnia ma normę równą połowie normy dziennej, pasek z kreską normy w połowie i dopisek „pół dnia wolnego”; cały dzień wolny jest zakreskowany jak dziś. Weekend i święto nie mają przełącznika i są odrzucane przez Rust.
 - „Dni wolne” liczy pół dnia jako 0,5; „Średnio / dzień” podaje czas na pełny dzień roboczy (pół dnia wolnego wymaga połowy), a podpis mówi, ile z pozostałych dni to pół dnia.
@@ -42,6 +43,7 @@ Pełna mapa miejsc: `context/changes/configurable-daily-norm/research.md`. Najwa
 - Brak historii normy i normy per miesiąc/okres (decyzja użytkownika): jedna wartość, działająca wstecz.
 - Brak nowych FR w PRD; slice zostaje przy MS-26 (w PRD zmieniają się tylko istniejące sformułowania o 8 h).
 - Brak edytora ustawień w UI: `settings.json` edytuje się ręcznie jak dotąd.
+- Brak odchylenia w nagłówku: nagłówek pokazuje tylko sumę dnia (`WorkTimerHeader.tsx`); pokazanie odchylenia miesiąca należy do konsumenta (np. S-07). Ten slice zapewnia tylko, że `monthDeviationMs` liczy nową regułę.
 - Brak pół dnia w weekend i w święto; brak „ćwiartek” i dowolnych godzin wolnych.
 - Brak zmiany polityki Lenient: przy zepsutym bloku `workTime` status, lista wpisów dnia i przypomnienia liczą z domyślnymi 8 h (`commands.rs:47-50`); żaden widok nie pokazuje dziś `monthDeviationMs`. Konsument z S-07 decyduje sam o Strict.
 - Brak zmian w `lib.rs` (nazwa komendy `set_day_off` zostaje), w `context/foundation/roadmap.md` (bez synchronizacji statusu przez `/10x-plan` — zakaz edycji w tej zmianie) i w `shape-notes.md` (historia).
@@ -61,7 +63,8 @@ Edycje plików współdzielonych z równoległymi slice'ami (`settings/work_time
 ## Critical Implementation Details
 
 - **Średnio / dzień na pełny dzień.** `needed_per_day_ms = ceil_to_minute(ceil(remaining × daily_norm / norm_after_today))`, gdzie `norm_after_today` = suma norm dni po dziś. Bez pół dni to dokładnie dzisiejszy wynik (`ceil(remaining / after)`), więc istniejące testy liczb zostają. Iloczyn licz w `i128` (albo z udokumentowaną granicą), żeby clippy i overflow nie były tematem. Przykład kontrolny: norma 8 h, po dziś 2 pełne dni + 1 pół dnia (20 h), brakuje 25 h → 10:00 na pełny dzień (10 + 10 + 5 = 25).
-- **Pół normy jest dokładne.** Norma ma pełne minuty, więc `daily_norm_ms / 2` jest całkowite (30 s × minuty); proptest wiersze=miesiąc nie traci ms.
+- **Pół normy jest dokładne.** Norma ma pełne minuty, więc `daily_norm_ms / 2` jest całkowite (30 s × minuty); proptest wiersze=miesiąc nie traci ms. Przy nieparzystej liczbie minut pół dnia ma 30 s nadwyżki ponad pełną minutę (7:01 → 3:30:30 = 12_630_000 ms): Rust liczy dokładnie w ms, a UI pokazuje jak dziś (`formatHm` obcina do minuty, czyli 3:30; odchylenie poniżej minuty to „0:00”). Bez zaokrąglania normy w Rust.
+- **Średnio / dzień — warunek kontrolny.** Dla `after > 0` i `remaining > 0`: `needed × norm_after_today ≥ remaining × daily_norm` oraz `(needed − 1 min) × norm_after_today < remaining × daily_norm` (w `i128`); `needed` to najmniejsza pełna minuta spełniająca pierwszy warunek. Ten warunek sprawdza proptest (faza 1 pkt 5, faza 2 pkt 7).
 - **Kolejność w `classify`:** weekend > święto > cały dzień wolny > pół dnia > roboczy. Wiersz `days_off` (całego lub pół dnia) w święto jest zacieniony, nie usuwany, jak dziś (`report.rs:42-43`, `:178`).
 - **Zapis stanu w jednym `write`:** `Workday` → `DELETE`; `HalfDayOff`/`DayOff` → `INSERT … ON CONFLICT(day) DO UPDATE SET kind = excluded.kind` (wartości zawsze jako parametry `?N`, `created_at_ms` pierwszego oznaczenia zostaje). Idempotentne.
 - **Ręczne przebiegi dzielą prawdziwą bazę.** Każdy worktree, `npm run tauri dev` i zainstalowane wydanie używają identyfikatora `com.sebas.day-navigator` (`tauri.conf.json:4`). Po pierwszym przebiegu z v12 wydanie bez v12 odmawia bazy jako `NewerSchema`, a po ewentualnym przenumerowaniu migracji przy merge'u baza z `kind` jako v12 nie przejdzie innej v12 (`MigrationFailed`) i zostanie odrzucona, nigdy zresetowana. Przed pierwszym ręcznym przebiegiem fazy 2/3 zamknąć aplikację i skopiować cały katalog danych aplikacji na bok; po testach przywrócić kopię (`day-navigator.db*` i `backups/`), dopóki nie jest zainstalowane wydanie z v12 (precedens `context/archive/2026-11-26-work-entry-note/plan.md`, „Ręczne przebiegi dzielą prawdziwą bazę”). Agenci nie uruchamiają `npm run tauri dev` (port 1420 jest wspólny); wiersze Manual są dla użytkownika.
@@ -120,7 +123,7 @@ Norma dzienna przestaje być stałą: przychodzi z `workTime.dailyNormHours` (do
 **Contract**:
 - Listopad 2026, kalendarz `pl`, norma 7.5 h, bez dni wolnych: 20 dni roboczych, `norm_ms = 150 h` (540_000_000); z `manual_only()` 21 dni = 157.5 h. Norma wiersza dnia roboczego = 7:30, weekendu/święta = 0.
 - `needed_per_day_ms` przy normie 6 h w bieżącym miesiącu równa się wzorowi `ceil_to_minute(ceil(remaining / after))` (zgodność wsteczna dla samych pełnych dni).
-- Proptest `day_rows_add_up_to_the_month_figures`: dodatkowy parametr `norm_minutes in 60..=600`, ustawienia z tą normą; asercje jak dziś (Σ worked, Σ odchyleń dni do dziś = odchylenie miesiąca, Σ norm dni = norma miesiąca) plus Σ norm dni ≤ dziś = `norm_to_date_ms`.
+- Proptest `day_rows_add_up_to_the_month_figures`: dodatkowy parametr `norm_minutes in 60..=600`, ustawienia z tą normą; asercje jak dziś (Σ worked, Σ odchyleń dni do dziś = odchylenie miesiąca, Σ norm dni = norma miesiąca) plus Σ norm dni ≤ dziś = `norm_to_date_ms`. Po zmianie `figures` suma wierszy = miesiąc jest prawdziwa z konstrukcji (oba liczą z `day_norm_ms`), więc proptest dostaje niezależną wyrocznię liczoną w teście z flag i kalendarza: `norm_ms = daily_norm × liczba dni pon–pt bez święta i bez oznaczenia` oraz warunek kontrolny „Średnio / dzień” z „Critical Implementation Details”.
 
 #### 6. Testy komend i statusu
 
@@ -134,7 +137,7 @@ Norma dzienna przestaje być stałą: przychodzi z `workTime.dailyNormHours` (do
 
 **File**: `src/worktime/types.ts`, `src/worktime/api.ts`, `src/worktime/WorkTimeView.tsx`
 
-**Intent**: `MonthReportBase.dailyNormMs: number`. Komunikat `SettingsInvalid` wymienia też `dailyNormHours` (liczba godzin 1–10 w pełnych minutach, np. 7.5). `HowCounted` dostaje normę dzienną z raportu (`number | null`; przy ładowaniu/błędzie neutralne „norma dzienna z settings.json, domyślnie 8 h”) i używa `formatHm` zamiast „8 h” w trzech akapitach; dopisuje zdanie, że zmiana normy przelicza wszystkie miesiące, także zamknięte.
+**Intent**: `MonthReportBase.dailyNormMs: number`. Komunikat `SettingsInvalid` wymienia też `dailyNormHours` (liczba godzin 1–10 w pełnych minutach, np. 7.5). `HowCounted` dostaje normę dzienną z raportu (`number | null`; przy ładowaniu/błędzie neutralne „norma dzienna z settings.json („workTime”)”, bez liczby: UI nie zna wartości domyślnej) i używa `formatHm` zamiast „8 h” w trzech akapitach; dopisuje zdanie, że zmiana normy przelicza wszystkie miesiące, także zamknięte.
 
 **Contract**: `HowCounted({ dailyNormMs: number | null })`; żadnej liczby normy wyliczanej w TS.
 
@@ -145,12 +148,12 @@ Norma dzienna przestaje być stałą: przychodzi z `workTime.dailyNormHours` (do
 - `cargo test` w `src-tauri/` przechodzi, w tym nowe testy `settings::work_time` (zakres, pełne minuty, null/brak, izolacja bloków), testy normy 7.5 h na listopadzie 2026 i proptest z losową normą 60–600 min
 - `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
 - `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- `git grep -n "DAILY_NORM_MS" -- src-tauri` znajduje tylko `DEFAULT_DAILY_NORM_MS`, a `git grep -n "8 h" -- src/worktime` nic nie znajduje
+- `git grep -nw "DAILY_NORM_MS" -- src-tauri` i `git grep -n "8 h" -- src/worktime` nic nie znajdują
 
 #### Manual Verification:
 
 - Z `"workTime": { "dailyNormHours": 7.5 }` w `settings.json` po powrocie do okna „Czas pracy” pokazuje „z … normy” jako 7:30 × dni robocze, pasek dnia roboczego ma kreskę normy na 7:30, a „Jak liczę” podaje 7:30; kafelki pulpitu pokazują te same liczby
-- `"dailyNormHours": 11` (albo `"8"`) daje błąd raportu w „Czas pracy” i w kafelkach pulpitu z komunikatem o `dailyNormHours`; START/STOP w nagłówku działa dalej; usunięcie klucza przywraca 8 h
+- `"dailyNormHours": 11` (albo `"8"`) daje w „Czas pracy” błąd raportu z komunikatem o `dailyNormHours`, a kafelki pulpitu pokazują „raport niedostępny”; START/STOP w nagłówku działa dalej; usunięcie klucza przywraca 8 h
 
 **Implementation Note**: Po fazie i zielonych bramkach automatycznych zatrzymaj się na ręczne potwierdzenie przez użytkownika. Bloki faz mają zwykłe punktory; checkboxy są tylko w `## Progress`.
 
@@ -227,11 +230,12 @@ Dzień może być oznaczony jako cały albo pół dnia wolnego. Rodzaj zapisuje 
 **Intent**: Utrwalić pół dnia w regule, zapisie i przypomnieniach.
 
 **Contract**:
-- Norma 8 h, listopad 2026, `manual_only()`, pół dnia 2026-11-12: norma miesiąca 21 × 8 − 4 = 164 h, wiersz 12.11 `kind = HalfDayOff`, `norm_ms = 4 h`; to samo przy 7.5 h → wiersz 3:45.
+- Norma 8 h, listopad 2026, `manual_only()`, pół dnia 2026-11-12: norma miesiąca 21 × 8 − 4 = 164 h, wiersz 12.11 `kind = HalfDayOff`, `norm_ms = 4 h`; to samo przy 7.5 h → wiersz 3:45; przy nieparzystej normie 7:01 (421 min) wiersz pół dnia = 12_630_000 ms (3:30:30), a norma miesiąca = 20 × 25_260_000 + 12_630_000.
+- Status: `status(...).month_deviation_ms` przy pół dniu przed dziś równa się `figures.deviation_ms` raportu i liczy dla tego dnia połowę normy (rozszerzenie `status_month_deviation_equals_the_report_deviation`, `norm_tests.rs:323`).
 - Przejścia `Workday → HalfDayOff → DayOff → Workday` i `DayOff → HalfDayOff` dają po jednym wierszu z właściwym `kind`; powtórzenie tego samego stanu nic nie zmienia; weekend i święto odrzucone dla każdego `mark` bez wiersza.
 - Wiersz pół dnia w święto (oznaczony przy wyłączonym kalendarzu) jest zacieniony: `Holiday`, norma 0, brak w `half_days_off`.
 - `needed_per_day_ms` na przykładzie kontrolnym (2 pełne + 1 pół dnia po dziś, brakuje 25 h → 10:00) i `half_days_after_today = Some(1)`.
-- Proptest: `off_flags` jako losowy wybór z {brak, pół, cały} na dzień (przy losowej normie z fazy 1); te same sumy wiersze = miesiąc.
+- Proptest: `off_flags` jako losowy wybór z {brak, pół, cały} na dzień (przy losowej normie z fazy 1); te same sumy wiersze = miesiąc, a niezależna wyrocznia z fazy 1 rozszerzona o pół dni: `norm_ms = daily_norm × dni bez oznaczenia + daily_norm / 2 × pół dni` (dni pon–pt bez święta) i warunek kontrolny „Średnio / dzień” z `norm_after_today` liczonym w teście.
 - `reminders_tests.rs`: `DayKind::HalfDayOff` na liście „cicho” przypomnienia startu.
 
 #### 8. Upgrade i odmowa CHECK
@@ -303,7 +307,7 @@ Komenda przyjmuje stan dnia zamiast boola, a tabela dni i panel „Wybrany dzie�
 
 **File**: `src/worktime/DaysTable.tsx`, `src/worktime/WorkTime.css`
 
-**Intent**: Dla `workday`, `halfDayOff` i `dayOff` kolumna „Wolne” pokazuje `Segmented` (`size="sm"`, `label` „Dzień wolny DD.MM”, opcje „nie” / „½” / „tak”, `disabled` przy żądaniu w toku). Pół dnia nie jest zakreskowany; w komórce paska ma dopisek „pół dnia wolnego” (ten sam styl co nazwa święta); pasek dostaje normę wiersza jak dziś. Kolumna przełącznika szersza (np. 104px w `--dn-table-cols`), sprawdzona w oknie 800 px.
+**Intent**: Dla `workday`, `halfDayOff` i `dayOff` kolumna „Wolne” pokazuje `Segmented` (`size="sm"`, `label` „Dzień wolny DD.MM”, opcje „nie” / „½” / „tak”, `disabled` przy żądaniu w toku). Pół dnia nie jest zakreskowany; w komórce paska ma dopisek „pół dnia wolnego” (ten sam styl co nazwa święta); pasek dostaje normę wiersza jak dziś. Kolumna przełącznika szersza w `--dn-table-cols`: szerokość dobrana do trzech przycisków `Segmented size="sm"` (każdy ma `padding: 0 var(--space-3)`, czyli 24 px plus etykieta, więc około 120 px, a nie 104 px), a zwęża się kolumna paska `minmax(0, 1fr)`; sprawdzone w oknie 800 px.
 
 **Contract**: `DaysTable` props bez zmian poza typem `dayOff: DayOffToggle`; tylko layout w `WorkTime.css`.
 
@@ -400,7 +404,8 @@ README, CHANGELOG i PRD opisują normę z ustawień, pół dnia wolnego i brak h
 
 - Parser `dailyNormHours`: granice 1 i 10 h, pełne minuty (7.5 tak, 7.33 nie), typy niebędące liczbą, `null`/brak, izolacja od innych bloków.
 - `norm.rs`: norma dnia dla czterech rodzajów dnia przy 8 h i 7.5 h; `day_norms` dla zakresu tygodnia przecinającego miesiąc (pod S-08); `figures` z pół dniami; „Średnio / dzień” na pełny dzień i zgodność wsteczna bez pół dni.
-- Proptest: losowe wpisy, losowy stan dnia {roboczy, pół, cały}, losowa norma 60–600 min, kalendarz włączony/wyłączony → Σ wierszy = liczby miesiąca.
+- Proptest: losowe wpisy, losowy stan dnia {roboczy, pół, cały}, losowa norma 60–600 min, kalendarz włączony/wyłączony → Σ wierszy = liczby miesiąca, norma miesiąca = niezależna wyrocznia z flag, „Średnio / dzień” spełnia warunek kontrolny.
+- Status: `monthDeviationMs` z pół dniem równa się odchyleniu raportu (to jest „odchylenie w nagłówku” z outcome).
 - `set_day_off` z `DayMark`: przejścia, idempotencja, odmowy weekendu i święta bez zapisu; klasyfikacja z zacienieniem przez święto.
 - Przypomnienia: `HalfDayOff` wycisza przypomnienie startu.
 
@@ -475,12 +480,12 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): jedna
 - [ ] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy `settings::work_time` (zakres, pełne minuty, null/brak, izolacja bloków), testy normy 7.5 h na listopadzie 2026 i proptest z losową normą 60–600 min
 - [ ] 1.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
 - [ ] 1.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 1.4 `git grep -n "DAILY_NORM_MS" -- src-tauri` znajduje tylko `DEFAULT_DAILY_NORM_MS`, a `git grep -n "8 h" -- src/worktime` nic nie znajduje
+- [ ] 1.4 `git grep -nw "DAILY_NORM_MS" -- src-tauri` i `git grep -n "8 h" -- src/worktime` nic nie znajdują
 
 #### Manual
 
 - [ ] 1.5 Z `"workTime": { "dailyNormHours": 7.5 }` w `settings.json` po powrocie do okna „Czas pracy” pokazuje „z … normy” jako 7:30 × dni robocze, pasek dnia roboczego ma kreskę normy na 7:30, a „Jak liczę” podaje 7:30; kafelki pulpitu pokazują te same liczby
-- [ ] 1.6 `"dailyNormHours": 11` (albo `"8"`) daje błąd raportu w „Czas pracy” i w kafelkach pulpitu z komunikatem o `dailyNormHours`; START/STOP w nagłówku działa dalej; usunięcie klucza przywraca 8 h
+- [ ] 1.6 `"dailyNormHours": 11` (albo `"8"`) daje w „Czas pracy” błąd raportu z komunikatem o `dailyNormHours`, a kafelki pulpitu pokazują „raport niedostępny”; START/STOP w nagłówku działa dalej; usunięcie klucza przywraca 8 h
 
 ### Phase 2: Pół dnia wolnego w danych i regule
 

@@ -47,6 +47,7 @@ Reguła siedzi w `src-tauri/src/work_time/norm.rs` ze stałą `DAILY_NORM_MS` mn
 - Nowe FR w PRD, zmiany w `roadmap.md` i `lib.rs`.
 - Pół dnia w weekend/święto, ćwiartki dnia.
 - Zmiana polityki Lenient.
+- Odchylenie w nagłówku: nagłówek pokazuje tylko sumę dnia; „odchylenie w nagłówku” z outcome to pole statusu `monthDeviationMs`, które liczy nową regułę (z testem), bez nowego widoku.
 
 ## Architecture / Approach
 
@@ -73,6 +74,6 @@ Reguła siedzi w `src-tauri/src/work_time/norm.rs` ze stałą `DAILY_NORM_MS` mn
 
 ## Success Criteria (Summary)
 
-- Norma z ustawień i pół dnia zmieniają każdą liczbę normy spójnie (proptest: wiersze dni = liczby miesiąca).
+- Norma z ustawień i pół dnia zmieniają każdą liczbę normy spójnie (proptest: wiersze dni = liczby miesiąca, plus niezależna wyrocznia normy miesiąca i warunek kontrolny „Średnio / dzień”).
 - Dotychczasowe dni wolne i liczby przy 8 h zostają bez zmian po migracji.
 - Użytkownik oznacza pół dnia w tabeli lub panelu i widzi to w kafelkach i na pulpicie.

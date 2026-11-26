@@ -63,7 +63,7 @@ New files keep edits in files shared with parallel slices (`lib.rs`, `runtime.rs
 
 **Threads and locks.** The tray menu callback runs on the main thread: it must only read the shown action and call `tauri::async_runtime::spawn`; it must never touch the store, take `published` or the snapshot lock. Tray and menu setters (`set_icon`, `set_tooltip`, `MenuItem::set_text`, `set_enabled`) run only inside `update_tray`, under `published`, on the check or watchdog thread. The work-line lock is never held across a tray, menu, emit or toast call.
 
-**Act on the shown intent.** The handler starts or stops according to the action the item showed when it was last set, never by reading the store and toggling, so a stale label can never stop a counter the user meant to start. `AlreadyRunning` / `NotRunning` mean "changed elsewhere": refresh only, no toast.
+**Act on the shown intent.** The handler starts or stops according to the action the item showed when it was last set, never by reading the store and toggling, so a stale label can never stop a counter the user meant to start. While `update_tray` changes the label, the shown action is `None` (cleared before the setters, set after them), so a click in that window does nothing. `AlreadyRunning` / `NotRunning` mean "changed elsewhere": refresh only, no toast.
 
 **Ordering in the health round.** Read the work line right after `probe_round` and before `stamp_heartbeat`, and store it before the snapshot's `seq` is bumped, so any publish that sees the new `seq` also sees the new work line.
 
@@ -98,7 +98,7 @@ Add a cheap, pure read of today's live work time and running flag for the tray, 
 
 **File**: `src-tauri/src/work_time/today_tests.rs` (new)
 
-**Intent**: Pin the total and the running flag on invented data in `Europe/Warsaw`, with its own small helpers (open a store with `schema::MIGRATIONS` in a temp dir, local-time parser via `rules::resolve_local`), using `start`, `stop` and `add` from the domain to create entries.
+**Intent**: Pin the total and the running flag on invented data in `Europe/Warsaw`, with its own small helpers copied from `src-tauri/src/work_time/tests.rs:14-28` (`t()` via `rules::resolve_local`, `open()` with `Store::open(…, schema::MIGRATIONS, today)` in a `tempfile` dir), using `start`, `stop`, `add` and `remove` from the domain to create entries. Import them with `use super::*;` and call them unqualified (`start(&mut store, …)`), never as `crate::work_time::start(`, which the Phase 4 grep (4.5) would flag.
 
 **Contract**: tests at a fixed "now" of 2026-11-23 12:00 local:
 - no entries → `{ running: false, today_ms: 0 }`;
@@ -148,12 +148,12 @@ Add a pure, `tauri`-free module that decides what the tray shows from the health
 
 **Contract**:
 - `#[derive(Debug, Clone, Copy, PartialEq, Eq)] pub enum WorkLine { Loading, Unavailable, Known(TodayWork) }` (`TodayWork` from `work_time::today`).
-- `#[derive(Debug, Clone, Copy, PartialEq, Eq)] pub enum TrayIcon { Idle, Ok, Running, Error }` and `pub fn tray_icon(overall: Overall, work: &WorkLine) -> TrayIcon`: `Error` → `Error` (whatever the counter); `Starting` / `NotRunning` → `Idle`; `Ok` with `Known { running: true, .. }` → `Running`; `Ok` otherwise → `Ok`.
+- `#[derive(Debug, Clone, Copy, PartialEq, Eq)] pub enum TrayIconKind { Idle, Ok, Running, Error }` (not `TrayIcon`, which is the `tauri::tray::TrayIcon` handle `runtime.rs` works with) and `pub fn tray_icon(overall: Overall, work: &WorkLine) -> TrayIconKind`: `Error` → `Error` (whatever the counter); `Starting` / `NotRunning` → `Idle`; `Ok` with `Known { running: true, .. }` → `Running`; `Ok` otherwise → `Ok`.
 - `#[derive(Debug, Clone, Copy, PartialEq, Eq)] pub enum TimerAction { Start, Stop }` and `pub struct WorkItem { pub text: &'static str, pub action: Option<TimerAction> }` (enabled exactly when `action` is `Some`); `pub fn work_item(overall: Overall, work: &WorkLine) -> WorkItem`: `NotRunning` (check loop stalled, the tray can no longer refresh) → `"Czas pracy niedostępny"`, `None`; otherwise `Known` running → `"STOP"`, `Some(Stop)`; `Known` stopped → `"START"`, `Some(Start)`; `Loading` → `"Czas pracy: wczytywanie…"`, `None`; `Unavailable` → `"Czas pracy niedostępny"`, `None`.
 - `pub fn format_hm(ms: i64) -> String`: `H:MM` floored to whole minutes, negative as `0:00` (same as `formatHm` in `src/worktime/format.ts`).
 - `pub fn work_line_text(overall: Overall, work: &WorkLine) -> String`: `NotRunning` → `"Czas pracy niedostępny"`; `Known` running → `"Czas pracy dziś: H:MM (trwa)"`; `Known` stopped → `"Czas pracy dziś: H:MM"`; `Loading` → `"Czas pracy: wczytywanie…"`; `Unavailable` → `"Czas pracy niedostępny"`.
 - `pub const LINE_SEPARATOR: &str = "\n";` and `pub fn tooltip(overall: Overall, sources: &[SourceStatus], work: &WorkLine) -> String`: `cap_utf16(health::tooltip(overall, sources), TOOLTIP_MAX_UTF16 - units(LINE_SEPARATOR) - units(work line))` + `LINE_SEPARATOR` + work line, so the result is at most 127 units and always ends with the whole work line. Only the app name, source labels and the user's own counter value appear; no titles, paths or messages.
-- `pub fn failure_notice(action: TimerAction, err: &WorkTimeError) -> Option<health::Notice>`: `AlreadyRunning` / `NotRunning` → `None`. Otherwise title `"Nawigator dnia — START nie zadziałał"` / `"Nawigator dnia — STOP nie zadziałał"` (built from `APP_NAME`) and a fixed body by kind: Start + `Overlap` → `"Zegar systemowy wskazuje czas sprzed końca innego wpisu — sprawdź zegar lub popraw wpis w „Czas pracy”."`; Stop + `EndNotAfterStart` → `"Zegar systemowy wskazuje czas sprzed początku wpisu — STOP zadziała, gdy zegar go dogoni."`; `Store(_)` → `"Dane aplikacji są niedostępne — szczegóły w panelu „Źródła”."`; anything else → `"Otwórz aplikację i spróbuj ponownie."`. No ids, times or error detail in the text.
+- `pub fn failure_notice(action: TimerAction, err: &WorkTimeError) -> Option<health::Notice>`: `AlreadyRunning` / `NotRunning` → `None`. Otherwise title `"Nawigator dnia — START nie zadziałał"` / `"Nawigator dnia — STOP nie zadziałał"` (built from `APP_NAME`) and a fixed body by kind: Start + `Overlap` → `"Zegar systemowy wskazuje czas sprzed końca innego wpisu — sprawdź zegar lub popraw wpis w „Czas pracy”."`; Stop + `EndNotAfterStart` → `"Zegar systemowy wskazuje czas sprzed początku wpisu — STOP zadziała, gdy zegar go dogoni."`; `Store(_)` other than `Store(StoreError::Busy)` → `"Dane aplikacji są niedostępne — szczegóły w panelu „Źródła”."`; anything else (including the transient `Store(Busy)`, which the "Źródła" panel would not show) → `"Otwórz aplikację i spróbuj ponownie."`. No ids, times or error detail in the text.
 
 #### 3. Tests
 
@@ -168,7 +168,7 @@ Add a pure, `tauri`-free module that decides what the tray shows from the health
 - Proptest (same label generator as `health::tests::tooltip_is_always_within_limit`, every `Overall`, every `WorkLine` with `today_ms` in `0..=25 h` and both `running` values): length ≤ 127 UTF-16 units, starts with `"Nawigator dnia"`, ends with `work_line_text(overall, &work)`.
 - Icon table over every `Overall` × {`Loading`, `Unavailable`, `Known` running, `Known` stopped}: `Error` is always `Error`, `Running` appears only for `Ok` + running.
 - Item table over the same product: `NotRunning` always disabled; `Known` running → `STOP`, stopped → `START`; `Loading` / `Unavailable` disabled with their texts.
-- `failure_notice`: `None` for `AlreadyRunning` and `NotRunning` with both actions; the four body texts above; with `Overlap { entry_id: 4242 }` neither title nor body contains `4242`; every title starts with `"Nawigator dnia"`.
+- `failure_notice`: `None` for `AlreadyRunning` and `NotRunning` with both actions; the four body texts above; `Store(Busy)` gives the generic body, another `Store(_)` (for example `Store(Io { .. })`) the "Dane aplikacji" body; with `Overlap { entry_id: 4242 }` neither title nor body contains `4242`; every title starts with `"Nawigator dnia"`.
 
 ### Success Criteria:
 
@@ -189,7 +189,7 @@ Add a pure, `tauri`-free module that decides what the tray shows from the health
 
 ### Overview
 
-Add the fourth tray icon state and let `tray_image` take a `TrayIcon` instead of `Overall`. Visible behaviour is unchanged until Phase 4 passes a real work line.
+Add the fourth tray icon state and let `tray_image` take a `tray_view::TrayIconKind` instead of `Overall`. Visible behaviour is unchanged until Phase 4 passes a real work line.
 
 ### Changes Required:
 
@@ -197,7 +197,7 @@ Add the fourth tray icon state and let `tray_image` take a `TrayIcon` instead of
 
 **File**: `src-tauri/icons/source/tray-running.svg` (new)
 
-**Intent**: The "counter running" state: the ok glyph (amber ring and needle) with a filled amber dot at the bottom right, cut out of the ring the same way the error badge is cut at the top right. Not red and not top right, which mean "error".
+**Intent**: The "counter running" state: the ok glyph (amber ring and needle) with a filled amber dot at the bottom right, cut out of the ring the same way the error badge is cut at the top right. Not red and not top right, which mean "error". The header's REC marker is `--danger` red (`src/worktime/WorkTimerHeader.css`, `.dn-rec`); the tray deliberately does not copy it, because in the tray red means a source error (D2). Do not "align" the dot to red.
 
 **Contract**: a copy of `tray-ok.svg` with the comment changed to state "running" (amber dot at the bottom right = the counter runs; red and the top-right badge are reserved for errors), one more mask circle `<circle cx="824" cy="824" r="248" fill="#000"/>` and, after the masked group, `<circle cx="824" cy="824" r="176" fill="#F5A524"/>`.
 
@@ -216,9 +216,9 @@ Never run `npx tauri icon` without `-o`: its default output is `src-tauri/icons/
 
 **File**: `src-tauri/src/runtime.rs`
 
-**Intent**: Map the `tray_view::TrayIcon` decision to the compiled-in images; keep today's behaviour at both call sites.
+**Intent**: Map the `tray_view::TrayIconKind` decision to the compiled-in images; keep today's behaviour at both call sites.
 
-**Contract**: `fn tray_image(icon: TrayIcon) -> Image<'static>` with four `include_image!` arms (`Idle` → `idle.png`, `Ok` → `ok.png`, `Running` → `running.png`, `Error` → `error.png`). `build_tray` passes `TrayIcon::Idle`; `update_tray` passes `tray_view::tray_icon(snap.overall, &WorkLine::Loading)` (which yields the same icon as today) until Phase 4.
+**Contract**: `fn tray_image(icon: TrayIconKind) -> Image<'static>` with four `include_image!` arms (`Idle` → `idle.png`, `Ok` → `ok.png`, `Running` → `running.png`, `Error` → `error.png`). `build_tray` passes `TrayIconKind::Idle`; `update_tray` passes `tray_view::tray_icon(snap.overall, &WorkLine::Loading)` (which yields the same icon as today) until Phase 4.
 
 ### Success Criteria:
 
@@ -264,7 +264,7 @@ Give the header command and the tray one START and one STOP function, make every
 **Contract**:
 - `pub(crate) fn refresh_tray(app: &AppHandle)`: sends on `HealthState.wake` if `HealthState` is managed (`try_state`); a closed channel is ignored (the stalled check is already shown).
 - `HealthState` gets a private `work: RwLock<WorkLine>` (initially `WorkLine::Loading`), not part of the serialised `HealthSnapshot`; `health_status` and `health-changed` stay unchanged.
-- `check_round`: right after `probe_round` and before `stamp_heartbeat`, read `work_time::today::today_work(store, now_ms, &Local)` through `app.state::<StoreHandle>().with_store(today, …)` (same `today` as the probe). `Ok` → `WorkLine::Known`; `Err(WorkTimeError::Store(StoreError::Busy))` → keep the previous line (logged at debug); any other error → `WorkLine::Unavailable` (logged at warn by `kind()` only). Store it before the snapshot write that bumps `seq`.
+- `check_round`: hoist the probe's date into `let today = Local::now().date_naive();` (today it is computed inline in the `probe_round` call) and pass it to `probe_round`; right after `probe_round` and before `stamp_heartbeat`, read `work_time::today::today_work(store, chrono::Utc::now().timestamp_millis(), &Local)` through `app.state::<StoreHandle>().with_store(today, …)`. Use `Utc::now().timestamp_millis()` (an `i64`, as `commands::run` does), not `runtime::now_ms()`, which returns `u64`. `Ok` → `WorkLine::Known`; `Err(WorkTimeError::Store(StoreError::Busy))` → keep the previous line (logged at debug); any other error → `WorkLine::Unavailable` (logged at warn by `kind()` only). Store it before the snapshot write that bumps `seq`.
 - `publish` reads the work line (a copy) after the snapshot, under `published`, and passes it to `update_tray(app, &snap, &work)`.
 - `update_tray` sets the icon from `tray_view::tray_icon(snap.overall, work)` and the tooltip from `tray_view::tooltip(snap.overall, &snap.sources, work)`.
 - `build_tray` keeps its initial tooltip but builds it with `tray_view::tooltip(Overall::Starting, &[], &WorkLine::Loading)`.
@@ -309,7 +309,7 @@ Add the tray menu item, its main-thread handler that hands the action to the asy
 
 **Contract**:
 - `build_tray`: create `MenuItem::with_id(app, "work", "Czas pracy: wczytywanie…", false, None::<&str>)`, then `PredefinedMenuItem::separator(app)`, then the existing `open`, `check`, `quit`. Manage a `TrayWorkItem { item: MenuItem<tauri::Wry>, shown: Mutex<Option<TimerAction>> }` (or an equivalent atomic), registered before the tray is built.
-- `update_tray`: `let w = tray_view::work_item(snap.overall, work)`; `set_text(w.text)`, `set_enabled(w.action.is_some())` (failures logged at warn), then store `w.action` in `shown`. Only here are the menu setters called.
+- `update_tray`: get the item with `app.try_state::<TrayWorkItem>()` (absent → skip the item); `let w = tray_view::work_item(snap.overall, work)`; store `None` in `shown`, then `set_text(w.text)`, `set_enabled(w.action.is_some())` (failures logged at warn), then store `w.action` in `shown`. Each `shown` write is a short lock released before the next setter. So a click while the label is changing does nothing, and `shown` only ever holds an action the label shows. Only here are the menu setters called.
 - `on_menu_event` `"work"`: read `shown` (a short lock, never held across another call); `None` → do nothing; `Some(action)` → `tauri::async_runtime::spawn(run_tray_action(app.clone(), action))`. No store access, no `published`, no snapshot lock on the main thread.
 - `async fn run_tray_action(app: AppHandle, action: TimerAction)`: call `work_time::commands::start_timer` or `stop_timer`; on `Err(e)`: if `tray_view::failure_notice(action, &e)` is `Some(n)`, `toast(&app, "work_time", &n.title, &n.body)`; then `refresh_tray(&app)` (a success already refreshed through `notify`). Logging is left to `run`, by kind only.
 - Extend the module's locking comment: menu setters block like tray setters and run only in `update_tray`; the menu callback only spawns.
@@ -406,6 +406,13 @@ Agent defaults (no user was reachable; each can be revisited):
 - **A12.** Pure rules in new files (`work_time/today.rs`, `tray_view.rs`) to keep edits in files shared with S-01, S-04 and S-06 to a few lines.
 - **A13.** README and CHANGELOG are updated in Phase 5; the Konsola design-system artifact is a manual follow-up for the user.
 - **A14.** The roadmap item is not moved to `planning` by this run (the task forbids editing `context/foundation/roadmap.md`).
+
+Agent defaults added by the plan review (`reviews/plan-review.md`; no user was reachable):
+
+- **A15.** `update_tray` clears the shown action before the menu setters and sets the new one after them, so a click during a label change does nothing (F2).
+- **A16.** A transient `Store(Busy)` on a tray action gets the generic toast body, not the "Dane aplikacji są niedostępne" one (F6).
+- **A17.** The icon decision type is `TrayIconKind`, so it is not confused with `tauri::tray::TrayIcon` (F3).
+- **A18.** The tray's running dot stays amber although the header's REC is red, because red in the tray means a source error (D2, F5).
 
 ## References
 

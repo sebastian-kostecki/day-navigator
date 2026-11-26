@@ -42,14 +42,20 @@ function DayRow(props: {
   const textTone = weekend ? "muted" : undefined;
 
   const showSum = workedMs > 0 || (row.day <= today && row.normMs > 0);
-  const showBar = !weekend || workedMs > 0;
+  const showBar = row.holiday !== null ? workedMs > 0 : !weekend || workedMs > 0;
+  const holidayTitle =
+    row.holiday === null
+      ? undefined
+      : row.dayOffOwed
+        ? `${row.holiday} — Święto w sobotę: pracodawca wyznacza za nie inny dzień wolny — oznacz go w tabeli`
+        : row.holiday;
   const barLabel =
     row.normMs > 0
       ? `${formatHm(workedMs)} na tle normy ${formatHm(row.normMs)}`
       : `${formatHm(workedMs)}, bez normy`;
 
   return (
-    <DataTableRow current={isToday} hatched={row.kind === "dayOff"}>
+    <DataTableRow current={isToday} hatched={row.kind === "dayOff" || row.kind === "holiday"}>
       <DataTableCell tone={textTone} className="code">
         <Button
           variant="quiet"
@@ -63,15 +69,22 @@ function DayRow(props: {
       <DataTableCell tone={row.entryCount === 0 ? "faint" : textTone}>
         {row.entryCount === 0 ? "—" : formatEntryCount(row.entryCount)}
       </DataTableCell>
-      <DataTableCell>
-        {showBar && (
-          <HoursBar
-            hours={workedMs / HOUR_MS}
-            norm={row.normMs / HOUR_MS}
-            today={isToday}
-            label={barLabel}
-          />
-        )}
+      <DataTableCell title={holidayTitle} tone={row.holiday !== null ? textTone : undefined}>
+        <span className="wt-days-note">
+          {showBar && (
+            <HoursBar
+              hours={workedMs / HOUR_MS}
+              norm={row.normMs / HOUR_MS}
+              today={isToday}
+              label={barLabel}
+            />
+          )}
+          {row.holiday !== null && (
+            <span className="wt-days-holiday">
+              {row.dayOffOwed ? `${row.holiday} · należy się inny dzień wolny` : row.holiday}
+            </span>
+          )}
+        </span>
       </DataTableCell>
       <DataTableCell tone={showSum ? textTone : "faint"} className="wt-days-num code">
         {showSum ? formatHm(workedMs) : "—"}
@@ -91,7 +104,7 @@ function DayRow(props: {
         {deviationMs === null ? "—" : formatSigned(deviationMs)}
       </DataTableCell>
       <DataTableCell className="wt-days-switch">
-        {!weekend && (
+        {(row.kind === "workday" || row.kind === "dayOff") && (
           <label className="wt-check">
             <input
               type="checkbox"

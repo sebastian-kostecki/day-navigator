@@ -13,6 +13,8 @@ use crate::gitlab::GitlabError;
 use crate::gitlab::filter::{DimensionRule, GitlabFilter};
 use crate::todo::{DEFAULT_TODO_LIMIT, TodoError};
 
+mod work_time;
+pub use work_time::{WorkTimeSettings, WorkTimeSettingsInvalid, load_work_time_settings};
 const SUPPORTED_VERSION: u64 = 1;
 
 /// Why `settings.json` as a whole cannot be used. `Io::path` is the file name

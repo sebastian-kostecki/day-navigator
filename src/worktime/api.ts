@@ -47,7 +47,7 @@ export function workMonthReport(day: string): Promise<MonthReport> {
   return invoke<MonthReport>("work_month_report", { day });
 }
 
-/** `day` is `YYYY-MM-DD`; a weekend is refused with `NotAWorkday`. */
+/** `day` is `YYYY-MM-DD`; a weekend is refused with `NotAWorkday`, a holiday with `Holiday`. */
 export function setDayOff(day: string, off: boolean): Promise<void> {
   return invoke<void>("set_day_off", { day, off });
 }
@@ -138,6 +138,10 @@ export function workTimeErrorMessage(e: unknown, entriesById?: Map<number, Entry
       return "Nieprawidłowy lub nieistniejący czas lokalny";
     case "RunningEndEdit":
       return "Trwający wpis nie ma końca — zakończ go przyciskiem STOP";
+    case "Holiday":
+      return "Święto nie jest dniem roboczym";
+    case "SettingsInvalid":
+      return "Nie można odczytać bloku „workTime” z settings.json: plik musi być poprawnym JSON-em z „version”: 1, a holidays to „pl” albo false.";
     case "NotAWorkday":
       return "Weekend nie jest dniem roboczym";
     case "Background":

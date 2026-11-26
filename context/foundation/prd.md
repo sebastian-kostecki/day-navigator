@@ -3,7 +3,7 @@ project: "Nawigator dnia"
 version: 2
 status: draft
 created: 2026-11-22
-updated: 2026-11-24
+updated: 2026-11-26
 context_type: brownfield
 product_type: desktop
 target_scale:
@@ -152,8 +152,8 @@ Aktor: Użytkownik (jedyny). Wszystkie pozycje są must-have — użytkownik św
 ### Czas pracy
 - [new] FR-013: Użytkownik może przyciskami START i STOP rozpocząć i zakończyć liczenie czasu pracy; licznik jest zawsze widoczny u góry okna. Priority: must-have
   > Socrates: Kontrargument: „zapomniany START albo STOP” — dokładnie ten problem miała stara ewidencja (dziury, licznik bijący przez noc), a bez korekty raport utrwala błąd. Rozstrzygnięcie: przyjęte trzy zabezpieczenia, wydzielone do FR-017 (ręczna korekta) i FR-018 (przypomnienia o STOP i START).
-- [new] FR-014: Użytkownik może zobaczyć raport: sumę czasu pracy dnia i miesiąca oraz ogólne odchylenie miesiąca od normy 8 h na dzień roboczy, gdzie dni robocze to poniedziałek–piątek minus dni oznaczone przez użytkownika jako wolne. Priority: must-have
-  > Socrates: Kontrargument: „norma bez dni wolnych kłamie” — święta i urlop dają fałszywe odchylenie i raportowi przestaje się ufać. Rozstrzygnięcie: pn–pt minus dni wolne oznaczane ręcznie (święta, urlop); bez automatycznego kalendarza świąt.
+- [new] FR-014: Użytkownik może zobaczyć raport: sumę czasu pracy dnia i miesiąca oraz ogólne odchylenie miesiąca od normy 8 h na dzień roboczy, gdzie dni robocze to poniedziałek–piątek minus polskie święta państwowe (kalendarz liczony lokalnie, wyłączany w ustawieniach) i dni oznaczone przez użytkownika jako wolne. Priority: must-have
+  > Socrates: Kontrargument: „norma bez dni wolnych kłamie” — święta i urlop dają fałszywe odchylenie i raportowi przestaje się ufać. Rozstrzygnięcie: pn–pt minus polskie święta państwowe z kalendarza liczonego lokalnie (MS-25) i dni wolne oznaczane ręcznie; dzień wolny należny za święto w sobotę oraz urlop zostają ręczne.
 - [new] FR-017: Użytkownik może ręcznie poprawić godzinę startu lub końca wpisu czasu pracy albo dopisać brakujący wpis. Priority: must-have
   > Socrates: Wydzielone z FR-013 w rundzie Sokratesa (zapomniany START/STOP).
 - [new] FR-018: Użytkownik dostaje przypomnienie, gdy licznik biegnie długo (próg w ustawieniach, np. ponad 10 h: „czy nadal pracujesz?”), oraz gdy w dzień roboczy licznik nie biegnie po ustalonej godzinie. Priority: must-have
@@ -173,7 +173,7 @@ Aktor: Użytkownik (jedyny). Wszystkie pozycje są must-have — użytkownik św
 Źródło: GitHub issues #1–#8 (2026-11-24), opisujące elementy makiet „Konsola”, których nie ma w wydaniu 0.2.0. Priorytet must-have oznacza „w zakresie M-2” (użytkownik wziął wszystkie do zrobienia). Bez rundy Sokratesa; treść za issue.
 
 - [new] FR-019: Użytkownik widzi na dashboardzie („Do zrobienia”) panel „Dziennik zdarzeń” z dzisiejszymi zdarzeniami: nowe przypisanie, odhaczenie lub zdjęcie pozycji, START/STOP, przejście źródła w błąd i powrót. Zdarzenia trzymają tylko to, co UI i tak pokazuje. Priority: must-have (issue #1)
-- [new] FR-020: Użytkownik widzi w „Czas pracy” tabelę dni miesiąca: wpisy, pasek na tle 8 h, sumę, odchylenie od normy dnia i przełącznik dnia wolnego; dziś jest wyróżniony, a dni wolne zakreskowane. Priority: must-have (issue #2)
+- [new] FR-020: Użytkownik widzi w „Czas pracy” tabelę dni miesiąca: wpisy, pasek na tle 8 h, sumę, odchylenie od normy dnia i przełącznik dnia wolnego; dziś jest wyróżniony, a dni wolne zakreskowane; święta zakreskowane z nazwą, bez przełącznika. Priority: must-have (issue #2)
 - [new] FR-021: Użytkownik widzi w „Czas pracy” panel „Przypomnienia” z progami przypomnień i informacją, czy są włączone; bez edycji, ustawienia zostają w pliku. Priority: must-have (issue #3)
 - [modified] FR-022: Użytkownik widzi w „Stanie źródeł” przy „Dane aplikacji” czas ostatniej kopii, liczbę zachowanych kopii i wersję schematu oraz może otworzyć folder kopii. Priority: must-have. Było: karta pokazywała tylko stan bazy. (issue #4)
 - [modified] FR-023: Użytkownik widzi w „Praca (GitLab)” flagę NOWE przy pozycjach, które pojawiły się od ostatniego sprawdzenia, oraz datę ukrycia przy ukrytych wierszach. Priority: must-have. Było: lista bez tych informacji (FR-001, FR-003). (issue #5)
@@ -208,7 +208,7 @@ Aplikacja pokazuje tylko to, co wymaga uwagi użytkownika (ukryte wraca przy zmi
 
 **Widoczność.** Wejściami są przypisane do użytkownika zgłoszenia i MR-y z GitLaba (zawężone filtrem z ustawień: projekt, etykiety, milestone, stan), otwarte przypisane zgłoszenia GitHub z repozytoriów z listy oraz własne zadania. Ukryte zgłoszenie pozostaje ukryte, dopóki nie zmieni się jego status albo nie pojawi się komentarz kogoś innego niż użytkownik (boty się liczą); wtedy wraca, oznaczone jako zmienione. Nowe przypisanie zawsze daje powiadomienie, także spoza filtra; ponad 3 nowe naraz — jedno zbiorcze. W „Do zrobienia” (limit pozycji z ustawień, domyślnie 5) nieodhaczone przechodzą na następny dzień, a pozycja zamknięta w GitLabie/GitHubie odhacza się sama; odhaczenie własnego zadania to to samo co oznaczenie go jako zrobione.
 
-**Norma.** Dni robocze to poniedziałek–piątek minus dni oznaczone przez użytkownika jako wolne. Norma = 8 h × dni robocze. Raport pokazuje sumę dnia i miesiąca, odchylenie „do dziś” (przepracowane vs norma za dni robocze, które już minęły, w jedną lub drugą stronę) oraz ile średnio na dzień trzeba pracować w pozostałych dniach roboczych, żeby wyrobić normę miesiąca. Przypomnienia pilnują ewidencji: gdy licznik biegnie dłużej niż próg z ustawień, i gdy w dzień roboczy nie biegnie po ustalonej godzinie.
+**Norma.** Dni robocze to poniedziałek–piątek minus polskie święta państwowe (kalendarz liczony lokalnie, wyłączany w ustawieniach) i dni oznaczone przez użytkownika jako wolne. Norma = 8 h × dni robocze. Raport pokazuje sumę dnia i miesiąca, odchylenie „do dziś” (przepracowane vs norma za dni robocze, które już minęły, w jedną lub drugą stronę) oraz ile średnio na dzień trzeba pracować w pozostałych dniach roboczych, żeby wyrobić normę miesiąca. Przypomnienia pilnują ewidencji: gdy licznik biegnie dłużej niż próg z ustawień, i gdy w dzień roboczy nie biegnie po ustalonej godzinie.
 
 ## Access Control Changes
 
@@ -223,7 +223,7 @@ No access control changes — current model preserved.
 ### Funkcjonalne
 - **Brak zapisu do GitLaba i GitHuba.** Aplikacja nie zamyka zgłoszeń, nie zmienia statusów, nie komentuje i nie przypisuje; tylko odczyt.
 - **Brak dostępu do vaultów Obsidian.** Ani odczytu, ani zapisu (plan dnia, dziennik, `Tasks/`, `Issues/`) — zapis do vaultów to „później”.
-- **Brak automatyki czasu pracy.** Bez automatycznego kalendarza świąt, wykrywania bezczynności i mierzenia aktywności; czas liczy się wyłącznie z przycisków START/STOP i ręcznej korekty (FR-017).
+- **Brak automatyki czasu pracy.** Bez wykrywania bezczynności i mierzenia aktywności; czas liczy się wyłącznie z przycisków START/STOP i ręcznej korekty (FR-017).
 - **Poza v1 (z rundy Sokratesa):** MR-y, w których użytkownik jest reviewerem; usuwanie zadań (FR-009 usunięty).
 
 ### Niezmieniane w istniejącym systemie

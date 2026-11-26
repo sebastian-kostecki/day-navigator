@@ -30,6 +30,10 @@ pub enum WorkTimeError {
     RunningEndEdit,
     #[error("a weekend is not a workday")]
     NotAWorkday,
+    #[error("a public holiday is not a workday")]
+    Holiday,
+    #[error("the workTime settings block is invalid")]
+    SettingsInvalid,
     #[error("background task failed")]
     Background,
 }
@@ -48,6 +52,8 @@ impl WorkTimeError {
             WorkTimeError::InvalidLocalTime => "InvalidLocalTime",
             WorkTimeError::RunningEndEdit => "RunningEndEdit",
             WorkTimeError::NotAWorkday => "NotAWorkday",
+            WorkTimeError::Holiday => "Holiday",
+            WorkTimeError::SettingsInvalid => "SettingsInvalid",
             WorkTimeError::Background => "Background",
         }
     }

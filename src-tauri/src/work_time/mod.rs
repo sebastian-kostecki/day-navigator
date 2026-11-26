@@ -10,11 +10,14 @@
 
 pub mod commands;
 pub mod error;
+pub mod holidays;
 pub mod norm;
 pub mod reminders;
 pub mod report;
 pub mod rules;
 
+#[cfg(test)]
+mod holidays_tests;
 #[cfg(test)]
 mod norm_tests;
 #[cfg(test)]
@@ -27,6 +30,7 @@ use rusqlite::Connection;
 use serde::Serialize;
 
 use crate::events::{self, NewEvent};
+use crate::settings::WorkTimeSettings;
 use crate::store::Store;
 pub use error::WorkTimeError;
 pub use report::DayKind;
@@ -168,6 +172,7 @@ pub fn status<Tz: TimeZone>(
     store: &Store,
     now: i64,
     tz: &Tz,
+    settings: &WorkTimeSettings,
 ) -> Result<WorkTimerStatus, WorkTimeError> {
     let today = local_day(now, tz)?;
     let (day_start, day_end) = day_bounds(today, tz)?;
@@ -185,7 +190,7 @@ pub fn status<Tz: TimeZone>(
             Some(e) => Some(e),
             None => running_entry(c)?,
         };
-        let month = report::compute(c, today, now, tz)?;
+        let month = report::compute(c, today, now, tz, settings)?;
         Ok(WorkTimerStatus {
             running_from_ms: running.as_ref().map(|e| e.start.max(day_start)),
             running: running.map(|e| RunningEntry {
@@ -207,6 +212,7 @@ pub fn entries_for_day<Tz: TimeZone>(
     day: NaiveDate,
     now: i64,
     tz: &Tz,
+    settings: &WorkTimeSettings,
 ) -> Result<DayEntries, WorkTimeError> {
     let (day_start, day_end) = day_bounds(day, tz)?;
     store.read(|c| {
@@ -236,7 +242,7 @@ pub fn entries_for_day<Tz: TimeZone>(
             closed_ms,
             running_from_ms,
             day_end_ms: day_end,
-            day_kind: report::day_kind(c, day)?,
+            day_kind: report::day_kind(c, day, settings)?,
         })
     })
 }

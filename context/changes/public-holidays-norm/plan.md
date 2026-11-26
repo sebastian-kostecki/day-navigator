@@ -719,9 +719,9 @@ Plan review (`reviews/plan-review.md`) defaults, chosen by agent, user may revis
 
 #### Automated
 
-- [ ] 2.1 Settings tests pass: `cargo test settings::work_time::`
-- [ ] 2.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [ ] 2.3 `settings.rs` diff is only the `mod` and `pub use` lines
+- [x] 2.1 Settings tests pass: `cargo test settings::work_time::`
+- [x] 2.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 2.3 `settings.rs` diff is only the `mod` and `pub use` lines
 
 ### Phase 3: Holidays in the norm, day kinds and day-off guard
 

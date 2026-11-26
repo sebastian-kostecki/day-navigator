@@ -111,3 +111,19 @@ What was checked:
 - F3 (misplaced ordering comment): fixed. The comment now sits above `start_work`.
 
 Commit: `fix(tray-timer-control): skip unchanged tray menu item updates (review)`.
+
+## Follow-up review of 4abdacc
+
+**Verdict: APPROVED.** No new finding.
+
+What was checked:
+
+- **F2 correctness.** `WorkItem` has a `&'static str` text (`START`, `STOP`, loading, unavailable) and no running counter, so the comparison really skips the steady-state rounds. `applied` starts as `None`, so the first round always writes over the build-time label. On a change the order is: clear `applied` and `shown`, then both setters, then set `shown`, then set `applied` only if both setters succeeded. A failed setter leaves `applied` unset, so the next round clears and retries instead of keeping a stale or disabled item.
+- **F2 serialisation.** `update_tray` is called only from `publish`, under the `published` lock that only the check and watchdog threads take. Two rounds therefore never interleave, and `applied` cannot end up recording an item that a concurrent round has already overwritten in the menu.
+- **F2 lock discipline.** `applied()`, `set_applied` and `set_shown` each hold their mutex only for a copy. No `TrayWorkItem` lock is held across `set_text`, `set_enabled`, the tray setters, the emit or a toast. The main-thread `"work"` handler still only reads `shown` and spawns `run_tray_action`.
+- **F2 locality.** `git grep -n -E "set_text|set_enabled" -- src-tauri/src` finds both setters only in `update_tray` (`runtime.rs:306`, `:311`). The edit adds one field, two accessors and one `if` around the existing block, and does not change the documented locking rule.
+- **F3.** The ordering comment now sits above `start_work` (`work_time/commands.rs:92-93`) and describes what that command and `stop_work` do: `start_timer`/`stop_timer` (write, then notify), then `work_timer_status`.
+
+Note (pre-existing, not introduced by 4abdacc, no action required): if `set_text` fails but `set_enabled` succeeds, `shown` takes the new action while the label keeps the old text until the next round retries (at most one 30 s interval). Setter failures happen in practice only when the event loop is gone. A stricter variant would set `shown` to `item.action` only when `text_ok`.
+
+Gates: `cargo fmt --check` clean, `cargo clippy --all-targets -- -D warnings` clean, `cargo test` green (495 unit tests plus all integration suites, 0 failed).

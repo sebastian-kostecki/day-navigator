@@ -1,7 +1,7 @@
 ---
 change_id: public-holidays-norm
 title: Polish public holidays counted out of the work-time norm
-status: planned
+status: plan_reviewed
 created: 2026-11-26
 updated: 2026-11-26
 archived_at: null

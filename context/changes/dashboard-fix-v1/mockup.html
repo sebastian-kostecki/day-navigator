@@ -1,0 +1,1035 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<title>Makieta — Do zrobienia (dashboard-fix-v1)</title>
+<!-- Real app styles (inlined copies of src/ CSS), so the mockup looks like the app. Invented data only. -->
+<style>
+/* src/styles/tokens.css */
+/* Day Navigator — Konsola: design tokens, local fonts, document base and text styles. */
+
+:root {
+  /* Colour */
+  --bg: #0f1115; /* copied to app.windows[0].backgroundColor in src-tauri/tauri.conf.json: change both */
+  --bg-chrome: #0b0d11;
+  --surface: #161a21;
+  --surface-raised: #1c212a;
+  --surface-active: #2a303b;
+  --line: #262b35;
+  --line-subtle: #1f242d;
+  --line-control: #2e3440;
+  --line-strong: #3a4150;
+  --ink: #e6e8ec;
+  --ink-strong: #ffffff;
+  --ink-soft: #c9ced6;
+  --ink-muted: #b4bbc7;
+  --ink-faint: #8a93a3;
+  --ink-done: #7d8594;
+  --ink-disabled: #4a5160;
+  --accent: #f5a524;
+  --accent-hover: #ffc861;
+  --on-accent: #0f1115;
+  --info: #5cc8ff;
+  --info-line: #1f4a66;
+  --info-bg: #12283a;
+  --warn: #ff9f5a;
+  --flag: #f5c35b;
+  --flag-line: #5c4a1e;
+  --danger: #ff7b72;
+  --danger-ink: #ffb4ae;
+  --danger-soft: #ffd5d1;
+  --danger-line: #6e2a2a;
+  --danger-bg: #1f1416;
+  --danger-bg-strong: #2a1618;
+  --src-gitlab: #ff9f5a;
+  --src-github: #c9ced6;
+  --src-own: #7cc4ff;
+  --kind-mr: #b48cff;
+  --label-fallback-bg: var(--surface-active);
+  --label-fallback-ink: var(--ink-soft);
+
+  /* Day-off stripes (a row background), visible on --surface and --surface-raised */
+  --hatch-stripe: var(--line-control);
+  --hatch-bg: repeating-linear-gradient(135deg, var(--hatch-stripe) 0 2px, transparent 2px 8px);
+
+  /* Type families */
+  --font-sans: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", Consolas, ui-monospace, monospace;
+
+  /* Spacing */
+  --space-hair: 2px;
+  --space-1: 4px;
+  --space-1h: 6px;
+  --space-2: 8px;
+  --space-2h: 10px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-10: 40px;
+
+  /* Radius */
+  --radius-xs: 2px;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+
+  /* Size */
+  --size-header: 64px;
+  --size-touch: 44px;
+  --size-row: 52px;
+  --size-row-dense: 38px;
+  --size-control: 36px;
+  --size-field: 40px;
+
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Text styles */
+
+.view-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.item {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.body {
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 400;
+}
+
+.meta {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+}
+
+.label-caps {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.clock,
+.stat,
+.code,
+.chip,
+.brand {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.clock {
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 500;
+}
+
+.stat {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 500;
+}
+
+.code {
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 400;
+}
+
+.chip {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+}
+
+.brand {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+/* Helpers */
+
+.dn-loading {
+  margin: 0;
+  color: var(--ink-faint);
+}
+
+.dn-empty {
+  margin: 0;
+  padding: var(--space-4);
+  color: var(--ink-muted);
+}
+
+/* src/styles/layout.css */
+/* Page layout shared by every view. */
+
+.container {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  box-sizing: border-box;
+}
+
+.container > h1 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+.dn-columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-5);
+}
+
+.dn-col-main {
+  flex: 3 1 440px;
+  min-width: 0;
+}
+
+.dn-col-side {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+.dn-view-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+}
+
+.dn-view-head > h1 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+}
+
+/* Summary next to the title ("7 otwartych · 2 ukryte") and the note before
+   the actions ("odświeżone 2 min temu"). */
+.dn-view-head-summary,
+.dn-view-head-note {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
+/* Pushes what follows to the right edge of a flex row. */
+.dn-spacer {
+  flex: 1;
+}
+
+/* Read by screen readers, not shown. */
+.dn-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* A title that opens a URL: looks like text, underlined on hover. */
+.link-button {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+/* src/components/AppHeader/AppHeader.css */
+.dn-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-6);
+  padding: 0 var(--space-5);
+  min-height: var(--size-header);
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-chrome);
+}
+
+.dn-brand {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+.dn-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-hair);
+  flex: 1 1 480px;
+}
+
+.dn-nav-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--size-touch);
+  padding: 0 var(--space-3);
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  color: var(--ink-muted);
+}
+
+.dn-nav-item:hover {
+  color: var(--ink);
+}
+
+.dn-nav-item.is-active {
+  color: var(--ink-strong);
+  font-weight: 600;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.dn-nav-key {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--ink-faint);
+}
+
+/* src/components/Panel/Panel.css */
+.dn-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  min-width: 0;
+}
+
+.dn-panel.is-danger {
+  background: var(--danger-bg);
+  border-color: var(--danger-line);
+}
+
+.dn-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.dn-panel-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.dn-panel-meta {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.dn-panel-foot {
+  padding: 10px var(--space-4);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+/* src/components/ItemRow/ItemRow.css */
+.dn-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 0 var(--space-3) 0 var(--space-4);
+  min-height: var(--size-row);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.dn-row.is-selected {
+  background: var(--surface-raised);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.dn-check {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex: none;
+}
+
+.dn-check:disabled {
+  cursor: default;
+}
+
+.dn-row-ref {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+  min-width: 52px;
+}
+
+.dn-row-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ink);
+}
+
+label.dn-row-title {
+  cursor: pointer;
+}
+
+.dn-row.is-done .dn-row-title {
+  color: var(--ink-done);
+  text-decoration: line-through;
+}
+
+.dn-row-labels {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.dn-row-meta {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.dn-row-actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* src/components/StatStrip/StatStrip.css */
+.dn-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.dn-stat {
+  background: var(--surface);
+  padding: 14px var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.dn-stat-label {
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.dn-stat-value {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-strong);
+}
+
+.dn-stat-value.is-info {
+  color: var(--info);
+}
+
+.dn-stat-value.is-warn {
+  color: var(--warn);
+}
+
+.dn-stat-value.is-soft,
+.dn-stat-value.is-muted {
+  color: var(--ink-soft);
+}
+
+.dn-stat-sub {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-faint);
+}
+
+/* src/components/Flag/Flag.css */
+.dn-flag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  padding: 2px var(--space-1h);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  text-transform: uppercase;
+  border: 1px solid var(--flag-line);
+  color: var(--flag);
+}
+
+.dn-flag-info,
+.dn-flag-new {
+  border-color: var(--info-line);
+  color: var(--info);
+}
+
+/* src/components/SourceChip/SourceChip.css */
+.dn-chip {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 700;
+  padding: 2px var(--space-1h);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-control);
+  min-width: 24px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.dn-chip-gl,
+.dn-chip-iss {
+  color: var(--src-gitlab);
+}
+
+.dn-chip-gh {
+  color: var(--src-github);
+}
+
+.dn-chip-my {
+  color: var(--src-own);
+}
+
+.dn-chip-mr {
+  color: var(--kind-mr);
+}
+
+/* src/components/Button/Button.css */
+.dn-btn {
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line-control);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dn-btn-sm {
+  min-height: var(--size-control);
+  padding: 0 var(--space-3);
+}
+
+.dn-btn-md {
+  min-height: var(--size-field);
+  padding: 0 var(--space-4);
+}
+
+.dn-btn-lg {
+  min-height: var(--size-touch);
+  padding: 0 var(--space-4);
+}
+
+.dn-btn-icon {
+  width: 40px;
+  min-height: var(--size-control);
+  height: var(--size-control);
+  padding: 0;
+}
+
+.dn-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.dn-btn-primary:hover:not(:disabled, [aria-disabled="true"]) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.dn-btn-secondary {
+  border-color: var(--line-strong);
+}
+
+.dn-btn-quiet {
+  border-color: var(--line-control);
+}
+
+.dn-btn-dashed {
+  border: 1px dashed var(--line-strong);
+}
+
+.dn-btn.is-pressed {
+  background: var(--surface-active);
+  color: var(--ink-strong);
+}
+
+/* aria-disabled: looks disabled but keeps focus (busy actions). */
+.dn-btn:disabled,
+.dn-btn[aria-disabled="true"] {
+  color: var(--ink-disabled);
+  border-color: var(--line);
+  cursor: default;
+}
+
+.dn-btn-primary:disabled,
+.dn-btn-primary[aria-disabled="true"] {
+  background: transparent;
+}
+
+.dn-btn-mono {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  min-width: 88px;
+}
+
+/* src/worktime/WorkTimerHeader.css */
+.dn-timer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) 14px;
+  margin-left: auto;
+}
+
+.dn-timer-note {
+  color: var(--ink-faint);
+}
+
+/* The error banner (Notice) takes the counter's place at the right of the header. */
+.dn-notice.dn-timer-error {
+  margin-left: auto;
+  max-width: 100%;
+}
+
+/* Type comes from the `clock` text style. */
+.dn-clock {
+  color: var(--ink-strong);
+}
+
+.dn-rec {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--danger);
+}
+
+.dn-rec.is-stopped {
+  color: var(--ink-faint);
+}
+
+/* "Rozpocząć pracę? [TAK, START] [Anuluj]": replaces the START/STOP button. */
+.dn-timer-confirm {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dn-timer-confirm-q {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--ink-strong);
+}
+
+/* The START/STOP failure (Notice) sits beside the button; long text wraps. */
+.dn-timer-action-error {
+  max-width: 360px;
+}
+
+/* src/todo/TodoView.css */
+/* Layout only: the rows, panels and states come from src/components. */
+
+/* Columns as in the mock: Do zrobienia 3 (dn-col-main), Do wyboru 2, side 1. */
+.todo-col-pick {
+  flex: 2 1 320px;
+  min-width: 0;
+}
+
+.todo-col-side {
+  flex: 1 1 260px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* Extra flags after the first one, inside the row meta. */
+.todo-flags {
+  display: inline-flex;
+  gap: var(--space-1h);
+}
+
+/* "Do wyboru": compact rows without a divider, 44×36 add button. */
+.todo-pick .dn-row {
+  min-height: var(--size-touch);
+  gap: var(--space-2);
+  padding-right: var(--space-2);
+  border-bottom: 0;
+}
+
+.dn-btn-icon.todo-add {
+  width: var(--size-touch);
+}
+
+.todo-group-head {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin: 0;
+  padding: var(--space-2h) var(--space-4) var(--space-1);
+}
+
+.todo-group-count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.todo-group-note {
+  padding: var(--space-2) var(--space-4);
+}
+
+/* Mini "Stan źródeł". */
+.todo-sources {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.todo-source {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2h);
+  padding: var(--space-2h) var(--space-4);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.todo-source-glyph {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.todo-source-glyph.is-ok {
+  color: var(--info);
+}
+
+.todo-source-glyph.is-error {
+  color: var(--danger);
+}
+
+.todo-source-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.todo-source-detail {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-faint);
+  word-break: break-word;
+}
+
+.todo-source-detail.is-error {
+  color: var(--danger-soft);
+}
+
+/* "Dziennik zdarzeń": scrolls inside the panel past about eight rows. */
+.todo-events {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: calc(var(--size-row) * 8);
+  overflow-y: auto;
+}
+
+.todo-event {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2h);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--line-subtle);
+}
+
+.todo-event-time {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+
+.todo-event-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.todo-event-label.is-error {
+  color: var(--danger-soft);
+  word-break: break-word;
+}
+
+.todo-event-label.is-ok {
+  color: var(--info);
+}
+
+.todo-event-subject {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+</style>
+<style>
+  /* Mockup chrome only (not part of the proposal). */
+  body { margin: 0; }
+  .mk-bar { display: flex; gap: 12px; align-items: center; padding: 10px 16px;
+    font: 13px var(--font-sans); color: var(--ink-faint); border-bottom: 1px dashed var(--line-subtle); }
+  .mk-radio { position: absolute; opacity: 0; }
+  #va:checked ~ .mk-bar label[for=va], #vb:checked ~ .mk-bar label[for=vb] { color: var(--ink); border-color: var(--accent-hover); }
+  .mk-bar label { font: inherit; padding: 4px 10px; cursor: pointer; background: none;
+    color: var(--ink-soft); border: 1px solid var(--line-subtle); border-radius: 4px; }
+  .mk-frame { width: 1250px; margin: 0 auto; outline: 1px dashed var(--line-subtle); }
+  .mk-note { font-size: 11px; color: var(--ink-faint); font-family: var(--font-mono); }
+
+  /* ---- Proposed layout ---- */
+  /* "Do wyboru" variant A: the three source groups side by side. */
+  .mk-pick-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .mk-pick-grid > .mk-group + .mk-group { border-left: 1px solid var(--line-subtle); }
+  /* Bottom row: Stan źródeł 1, Dziennik zdarzeń 2. */
+  .mk-bottom { display: flex; gap: var(--space-5); align-items: flex-start; }
+  .mk-bottom > .mk-sources { flex: 1 1 0; min-width: 0; }
+  .mk-bottom > .mk-events { flex: 2 1 0; min-width: 0; }
+  #va:checked ~ .mk-frame .mk-only-b, #vb:checked ~ .mk-frame .mk-only-a { display: none; }
+</style>
+</head>
+<body>
+<input type="radio" name="v" id="va" class="mk-radio" checked /><input type="radio" name="v" id="vb" class="mk-radio" />
+<div class="mk-bar">
+  <strong style="color:var(--ink)">Makieta „Do zrobienia” · okno 1250 px</strong>
+  <span>„Do wyboru”:</span>
+  <label class="mk-opt" for="va">A — trzy kolumny źródeł</label>
+  <label class="mk-opt" for="vb">B — jedna lista</label>
+</div>
+
+<div class="mk-frame">
+  <header class="dn-header">
+    <span class="dn-brand">DAY/NAV</span>
+    <nav class="dn-nav">
+      <button class="dn-nav-item is-active"><span class="dn-nav-key">1</span>Do zrobienia</button>
+      <button class="dn-nav-item"><span class="dn-nav-key">2</span>GitLab</button>
+      <button class="dn-nav-item"><span class="dn-nav-key">3</span>GitHub</button>
+      <button class="dn-nav-item"><span class="dn-nav-key">4</span>Moje zadania</button>
+      <button class="dn-nav-item"><span class="dn-nav-key">5</span>Czas pracy</button>
+      <button class="dn-nav-item"><span class="dn-nav-key">6</span>Źródła</button>
+    </nav>
+    <div class="dn-timer"><span class="dn-rec">REC</span><span class="clock dn-clock">05:12:40</span></div>
+  </header>
+
+  <main class="container">
+    <div class="dn-stats">
+      <div class="dn-stat"><span class="dn-stat-label">Dziś</span><span class="dn-stat-value">5:12</span><span class="dn-stat-sub">z 8:00</span></div>
+      <div class="dn-stat"><span class="dn-stat-label">Miesiąc</span><span class="dn-stat-value">142:30</span><span class="dn-stat-sub">norma 144:00</span></div>
+      <div class="dn-stat"><span class="dn-stat-label">Odchylenie</span><span class="dn-stat-value is-warn">−1:30</span></div>
+      <div class="dn-stat"><span class="dn-stat-label">Średnio / dzień</span><span class="dn-stat-value is-info">8:10</span></div>
+      <div class="dn-stat"><span class="dn-stat-label">Źródła</span><span class="dn-stat-value is-info">OK</span><span class="dn-stat-sub">4 z 4</span></div>
+    </div>
+
+    <!-- 1. Do zrobienia: full width -->
+    <section class="dn-panel">
+      <div class="dn-panel-head"><h1 class="dn-panel-title">Do zrobienia</h1><span class="dn-panel-meta">[4/5]</span></div>
+      <div class="dn-row">
+        <input type="checkbox" class="dn-check" /><span class="dn-chip dn-chip-gl">GL</span><span class="dn-row-ref">!418</span>
+        <span class="dn-row-title">Przenieść walidację formularza zamówienia do wspólnego modułu i dopisać testy brzegowe</span>
+        <span class="dn-flag dn-flag-change">z wtorku</span>
+        <div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon">×</button></div>
+      </div>
+      <div class="dn-row">
+        <input type="checkbox" class="dn-check" /><span class="dn-chip dn-chip-gl">GL</span><span class="dn-row-ref">#2741</span>
+        <span class="dn-row-title">Błąd sortowania listy po zmianie strefy czasowej</span>
+        <span class="dn-flag dn-flag-change">zmienione</span>
+        <div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon">×</button></div>
+      </div>
+      <div class="dn-row">
+        <input type="checkbox" class="dn-check" /><span class="dn-chip dn-chip-gh">GH</span><span class="dn-row-ref">#27</span>
+        <span class="dn-row-title">Instalator: skrót w menu Start po aktualizacji</span>
+        <div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon">×</button></div>
+      </div>
+      <div class="dn-row">
+        <input type="checkbox" class="dn-check" /><span class="dn-chip dn-chip-my">MY</span><span class="dn-row-ref">prywatne</span>
+        <span class="dn-row-title">Zadzwonić do serwisu w sprawie przeglądu roweru</span>
+        <span class="dn-flag dn-flag-change">dziś</span>
+        <div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon">×</button></div>
+      </div>
+      <div class="dn-row is-done">
+        <input type="checkbox" class="dn-check" checked /><span class="dn-chip dn-chip-gl">GL</span><span class="dn-row-ref">!402</span>
+        <span class="dn-row-title">Aktualizacja zależności w module raportów</span>
+        <span class="dn-flag dn-flag-info">zamknięte w GitLabie</span>
+        <div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon">×</button></div>
+      </div>
+      <div class="dn-panel-foot">1 wolne miejsce · nieodhaczone → jutro · zamknięte w źródle odhaczają się same</div>
+    </section>
+
+    <!-- 2. Do wyboru: full width, under the list -->
+    <section class="dn-panel todo-pick">
+      <div class="dn-panel-head"><h2 class="dn-panel-title">Do wyboru</h2><span class="dn-panel-meta">9 pozycji</span></div>
+
+      <!-- Variant A: three columns -->
+      <div class="mk-pick-grid mk-only-a">
+        <div class="mk-group">
+          <h3 class="label-caps todo-group-head"><span>GitLab</span><span class="todo-group-count">4 · 2 ukryte</span></h3>
+          <div class="dn-row"><span class="dn-row-title">Raport miesięczny: kolumna z sumą godzin</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+          <div class="dn-row"><span class="dn-row-title">Usunąć przestarzały endpoint eksportu CSV</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+          <div class="dn-row"><span class="dn-row-title">Logowanie: komunikat po wygaśnięciu sesji</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+          <div class="dn-row"><span class="dn-row-title">Migracja tabeli ustawień użytkownika</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+        </div>
+        <div class="mk-group">
+          <h3 class="label-caps todo-group-head"><span>GitHub</span><span class="todo-group-count">2</span></h3>
+          <div class="dn-row"><span class="dn-row-title">Ciemny motyw okna ustawień</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+          <div class="dn-row"><span class="dn-row-title">README: sekcja o kopiach zapasowych</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+        </div>
+        <div class="mk-group">
+          <h3 class="label-caps todo-group-head"><span>Moje zadania</span><span class="todo-group-count">3</span></h3>
+          <div class="dn-row"><span class="dn-row-title">Opłacić rachunek za internet</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+          <div class="dn-row"><span class="dn-row-title">Przegląd notatek ze spotkania zespołu</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+          <div class="dn-row"><span class="dn-row-title">Kupić filtr do oczyszczacza</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+        </div>
+      </div>
+
+      <!-- Variant B: one list, groups stacked (as today, just wider) -->
+      <div class="mk-only-b">
+        <h3 class="label-caps todo-group-head"><span>GitLab</span><span class="todo-group-count">4 · 2 ukryte</span></h3>
+        <div class="dn-row"><span class="dn-row-title">Raport miesięczny: kolumna z sumą godzin</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+        <div class="dn-row"><span class="dn-row-title">Usunąć przestarzały endpoint eksportu CSV</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+        <div class="dn-row"><span class="dn-row-title">Logowanie: komunikat po wygaśnięciu sesji</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+        <div class="dn-row"><span class="dn-row-title">Migracja tabeli ustawień użytkownika</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+        <h3 class="label-caps todo-group-head"><span>GitHub</span><span class="todo-group-count">2</span></h3>
+        <div class="dn-row"><span class="dn-row-title">Ciemny motyw okna ustawień</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+        <div class="dn-row"><span class="dn-row-title">README: sekcja o kopiach zapasowych</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+        <h3 class="label-caps todo-group-head"><span>Moje zadania</span><span class="todo-group-count">3</span></h3>
+        <div class="dn-row"><span class="dn-row-title">Opłacić rachunek za internet</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+        <div class="dn-row"><span class="dn-row-title">Przegląd notatek ze spotkania zespołu</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+        <div class="dn-row"><span class="dn-row-title">Kupić filtr do oczyszczacza</span><div class="dn-row-actions"><button class="dn-btn dn-btn-quiet dn-btn-sm dn-btn-icon todo-add">+</button></div></div>
+      </div>
+    </section>
+
+    <!-- 3. Bottom: Stan źródeł + Dziennik zdarzeń side by side -->
+    <div class="mk-bottom">
+      <section class="dn-panel mk-sources">
+        <div class="dn-panel-head"><h2 class="dn-panel-title">Stan źródeł</h2></div>
+        <ul class="todo-sources">
+          <li class="todo-source"><span class="todo-source-glyph is-ok">●</span><div class="todo-source-body"><div>GitLab</div><div class="todo-source-detail">odświeżone 2 min temu</div></div></li>
+          <li class="todo-source"><span class="todo-source-glyph is-ok">●</span><div class="todo-source-body"><div>GitHub</div><div class="todo-source-detail">odświeżone 3 min temu</div></div></li>
+          <li class="todo-source"><span class="todo-source-glyph is-ok">●</span><div class="todo-source-body"><div>Dane aplikacji</div></div></li>
+          <li class="todo-source"><span class="todo-source-glyph is-ok">●</span><div class="todo-source-body"><div>Ustawienia</div></div></li>
+        </ul>
+      </section>
+      <section class="dn-panel mk-events">
+        <div class="dn-panel-head"><h2 class="dn-panel-title">Dziennik zdarzeń</h2><span class="dn-panel-meta">6</span></div>
+        <ul class="todo-events">
+          <li class="todo-event"><span class="todo-event-time">13:05</span><div class="todo-event-body"><div class="todo-event-label">Odhaczono</div><div class="todo-event-subject">!402 — Aktualizacja zależności w module raportów</div></div></li>
+          <li class="todo-event"><span class="todo-event-time">11:40</span><div class="todo-event-body"><div class="todo-event-label is-ok">GitLab: znowu działa</div></div></li>
+          <li class="todo-event"><span class="todo-event-time">11:12</span><div class="todo-event-body"><div class="todo-event-label is-error">GitLab: błąd — przekroczono czas odpowiedzi</div></div></li>
+          <li class="todo-event"><span class="todo-event-time">09:31</span><div class="todo-event-body"><div class="todo-event-label">Nowe przypisanie</div><div class="todo-event-subject">#2741 — Błąd sortowania listy po zmianie strefy czasowej</div></div></li>
+          <li class="todo-event"><span class="todo-event-time">08:02</span><div class="todo-event-body"><div class="todo-event-label">START</div></div></li>
+          <li class="todo-event"><span class="todo-event-time">08:01</span><div class="todo-event-body"><div class="todo-event-label">Zdjęto</div><div class="todo-event-subject">#19 — Stary pomysł na eksport</div></div></li>
+        </ul>
+      </section>
+    </div>
+  </main>
+</div>
+</body>
+</html>

@@ -1,17 +1,48 @@
 /* Layout only: the rows, panels and states come from src/components. */
 
-/* Columns as in the mock: Do zrobienia 3 (dn-col-main), Do wyboru 2, side 1. */
-.todo-col-pick {
-  flex: 2 1 320px;
+/* Stacked layout: Do zrobienia and Do wyboru at full width, then Stan źródeł
+   and Dziennik zdarzeń in a wrapping bottom row. */
+
+/* "Do wyboru": the sources sit in three columns when the panel is wide enough. */
+.todo-pick {
+  container-type: inline-size;
+}
+
+.todo-pick-groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.todo-pick-group {
   min-width: 0;
 }
 
-.todo-col-side {
-  flex: 1 1 260px;
-  min-width: 0;
+@container (min-width: 840px) {
+  .todo-pick-groups {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .todo-pick-group + .todo-pick-group {
+    border-left: 1px solid var(--line-subtle);
+  }
+}
+
+/* Stan źródeł : Dziennik zdarzeń is about 1:2; the bases (320 + 520 + gap)
+   make the row wrap below a window of about 900 px. */
+.todo-bottom {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: var(--space-5);
+}
+
+.todo-bottom-sources {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+.todo-bottom-events {
+  flex: 2 1 520px;
+  min-width: 0;
 }
 
 /* Extra flags after the first one, inside the row meta. */

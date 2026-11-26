@@ -385,99 +385,95 @@ export default function TodoView() {
         </Notice>
       )}
 
-      <div className="dn-columns">
-        <div className="dn-col-main">
-          <Panel
-            title="Do zrobienia"
-            headingLevel={1}
-            meta={
-              <span role="status">
-                <span className="dn-sr-only">Otwarte </span>
-                {list.limit !== null ? `[${list.openCount}/${list.limit}]` : `[${list.openCount}]`}
-              </span>
-            }
-            footer={footerText(list)}
-          >
-            {list.items.length === 0 && <p className="dn-empty">Nic na dziś — dodaj z list obok</p>}
-            {list.items.map(renderRow)}
-          </Panel>
-        </div>
+      <Panel
+        title="Do zrobienia"
+        headingLevel={1}
+        meta={
+          <span role="status">
+            <span className="dn-sr-only">Otwarte </span>
+            {list.limit !== null ? `[${list.openCount}/${list.limit}]` : `[${list.openCount}]`}
+          </span>
+        }
+        footer={footerText(list)}
+      >
+        {list.items.length === 0 && <p className="dn-empty">Nic na dziś — dodaj z list poniżej</p>}
+        {list.items.map(renderRow)}
+      </Panel>
 
-        <div className="todo-col-pick">
-          <Picker
-            list={list}
-            onList={onList}
-            atLimit={atLimit}
-            busy={busy}
-            ownLoad={ownLoad}
-            gitlabItems={
-              snapshot?.items ? [...snapshot.items.mergeRequests, ...snapshot.items.issues] : []
-            }
-            gitlabHidden={snapshot?.items?.hiddenIssues.length ?? 0}
-            gitlabOk={gitlabState === "ok"}
-            gitlabFilteredOut={
-              snapshot?.filterActive
-                ? snapshot.filteredOut.mergeRequests + snapshot.filteredOut.issues
-                : null
-            }
-            gitlabLoadError={gitlabLoadError}
-            gitlabLastSuccess={clockLabel(snapshot?.lastSuccessMs ?? null)}
-            onRetryGitlab={retryGitlab}
-            ownLastSuccess={lastRefreshLabel(ownLoadedAt)}
-            onRetryOwn={() => setOwnAttempt((n) => n + 1)}
-            gitlabStatus={
-              gitlabLoadError
-                ? null
-                : !snapshot || gitlabState === "starting"
-                  ? { kind: "loading", text: "Pobieram przypisane z GitLaba…" }
-                  : gitlabState === "notConfigured"
-                    ? { kind: "calm", text: "GitLab nie jest skonfigurowany." }
-                    : gitlabState === "unavailable"
-                      ? {
-                          kind: "calm",
-                          text: "GitLab niedostępny (brak VPN lub sieci) — lista może być nieaktualna.",
-                        }
-                      : gitlabState === "error"
-                        ? { kind: "error", text: "Błąd GitLaba — lista może być nieaktualna." }
-                        : null
-            }
-            githubIssues={
-              githubSnapshot
-                ? githubSnapshot.repos.filter((r) => !r.error).flatMap((r) => r.issues)
-                : []
-            }
-            githubOk={githubState === "ok"}
-            githubRepoErrors={
-              githubState === "ok" && githubSnapshot
-                ? repoErrorSpread(githubSnapshot.repos.map((r) => r.error !== null))
-                : "none"
-            }
-            githubLoadError={githubLoadError}
-            githubLastSuccess={clockLabel(githubSnapshot?.lastSuccessMs ?? null)}
-            onRetryGithub={retryGithub}
-            githubStatus={
-              githubLoadError
-                ? null
-                : !githubSnapshot || githubState === "starting"
-                  ? { kind: "loading", text: "Pobieram przypisane z GitHuba…" }
-                  : githubState === "notConfigured"
-                    ? { kind: "calm", text: "GitHub nie jest skonfigurowany." }
-                    : githubState === "unavailable"
-                      ? {
-                          kind: "calm",
-                          text: "GitHub niedostępny (brak sieci) — lista może być nieaktualna.",
-                        }
-                      : githubState === "error"
-                        ? { kind: "error", text: "Błąd GitHuba — lista może być nieaktualna." }
-                        : null
-            }
-            onAddOwn={(id) => void act(() => addOwn(id))}
-            onAddGitlab={(item) => void act(() => addGitlab(item.kind, item.reference))}
-            onAddGithub={(issue) => void act(() => addGithub(issue.reference))}
-          />
-        </div>
+      <Picker
+        list={list}
+        onList={onList}
+        atLimit={atLimit}
+        busy={busy}
+        ownLoad={ownLoad}
+        gitlabItems={
+          snapshot?.items ? [...snapshot.items.mergeRequests, ...snapshot.items.issues] : []
+        }
+        gitlabHidden={snapshot?.items?.hiddenIssues.length ?? 0}
+        gitlabOk={gitlabState === "ok"}
+        gitlabFilteredOut={
+          snapshot?.filterActive
+            ? snapshot.filteredOut.mergeRequests + snapshot.filteredOut.issues
+            : null
+        }
+        gitlabLoadError={gitlabLoadError}
+        gitlabLastSuccess={clockLabel(snapshot?.lastSuccessMs ?? null)}
+        onRetryGitlab={retryGitlab}
+        ownLastSuccess={lastRefreshLabel(ownLoadedAt)}
+        onRetryOwn={() => setOwnAttempt((n) => n + 1)}
+        gitlabStatus={
+          gitlabLoadError
+            ? null
+            : !snapshot || gitlabState === "starting"
+              ? { kind: "loading", text: "Pobieram przypisane z GitLaba…" }
+              : gitlabState === "notConfigured"
+                ? { kind: "calm", text: "GitLab nie jest skonfigurowany." }
+                : gitlabState === "unavailable"
+                  ? {
+                      kind: "calm",
+                      text: "GitLab niedostępny (brak VPN lub sieci) — lista może być nieaktualna.",
+                    }
+                  : gitlabState === "error"
+                    ? { kind: "error", text: "Błąd GitLaba — lista może być nieaktualna." }
+                    : null
+        }
+        githubIssues={
+          githubSnapshot
+            ? githubSnapshot.repos.filter((r) => !r.error).flatMap((r) => r.issues)
+            : []
+        }
+        githubOk={githubState === "ok"}
+        githubRepoErrors={
+          githubState === "ok" && githubSnapshot
+            ? repoErrorSpread(githubSnapshot.repos.map((r) => r.error !== null))
+            : "none"
+        }
+        githubLoadError={githubLoadError}
+        githubLastSuccess={clockLabel(githubSnapshot?.lastSuccessMs ?? null)}
+        onRetryGithub={retryGithub}
+        githubStatus={
+          githubLoadError
+            ? null
+            : !githubSnapshot || githubState === "starting"
+              ? { kind: "loading", text: "Pobieram przypisane z GitHuba…" }
+              : githubState === "notConfigured"
+                ? { kind: "calm", text: "GitHub nie jest skonfigurowany." }
+                : githubState === "unavailable"
+                  ? {
+                      kind: "calm",
+                      text: "GitHub niedostępny (brak sieci) — lista może być nieaktualna.",
+                    }
+                  : githubState === "error"
+                    ? { kind: "error", text: "Błąd GitHuba — lista może być nieaktualna." }
+                    : null
+        }
+        onAddOwn={(id) => void act(() => addOwn(id))}
+        onAddGitlab={(item) => void act(() => addGitlab(item.kind, item.reference))}
+        onAddGithub={(issue) => void act(() => addGithub(issue.reference))}
+      />
 
-        <div className="todo-col-side">
+      <div className="todo-bottom">
+        <div className="todo-bottom-sources">
           <SourcesPanel
             snapshot={health}
             loadError={healthError}
@@ -485,6 +481,8 @@ export default function TodoView() {
             gitlabLastSuccessMs={snapshot?.lastSuccessMs ?? null}
             githubLastSuccessMs={githubSnapshot?.lastSuccessMs ?? null}
           />
+        </div>
+        <div className="todo-bottom-events">
           <EventLogPanel />
         </div>
       </div>
@@ -606,105 +604,113 @@ function Picker({
       className="todo-pick"
       meta={`${total} ${plural(total, "pozycja", "pozycje", "pozycji")}`}
     >
-      <GroupHead
-        name="GitLab"
-        count={
-          gitlabHidden > 0
-            ? `${gitlabCandidates.length} · ${gitlabHidden} ukryte`
-            : String(gitlabCandidates.length)
-        }
-      />
-      {gitlabLoadError && (
-        <ErrorState
-          title="Nie udało się wczytać listy z GitLaba"
-          message={gitlabLoadError}
-          onRetry={onRetryGitlab}
-          lastSuccess={gitlabLastSuccess}
-        />
-      )}
-      {gitlabStatus && <SourceStatusView status={gitlabStatus} />}
-      {gitlabCandidates.length === 0 ? (
-        gitlabItems.length > 0 ? (
-          <p className="dn-empty">Wszystko z GitLaba jest już na liście.</p>
-        ) : (
-          gitlabOk && (
-            <p className="dn-empty">
-              {gitlabFilteredOut !== null && gitlabFilteredOut > 0
-                ? `Brak pasujących do filtra (ukryte filtrem: ${gitlabFilteredOut})`
-                : "Brak przypisanych w GitLabie."}
-            </p>
-          )
-        )
-      ) : (
-        gitlabCandidates.map((item) => (
-          <ItemRow key={gitlabKey(item.kind, item.reference)} title={item.title}>
-            {addButton(item.title, () => onAddGitlab(item))}
-          </ItemRow>
-        ))
-      )}
+      <div className="todo-pick-groups">
+        <div className="todo-pick-group">
+          <GroupHead
+            name="GitLab"
+            count={
+              gitlabHidden > 0
+                ? `${gitlabCandidates.length} · ${gitlabHidden} ukryte`
+                : String(gitlabCandidates.length)
+            }
+          />
+          {gitlabLoadError && (
+            <ErrorState
+              title="Nie udało się wczytać listy z GitLaba"
+              message={gitlabLoadError}
+              onRetry={onRetryGitlab}
+              lastSuccess={gitlabLastSuccess}
+            />
+          )}
+          {gitlabStatus && <SourceStatusView status={gitlabStatus} />}
+          {gitlabCandidates.length === 0 ? (
+            gitlabItems.length > 0 ? (
+              <p className="dn-empty">Wszystko z GitLaba jest już na liście.</p>
+            ) : (
+              gitlabOk && (
+                <p className="dn-empty">
+                  {gitlabFilteredOut !== null && gitlabFilteredOut > 0
+                    ? `Brak pasujących do filtra (ukryte filtrem: ${gitlabFilteredOut})`
+                    : "Brak przypisanych w GitLabie."}
+                </p>
+              )
+            )
+          ) : (
+            gitlabCandidates.map((item) => (
+              <ItemRow key={gitlabKey(item.kind, item.reference)} title={item.title}>
+                {addButton(item.title, () => onAddGitlab(item))}
+              </ItemRow>
+            ))
+          )}
+        </div>
 
-      <GroupHead name="GitHub" count={String(githubCandidates.length)} />
-      {githubLoadError && (
-        <ErrorState
-          title="Nie udało się wczytać listy z GitHuba"
-          message={githubLoadError}
-          onRetry={onRetryGithub}
-          lastSuccess={githubLastSuccess}
-        />
-      )}
-      {githubStatus && <SourceStatusView status={githubStatus} />}
-      {githubRepoErrors === "some" && (
-        <Notice tone="error" inset>
-          Część repozytoriów GitHub nie załadowała się — ich zgłoszeń nie ma na liście.
-        </Notice>
-      )}
-      {githubRepoErrors === "all" && (
-        <Notice tone="error" inset>
-          Żadne repozytorium GitHub nie załadowało się — nie ma czego dodać.
-        </Notice>
-      )}
-      {githubCandidates.length === 0 ? (
-        githubIssues.length > 0 ? (
-          <p className="dn-empty">Wszystko z GitHuba jest już na liście.</p>
-        ) : githubOk && githubRepoErrors === "none" ? (
-          <p className="dn-empty">Brak przypisanych w GitHubie.</p>
-        ) : (
-          githubOk &&
-          githubRepoErrors === "some" && (
-            <p className="dn-empty">Brak przypisanych w repozytoriach, które się załadowały.</p>
-          )
-        )
-      ) : (
-        githubCandidates.map((issue) => (
-          <ItemRow key={githubKey(issue.reference)} title={issue.title}>
-            {addButton(issue.title, () => onAddGithub(issue))}
-          </ItemRow>
-        ))
-      )}
+        <div className="todo-pick-group">
+          <GroupHead name="GitHub" count={String(githubCandidates.length)} />
+          {githubLoadError && (
+            <ErrorState
+              title="Nie udało się wczytać listy z GitHuba"
+              message={githubLoadError}
+              onRetry={onRetryGithub}
+              lastSuccess={githubLastSuccess}
+            />
+          )}
+          {githubStatus && <SourceStatusView status={githubStatus} />}
+          {githubRepoErrors === "some" && (
+            <Notice tone="error" inset>
+              Część repozytoriów GitHub nie załadowała się — ich zgłoszeń nie ma na liście.
+            </Notice>
+          )}
+          {githubRepoErrors === "all" && (
+            <Notice tone="error" inset>
+              Żadne repozytorium GitHub nie załadowało się — nie ma czego dodać.
+            </Notice>
+          )}
+          {githubCandidates.length === 0 ? (
+            githubIssues.length > 0 ? (
+              <p className="dn-empty">Wszystko z GitHuba jest już na liście.</p>
+            ) : githubOk && githubRepoErrors === "none" ? (
+              <p className="dn-empty">Brak przypisanych w GitHubie.</p>
+            ) : (
+              githubOk &&
+              githubRepoErrors === "some" && (
+                <p className="dn-empty">Brak przypisanych w repozytoriach, które się załadowały.</p>
+              )
+            )
+          ) : (
+            githubCandidates.map((issue) => (
+              <ItemRow key={githubKey(issue.reference)} title={issue.title}>
+                {addButton(issue.title, () => onAddGithub(issue))}
+              </ItemRow>
+            ))
+          )}
+        </div>
 
-      <GroupHead
-        name="Moje zadania"
-        count={ownLoad.state === "loaded" ? String(ownCandidates.length) : null}
-      />
-      {ownLoad.state === "loading" && <p className="dn-loading todo-group-note">Ładowanie…</p>}
-      {ownLoad.state === "error" && (
-        <ErrorState
-          title="Nie udało się wczytać zadań"
-          message={ownLoad.message}
-          onRetry={onRetryOwn}
-          lastSuccess={ownLastSuccess}
-        />
-      )}
-      {ownLoad.state === "loaded" &&
-        (ownCandidates.length === 0 ? (
-          <p className="dn-empty">Brak otwartych zadań do dodania.</p>
-        ) : (
-          ownCandidates.map((task) => (
-            <ItemRow key={task.id} title={task.title}>
-              {addButton(task.title, () => onAddOwn(task.id))}
-            </ItemRow>
-          ))
-        ))}
+        <div className="todo-pick-group">
+          <GroupHead
+            name="Moje zadania"
+            count={ownLoad.state === "loaded" ? String(ownCandidates.length) : null}
+          />
+          {ownLoad.state === "loading" && <p className="dn-loading todo-group-note">Ładowanie…</p>}
+          {ownLoad.state === "error" && (
+            <ErrorState
+              title="Nie udało się wczytać zadań"
+              message={ownLoad.message}
+              onRetry={onRetryOwn}
+              lastSuccess={ownLastSuccess}
+            />
+          )}
+          {ownLoad.state === "loaded" &&
+            (ownCandidates.length === 0 ? (
+              <p className="dn-empty">Brak otwartych zadań do dodania.</p>
+            ) : (
+              ownCandidates.map((task) => (
+                <ItemRow key={task.id} title={task.title}>
+                  {addButton(task.title, () => onAddOwn(task.id))}
+                </ItemRow>
+              ))
+            ))}
+        </div>
+      </div>
     </Panel>
   );
 }

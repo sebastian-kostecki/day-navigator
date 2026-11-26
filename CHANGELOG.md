@@ -11,6 +11,15 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-11-26
+
+### Changed
+
+- "Do zrobienia": the list uses the full width of the window. "Do wyboru"
+  sits below it with GitLab, GitHub and "Moje zadania" side by side in three
+  columns (one list in a narrow window), and "Stan źródeł" and "Dziennik
+  zdarzeń" sit next to each other at the bottom.
+
 ## [0.10.0] - 2026-11-25
 
 ### Added

@@ -13,6 +13,10 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
 
 ### Added
 
+- "Czas pracy": Polish public holidays count out of the month's norm and show
+  in the days table like a day off, with their name; a Saturday holiday shows
+  a hint that another day off is owed. Turn the calendar off with
+  `"workTime": { "holidays": false }` in `settings.json`.
 - "Czas pracy": a work-time entry can have a short one-line note (up to 200
   characters). Set it when adding or editing the entry; the day's entry list
   shows it under the times.

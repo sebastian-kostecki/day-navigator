@@ -758,9 +758,9 @@ Plan review (`reviews/plan-review.md`) defaults, chosen by agent, user may revis
 
 #### Automated
 
-- [x] 6.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — 559e9c3
-- [x] 6.2 No literal colours outside tokens — 559e9c3
-- [x] 6.3 Rust gates still pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` — 559e9c3
+- [x] 6.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — 1a0e672
+- [x] 6.2 No literal colours outside tokens — 1a0e672
+- [x] 6.3 Rust gates still pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` — 1a0e672
 
 #### Manual
 

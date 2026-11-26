@@ -151,6 +151,15 @@
   flex-basis: 100%;
 }
 
+.wt-note {
+  flex-basis: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-faint);
+}
+
 .wt-new {
   padding: var(--space-3) var(--space-4);
 }

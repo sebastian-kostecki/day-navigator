@@ -238,3 +238,122 @@ fn start_and_stop_store_events_in_local_time_and_refusals_store_none() {
     assert_eq!(events[1].event, EventView::WorkStarted);
     assert_eq!(events[1].at, "2026-11-23T08:15:07");
 }
+
+// ---- S-06: work-entry note column (migration v11) ----
+
+mod note_column {
+    use super::*;
+    use day_navigator_lib::store::StoreError;
+
+    const SENTINEL: &str = "SENTINEL-invented-7c1e5";
+
+    fn note_migration() -> usize {
+        schema::MIGRATIONS
+            .iter()
+            .position(|m| m.sql.contains("ADD COLUMN note"))
+            .expect("the work-entry note migration")
+    }
+
+    fn set_note(store: &mut Store, note: &str) -> Result<(), StoreError> {
+        store.write::<_, StoreError>(|tx| {
+            tx.execute("UPDATE work_entries SET note = ?1 WHERE id = 1", [note])?;
+            Ok(())
+        })
+    }
+
+    fn store_with_one_entry() -> (tempfile::TempDir, Store) {
+        let (tmp, dir) = test_store_dir();
+        let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+        store
+            .write::<_, StoreError>(|tx| {
+                tx.execute_batch(
+                    "INSERT INTO work_entries(id, start_ms, end_ms, created_at_ms, updated_at_ms) \
+                     VALUES (1, 1000, 2000, 1000, 1000);",
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        (tmp, store)
+    }
+
+    #[test]
+    fn upgrade_from_v10_adds_an_empty_note_and_keeps_rows() {
+        let (_tmp, dir) = test_store_dir();
+        let before = note_migration();
+        assert_eq!(before, 10);
+        let closed_start = t("2026-11-23T08:00");
+        let closed_end = t("2026-11-23T09:00");
+        let running_start = t("2026-11-23T10:00");
+        let removed_start = t("2026-11-22T08:00");
+        let removed_end = t("2026-11-22T09:00");
+        {
+            let mut old = Store::open(&dir, &schema::MIGRATIONS[..before], today()).unwrap();
+            old.write::<_, StoreError>(|tx| {
+                tx.execute(
+                    "INSERT INTO work_entries(id, start_ms, end_ms, removed_at_ms, \
+                     created_at_ms, updated_at_ms) VALUES (1, ?1, ?2, NULL, 1, 1)",
+                    [closed_start, closed_end],
+                )?;
+                tx.execute(
+                    "INSERT INTO work_entries(id, start_ms, end_ms, removed_at_ms, \
+                     created_at_ms, updated_at_ms) VALUES (2, ?1, NULL, NULL, 1, 1)",
+                    [running_start],
+                )?;
+                tx.execute(
+                    "INSERT INTO work_entries(id, start_ms, end_ms, removed_at_ms, \
+                     created_at_ms, updated_at_ms) VALUES (3, ?1, ?2, 5, 1, 1)",
+                    [removed_start, removed_end],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        }
+        let store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+        let version: i64 = store
+            .read::<_, StoreError>(|c| Ok(c.query_row("PRAGMA user_version", [], |r| r.get(0))?))
+            .unwrap();
+        assert_eq!(version, schema::MIGRATIONS.len() as i64);
+        assert_eq!(
+            rows(&store),
+            vec![
+                (1, closed_start, Some(closed_end), None),
+                (2, running_start, None, None),
+                (3, removed_start, Some(removed_end), Some(5)),
+            ]
+        );
+        let notes: Vec<String> = store
+            .read::<_, StoreError>(|c| {
+                let mut stmt = c.prepare("SELECT note FROM work_entries ORDER BY id")?;
+                let out = stmt.query_map([], |r| r.get(0))?;
+                Ok(out.collect::<Result<_, _>>()?)
+            })
+            .unwrap();
+        assert_eq!(notes, vec!["", "", ""]);
+
+        let day = work_time::entries_for_day(&store, today(), running_start + 1, &Warsaw).unwrap();
+        let first = &day.entries[0];
+        assert_eq!(first.id, 1);
+        assert_eq!(first.note, "");
+        assert_eq!(serde_json::to_value(first).unwrap()["note"], "");
+    }
+
+    #[test]
+    fn note_check_refuses_raw_values_and_counts_characters() {
+        let (_tmp, mut store) = store_with_one_entry();
+        assert!(set_note(&mut store, &"ż".repeat(200)).is_ok());
+        assert!(set_note(&mut store, &"ż".repeat(201)).is_err());
+        assert!(set_note(&mut store, "a\nb").is_err());
+        assert!(set_note(&mut store, "a\rb").is_err());
+    }
+
+    #[test]
+    fn note_check_error_carries_no_note() {
+        let (_tmp, mut store) = store_with_one_entry();
+        let long = format!("{SENTINEL}{}", "x".repeat(200));
+        let err = set_note(&mut store, &long).unwrap_err();
+        let json = serde_json::to_string(&err).unwrap();
+        assert!(!json.contains(SENTINEL));
+        assert!(!err.to_string().contains(SENTINEL));
+        assert!(!format!("{err:?}").contains(SENTINEL));
+    }
+}

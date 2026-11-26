@@ -58,6 +58,8 @@ export interface EntryRow {
   startLocal: string;
   endLocal: string | null;
   dayPortionMs: number;
+  /** Trimmed one-line note; `""` = none. */
+  note: string;
 }
 
 export interface DayEntries {

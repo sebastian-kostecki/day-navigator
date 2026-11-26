@@ -64,6 +64,8 @@ pub struct EntryRow {
     pub start_local: String,
     pub end_local: Option<String>,
     pub day_portion_ms: i64,
+    /// Trimmed one-line note; `""` = none.
+    pub note: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -86,6 +88,7 @@ struct Entry {
     id: i64,
     start: i64,
     end: Option<i64>,
+    note: String,
 }
 
 fn row_to_entry(r: &rusqlite::Row<'_>) -> rusqlite::Result<Entry> {
@@ -93,13 +96,14 @@ fn row_to_entry(r: &rusqlite::Row<'_>) -> rusqlite::Result<Entry> {
         id: r.get(0)?,
         start: r.get(1)?,
         end: r.get(2)?,
+        note: r.get(3)?,
     })
 }
 
 /// The counted (not removed) entry with this id.
 fn counted_by_id(conn: &Connection, id: i64) -> Result<Option<Entry>, WorkTimeError> {
     let mut stmt = conn.prepare(
-        "SELECT id, start_ms, end_ms FROM work_entries \
+        "SELECT id, start_ms, end_ms, note FROM work_entries \
          WHERE id = ?1 AND removed_at_ms IS NULL",
     )?;
     let mut rows = stmt.query_map([id], row_to_entry)?;
@@ -108,7 +112,7 @@ fn counted_by_id(conn: &Connection, id: i64) -> Result<Option<Entry>, WorkTimeEr
 
 fn running_entry(conn: &Connection) -> Result<Option<Entry>, WorkTimeError> {
     let mut stmt = conn.prepare(
-        "SELECT id, start_ms, end_ms FROM work_entries \
+        "SELECT id, start_ms, end_ms, note FROM work_entries \
          WHERE removed_at_ms IS NULL AND end_ms IS NULL",
     )?;
     let mut rows = stmt.query_map([], row_to_entry)?;
@@ -123,7 +127,7 @@ fn in_day(
     now: i64,
 ) -> Result<Vec<Entry>, WorkTimeError> {
     let mut stmt = conn.prepare(
-        "SELECT id, start_ms, end_ms FROM work_entries \
+        "SELECT id, start_ms, end_ms, note FROM work_entries \
          WHERE removed_at_ms IS NULL AND start_ms < ?2 AND (end_ms IS NULL OR end_ms > ?1) \
          ORDER BY start_ms, id",
     )?;
@@ -228,6 +232,7 @@ pub fn entries_for_day<Tz: TimeZone>(
                 start_local: local_string(e.start, tz)?,
                 end_local: e.end.map(|v| local_string(v, tz)).transpose()?,
                 day_portion_ms: p,
+                note: e.note,
             });
         }
         Ok(DayEntries {

@@ -350,10 +350,10 @@ Zmiana była planowana bez dostępu do użytkownika. Decyzje użytkownika (stał
 
 #### Automated
 
-- [ ] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy migracji v10→v11, ograniczenia CHECK i błędu bez wartości w `tests/work_time.rs`, `schema::validate(MIGRATIONS)` oraz istniejące testy upgrade'u (`tests/events.rs`, `tests/hidden_issues.rs`, `tests/new_assignments.rs`, `tests/todo.rs`)
-- [ ] 1.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
-- [ ] 1.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 1.4 `git grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(" -- src/worktime/WorkTime.css` nic nie znajduje
+- [x] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy migracji v10→v11, ograniczenia CHECK i błędu bez wartości w `tests/work_time.rs`, `schema::validate(MIGRATIONS)` oraz istniejące testy upgrade'u (`tests/events.rs`, `tests/hidden_issues.rs`, `tests/new_assignments.rs`, `tests/todo.rs`)
+- [x] 1.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
+- [x] 1.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 1.4 `git grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(" -- src/worktime/WorkTime.css` nic nie znajduje
 
 #### Manual
 

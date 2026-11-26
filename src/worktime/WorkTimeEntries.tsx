@@ -179,6 +179,11 @@ function EntryItem(props: {
           </span>
         </>
       )}
+      {row.note && (
+        <span className="body wt-note" title={row.note}>
+          {row.note}
+        </span>
+      )}
       {removeError && (
         <Notice tone="error" compact className="wt-row-error">
           {removeError}

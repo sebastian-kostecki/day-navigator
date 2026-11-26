@@ -1,7 +1,7 @@
 ---
 change_id: work-entry-note
 title: Work entry note
-status: implementing
+status: impl_reviewed
 created: 2026-11-26
 updated: 2026-11-26
 archived_at: null

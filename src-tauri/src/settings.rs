@@ -13,7 +13,9 @@ use crate::gitlab::GitlabError;
 use crate::gitlab::filter::{DimensionRule, GitlabFilter};
 use crate::todo::{DEFAULT_TODO_LIMIT, TodoError};
 
+mod autostart;
 mod work_time;
+pub use autostart::{AutostartSettings, AutostartSettingsInvalid, load_autostart_settings};
 pub use work_time::{WorkTimeSettings, WorkTimeSettingsInvalid, load_work_time_settings};
 const SUPPORTED_VERSION: u64 = 1;
 

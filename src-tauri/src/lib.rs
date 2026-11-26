@@ -1,3 +1,4 @@
+pub mod autostart;
 pub mod backups_folder;
 pub mod cli;
 pub mod events;

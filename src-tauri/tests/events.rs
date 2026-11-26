@@ -187,6 +187,7 @@ fn every_source_id_round_trips() {
             SourceId::Gitlab => "gitlab",
             SourceId::Github => "github",
             SourceId::Reminders => "reminders",
+            SourceId::Autostart => "autostart",
         }
     }
     let sources = [
@@ -195,6 +196,7 @@ fn every_source_id_round_trips() {
         SourceId::Gitlab,
         SourceId::Github,
         SourceId::Reminders,
+        SourceId::Autostart,
     ];
     let (_tmp, dir) = test_store_dir();
     let mut store = open(&dir);

@@ -719,9 +719,9 @@ Plan review (`reviews/plan-review.md`) defaults, chosen by agent, user may revis
 
 #### Automated
 
-- [x] 2.1 Settings tests pass: `cargo test settings::work_time::`
-- [x] 2.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [x] 2.3 `settings.rs` diff is only the `mod` and `pub use` lines
+- [x] 2.1 Settings tests pass: `cargo test settings::work_time::` — 12439c1
+- [x] 2.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` — 12439c1
+- [x] 2.3 `settings.rs` diff is only the `mod` and `pub use` lines — 12439c1
 
 ### Phase 3: Holidays in the norm, day kinds and day-off guard
 
@@ -731,23 +731,23 @@ Plan review (`reviews/plan-review.md`) defaults, chosen by agent, user may revis
 - [x] 3.2 Crash harness test still passes: `cargo test --test days_off_crash` — 794268f
 - [x] 3.3 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` — 794268f
 - [x] 3.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — 794268f
-- [x] 3.5 No `lib.rs` change
+- [x] 3.5 No `lib.rs` change — 794268f
 
 ### Phase 4: Holiday name, Saturday hint and shadowed rows in the report
 
 #### Automated
 
-- [x] 4.1 Report tests pass, old and new: `cargo test work_time` and `cargo test --test work_time`
-- [x] 4.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [x] 4.3 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 4.1 Report tests pass, old and new: `cargo test work_time` and `cargo test --test work_time` — 364bbae
+- [x] 4.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` — 364bbae
+- [x] 4.3 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — 364bbae
 
 ### Phase 5: Settings at the edges and the invalid-block error
 
 #### Automated
 
-- [x] 5.1 Policy helper tests pass (strict refuses, lenient falls back, no path gives defaults)
-- [x] 5.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [x] 5.3 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 5.1 Policy helper tests pass (strict refuses, lenient falls back, no path gives defaults) — 967cc2d
+- [x] 5.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` — 967cc2d
+- [x] 5.3 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — 967cc2d
 
 #### Manual
 

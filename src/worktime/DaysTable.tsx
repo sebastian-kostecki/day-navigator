@@ -47,7 +47,7 @@ function DayRow(props: {
     row.holiday === null
       ? undefined
       : row.dayOffOwed
-        ? "Święto w sobotę: pracodawca wyznacza za nie inny dzień wolny — oznacz go w tabeli"
+        ? `${row.holiday} — Święto w sobotę: pracodawca wyznacza za nie inny dzień wolny — oznacz go w tabeli`
         : row.holiday;
   const barLabel =
     row.normMs > 0

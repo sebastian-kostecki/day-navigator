@@ -17,8 +17,8 @@ use tauri::{AppHandle, Manager};
 
 use crate::runtime;
 use crate::settings::{
-    ReminderOrigin, ReminderSettings, ReminderSettingsError, WorkTimeSettings,
-    load_reminder_settings, load_reminder_settings_detailed,
+    ReminderOrigin, ReminderSettings, ReminderSettingsError, load_reminder_settings,
+    load_reminder_settings_detailed,
 };
 use crate::settings_file;
 use crate::store::StoreHandle;
@@ -59,8 +59,8 @@ fn reminder_round(app: &AppHandle, settings_path: &Option<PathBuf>, memory: &mut
     };
     // Read before the store lock. An invalid `workTime` block or an unresolved
     // path gives the default calendar (logged at debug by the helper).
-    let work_time = work_time_settings(settings_path.as_deref(), Policy::Lenient)
-        .unwrap_or_else(|_| WorkTimeSettings::default());
+    let work_time =
+        work_time_settings(settings_path.as_deref(), Policy::Lenient).unwrap_or_default();
     let now = Utc::now().timestamp_millis();
     let facts = app
         .state::<StoreHandle>()

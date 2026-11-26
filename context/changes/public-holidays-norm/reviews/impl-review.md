@@ -87,7 +87,7 @@ Manual rows 5.4, 5.5, 6.4–6.9 and 7.5 are unchecked and pending for the user, 
 - **Location**: src/worktime/DaysTable.tsx:46
 - **Detail**: On a Saturday holiday the cell text is `"<name> · należy się inny dzień wolny"`, truncated with an ellipsis, and the `title` is only the explanation sentence. On "Drugi dzień Bożego Narodzenia" at narrow widths the name can be cut, and the tooltip then does not carry it, so nothing on screen shows the full name. The plan specified that exact title, so this is a plan-level gap, not drift. The plan's own "truncated, with the full text in `title`" intent is better served by including the name.
 - **Fix**: Set the Saturday branch of `holidayTitle` to `` `${row.holiday} — Święto w sobotę: pracodawca wyznacza za nie inny dzień wolny — oznacz go w tabeli` ``.
-- **Decision**: PENDING
+- **Decision**: FIXED
 
 ### F2 — Progress rows for phases 2, 4, 5 (and 3.5) lack commit SHAs
 
@@ -97,7 +97,7 @@ Manual rows 5.4, 5.5, 6.4–6.9 and 7.5 are unchecked and pending for the user, 
 - **Location**: context/changes/public-holidays-norm/plan.md:722-750
 - **Detail**: The Progress convention says to append ` — <sha>` when a step lands. Rows 2.1–2.3, 3.5, 4.1–4.3 and 5.1–5.3 are `[x]` with no SHA, while phases 1, 3 (except 3.5), 6 and 7 have one. The commits exist: p2 = 12439c1, p3 = 794268f, p4 = 364bbae, p5 = 967cc2d.
 - **Fix**: Append ` — 12439c1` to 2.1–2.3, ` — 794268f` to 3.5, ` — 364bbae` to 4.1–4.3 and ` — 967cc2d` to 5.1–5.3.
-- **Decision**: PENDING
+- **Decision**: FIXED
 
 ### F3 — Cosmetic nits in the touched shared files
 
@@ -112,4 +112,4 @@ Manual rows 5.4, 5.5, 6.4–6.9 and 7.5 are unchecked and pending for the user, 
 
   None of these affects behaviour. If they are touched at all, keep the edits to these exact lines, because S-03/S-06 edit the same files.
 - **Fix**: (a) use `.unwrap_or_default()`; (b) add one blank line after line 17 of `settings.rs`; (c) optionally re-pad the README table, or leave it to avoid a parallel-slice conflict.
-- **Decision**: PENDING
+- **Decision**: FIXED (a); SKIPPED (b), (c) — shared file, parallel slices

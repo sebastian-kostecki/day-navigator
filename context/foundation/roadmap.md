@@ -3,7 +3,7 @@ project: "Nawigator dnia"
 version: 5
 status: draft
 created: 2026-11-20
-updated: 2026-11-25
+updated: 2026-11-26
 prd_version: 2
 main_goal: quality
 top_blocker: decisions
@@ -50,7 +50,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 
 | ID   | Change ID               | Outcome (user can …)                                                          | Prerequisites | PRD refs              | Status   |
 | ---- | ----------------------- | ----------------------------------------------------------------------------- | ------------- | --------------------- | -------- |
-| S-01 | public-holidays-norm    | see Polish public holidays counted out of the month's norm                     | —             | MS-25, FR-014, FR-020 | ready    |
+| S-01 | public-holidays-norm    | see Polish public holidays counted out of the month's norm                     | —             | MS-25, FR-014, FR-020 | done |
 | S-02 | configurable-daily-norm | set the daily norm and mark a half day off                                     | S-01          | MS-26, FR-014, FR-020 | proposed |
 | S-03 | tray-timer-control      | start and stop the counter from the tray and see today's time in its tooltip   | —             | MS-23, FR-013         | ready    |
 | S-04 | windows-autostart       | have the app start with Windows into the tray                                  | —             | MS-17, FR-018         | ready    |
@@ -101,7 +101,7 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
   - A holiday on a Saturday gives another day off whose date the employer sets: stays a manual day off, with or without a hint in the table? — Owner: user. Block: no (settled in `/10x-plan`).
   - A day that is both a holiday and a marked day off. — Owner: user. Block: no (settled in `/10x-plan`).
 - **Risk:** Changes the norm rule every report shows; it goes first so S-02 and S-08 build on a settled rule, and the rule stays in Rust with tests on known dates.
-- **Status:** ready
+- **Status:** done
 
 ### S-02: Configurable daily norm and half day off
 
@@ -268,3 +268,4 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-06: user can see a "Przypomnienia" panel with the reminder thresholds and whether reminders are on; no editing, the settings stay in the file.** — Archived 2026-11-24 → `context/archive/2026-11-24-worktime-reminders-panel/`. Lesson: —.
 - **S-07: user can see in the "Dane aplikacji" card the time of the last backup, the number of kept backups ("7 z 7"), the schema version, and open the backups folder.** — Archived 2026-11-24 → `context/archive/2026-11-24-app-data-details/`. Lesson: —.
 - **F-05: (foundation) the "Day Navigator — Konsola" artifact's README and components match the app: Flag tone `new`, `ItemRow` id, `ItemRow` labels, `HoursBar` with a required `norm` (from Rust), `DataTable` row states `current`/`hatched` and cell tones `info`/`warn`, numbered navigation with shortcuts, `Notice`, START/STOP confirmation, app and tray icons.** — Archived 2026-11-24 → `context/archive/2026-11-24-design-system-artifact-sync/`. Lesson: —.
+- **S-01: user can see Polish public holidays (fixed dates and the Easter-based ones) counted out of the month's norm and shown in the days table like a day off, with the holiday's name; a setting turns the calendar off.** — Archived 2026-11-26 → `context/archive/2026-11-26-public-holidays-norm/`. Lesson: —.

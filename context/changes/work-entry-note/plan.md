@@ -357,7 +357,7 @@ Zmiana była planowana bez dostępu do użytkownika. Decyzje użytkownika (stał
 
 #### Manual
 
-- [ ] 1.5 Po pierwszym uruchomieniu wersji z v11 na prawdziwych danych użytkownika (z kopią katalogu danych wg „Ręczne przebiegi dzielą prawdziwą bazę”) widok „Czas pracy” pokazuje dotychczasowe wpisy bez zmian i bez dodatkowej linii pod godzinami, a „Stan źródeł” pokazuje „Dane aplikacji” jako sprawne
+- [x] 1.5 Po pierwszym uruchomieniu wersji z v11 na prawdziwych danych użytkownika (z kopią katalogu danych wg „Ręczne przebiegi dzielą prawdziwą bazę”) widok „Czas pracy” pokazuje dotychczasowe wpisy bez zmian i bez dodatkowej linii pod godzinami, a „Stan źródeł” pokazuje „Dane aplikacji” jako sprawne — checked by the user on 2026-11-26 on m3-wave1-integration
 
 ### Phase 2: Zapis notatki — walidacja, komendy i formularz
 
@@ -371,12 +371,12 @@ Zmiana była planowana bez dostępu do użytkownika. Decyzje użytkownika (stał
 
 #### Manual
 
-- [ ] 2.6 „Dopisz brakujący wpis” z notatką „Wymyślona notatka” zapisuje wpis, a lista pokazuje notatkę w linii pod godzinami; wpis bez notatki nie ma dodatkowej linii
-- [ ] 2.7 Edycja wpisu pokazuje zapisaną notatkę; zmiana samej notatki nie zmienia godzin ani czasu trwania; wyczyszczenie pola usuwa linię notatki
-- [ ] 2.8 Notatka trwającego wpisu (po START) daje się ustawić w jego formularzu edycji, a licznik w nagłówku dalej biegnie
-- [ ] 2.9 Wklejenie ponad 200 znaków daje komunikat „Notatka może mieć najwyżej 200 znaków” i nic się nie zapisuje; licznik pokazuje np. `201/200`
-- [ ] 2.10 Długa notatka w wąskim oknie (800 px) ucina się wielokropkiem, pełna treść jest w podpowiedzi po najechaniu
-- [ ] 2.11 Notatka zostaje po restarcie aplikacji; plik logu aplikacji z tej sesji i panel „Dziennik zdarzeń” nie zawierają jej treści
+- [x] 2.6 „Dopisz brakujący wpis” z notatką „Wymyślona notatka” zapisuje wpis, a lista pokazuje notatkę w linii pod godzinami; wpis bez notatki nie ma dodatkowej linii — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 2.7 Edycja wpisu pokazuje zapisaną notatkę; zmiana samej notatki nie zmienia godzin ani czasu trwania; wyczyszczenie pola usuwa linię notatki — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 2.8 Notatka trwającego wpisu (po START) daje się ustawić w jego formularzu edycji, a licznik w nagłówku dalej biegnie — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 2.9 Wklejenie ponad 200 znaków daje komunikat „Notatka może mieć najwyżej 200 znaków” i nic się nie zapisuje; licznik pokazuje np. `201/200` — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 2.10 Długa notatka w wąskim oknie (800 px) ucina się wielokropkiem, pełna treść jest w podpowiedzi po najechaniu — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 2.11 Notatka zostaje po restarcie aplikacji; plik logu aplikacji z tej sesji i panel „Dziennik zdarzeń” nie zawierają jej treści — checked by the user on 2026-11-26 on m3-wave1-integration
 
 ### Phase 3: Dowód awaryjny i dokumentacja
 

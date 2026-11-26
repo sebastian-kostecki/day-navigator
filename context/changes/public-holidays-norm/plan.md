@@ -745,9 +745,9 @@ Plan review (`reviews/plan-review.md`) defaults, chosen by agent, user may revis
 
 #### Automated
 
-- [ ] 5.1 Policy helper tests pass (strict refuses, lenient falls back, no path gives defaults)
-- [ ] 5.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [ ] 5.3 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 5.1 Policy helper tests pass (strict refuses, lenient falls back, no path gives defaults)
+- [x] 5.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 5.3 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 
 #### Manual
 

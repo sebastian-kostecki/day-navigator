@@ -2,7 +2,9 @@
 //! block and the store, asks the pure rules in `work_time::reminders` what is
 //! due and sends the toasts. An invalid block skips the round (the health
 //! source "Przypomnienia" reports it); so does a store error ("Dane aplikacji"
-//! reports that). A failed spawn is only logged. A panic is not caught: the
+//! reports that). The `workTime` block (holiday calendar) is read each round
+//! too; an invalid one falls back to the default calendar instead of skipping
+//! the round. A failed spawn is only logged. A panic is not caught: the
 //! release profile sets `panic = "abort"`, so it would end the app; the round
 //! has no known panic path (capped arithmetic, `earliest()` / `_opt` chrono).
 
@@ -21,6 +23,7 @@ use crate::settings::{
 use crate::settings_file;
 use crate::store::StoreHandle;
 use crate::work_time::WorkTimeError;
+use crate::work_time::commands::{Policy, work_time_settings};
 use crate::work_time::reminders::{ReminderMemory, due_reminders, reminder_facts};
 
 const REMINDER_INTERVAL: Duration = Duration::from_secs(60);
@@ -54,11 +57,15 @@ fn reminder_round(app: &AppHandle, settings_path: &Option<PathBuf>, memory: &mut
         },
         None => ReminderSettings::default(),
     };
+    // Read before the store lock. An invalid `workTime` block or an unresolved
+    // path gives the default calendar (logged at debug by the helper).
+    let work_time = work_time_settings(settings_path.as_deref(), Policy::Lenient)
+        .unwrap_or_else(|_| WorkTimeSettings::default());
     let now = Utc::now().timestamp_millis();
     let facts = app
         .state::<StoreHandle>()
         .with_store(Local::now().date_naive(), |s| {
-            reminder_facts(s, now, &Local, &WorkTimeSettings::default())
+            reminder_facts(s, now, &Local, &work_time)
         });
     // The store lock is released here, before any toast.
     let facts = match facts {

@@ -17,6 +17,7 @@ export type WorkTimeError =
   | { kind: "RunningEndEdit" }
   | { kind: "NotAWorkday" }
   | { kind: "Holiday" }
+  | { kind: "SettingsInvalid" }
   | { kind: "Background" };
 
 /**

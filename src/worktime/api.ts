@@ -140,6 +140,8 @@ export function workTimeErrorMessage(e: unknown, entriesById?: Map<number, Entry
       return "Trwający wpis nie ma końca — zakończ go przyciskiem STOP";
     case "Holiday":
       return "Święto nie jest dniem roboczym";
+    case "SettingsInvalid":
+      return "Nie można odczytać bloku „workTime” z settings.json: plik musi być poprawnym JSON-em z „version”: 1, a holidays to „pl” albo false.";
     case "NotAWorkday":
       return "Weekend nie jest dniem roboczym";
     case "Background":

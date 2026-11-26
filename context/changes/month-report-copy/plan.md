@@ -23,7 +23,7 @@ Tekst buduje Rust w chwili kliknięcia z tego samego `report::compute` i tych sa
 ## Desired End State
 
 - W nagłówku „Czas pracy”, po prawej, przycisk „Kopiuj miesiąc”, aktywny tylko gdy raport pokazanego miesiąca jest wczytany. Kliknięcie kopiuje TSV pokazanego miesiąca i pokazuje „Skopiowano.”; błąd komendy albo schowka pokazuje polski komunikat, nigdy cichą porażkę i nigdy pusty tekst w miejsce nieudanego źródła.
-- Wklejony tekst to trzy bloki rozdzielone pustą linią (podsumowanie, dni, wpisy) w formacie z sekcji „Format TSV”. Liczby każdej komórki są tymi samymi liczbami, które pokazuje ekran (te same reguły zaokrąglenia), a dzisiejszy wiersz odpowiada wartości na żywo w chwili kliknięcia.
+- Wklejony tekst to trzy bloki rozdzielone pustą linią (podsumowanie, dni, wpisy) w formacie z sekcji „Format TSV”. Liczby każdej komórki są tymi samymi liczbami, które pokazuje ekran (te same reguły zaokrąglenia), a dzisiejszy wiersz odpowiada wartości na żywo w chwili kliknięcia. Kopia jest liczona w chwili kliknięcia, a kafelki miesiąca nie są na żywo (odświeżane najwyżej co 60 s, po `work-time-changed` i po powrocie do okna), więc przy biegnącym liczniku albo tuż po zmianie z zasobnika podsumowanie kopii może być o te minuty świeższe od kafelków; kafelki dochodzą do tej samej wartości przy następnym odświeżeniu.
 - Kopiowanie jest odczytem: nie emituje `work-time-changed`, nie zapisuje zdarzenia, niczego nie loguje poza istniejącą linią rodzaju błędu w `execute`; notatka trafia tylko do schowka na kliknięcie użytkownika.
 - `report.rs`, `norm.rs`, `types.ts` bez zmian; brak nowych crate'ów, pakietów npm, uprawnień i zmian CSP.
 - README i CHANGELOG mają po jednym nowym punkcie, z informacją, że przecinek dziesiętny jest dla arkuszy pl-PL.
@@ -100,7 +100,7 @@ Kodowanie UTF-8 (jak każdy string JS), bez BOM. Wiersze łączone `\n` (LF), be
 **Blok 3 — wpisy** (6 kolumn, jeden wiersz na każdą część wpisu w dniu, dni rosnąco, w dniu kolejność `in_day` — start, id):
 `Data	Od	Do	Czas	Czas h	Notatka`
 - Wiersz powstaje tylko dla `portion(start, end, now, day_start, day_end) > 0` (ta sama reguła co `entry_count`); wpis przez północ jest w obu dniach, każdy z własną częścią.
-- `Od` / `Do`: lokalny czas wpisu (nie przycięty do dnia): `HH:MM`, gdy chwila wypada w dniu wiersza, w przeciwnym razie `YYYY-MM-DD HH:MM`; `Do` trwającego wpisu to `trwa`.
+- `Od` / `Do`: lokalny czas wpisu (nie przycięty do dnia): `HH:MM`, gdy lokalna data z `local_string` jest datą wiersza, w przeciwnym razie `YYYY-MM-DD HH:MM` (ta sama reguła co `localLabel` w `WorkTimeEntries.tsx:22-26`, więc koniec dokładnie o północy, np. 22:00–00:00, ma w `Do` datę następnego dnia); `Do` trwającego wpisu to `trwa`.
 - `Czas` / `Czas h`: część wpisu w dniu (trwający do `now`).
 - `Notatka`: `cell(note)`; bez notatki pusta (wiersz kończy się wtedy `\t`).
 - Miesiąc bez wpisów: blok ma tylko wiersz nagłówka.
@@ -112,12 +112,15 @@ Przykład (wymyślone dane, `now` = pon. 2026-11-23 12:00, strefa Warszawa):
 2026-11-20	2026-11-19 22:00	02:00	2:00	2,00	'=SUMA(A1)
 2026-11-23	09:00	trwa	3:00	3,00	
 ```
-(Nazwa święta w teście brana z `DayReport.holiday`, nie wpisana na sztywno.)
+(Nazwa święta w teście brana z `DayReport.holiday`, nie wpisana na sztywno. Ostatni wiersz kończy się `\t`: pusta notatka.)
+
+Znane ograniczenie (default chosen by agent, user may revise): komórkę tekstową, która wygląda jak liczba, data albo czas (np. notatka `12.11` albo `7:30`, a także `Miesiąc` = `2026-11`), arkusz zamieni na liczbę lub datę; prefiks `'` dostają tylko znaki formuł i `"`, `'`, żeby zwykłe notatki nie zaczynały się od apostrofu.
 
 ## Critical Implementation Details
 
 - **Jeden snapshot, ta sama reguła.** `month_report_text` w jednym `store.read` woła `compute(c, day, now, tz, settings)` i `in_day(c, month_start, month_end, now)` (granice z `norm::month_days` + `day_bounds`, tak jak `report.rs:130-132`), a części dni liczy tym samym `portion` i `day_bounds` co `compute`. Liczby dni i podsumowania czyta wyłącznie z pól raportu (`worked_ms`, `norm_ms`, `deviation_ms`, `kind`, `holiday`, `day_off_owed`, `figures`, `days_off`), nigdy z `DAILY_NORM_MS` ani z własnego przeliczenia norm.
-- **Aktywacja schowka.** `writeText` ma iść zaraz po `await` komendy w tym samym handlerze kliknięcia, bez dodatkowego `await` pomiędzy i bez `setTimeout` (Chromium wymaga skupionej strony albo świeżej aktywacji użytkownika). Odrzucenie `writeText` (także brak `navigator.clipboard`) łapać osobno od błędu komendy.
+- **Schowek w WebView2.** `writeText` ma iść zaraz po `await` komendy w tym samym handlerze kliknięcia, bez dodatkowego `await` pomiędzy i bez `setTimeout`. Twardym warunkiem Chromium jest skupiony dokument: bez skupienia `writeText` odrzuca `NotAllowedError` („Document is not focused”), np. gdy użytkownik przełączy okno w trakcie komendy albo gdy skupione jest okno DevTools. Przejściowa aktywacja z kliknięcia trwa w Chromium ok. 5 s (stała Chromium, niesprawdzona w WebView2) i `writeText` jej nie zużywa; komenda czyta jeden miesiąc w milisekundach (najdłużej czeka na blokadę store'u, gdy runda zdrowia robi kopię zapasową), więc po `await` aktywacja jest jeszcze ważna. Odrzucenie `writeText` (także brak `navigator.clipboard`, czyli `TypeError`) łapać osobno od błędu komendy i pokazać z nazwą błędu (`e.name`, sama nazwa, bez treści), żeby ręczne sprawdzenie odróżniło `NotAllowedError` od braku API i mogło zdecydować o wariancie awaryjnym.
+- **Pola raportu bez `..`.** `month_text.rs` czyta `MonthReport`, `NormFigures` i `DayReport` przez destrukturyzację bez `..` (np. `let DayReport { day, kind, worked_ms, norm_ms, deviation_ms, entry_count, holiday, day_off_owed } = d;`), tak jak `match` bez `_`: nowe pole z równoległego slice'a (S-02, S-08) to błąd kompilacji przy merge'u, a nie cicho pominięta wartość.
 - **Kontrakt przy merge'u**: zob. „Merge notes”.
 
 ## Phase 1: Budowanie TSV w Rust i komenda
@@ -136,8 +139,8 @@ Nowy moduł formatujący raport miesiąca jako TSV, z testami na wymyślonych da
 
 **Contract**:
 - `pub fn month_report_text<Tz: TimeZone>(store: &Store, day: NaiveDate, now: i64, tz: &Tz, settings: &WorkTimeSettings) -> Result<String, WorkTimeError>` — jeden `store.read`, w nim `super::report::compute` i `super::in_day`.
-- Pomocnicze funkcje `pub(super)` (dla testów w module rodzeństwa): `cell(&str) -> String`, `hm(ms) -> String` (H:MM, w dół), `hours(ms) -> String` (dziesiętnie, w dół), `signed_hours(ms) -> String` (obcięte do zera, ASCII `-`). Reszta wewnętrzna według uznania implementującego.
-- Mapowania `MonthPhase`, `DayKind`, `Weekday` przez `match` bez gałęzi `_`.
+- Pomocnicze funkcje `pub(super)` (dla testów w module rodzeństwa): `cell(&str) -> String`, `hm(ms) -> String` (H:MM, w dół), `hours(ms) -> String` (dziesiętnie, w dół), `signed_hours(ms) -> String` (obcięte do zera, ASCII `-`; zaokrąglenie `(m * 100 + 30) / 60` liczone na `|m|`, znak dokładany potem — ten sam wzór na ujemnym `m` z obcinającym `/` dałby `-1,49` dla −90 min). Reszta wewnętrzna według uznania implementującego.
+- Mapowania `MonthPhase`, `DayKind`, `Weekday` przez `match` bez gałęzi `_`; pola `MonthReport`, `NormFigures`, `DayReport` przez destrukturyzację bez `..` (sekcja „Critical Implementation Details”).
 - Komentarz modułu: tekst trafia tylko do schowka na kliknięcie użytkownika; nigdy do logu ani dziennika zdarzeń (notatka to treść użytkownika).
 
 #### 2. Rejestracja modułu
@@ -175,7 +178,7 @@ Nowy moduł formatujący raport miesiąca jako TSV, z testami na wymyślonych da
 - `numbers_*`: `hm`: `0`, `59_999` → `0:00`, `7 h 30 min` → `7:30`, `40 h 15 min` → `40:15`, wartość ujemna → `0:00`; `hours`: `7:30 → 7,50`, `7:20 → 7,33`, `0:01 → 0,02`, `0 → 0,00`; `signed_hours`: `-90 min → -1,50`, `-59_999 ms → 0,00`, `-61_000 ms → -0,02`, `+61_000 ms → 0,02` (bez `+`); żaden wynik nie zawiera `.` ani `U+2212`.
 - `current_month_matches_the_report`: listopad 2026, `now` = 2026-11-23T12:00; wpisy: zamknięty w dzień roboczy z notatką z tabulatorem, wpis przez północ 2026-11-19T22:00–2026-11-20T02:00 z notatką `=SUMA(A1)`, 2 h w święto 2026-11-11, dzień wolny 2026-11-13 (`report::set_day_off`), trwający od 09:00 (`start`). Wywołać `month_report` i `month_report_text` z tym samym `now`; sparsować TSV i sprawdzić: 3 bloki; blok 1 ma 13 wierszy (z nagłówkiem), blok 2 ma 31 (nagłówek + 30 dni); każda komórka dnia równa sformatowanemu polu `DayReport` (w tym puste „Suma” dokładnie wg reguły); `Rodzaj` 11.11 = `święto`, 13.11 = `wolny`; liczba wierszy wpisów dnia = `entry_count`; wpis przez północ w obu dniach z `Od`/`Do` w formie z datą po drugiej stronie północy i `'=SUMA(A1)`; trwający z `Do` = `trwa` i `Czas` = `3:00`; podsumowanie równe polom `MonthReport`/`NormFigures` (`Stan` = `bieżący`, `Dni wolne` = `1`). Wiersze z przykładu w sekcji „Format TSV” występują dosłownie (nazwa święta z raportu).
 - `past_month_with_dst_and_a_saturday_holiday`: sierpień 2026 (15.08 to sobota): `Święto` = `"{holiday} · należy się inny dzień wolny"`, `Rodzaj` = `weekend`. Październik 2026 (zmiana czasu 25.10): wpis 01:00–04:00 lokalnie liczy się jako `4:00`, 31 wierszy dni; `Stan` = `zamknięty`; `Norma do dziś` = `Norma miesiąca`; `Pozostało`, `Średnio / dzień`, `Dni robocze po dziś` puste; `Odchylenie` = `signed_hours(deviation_ms)`.
-- `future_month_is_empty_but_shaped`: grudzień 2026: `Stan` = `przyszły`, `Odchylenie` i `Norma do dziś` puste, wszystkie „Suma” i „Odchylenie h” dni puste, blok wpisów to tylko nagłówek.
+- `future_month_is_empty_but_shaped`: grudzień 2026: `Stan` = `przyszły`, `Odchylenie`, `Norma do dziś`, `Pozostało`, `Średnio / dzień` i `Dni robocze po dziś` puste, `Norma miesiąca` i `Dni robocze` wypełnione, wszystkie „Suma” i „Odchylenie h” dni puste, blok wpisów to tylko nagłówek.
 - `shape_is_rectangular`: w każdym teście z danymi: brak `\r`, brak końcowego `\n`, `text.split("\n\n")` daje 3 bloki, każdy wiersz bloku 1/2/3 ma odpowiednio 2/9/5 tabulatorów.
 - `sentinel_note_reaches_only_the_text`: notatka `SENTINEL-invented-month-copy` jest w TSV (po `cell`), a JSON błędu `SettingsInvalid`/`InvalidLocalTime` z `serde_json::to_string` jej nie zawiera (wzór S-06).
 
@@ -215,7 +218,7 @@ UI woła nową komendę dla pokazanego miesiąca, zapisuje tekst do schowka i po
 
 **Intent**: Stan jednego kopiowania: zajęty, skopiowano, błąd — przypisany do miesiąca, w którym kliknięto, żeby potwierdzenie nie przechodziło na inny miesiąc.
 
-**Contract**: `useMonthCopy(month: string)` zwraca `{ copy: () => Promise<void>, busy: boolean, copied: boolean, error: string | null }` (`copied`/`error` tylko dla bieżącego `month`). `copy`: czyści poprzedni wynik, `busy = true`; `text = await workMonthReportText(\`${month}-01\`)` — błąd → `workTimeErrorMessage(e)`; potem od razu `await navigator.clipboard.writeText(text)` — błąd → „Nie udało się skopiować do schowka”; sukces → `copied`. Tekst nie jest trzymany w stanie ani logowany (żadnego `console.`). Wynik zostaje do następnego kliknięcia lub zmiany miesiąca (jak „Zapisano.”, bez timera).
+**Contract**: `useMonthCopy(month: string)` zwraca `{ copy: () => Promise<void>, busy: boolean, copied: boolean, error: string | null }` (`copied`/`error` tylko dla bieżącego `month`). Wynik trzymany w `useState` razem z miesiącem kliknięcia (`{ month, copied } | { month, error } | null`), a `copied`/`error` wyprowadzane w renderze przez porównanie z bieżącym `month`, jak `useMonthReport.ts:95,116`; bez `useEffect` czyszczącego stan przy zmianie miesiąca i bez czytania refów w renderze (reguły `eslint-plugin-react-hooks` 7 w `npm run lint`). `copy`: czyści poprzedni wynik, `busy = true`; `text = await workMonthReportText(\`${month}-01\`)` — błąd → `workTimeErrorMessage(e)`; potem od razu `await navigator.clipboard.writeText(text)` w osobnym `try` — błąd → `Nie udało się skopiować do schowka (${name})`, gdzie `name` to `e.name` dla `Error`/`DOMException` (np. `NotAllowedError`, `TypeError`), inaczej `nieznany błąd`; sukces → `copied`. Tekst nie jest trzymany w stanie ani logowany (żadnego `console.`). Wynik zostaje do następnego kliknięcia lub zmiany miesiąca (jak „Zapisano.”, bez timera).
 
 #### 3. Komponent
 
@@ -239,7 +242,7 @@ UI woła nową komendę dla pokazanego miesiąca, zapisuje tekst do schowka i po
 
 **Intent**: Krótkie dopisane punkty, bez przeredagowania cudzych.
 
-**Contract**: README, lista „Czas pracy (Work time)” (`README.md:53-60`): nowy podpunkt, np. „a "Kopiuj miesiąc" button that copies the shown month (summary, days, entries with notes, holidays) as tab-separated text for a spreadsheet; numbers use a decimal comma, for Excel or Google Sheets set to Polish (pl-PL);”. CHANGELOG `[Unreleased] / Added`: nowy punkt na końcu listy, np. „"Czas pracy": a "Kopiuj miesiąc" button copies the shown month to the clipboard as tab-separated text that pastes into a spreadsheet: a summary, one row per day (kind, holiday name, sum, norm, deviation) and one row per entry with its note. Numbers use a decimal comma, for pl-PL Excel and Google Sheets.”
+**Contract**: README, lista „Czas pracy (Work time)” (`README.md:53-60`): nowy podpunkt, np. „a "Kopiuj miesiąc" button that copies the shown month (summary, days, entries with notes, holidays) as tab-separated text for a spreadsheet; numbers use a decimal comma, for Excel or Google Sheets set to Polish (pl-PL); in a sheet with another locale the decimal hours may paste as text or as a wrong number (7,50 as 750), while the H:MM columns stay correct;”. CHANGELOG `[Unreleased] / Added`: nowy punkt na końcu listy, np. „"Czas pracy": a "Kopiuj miesiąc" button copies the shown month to the clipboard as tab-separated text that pastes into a spreadsheet: a summary, one row per day (kind, holiday name, sum, norm, deviation) and one row per entry with its note. Numbers use a decimal comma, for pl-PL Excel and Google Sheets.”
 
 ### Success Criteria:
 
@@ -253,15 +256,15 @@ UI woła nową komendę dla pokazanego miesiąca, zapisuje tekst do schowka i po
 
 #### Manual Verification:
 
-- W zbudowanej aplikacji (`npm run tauri build -- --debug --no-bundle`) „Kopiuj miesiąc” pokazuje „Skopiowano.”, a wklejenie do Notatnika daje trzy bloki; konsola DevTools nie pokazuje naruszenia CSP ani „IPC custom protocol failed”
+- W zbudowanej aplikacji (`npm run tauri build -- --debug --no-bundle`) „Kopiuj miesiąc” kliknięty w skupionym oknie aplikacji (nie z konsoli DevTools) pokazuje „Skopiowano.”, a wklejenie do Notatnika daje trzy bloki; konsola DevTools nie pokazuje naruszenia CSP ani „IPC custom protocol failed”
 - Wklejenie do Excela z ustawieniami pl-PL: każda wartość we własnej komórce, daty ISO jako daty, `7:30` jako czas, `40:15` w podsumowaniu jako czas trwania, `7,50` i `-1,50` jako liczby, notatka zaczynająca się od `=` lub `"` jako tekst bez formuły, notatka z tabulatorem w jednej komórce
 - To samo wklejenie w Arkuszach Google z ustawieniami regionalnymi Polska
 - Zapisane w planie, czy w schowku są końce linii LF czy CRLF (np. czy wynik `Get-Clipboard -Raw` w PowerShell zawiera znak CR), a wklejenie działa w obu arkuszach
-- Przycisk jest nieaktywny podczas ładowania i przy błędzie raportu; przy zepsutym bloku „workTime” w settings.json po wczytaniu raportu kliknięcie pokazuje komunikat błędu, nie „Skopiowano.” (potem przywrócić settings.json)
+- Przycisk jest nieaktywny podczas ładowania i przy błędzie raportu; po zepsuciu bloku „workTime” w settings.json przy wczytanym raporcie pierwsze kliknięcie po powrocie do okna pokazuje komunikat błędu albo przycisk jest już nieaktywny (powrót do okna odświeża raport), nigdy „Skopiowano.” (potem przywrócić settings.json)
 - Przy biegnącym liczniku dzisiejszy wiersz kopii zgadza się z tabelą dni w chwili kliknięcia; po zmianie miesiąca „Skopiowano.” znika
 - Plik logu aplikacji z tej sesji i panel „Dziennik zdarzeń” nie zawierają treści notatek po kopiowaniu
 
-**Implementation Note**: Po zielonej weryfikacji automatycznej commit tylko tej fazy, np. `feat(month-report-copy): copy the month from the work-time view`. Wiersze Manual zostają dla użytkownika. Migracji nie ma, więc zbudowana aplikacja nie zmienia schematu prawdziwej bazy; wklejony tekst zawiera jednak prawdziwe notatki użytkownika — do sprawdzenia w Arkuszach Google użyć miesiąca bez notatek służbowych albo usunąć arkusz po teście. Jeśli pierwszy wiersz Manual nie przejdzie (np. `NotAllowedError`), nie łatać w tej fazie: zob. „Wariant awaryjny schowka”.
+**Implementation Note**: Po zielonej weryfikacji automatycznej commit tylko tej fazy, np. `feat(month-report-copy): copy the month from the work-time view`. Wiersze Manual zostają dla użytkownika. Migracji nie ma, więc zbudowana aplikacja nie zmienia schematu prawdziwej bazy; wklejony tekst zawiera jednak prawdziwe notatki użytkownika — do sprawdzenia w Arkuszach Google użyć miesiąca bez notatek służbowych albo usunąć arkusz po teście. Jeśli pierwszy wiersz Manual nie przejdzie (komunikat z nazwą błędu, np. `NotAllowedError`), nie łatać w tej fazie: zob. „Wariant awaryjny schowka”. Jeśli `npm install` był potrzebny i zmienił w `package-lock.json` tylko linię `"license": "MIT"`, cofnąć tę zmianę przed weryfikacją (inaczej kryterium z `git diff --quiet` nie przejdzie).
 
 ---
 
@@ -300,7 +303,7 @@ Tylko jeśli ręczne sprawdzenie w zbudowanej aplikacji wykaże, że `navigator.
 
 ## Merge notes
 
-- **S-02 configurable-daily-norm** (pół dnia wolnego, konfigurowalna norma): norma dnia płynie przez `DayReport.norm_ms`, a miesiąca przez `NormFigures`, więc TSV przejmuje ją bez zmian. Nowy wariant `DayKind` (np. pół dnia wolnego) da błąd kompilacji w `month_text.rs` (match bez `_`) — gałąź scalana druga dopisuje etykietę `Rodzaj` (np. „pół dnia wolnego”) i jeden przypadek w teście; bez nowej kolumny, żeby kształt bloku dni został. Nowe pole w `NormFigures` (np. norma dzienna) może dostać wiersz dopisany **na końcu** podsumowania, żeby istniejące odwołania do komórek nie przesunęły się. Zmiana sygnatury `compute` albo `month_report` w S-02 = dopasowanie jednego wywołania w `month_text.rs`. Testy liczą oczekiwane wartości z pól raportu, więc zmiana reguł normy łamie najwyżej dosłowne wiersze przykładu (dla 11.11 norma święta zostaje 0).
+- **S-02 configurable-daily-norm** (pół dnia wolnego, konfigurowalna norma): norma dnia płynie przez `DayReport.norm_ms`, a miesiąca przez `NormFigures`, więc TSV przejmuje ją bez zmian. Nowy wariant `DayKind` (np. pół dnia wolnego) da błąd kompilacji w `month_text.rs` (match bez `_`) — gałąź scalana druga dopisuje etykietę `Rodzaj` (np. „pół dnia wolnego”) i jeden przypadek w teście; bez nowej kolumny, żeby kształt bloku dni został. Nowe pole w `DayReport`, `MonthReport` albo `NormFigures` (np. pół dnia wolnego jako pole zamiast wariantu, norma dzienna, inny kształt `days_off`) też da błąd kompilacji w `month_text.rs` (destrukturyzacja bez `..`); gałąź scalana druga decyduje: wartość w istniejącej kolumnie (np. `Rodzaj`), wiersz dopisany **na końcu** podsumowania (żeby istniejące odwołania do komórek nie przesunęły się) albo jawne `pole: _` z komentarzem, dlaczego go nie ma w kopii. Zmiana sygnatury `compute` albo `month_report` w S-02 = dopasowanie jednego wywołania w `month_text.rs`. Testy liczą oczekiwane wartości z pól raportu, więc zmiana reguł normy łamie najwyżej dosłowne wiersze przykładu (dla 11.11 norma święta zostaje 0).
 - **S-08 week-summary**: może dodać moduł w `mod.rs`, funkcję w `api.ts` i sekcję w `WorkTimeView.tsx` — konflikty tylko kontekstowe w listach; zachować obie linie.
 - **S-07 end-of-day-summary**: rusza ścieżkę STOP w `commands.rs:148-156`; ta zmiana dopisuje komendę na końcu pliku — bez nakładania.
 - **S-04 windows-autostart**: dodaje wtyczkę w `lib.rs` i `Cargo.toml`; tu tylko jedna linia w `generate_handler!`.
@@ -319,8 +322,8 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): TSV; 
 7. Pusta komórka dla brakującej wartości; „Suma” dnia pusta dokładnie tam, gdzie ekran pokazuje „—”; norma dnia zawsze wypełniona; „Wpisy” zawsze liczbą.
 8. `Od`/`Do` jako `HH:MM` w dniu wiersza, w przeciwnym razie `YYYY-MM-DD HH:MM`; trwający wpis `trwa`.
 9. Komórki tekstowe przez jedną funkcję `cell` (tabulator, znaki sterujące, `U+2028`/`U+2029` → spacja; prefiks `'` przed `= + - @ " '` i formami pełnej szerokości).
-10. LF, bez BOM, bez końcowego `\n`, jedna pusta linia między blokami; przecinek dziesiętny pod pl-PL, opisany w README i CHANGELOG.
-11. Przycisk tekstowy `quiet`/`sm` „Kopiuj miesiąc” w nagłówku po `dn-spacer`, aktywny tylko przy wczytanym raporcie; „Skopiowano.” w zawsze zamontowanym `role="status"`, błąd jako `Notice tone="error" compact`; komunikat schowka „Nie udało się skopiować do schowka”, błąd komendy przez `workTimeErrorMessage`. Wynik zostaje do następnego kliknięcia lub zmiany miesiąca.
+10. LF, bez BOM, bez końcowego `\n`, jedna pusta linia między blokami; przecinek dziesiętny pod pl-PL, opisany w README i CHANGELOG (README mówi też, że w innym locale godziny dziesiętne mogą wkleić się jako tekst albo zła liczba, a kolumny `H:MM` zostają poprawne).
+11. Przycisk tekstowy `quiet`/`sm` „Kopiuj miesiąc” w nagłówku po `dn-spacer`, aktywny tylko przy wczytanym raporcie; „Skopiowano.” w zawsze zamontowanym `role="status"`, błąd jako `Notice tone="error" compact`; komunikat schowka „Nie udało się skopiować do schowka (<nazwa błędu>)”, błąd komendy przez `workTimeErrorMessage`. Wynik zostaje do następnego kliknięcia lub zmiany miesiąca.
 12. Nowa logika w nowych plikach (`month_text.rs`, `month_text_tests.rs`, `useMonthCopy.ts`, `MonthCopyButton.tsx`); w plikach współdzielonych tylko dopisane linie; `report.rs`, `norm.rs`, `types.ts` bez zmian.
 13. Dwie fazy: Rust (builder, komenda, testy) → UI i dokumentacja.
 14. Bez synchronizacji statusu w `roadmap.md` (zakaz edycji w tej zmianie).
@@ -363,10 +366,10 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): TSV; 
 
 #### Manual
 
-- [ ] 2.6 W zbudowanej aplikacji (`npm run tauri build -- --debug --no-bundle`) „Kopiuj miesiąc” pokazuje „Skopiowano.”, a wklejenie do Notatnika daje trzy bloki; konsola DevTools nie pokazuje naruszenia CSP ani „IPC custom protocol failed”
+- [ ] 2.6 W zbudowanej aplikacji (`npm run tauri build -- --debug --no-bundle`) „Kopiuj miesiąc” kliknięty w skupionym oknie aplikacji (nie z konsoli DevTools) pokazuje „Skopiowano.”, a wklejenie do Notatnika daje trzy bloki; konsola DevTools nie pokazuje naruszenia CSP ani „IPC custom protocol failed”
 - [ ] 2.7 Wklejenie do Excela z ustawieniami pl-PL: każda wartość we własnej komórce, daty ISO jako daty, `7:30` jako czas, `40:15` w podsumowaniu jako czas trwania, `7,50` i `-1,50` jako liczby, notatka zaczynająca się od `=` lub `"` jako tekst bez formuły, notatka z tabulatorem w jednej komórce
 - [ ] 2.8 To samo wklejenie w Arkuszach Google z ustawieniami regionalnymi Polska
 - [ ] 2.9 Zapisane w planie, czy w schowku są końce linii LF czy CRLF (np. czy wynik `Get-Clipboard -Raw` w PowerShell zawiera znak CR), a wklejenie działa w obu arkuszach
-- [ ] 2.10 Przycisk jest nieaktywny podczas ładowania i przy błędzie raportu; przy zepsutym bloku „workTime” w settings.json po wczytaniu raportu kliknięcie pokazuje komunikat błędu, nie „Skopiowano.” (potem przywrócić settings.json)
+- [ ] 2.10 Przycisk jest nieaktywny podczas ładowania i przy błędzie raportu; po zepsuciu bloku „workTime” w settings.json przy wczytanym raporcie pierwsze kliknięcie po powrocie do okna pokazuje komunikat błędu albo przycisk jest już nieaktywny (powrót do okna odświeża raport), nigdy „Skopiowano.” (potem przywrócić settings.json)
 - [ ] 2.11 Przy biegnącym liczniku dzisiejszy wiersz kopii zgadza się z tabelą dni w chwili kliknięcia; po zmianie miesiąca „Skopiowano.” znika
 - [ ] 2.12 Plik logu aplikacji z tej sesji i panel „Dziennik zdarzeń” nie zawierają treści notatek po kopiowaniu

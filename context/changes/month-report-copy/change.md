@@ -1,7 +1,7 @@
 ---
 change_id: month-report-copy
 title: Copy the month work-time report to the clipboard as TSV
-status: planned
+status: plan_reviewed
 created: 2026-11-26
 updated: 2026-11-26
 archived_at: null

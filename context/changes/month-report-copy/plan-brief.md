@@ -57,7 +57,9 @@ Klik → `useMonthCopy` → `invoke("work_month_report_text", { day: "YYYY-MM-01
 
 ## Open Risks & Assumptions
 
-- `navigator.clipboard.writeText` po `await` komendy działa w skupionym oknie WebView2 — do sprawdzenia w zbudowanej aplikacji; w razie porażki osobna zmiana z wtyczką `clipboard-manager` tylko z Rust.
+- `navigator.clipboard.writeText` po `await` komendy działa w skupionym oknie WebView2 (twardy warunek: skupiony dokument; aktywacja z kliknięcia ~5 s wystarcza na komendę) — do sprawdzenia w zbudowanej aplikacji; błąd schowka pokazuje nazwę (`NotAllowedError`, `TypeError`); w razie porażki osobna zmiana z wtyczką `clipboard-manager` tylko z Rust.
+- Przecinek dziesiętny jest dla arkuszy pl-PL; w innym locale godziny dziesiętne mogą wkleić się jako tekst albo zła liczba (7,50 jako 750), kolumny `H:MM` zostają poprawne (opisane w README).
+- Nowe pole w `DayReport` / `MonthReport` / `NormFigures` z S-02 lub S-08 = błąd kompilacji w `month_text.rs` (destrukturyzacja bez `..`), nie cicho pominięta wartość.
 - Nie wiadomo, czy WebView2 zamienia LF na CRLF; oba arkusze przyjmują oba warianty (sprawdzenie ręczne).
 - Zachowanie wklejania w Excelu/Arkuszach (czasy, `'`-prefiks) opisane na podstawie dokumentacji i forów, niezweryfikowane na żywo.
 - Merge z S-02: nowy `DayKind` = błąd kompilacji do dopisania etykiety; nowe wiersze podsumowania dopisywać na końcu.

@@ -420,13 +420,13 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Automated
 
-- [ ] 1.1 Rust tests pass, including the new `day_summary::tests`: `cargo test` (in `src-tauri/`)
-- [ ] 1.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
-- [ ] 1.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
-- [ ] 1.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 1.5 Only `commands.rs` in the module imports `tauri`
-- [ ] 1.6 No norm in the module (grep for `DAILY_NORM_MS|3_600_000` outside tests returns nothing)
-- [ ] 1.7 Norm, report and schema untouched: `git diff --quiet HEAD -- src-tauri/src/work_time/norm.rs src-tauri/src/work_time/report.rs src-tauri/src/store/schema.rs`
+- [x] 1.1 Rust tests pass, including the new `day_summary::tests`: `cargo test` (in `src-tauri/`)
+- [x] 1.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
+- [x] 1.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
+- [x] 1.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 1.5 Only `commands.rs` in the module imports `tauri`
+- [x] 1.6 No norm in the module (grep for `DAILY_NORM_MS|3_600_000` outside tests returns nothing)
+- [x] 1.7 Norm, report and schema untouched: `git diff --quiet HEAD -- src-tauri/src/work_time/norm.rs src-tauri/src/work_time/report.rs src-tauri/src/store/schema.rs`
 
 ### Phase 2: Tray STOP notification
 

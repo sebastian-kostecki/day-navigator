@@ -1,7 +1,7 @@
 ---
 change_id: end-of-day-summary
 title: End-of-day summary after STOP
-status: plan_reviewed
+status: implementing
 created: 2026-11-26
 updated: 2026-11-26
 archived_at: null

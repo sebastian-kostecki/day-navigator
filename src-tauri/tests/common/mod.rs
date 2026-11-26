@@ -19,5 +19,6 @@ pub fn test_store_dir() -> (TempDir, PathBuf) {
 pub fn manual_only() -> day_navigator_lib::settings::WorkTimeSettings {
     day_navigator_lib::settings::WorkTimeSettings {
         holidays: day_navigator_lib::work_time::holidays::HolidayCalendar::Off,
+        ..day_navigator_lib::settings::WorkTimeSettings::default()
     }
 }

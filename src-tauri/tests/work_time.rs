@@ -301,6 +301,7 @@ fn a_public_holiday_is_a_holiday_for_status_entries_and_reminders() {
     // A row marked while the calendar was off is shadowed, not listed.
     let off = WorkTimeSettings {
         holidays: HolidayCalendar::Off,
+        ..WorkTimeSettings::default()
     };
     report::set_day_off(&mut store, holiday, true, now, &off).unwrap();
     let shadowed = report::month_report(&store, holiday, now, &Warsaw, &defaults).unwrap();
@@ -570,4 +571,18 @@ mod note_write {
             assert!(!e.kind().contains(SENTINEL));
         }
     }
+}
+
+#[test]
+fn status_month_deviation_uses_the_configured_norm() {
+    let (_tmp, dir) = test_store_dir();
+    let now = t("2026-11-11T12:00");
+    let store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+    let seven_hours = WorkTimeSettings {
+        daily_norm_ms: 7 * 3_600_000,
+        ..WorkTimeSettings::default()
+    };
+    // 7 workdays up to 11.11 (2-6, 9-10; the 11th is a holiday), nothing worked.
+    let status = work_time::status(&store, now, &Warsaw, &seven_hours).unwrap();
+    assert_eq!(status.month_deviation_ms, -7 * 3_600_000 * 7);
 }

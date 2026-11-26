@@ -57,23 +57,28 @@ function todayStat(timer: TimerState, nowMs: number): Stat {
   };
 }
 
-function HowCounted() {
+function HowCounted({ dailyNormMs }: { dailyNormMs: number | null }) {
+  // The UI does not know the default: until the report loads it names the setting only.
+  const norm =
+    dailyNormMs === null ? "norma dzienna z settings.json („workTime”)" : formatHm(dailyNormMs);
   return (
     <Panel title="Jak liczę">
       <div className="wt-how body">
         <p>
-          Norma = 8 h × dni robocze: poniedziałek–piątek minus święta państwowe i dni oznaczone
-          ręcznie jako wolne (urlop). Kalendarz świąt można wyłączyć w settings.json („workTime”).
-          Za święto w sobotę pracodawca wyznacza inny dzień wolny — oznacz go ręcznie.
+          Norma = {norm} × dni robocze: poniedziałek–piątek minus święta państwowe i dni oznaczone
+          ręcznie jako wolne (urlop). Normę dzienną ustawia „dailyNormHours” w settings.json
+          („workTime”); jedna wartość działa wstecz, więc zmiana przelicza wszystkie miesiące, także
+          zamknięte. Kalendarz świąt można wyłączyć w tym samym bloku. Za święto w sobotę pracodawca
+          wyznacza inny dzień wolny — oznacz go ręcznie.
         </p>
         <p>
           Odchylenie w bieżącym miesiącu to przepracowany czas minus norma za dni robocze do dziś
-          włącznie: gdy dziś jest dniem roboczym, jego 8 h liczy się od rana. W zamkniętym miesiącu
-          to przepracowany czas minus cała norma.
+          włącznie: gdy dziś jest dniem roboczym, jego norma ({norm}) liczy się od rana. W
+          zamkniętym miesiącu to przepracowany czas minus cała norma.
         </p>
         <p>
-          W tabeli dni odchylenie dnia to przepracowany czas minus norma dnia (8 h w dzień roboczy,
-          0 h w dzień wolny, w święto i w weekend), a odchylenia dni do dziś sumują się do
+          W tabeli dni odchylenie dnia to przepracowany czas minus norma dnia ({norm} w dzień
+          roboczy, 0 h w dzień wolny, w święto i w weekend), a odchylenia dni do dziś sumują się do
           odchylenia miesiąca.
         </p>
         <p>
@@ -227,7 +232,7 @@ export default function WorkTimeView() {
           <Panel title="Dni miesiąca" meta={formatMonth(month)}>
             {daysBody}
           </Panel>
-          <HowCounted />
+          <HowCounted dailyNormMs={report.state === "loaded" ? report.report.dailyNormMs : null} />
         </div>
         <div className="dn-col-side wt-stack">
           <EntriesPanel

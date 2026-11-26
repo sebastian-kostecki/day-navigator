@@ -8,17 +8,25 @@ use serde::Deserialize;
 
 use super::SUPPORTED_VERSION;
 use crate::work_time::holidays::HolidayCalendar;
+use crate::work_time::norm::DEFAULT_DAILY_NORM_MS;
 
-/// Work-time rule settings. S-02 adds its daily-norm field here.
+/// Work-time rule settings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorkTimeSettings {
     pub holidays: HolidayCalendar,
+    /// Full-day norm in ms, always a whole number of minutes.
+    pub daily_norm_ms: i64,
 }
+
+/// Bounds of `dailyNormHours`, in minutes (1 h to 10 h, the scale of the day bar).
+pub const DAILY_NORM_MIN_MINUTES: i64 = 60;
+pub const DAILY_NORM_MAX_MINUTES: i64 = 600;
 
 impl Default for WorkTimeSettings {
     fn default() -> Self {
         WorkTimeSettings {
             holidays: HolidayCalendar::Pl,
+            daily_norm_ms: DEFAULT_DAILY_NORM_MS,
         }
     }
 }
@@ -33,15 +41,19 @@ pub struct WorkTimeSettingsInvalid;
 struct RawWorkTime {
     #[serde(default)]
     holidays: Option<serde_json::Value>,
+    #[serde(default)]
+    daily_norm_hours: Option<serde_json::Value>,
 }
 
 /// Reads only the top-level `workTime` block, on its own. Shape:
 ///
 /// ```json
-/// "workTime": { "holidays": "pl" }
+/// "workTime": { "holidays": "pl", "dailyNormHours": 8 }
 /// ```
 ///
 /// - `holidays`: `"pl"` (default) or `false` (calendar off).
+/// - `dailyNormHours`: hours per workday, a JSON number from 1 to 10 in whole
+///   minutes (7.5 is fine, 7.33 is not); default 8.
 ///
 /// A missing file, an absent or `null` block and an absent or `null` field are
 /// the defaults. Anything else, a file-level problem included, is
@@ -84,7 +96,27 @@ fn parse_work_time_settings(text: &str) -> Result<WorkTimeSettings, WorkTimeSett
         Some(serde_json::Value::String(s)) if s == "pl" => settings.holidays = HolidayCalendar::Pl,
         Some(_) => return Err(INVALID),
     }
+    match raw.daily_norm_hours {
+        None | Some(serde_json::Value::Null) => {}
+        Some(serde_json::Value::Number(n)) => {
+            settings.daily_norm_ms =
+                norm_ms_from_hours(n.as_f64().ok_or(INVALID)?).ok_or(INVALID)?;
+        }
+        Some(_) => return Err(INVALID),
+    }
     Ok(settings)
+}
+
+/// Hours as whole minutes in range, as ms; `None` otherwise.
+fn norm_ms_from_hours(hours: f64) -> Option<i64> {
+    let minutes = hours * 60.0;
+    if !minutes.is_finite() || (minutes - minutes.round()).abs() > 1e-6 {
+        return None;
+    }
+    let minutes = minutes.round() as i64;
+    (DAILY_NORM_MIN_MINUTES..=DAILY_NORM_MAX_MINUTES)
+        .contains(&minutes)
+        .then(|| minutes * 60_000)
 }
 
 #[cfg(test)]
@@ -105,14 +137,13 @@ mod tests {
     }
 
     fn pl() -> WorkTimeSettings {
-        WorkTimeSettings {
-            holidays: HolidayCalendar::Pl,
-        }
+        WorkTimeSettings::default()
     }
 
     fn off() -> WorkTimeSettings {
         WorkTimeSettings {
             holidays: HolidayCalendar::Off,
+            ..WorkTimeSettings::default()
         }
     }
 
@@ -240,5 +271,74 @@ mod tests {
         );
         assert!(load_reminder_settings(&p).is_err());
         assert_eq!(load_work_time_settings(&p), Ok(off()));
+    }
+
+    fn with_norm(v: &str) -> Result<WorkTimeSettings, WorkTimeSettingsInvalid> {
+        load(&format!(
+            r#"{{"version":1,"workTime":{{"dailyNormHours":{v}}}}}"#
+        ))
+    }
+
+    #[test]
+    fn default_norm_is_eight_hours() {
+        assert_eq!(WorkTimeSettings::default().daily_norm_ms, 8 * 3_600_000);
+        assert_eq!(with_norm("null"), Ok(pl()));
+        assert_eq!(load(r#"{"version":1,"workTime":{}}"#), Ok(pl()));
+    }
+
+    #[test]
+    fn norm_hours_in_range_and_whole_minutes_are_accepted() {
+        for (v, ms) in [
+            ("1", 3_600_000),
+            ("7.5", 27_000_000),
+            ("8", 28_800_000),
+            ("8.0", 28_800_000),
+            ("10", 36_000_000),
+            ("7.25", 26_100_000),
+        ] {
+            assert_eq!(with_norm(v).unwrap().daily_norm_ms, ms, "{v}");
+        }
+    }
+
+    #[test]
+    fn norm_hours_outside_the_range_or_not_whole_minutes_are_refused() {
+        for v in [
+            "0", "0.99", "10.01", "11", "7.33", "-8", "-1", "1e3", r#""8""#, "true", "false", "[]",
+            "{}", "[8]",
+        ] {
+            assert_eq!(with_norm(v), Err(WorkTimeSettingsInvalid), "{v}");
+        }
+    }
+
+    #[test]
+    fn norm_works_with_the_calendar_setting() {
+        let got = load(r#"{"version":1,"workTime":{"holidays":false,"dailyNormHours":7.5}}"#);
+        assert_eq!(
+            got,
+            Ok(WorkTimeSettings {
+                holidays: HolidayCalendar::Off,
+                daily_norm_ms: 27_000_000,
+            })
+        );
+    }
+
+    #[test]
+    fn a_norm_typo_is_refused() {
+        assert_eq!(
+            load(r#"{"version":1,"workTime":{"dailyNormHour":7.5}}"#),
+            Err(WorkTimeSettingsInvalid)
+        );
+    }
+
+    #[test]
+    fn a_broken_norm_leaves_the_other_blocks_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = write(
+            &dir,
+            r#"{"version":1,"workTime":{"dailyNormHours":11},"reminders":{"longRunningHours":8}}"#,
+        );
+        assert!(load_work_time_settings(&p).is_err());
+        assert!(load_reminder_settings(&p).is_ok());
+        assert!(load_todo_limit(&p).is_ok());
     }
 }

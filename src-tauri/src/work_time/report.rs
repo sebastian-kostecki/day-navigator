@@ -39,6 +39,8 @@ pub struct MonthReport {
     pub worked_ms: i64,
     #[serde(flatten)]
     pub figures: NormFigures,
+    /// The configured full-day norm, for the "how it is counted" text.
+    pub daily_norm_ms: i64,
     /// `YYYY-MM-DD`, sorted, this month only. Rows on a public holiday under
     /// the active calendar are left out: the holiday shadows them.
     pub days_off: Vec<String>,
@@ -134,7 +136,8 @@ pub(super) fn compute<Tz: TimeZone>(
     let phase = norm::phase(first, today);
 
     let days_off = days_off_between(conn, first, next_first)?;
-    let workdays = norm::workdays(first, next_first, &days_off, holidays);
+    let daily_norm_ms = settings.daily_norm_ms;
+    let day_norms = norm::day_norms(first, next_first, &days_off, holidays, daily_norm_ms);
     let entries = in_day(conn, month_start, month_end, now)?;
     let worked_ms = entries
         .iter()
@@ -153,7 +156,7 @@ pub(super) fn compute<Tz: TimeZone>(
                 entry_count += 1;
             }
         }
-        let norm_ms = norm::day_norm_ms(d, &days_off, holidays);
+        let norm_ms = norm::day_norm_ms(d, &days_off, holidays, daily_norm_ms);
         let holiday = holidays.holiday(d);
         days.push(DayReport {
             day: d.format(DAY_FORMAT).to_string(),
@@ -172,7 +175,8 @@ pub(super) fn compute<Tz: TimeZone>(
         phase,
         as_of_ms: now,
         worked_ms,
-        figures: norm::figures(&workdays, today, phase, worked_ms),
+        figures: norm::figures(&day_norms, today, phase, worked_ms, daily_norm_ms),
+        daily_norm_ms,
         days_off: days_off
             .iter()
             .filter(|d| holidays.holiday(**d).is_none())

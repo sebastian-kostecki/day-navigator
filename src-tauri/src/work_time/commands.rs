@@ -270,6 +270,24 @@ mod tests {
     }
 
     #[test]
+    fn a_valid_norm_is_read_and_an_invalid_one_follows_the_policy() {
+        let (_dir, path) = file(r#"{"version":1,"workTime":{"dailyNormHours":7.5}}"#);
+        for policy in [Policy::Strict, Policy::Lenient] {
+            let s = work_time_settings(Some(&path), policy).unwrap();
+            assert_eq!(s.daily_norm_ms, 27_000_000);
+        }
+        let (_dir, bad) = file(r#"{"version":1,"workTime":{"dailyNormHours":11}}"#);
+        assert!(matches!(
+            work_time_settings(Some(&bad), Policy::Strict),
+            Err(WorkTimeError::SettingsInvalid)
+        ));
+        assert_eq!(
+            work_time_settings(Some(&bad), Policy::Lenient).unwrap(),
+            WorkTimeSettings::default()
+        );
+    }
+
+    #[test]
     fn strict_refuses_an_invalid_block() {
         let (_dir, path) = file(INVALID);
         assert!(matches!(

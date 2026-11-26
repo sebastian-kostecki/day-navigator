@@ -477,10 +477,10 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): jedna
 
 #### Automated
 
-- [ ] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy `settings::work_time` (zakres, pełne minuty, null/brak, izolacja bloków), testy normy 7.5 h na listopadzie 2026 i proptest z losową normą 60–600 min
-- [ ] 1.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
-- [ ] 1.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 1.4 `git grep -nw "DAILY_NORM_MS" -- src-tauri` i `git grep -n "8 h" -- src/worktime` nic nie znajdują
+- [x] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy `settings::work_time` (zakres, pełne minuty, null/brak, izolacja bloków), testy normy 7.5 h na listopadzie 2026 i proptest z losową normą 60–600 min
+- [x] 1.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
+- [x] 1.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 1.4 `git grep -nw "DAILY_NORM_MS" -- src-tauri` i `git grep -n "8 h" -- src/worktime` nic nie znajdują
 
 #### Manual
 

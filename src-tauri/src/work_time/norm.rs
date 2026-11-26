@@ -10,8 +10,8 @@ use super::holidays::HolidayCalendar;
 
 const MINUTE_MS: i64 = 60_000;
 
-/// The daily norm: a fixed 8 h per workday.
-pub const DAILY_NORM_MS: i64 = 8 * 3_600_000;
+/// The default daily norm (8 h per workday), used when `settings.json` sets none.
+pub const DEFAULT_DAILY_NORM_MS: i64 = 8 * 3_600_000;
 
 /// First day of the month of `any_day` and the first day of the next month.
 pub fn month_days(any_day: NaiveDate) -> (NaiveDate, NaiveDate) {
@@ -43,19 +43,38 @@ pub fn workdays(
         .collect()
 }
 
-/// Norm of one day: 8 h on a Monday-to-Friday day that is not in `days_off`
-/// and not a public holiday, otherwise 0. A weekend is 0 even when listed in
-/// `days_off`.
+/// Norm of one day: `daily_norm_ms` on a Monday-to-Friday day that is not in
+/// `days_off` and not a public holiday, otherwise 0. A weekend is 0 even when
+/// listed in `days_off`.
 pub fn day_norm_ms(
     day: NaiveDate,
     days_off: &BTreeSet<NaiveDate>,
     holidays: HolidayCalendar,
+    daily_norm_ms: i64,
 ) -> i64 {
     if is_weekend(day) || days_off.contains(&day) || holidays.holiday(day).is_some() {
         0
     } else {
-        DAILY_NORM_MS
+        daily_norm_ms
     }
+}
+
+/// Days of `[first, end_exclusive)` with a norm above 0 and that norm,
+/// ascending. Works for any range (a month, a week): the one source of day
+/// norms for the month figures and for week summaries.
+pub fn day_norms(
+    first: NaiveDate,
+    end_exclusive: NaiveDate,
+    days_off: &BTreeSet<NaiveDate>,
+    holidays: HolidayCalendar,
+    daily_norm_ms: i64,
+) -> Vec<(NaiveDate, i64)> {
+    first
+        .iter_days()
+        .take_while(|d| *d < end_exclusive)
+        .map(|d| (d, day_norm_ms(d, days_off, holidays, daily_norm_ms)))
+        .filter(|(_, norm)| *norm > 0)
+        .collect()
 }
 
 /// Deviation of one day: `None` for a day after `today` and for a day with
@@ -108,16 +127,19 @@ pub struct NormFigures {
     pub remaining_ms: Option<i64>,
 }
 
-/// Figures of a month with the given `workdays`, `worked_ms` so far, seen from
-/// `today`. Today counts in full when it is a workday.
+/// Figures of a month with the given `day_norms` (days with a norm), the
+/// `worked_ms` so far and the full-day `daily_norm_ms`, seen from `today`.
+/// Today counts in full when it has a norm. "Needed per day" is the time per
+/// full-norm day.
 pub fn figures(
-    workdays: &[NaiveDate],
+    day_norms: &[(NaiveDate, i64)],
     today: NaiveDate,
     phase: MonthPhase,
     worked_ms: i64,
+    daily_norm_ms: i64,
 ) -> NormFigures {
-    let count = workdays.len() as u32;
-    let norm_ms = DAILY_NORM_MS * i64::from(count);
+    let count = day_norms.len() as u32;
+    let norm_ms: i64 = day_norms.iter().map(|(_, n)| n).sum();
     let mut f = NormFigures {
         norm_ms,
         norm_to_date_ms: None,
@@ -134,16 +156,23 @@ pub fn figures(
             f.deviation_ms = Some(worked_ms - norm_ms);
         }
         MonthPhase::Current => {
-            let to_date = workdays.iter().filter(|d| **d <= today).count() as u32;
-            let after = count - to_date;
-            let norm_to_date = DAILY_NORM_MS * i64::from(to_date);
+            let norm_to_date: i64 = day_norms
+                .iter()
+                .filter(|(d, _)| *d <= today)
+                .map(|(_, n)| n)
+                .sum();
+            let after = day_norms.iter().filter(|(d, _)| *d > today).count() as u32;
+            let norm_after = norm_ms - norm_to_date;
             let remaining = (norm_ms - worked_ms).max(0);
             f.norm_to_date_ms = Some(norm_to_date);
             f.deviation_ms = Some(worked_ms - norm_to_date);
             f.workdays_after_today = Some(after);
             f.remaining_ms = Some(remaining);
-            if after > 0 {
-                let per_day = (remaining + i64::from(after) - 1) / i64::from(after);
+            if after > 0 && norm_after > 0 {
+                // ceil(remaining * daily / norm_after), in i128 against overflow.
+                let num = i128::from(remaining) * i128::from(daily_norm_ms);
+                let den = i128::from(norm_after);
+                let per_day = ((num + den - 1) / den) as i64;
                 f.needed_per_day_ms = Some(ceil_to_minute(per_day));
             }
         }

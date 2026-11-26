@@ -146,7 +146,7 @@ export function workTimeErrorMessage(e: unknown, entriesById?: Map<number, Entry
     case "Holiday":
       return "Święto nie jest dniem roboczym";
     case "SettingsInvalid":
-      return "Nie można odczytać bloku „workTime” z settings.json: plik musi być poprawnym JSON-em z „version”: 1, a holidays to „pl” albo false.";
+      return "Nie można odczytać bloku „workTime” z settings.json: plik musi być poprawnym JSON-em z „version”: 1, a holidays to „pl” albo false, a dailyNormHours to liczba godzin od 1 do 10 w pełnych minutach (np. 7.5).";
     case "NotAWorkday":
       return "Weekend nie jest dniem roboczym";
     case "NoteTooLong":

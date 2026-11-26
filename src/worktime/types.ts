@@ -100,6 +100,8 @@ interface MonthReportBase {
   asOfMs: number;
   workedMs: number;
   normMs: number;
+  /** The configured full-day norm (`workTime.dailyNormHours`, default eight hours). */
+  dailyNormMs: number;
   workdays: number;
   /**
    * `YYYY-MM-DD`, sorted, this month only. Rows on a public holiday are left

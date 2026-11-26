@@ -775,10 +775,10 @@ Plan review (`reviews/plan-review.md`) defaults, chosen by agent, user may revis
 
 #### Automated
 
-- [ ] 7.1 The Non-Goal no longer mentions the holiday calendar
-- [ ] 7.2 README documents the key
-- [ ] 7.3 No new FR id
-- [ ] 7.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 7.1 The Non-Goal no longer mentions the holiday calendar
+- [x] 7.2 README documents the key
+- [x] 7.3 No new FR id
+- [x] 7.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 
 #### Manual
 

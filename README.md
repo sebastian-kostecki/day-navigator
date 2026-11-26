@@ -52,7 +52,7 @@ the hours you spend on it.
   date and priority.
 - **Czas pracy (Work time):** a START/STOP counter that is always visible in the header and
   survives restarts and crashes. Also includes:
-  - day and month sums against an 8-hour workday norm;
+  - day and month sums against an 8-hour workday norm, with Polish public holidays counted out;
   - a table of the month's days and days off;
   - reminders when the counter runs too long, or is not running after a set hour on a workday.
 - **Źródła (Sources):** the health of GitLab, GitHub and the app's own data in one panel and
@@ -105,7 +105,8 @@ The app reads it and never changes it. Every block is optional. The **Czas pracy
   },
   "github": { "repos": ["octo-org/alpha", "octo-org/beta"] },
   "todo": { "limit": 5 },
-  "reminders": { "longRunningHours": 10, "notRunningAfter": "09:00" }
+  "reminders": { "longRunningHours": 10, "notRunningAfter": "09:00" },
+  "workTime": { "holidays": "pl" }
 }
 ```
 
@@ -117,8 +118,9 @@ The app reads it and never changes it. Every block is optional. The **Czas pracy
 | `github`        | `owner/name` repositories to read issues from (up to 50).                                          |
 | `todo`          | "To do" list limit, 1–20 (default 5).                                                              |
 | `reminders`     | `longRunningHours` 1–24 and `notRunningAfter` `"HH:MM"`; `false` turns a reminder off.             |
+| `workTime`      | `holidays`: `"pl"` (default) counts Polish public holidays out of the norm; `false` turns the calendar off. |
 
-An invalid block is reported in the **Źródła** view and does not affect the other blocks.
+An invalid block is reported in the **Źródła** view and does not affect the other blocks. The exception is `workTime`: an invalid block is reported in the **Czas pracy** view (month report and days table) and in the dashboard's month tiles, not in **Źródła**; START/STOP keeps working.
 
 ## Development
 

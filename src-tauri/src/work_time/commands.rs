@@ -236,6 +236,20 @@ pub async fn set_day_off(app: AppHandle, day: String, off: bool) -> Result<(), W
     Ok(())
 }
 
+#[tauri::command]
+pub async fn work_month_report_text(app: AppHandle, day: String) -> Result<String, WorkTimeError> {
+    let day = report::parse_day(&day)?;
+    run_with_settings(
+        &app,
+        "month_report_text",
+        Policy::Strict,
+        move |store, now, settings| {
+            super::month_text::month_report_text(store, day, now, &Local, settings)
+        },
+    )
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

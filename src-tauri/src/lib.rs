@@ -218,6 +218,7 @@ pub fn run() {
             work_time::commands::update_work_entry,
             work_time::commands::remove_work_entry,
             work_time::commands::work_month_report,
+            work_time::commands::work_month_report_text,
             work_time::commands::set_day_off,
             work_reminders::reminder_settings
         ])

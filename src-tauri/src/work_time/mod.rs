@@ -11,6 +11,7 @@
 pub mod commands;
 pub mod error;
 pub mod holidays;
+pub mod month_text;
 pub mod norm;
 pub mod note;
 pub mod reminders;
@@ -20,6 +21,8 @@ pub mod today;
 
 #[cfg(test)]
 mod holidays_tests;
+#[cfg(test)]
+mod month_text_tests;
 #[cfg(test)]
 mod norm_tests;
 #[cfg(test)]

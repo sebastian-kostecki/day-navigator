@@ -348,11 +348,11 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): TSV; 
 
 #### Automated
 
-- [ ] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym `work_time::month_text_tests` (komórki, liczby, zgodność z raportem w bieżącym, zamkniętym z DST, z sobotnim świętem i przyszłym miesiącu, kształt bloków, sentinel)
-- [ ] 1.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
-- [ ] 1.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 1.4 `git grep -n "log::" -- src-tauri/src/work_time` pokazuje dokładnie cztery dotychczasowe linie, wszystkie w `commands.rs`
-- [ ] 1.5 `git grep -nE "_ =>|DAILY_NORM_MS|use tauri|log::|notify\(" -- src-tauri/src/work_time/month_text.rs` nic nie znajduje, a `git diff --quiet d34904a -- src-tauri/src/work_time/report.rs src-tauri/src/work_time/norm.rs src/worktime/types.ts src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/capabilities src-tauri/tauri.conf.json` kończy się kodem 0
+- [x] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym `work_time::month_text_tests` (komórki, liczby, zgodność z raportem w bieżącym, zamkniętym z DST, z sobotnim świętem i przyszłym miesiącu, kształt bloków, sentinel)
+- [x] 1.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
+- [x] 1.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 1.4 `git grep -n "log::" -- src-tauri/src/work_time` pokazuje dokładnie cztery dotychczasowe linie, wszystkie w `commands.rs`
+- [x] 1.5 `git grep -nE "_ =>|DAILY_NORM_MS|use tauri|log::|notify\(" -- src-tauri/src/work_time/month_text.rs` nic nie znajduje, a `git diff --quiet d34904a -- src-tauri/src/work_time/report.rs src-tauri/src/work_time/norm.rs src/worktime/types.ts src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/capabilities src-tauri/tauri.conf.json` kończy się kodem 0
 
 ### Phase 2: Przycisk „Kopiuj miesiąc” i dokumentacja
 

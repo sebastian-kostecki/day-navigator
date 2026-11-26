@@ -52,8 +52,9 @@ Formularze dopisywania i edycji mają jednoliniowe pole „Notatka (opcjonalnie)
 
 ## Open Risks & Assumptions
 
-- Zakładamy, że S-06 jako jedyny równoległy slice dodaje migrację; w razie kolizji bierze kolejny numer (precedens przenumerowania).
-- Wersja SQLite z `bundled` nie została odczytana; test upgrade'u v10→v11 z wierszami rozstrzyga zachowanie CHECK.
+- Zakładamy, że S-06 jako jedyny równoległy slice dodaje migrację; w razie kolizji bierze kolejny numer (precedens przenumerowania). Gałąź scalana druga dopisuje `""` do nowych wywołań `work_time::add`/`update` z drugiej gałęzi (np. testy normy S-01).
+- Dołączony SQLite to 3.54.1 (≥ 3.37), więc CHECK dodanej kolumny sprawdza istniejące wiersze; test upgrade'u v10→v11 z wierszami to utrwala.
+- Build deweloperski migruje prawdziwą bazę (wspólny identyfikator): przed ręcznymi testami kopia katalogu danych, po testach przywrócenie, inaczej zainstalowane 0.10.1 odmówi bazy (`NewerSchema`).
 - Brak runnera testów UI: formularz i lista weryfikowane ręcznie na maszynie użytkownika.
 - Wszystkie wartości domyślne agenta (limit, kolejność walidacji, styl, brzmienie AGENTS.md) użytkownik może zmienić.
 

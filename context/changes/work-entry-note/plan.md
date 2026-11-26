@@ -61,6 +61,9 @@ Nowy kod trzyma się w nowych plikach (`note.rs`, `work_entry_note_crash.rs`) i 
 - **Kolejność walidacji**: `normalize_note` wywołuj na samym początku `add` i `update`, przed parsowaniem czasów i przed `store.write`. Błąd notatki ma więc pierwszeństwo przed błędem czasu (test to utrwala). Do `INSERT`/`UPDATE` trafia wyłącznie znormalizowana wartość, zawsze jako parametr `?N`, nigdy przez `format!` w SQL (inaczej komunikat SQLite mógłby nieść wartość).
 - **Indeks kolumny**: `note` dochodzi do wszystkich trzech SELECT-ów na indeksie 3, a `row_to_entry` czyta `r.get(3)?`. Rozjazd jednego zapytania kończy się błędem w czasie działania, nie kompilacji.
 - **Pole w formularzu**: reguła `.wt-form-fields .dn-field { flex: 1 1 180px }` (`WorkTime.css:195`) w kontenerze z `flex-direction: column` zamieniłaby 180px w wysokość. Opakowanie pola notatki ma mieć `display: grid` (dzieci gridu ignorują `flex`).
+- **Miejsce nowych reguł CSS** (mniej konfliktów z S-01, które rusza obszar `.wt-days`): `.wt-note` zaraz po `.wt-row-error` (`WorkTime.css:150-152`), `.wt-note-field` i `.wt-note-count` zaraz po `.wt-form-actions` (`WorkTime.css:199-202`).
+- **Ręczne przebiegi dzielą prawdziwą bazę.** Każdy worktree, `npm run tauri dev` i zainstalowane wydanie używają identyfikatora `com.sebas.day-navigator` (`tauri.conf.json:4`), więc build deweloperski migruje ten sam `%APPDATA%\com.sebas.day-navigator\day-navigator.db`, którego użytkownik używa na co dzień. Po przebiegu z v11 zainstalowane wydanie 0.10.1 (obsługuje v10) odmawia bazy jako `NewerSchema` („Dane aplikacji” na czerwono, licznik nie działa) do czasu wydania z v11; build deweloperski S-01/S-03 bez v11 też jej odmówi. Po przenumerowaniu migracji przy merge'u baza z kolumną `note` jako v11 nie przejdzie innej v11 (`MigrationFailed`) i zostanie odrzucona, nigdy zresetowana. Procedura (precedens `context/archive/2026-11-23-own-tasks/plan.md:78-86`): przed pierwszym przebiegiem ręcznym zamknąć zainstalowaną aplikację i skopiować cały katalog danych aplikacji na bok; po zakończeniu testów (a także po uruchomieniu builda innego worktree i po przenumerowaniu) zamknąć aplikację i przywrócić kopię (`day-navigator.db*` i `backups/`), chyba że zainstalowane jest już wydanie z tą migracją. Wpisy dodane podczas testów to wymyślone dane i znikną przy przywróceniu.
+- **Merge z równoległymi slice'ami.** Faza 2 zmienia sygnatury publicznych `work_time::add` i `work_time::update`. Gałąź, która scala się druga, po rebase/merge uruchamia `cargo test` i dopisuje `""` do każdego nowego wywołania `add`/`update`, które przyniosła druga gałąź (najpewniej nowe testy normy S-01 w `src-tauri/src/work_time/norm_tests.rs`, `src-tauri/src/work_time/tests.rs` albo `src-tauri/tests/work_time.rs`; S-03 woła tylko `start`/`stop`). Gdyby inna gałąź dodała migrację, v11 dostaje kolejny wolny numer, a asercja pozycji w teście upgrade'u (Faza 1 §5a) zmienia się razem z nim.
 
 ## Phase 1: Kolumna notatki i ścieżka odczytu
 
@@ -128,9 +131,9 @@ Gdyby przy merge'u inna gałąź zajęła v11, bierze się kolejny wolny numer (
 
 #### Manual Verification:
 
-- Po pierwszym uruchomieniu wersji z v11 na prawdziwych danych użytkownika widok „Czas pracy” pokazuje dotychczasowe wpisy bez zmian i bez dodatkowej linii pod godzinami, a „Stan źródeł” pokazuje „Dane aplikacji” jako sprawne
+- Po pierwszym uruchomieniu wersji z v11 na prawdziwych danych użytkownika (z kopią katalogu danych wg „Ręczne przebiegi dzielą prawdziwą bazę”) widok „Czas pracy” pokazuje dotychczasowe wpisy bez zmian i bez dodatkowej linii pod godzinami, a „Stan źródeł” pokazuje „Dane aplikacji” jako sprawne
 
-**Implementation Note**: Po zielonej weryfikacji automatycznej commit tylko tej fazy, np. `feat(work-entry-note): store the note column and show it in the entry list`. Wiersz Manual zostaje dla użytkownika.
+**Implementation Note**: Po zielonej weryfikacji automatycznej commit tylko tej fazy, np. `feat(work-entry-note): store the note column and show it in the entry list`. Wiersz Manual zostaje dla użytkownika; przed nim procedura z „Ręczne przebiegi dzielą prawdziwą bazę” (Critical Implementation Details).
 
 ---
 
@@ -216,10 +219,10 @@ Dodaje regułę notatki w Rust, parametr `note` w domenie i w komendach, lustro 
 
 #### Automated Verification:
 
-- `cargo test` w `src-tauri/` przechodzi, w tym testy jednostkowe `work_time::note` (przycięcie, pusta, 200/201 znaków wielobajtowych i emoji, `\n`/`\r\n`/`\r`, brak wycieku, kształt JSON), nowe testy w `src/work_time/tests.rs` (zapis, zachowanie instantów, czyszczenie, trwający wpis, START bez notatki, odmowy bez zmian w tabeli, kolejność walidacji) i w `tests/work_time.rs` (trwałość, brak notatki w dzienniku zdarzeń, odmowy bez sentinela)
+- `cargo test` w `src-tauri/` przechodzi, w tym testy jednostkowe `work_time::note` (przycięcie, pusta, 200/201 znaków wielobajtowych i emoji, `\n`/`\r\n`/`\r`, brak wycieku, kształt JSON), nowe testy w `src-tauri/src/work_time/tests.rs` (zapis, zachowanie instantów, czyszczenie, trwający wpis, START bez notatki, odmowy bez zmian w tabeli, kolejność walidacji) i w `src-tauri/tests/work_time.rs` (trwałość, brak notatki w dzienniku zdarzeń, odmowy bez sentinela)
 - `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
 - `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- `git grep -n "log::" -- src-tauri/src/work_time` pokazuje tylko trzy dotychczasowe linie w `commands.rs` (rodzaj błędu i błąd emitu)
+- `git grep -n "log::" -- src-tauri/src/work_time` pokazuje dokładnie trzy linie, wszystkie w `commands.rs` (dotychczasowe: dwa logi rodzaju błędu i błąd emitu)
 - `git grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(" -- src/worktime/WorkTime.css` nic nie znajduje, a `git grep -n "invoke" -- src/worktime` znajduje `invoke` tylko w `src/worktime/api.ts`
 
 #### Manual Verification:
@@ -286,7 +289,7 @@ Dowód z harnessu awarii, że zapis wpisu z notatką nigdy nie zostawia rozdarte
 
 - `work_time::note::normalize_note`: przycięcie, pusta i same białe znaki → `""`, łamania na brzegach usuwane przycięciem, wewnętrzne `\n`/`\r\n`/`\r` → `NoteMultiline`, granica 200/201 znaków liczona w znakach (polskie znaki, emoji).
 - Brak wartości w błędach: Display, Debug, JSON i `kind()` bez sentinela; kształt JSON nowych wariantów.
-- `work_time` (`src/work_time/tests.rs`): zapis i odczyt notatki, zastąpienie i wyczyszczenie przy edycji, zachowanie instantów, trwający wpis, START bez notatki, odmowy bez zmian w tabeli, pierwszeństwo błędu notatki.
+- `work_time` (`src-tauri/src/work_time/tests.rs`): zapis i odczyt notatki, zastąpienie i wyczyszczenie przy edycji, zachowanie instantów, trwający wpis, START bez notatki, odmowy bez zmian w tabeli, pierwszeństwo błędu notatki.
 
 ### Integration Tests:
 
@@ -296,6 +299,7 @@ Dowód z harnessu awarii, że zapis wpisu z notatką nigdy nie zostawia rozdarte
 
 ### Manual Testing Steps:
 
+0. Zamknij zainstalowaną aplikację i skopiuj katalog danych aplikacji na bok (procedura „Ręczne przebiegi dzielą prawdziwą bazę”); po ostatnim kroku przywróć kopię, jeśli wydanie z v11 nie jest jeszcze zainstalowane.
 1. Uruchom wersję z fazą 1 na prawdziwych danych: wpisy jak dotąd, „Dane aplikacji” sprawne.
 2. Po fazie 2: dopisz wpis z notatką, popraw samą notatkę, wyczyść ją; ustaw notatkę trwającemu wpisowi.
 3. Wklej ponad 200 znaków: komunikat i brak zapisu.
@@ -308,7 +312,7 @@ Jedna kolumna TEXT ≤ 200 znaków na wiersz; zapytania dnia i miesiąca czytaj�
 
 ## Migration Notes
 
-`ALTER TABLE … ADD COLUMN` z `DEFAULT ''` nie przepisuje danych; istniejące wiersze dostają `''`, które spełnia CHECK. Test upgrade'u v10→v11 z danymi rozstrzyga zachowanie dołączonego SQLite. Starsza wersja aplikacji odmówi bazy v11 (`NewerSchema`), jak przy poprzednich migracjach. Przywracanie kopii sprzed v11 działa jak dotąd (migracja przy otwarciu). Kopie zapasowe w `backups/` zawierają notatki, tak jak inne dane aplikacji.
+`ALTER TABLE … ADD COLUMN` z `DEFAULT ''` nie przepisuje danych; istniejące wiersze dostają `''`, które spełnia CHECK. Dołączony SQLite to 3.54.1 (`libsqlite3-sys 0.40.0`, `SQLITE_VERSION` w jego `sqlite3/sqlite3.h`), więc CHECK dodanej kolumny jest sprawdzany na istniejących wierszach (od 3.37); test upgrade'u v10→v11 z danymi to utrwala. Build deweloperski migruje prawdziwą bazę: zob. „Ręczne przebiegi dzielą prawdziwą bazę”. Starsza wersja aplikacji odmówi bazy v11 (`NewerSchema`), jak przy poprzednich migracjach. Przywracanie kopii sprzed v11 działa jak dotąd (migracja przy otwarciu). Kopie zapasowe w `backups/` zawierają notatki, tak jak inne dane aplikacji.
 
 ## References
 
@@ -335,6 +339,8 @@ Zmiana była planowana bez dostępu do użytkownika. Decyzje użytkownika (stał
 10. Reguła w osobnym pliku `work_time/note.rs`, żeby nie powiększać hunków w `mod.rs`, który mogą ruszać równoległe slice'y.
 11. Bez zmian w README i bez synchronizacji statusu roadmapy (zakaz edycji `roadmap.md` w tej zmianie).
 12. Trzy fazy: odczyt (bez zmiany komend) → zapis z kontraktem i UI w jednym commicie → dowód awaryjny i dokumentacja.
+13. (Przegląd planu, default chosen by agent, user may revise) Ręczne przebiegi na prawdziwych danych tylko z kopią katalogu danych odłożoną przed pierwszym przebiegiem i przywróconą po testach, dopóki wydanie z v11 nie jest zainstalowane (precedens own-tasks).
+14. (Przegląd planu, default chosen by agent, user may revise) Gałąź scalana druga dopasowuje nowe wywołania `work_time::add`/`update` z drugiej gałęzi (`""`) i ewentualny numer migracji; nowe reguły CSS stoją obok `.wt-row-error` i `.wt-form-actions`.
 
 ## Progress
 
@@ -351,16 +357,16 @@ Zmiana była planowana bez dostępu do użytkownika. Decyzje użytkownika (stał
 
 #### Manual
 
-- [ ] 1.5 Po pierwszym uruchomieniu wersji z v11 na prawdziwych danych użytkownika widok „Czas pracy” pokazuje dotychczasowe wpisy bez zmian i bez dodatkowej linii pod godzinami, a „Stan źródeł” pokazuje „Dane aplikacji” jako sprawne
+- [ ] 1.5 Po pierwszym uruchomieniu wersji z v11 na prawdziwych danych użytkownika (z kopią katalogu danych wg „Ręczne przebiegi dzielą prawdziwą bazę”) widok „Czas pracy” pokazuje dotychczasowe wpisy bez zmian i bez dodatkowej linii pod godzinami, a „Stan źródeł” pokazuje „Dane aplikacji” jako sprawne
 
 ### Phase 2: Zapis notatki — walidacja, komendy i formularz
 
 #### Automated
 
-- [ ] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym testy jednostkowe `work_time::note` (przycięcie, pusta, 200/201 znaków wielobajtowych i emoji, `\n`/`\r\n`/`\r`, brak wycieku, kształt JSON), nowe testy w `src/work_time/tests.rs` (zapis, zachowanie instantów, czyszczenie, trwający wpis, START bez notatki, odmowy bez zmian w tabeli, kolejność walidacji) i w `tests/work_time.rs` (trwałość, brak notatki w dzienniku zdarzeń, odmowy bez sentinela)
+- [ ] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym testy jednostkowe `work_time::note` (przycięcie, pusta, 200/201 znaków wielobajtowych i emoji, `\n`/`\r\n`/`\r`, brak wycieku, kształt JSON), nowe testy w `src-tauri/src/work_time/tests.rs` (zapis, zachowanie instantów, czyszczenie, trwający wpis, START bez notatki, odmowy bez zmian w tabeli, kolejność walidacji) i w `src-tauri/tests/work_time.rs` (trwałość, brak notatki w dzienniku zdarzeń, odmowy bez sentinela)
 - [ ] 2.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
 - [ ] 2.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 2.4 `git grep -n "log::" -- src-tauri/src/work_time` pokazuje tylko trzy dotychczasowe linie w `commands.rs` (rodzaj błędu i błąd emitu)
+- [ ] 2.4 `git grep -n "log::" -- src-tauri/src/work_time` pokazuje dokładnie trzy linie, wszystkie w `commands.rs` (dotychczasowe: dwa logi rodzaju błędu i błąd emitu)
 - [ ] 2.5 `git grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(" -- src/worktime/WorkTime.css` nic nie znajduje, a `git grep -n "invoke" -- src/worktime` znajduje `invoke` tylko w `src/worktime/api.ts`
 
 #### Manual

@@ -22,7 +22,7 @@ Between "Wybrany dzień" and "Dni miesiąca" a panel "Bieżący tydzień" shows 
 | Placement | A panel in "Czas pracy", no new view | User asked for a section | User (D1) |
 | Week shape | Mon–Sun, always 7 days, across month/year | Matches how a work week is felt | User (D2) |
 | Norm rule | The month's own per-day code, in Rust, unit-tested | "Exactly the same rule"; UI only displays | User (D3) |
-| PRD | MS-18, no new FR, no PRD edit | Scope stays the roadmap slice | User (D4) |
+| PRD | MS-18, no new FR; only "widok tygodnia" leaves the "considered but not built" sentence | Scope stays the roadmap slice; the PRD stays true, as S-04/S-07 do | User (D4) / Plan review (A14) |
 | Which week | Current week only, no navigation | Roadmap says "current week"; command takes a day for later | Plan (agent default A1) |
 | Reuse | Extract `report::day_report`, shared by month and week | One code path, so S-02's norm change reaches the week | Research / Plan (A2) |
 | Totals | Sums of the day rows; never `norm::figures` / 8 h | `figures` is not half-day safe (S-02) | Research / Plan (A3) |
@@ -30,7 +30,8 @@ Between "Wybrany dzień" and "Dni miesiąca" a panel "Bieżący tydzień" shows 
 | Policy | `work_week_report(day)`, `Policy::Strict` | Month and week never disagree on the calendar | Research / Plan (A6) |
 | Live today | Only today's row live (shared `liveFigures`) | Same as the days table; UI never re-sums | Plan (A8) |
 | Midnight | Hook sends the local date at each request, 60 s poll | The view does not re-render at midnight while stopped | Plan (A9) |
-| Tests vs S-02 | Settings via defaults / `manual_only()`; norms as multiples of a workday row; cross-check vs month rows | Survive S-02's new settings field and configurable norm | Plan (A11) |
+| Tests vs S-02 | Settings via defaults / `manual_only()`; norms as multiples of a workday row; cross-check vs month rows; days off only via one `mark_off` helper; `week.rs` never names the days-off type | Survive S-02's new settings field, configurable norm, `DaysOff` map and `DayMark` | Plan (A11) / Plan review |
+| Kind label | Holiday name whenever the row has one, else exhaustive `DayKind` switch | A Saturday holiday is `weekend` with `dayOffOwed`; S-02's `halfDayOff` fails the build | Plan review (A15) |
 
 ## Scope
 
@@ -39,11 +40,11 @@ Between "Wybrany dzień" and "Dni miesiąca" a panel "Bieżący tydzień" shows 
 - New `work_time/week.rs` + `week_tests.rs` (calendar cases, DST, running timer, midnight, proptest)
 - `work_week_report` command, `lib.rs` line, TS mirror and `workWeekReport`
 - `useWeekReport.ts`, `WeekSummary.tsx`, CSS rules, two lines in `WorkTimeView.tsx`
-- One README and one CHANGELOG line
+- One README and one CHANGELOG line; one PRD sentence (drop "widok tygodnia" from "considered but not built", add a built-as line, no FR)
 
 **Out of scope:**
 - Week navigation, week of the selected day, separate view
-- Changes to `norm.rs`, month figures, `HowCounted`, PRD, roadmap
+- Changes to `norm.rs`, month figures, `HowCounted`, PRD FRs, roadmap
 - "Średnio / dzień" for the week, day-off switch or entry counts in week rows
 - Migration, new tokens
 
@@ -65,7 +66,8 @@ Between "Wybrany dzień" and "Dni miesiąca" a panel "Bieżący tydzień" shows 
 
 ## Open Risks & Assumptions
 
-- S-02 edits the same per-day loop in `report.rs`: expect a merge conflict; resolve by moving S-02's change into `day_report`. If S-02 adds a `DayKind` variant, the exhaustive switch in `WeekSummary` fails `npm run build` until labelled.
+- S-02 edits the same per-day loop in `report.rs` and changes `days_off_between` (→ `DaysOff` map), `classify`, `day_norm_ms` and `set_day_off` (→ `DayMark`): expect a merge conflict; resolve by moving S-02's change into `day_report`. S-02 adds `DayKind::HalfDayOff`, so the exhaustive switch in `WeekSummary` fails `npm run build` until labelled "pół dnia wolnego".
+- The PRD edit (A14) is an agent default from the plan review; the user may revise it (drop it and leave the PRD sentence as is).
 - The week totals lag today's live row by up to 60 s while the counter runs (accepted, as in the month tiles).
 - After Sunday→Monday midnight the panel shows last week until the next poll, focus or write (≤ 60 s).
 - Manual checks need the real app; they stay unchecked until the user runs them.

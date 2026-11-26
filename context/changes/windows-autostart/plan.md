@@ -380,13 +380,13 @@ No user was reachable during planning; each default follows `research.md` unless
 
 #### Automated
 
-- [x] 1.1 Rust tests pass, including the new `settings::autostart` and `autostart` tests: `cargo test` (in `src-tauri/`) — b4440f5
-- [x] 1.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`) — b4440f5
-- [x] 1.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`) — b4440f5
-- [x] 1.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — b4440f5
-- [x] 1.5 The new rule files import nothing from `tauri` — b4440f5
-- [x] 1.6 The only frontend change is the `EventSourceId` key; no capability, config or dependency change — b4440f5
-- [x] 1.7 The event log knows the new key — b4440f5
+- [x] 1.1 Rust tests pass, including the new `settings::autostart` and `autostart` tests: `cargo test` (in `src-tauri/`) — b27f063
+- [x] 1.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`) — b27f063
+- [x] 1.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`) — b27f063
+- [x] 1.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — b27f063
+- [x] 1.5 The new rule files import nothing from `tauri` — b27f063
+- [x] 1.6 The only frontend change is the `EventSourceId` key; no capability, config or dependency change — b27f063
+- [x] 1.7 The event log knows the new key — b27f063
 
 ### Phase 2: Registry entry, start-up sync and hidden start
 

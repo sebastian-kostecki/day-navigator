@@ -157,9 +157,10 @@ pub async fn add_work_entry(
     app: AppHandle,
     start: String,
     end: String,
+    note: String,
 ) -> Result<(), WorkTimeError> {
     run(&app, "add", move |store, now| {
-        super::add(store, &start, &end, now, &Local).map(|_| ())
+        super::add(store, &start, &end, &note, now, &Local).map(|_| ())
     })
     .await?;
     notify(&app);
@@ -172,9 +173,10 @@ pub async fn update_work_entry(
     id: i64,
     start: String,
     end: Option<String>,
+    note: String,
 ) -> Result<(), WorkTimeError> {
     run(&app, "update", move |store, now| {
-        super::update(store, id, &start, end.as_deref(), now, &Local)
+        super::update(store, id, &start, end.as_deref(), &note, now, &Local)
     })
     .await?;
     notify(&app);

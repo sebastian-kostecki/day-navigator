@@ -29,13 +29,18 @@ export function stopWork(): Promise<WorkTimerStatus> {
 }
 
 /** `start` and `end` are local `YYYY-MM-DDTHH:MM`. */
-export function addWorkEntry(start: string, end: string): Promise<void> {
-  return invoke<void>("add_work_entry", { start, end });
+export function addWorkEntry(start: string, end: string, note: string): Promise<void> {
+  return invoke<void>("add_work_entry", { start, end, note });
 }
 
 /** `end` is null for the running entry. */
-export function updateWorkEntry(id: number, start: string, end: string | null): Promise<void> {
-  return invoke<void>("update_work_entry", { id, start, end });
+export function updateWorkEntry(
+  id: number,
+  start: string,
+  end: string | null,
+  note: string,
+): Promise<void> {
+  return invoke<void>("update_work_entry", { id, start, end, note });
 }
 
 export function removeWorkEntry(id: number): Promise<void> {
@@ -144,6 +149,10 @@ export function workTimeErrorMessage(e: unknown, entriesById?: Map<number, Entry
       return "Nie można odczytać bloku „workTime” z settings.json: plik musi być poprawnym JSON-em z „version”: 1, a holidays to „pl” albo false.";
     case "NotAWorkday":
       return "Weekend nie jest dniem roboczym";
+    case "NoteTooLong":
+      return `Notatka może mieć najwyżej ${err.detail.max} znaków`;
+    case "NoteMultiline":
+      return "Notatka musi mieścić się w jednej linii";
     case "Background":
       return "Zadanie w tle nie powiodło się, spróbuj ponownie";
     default:

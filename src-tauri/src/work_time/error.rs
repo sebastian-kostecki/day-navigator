@@ -34,6 +34,10 @@ pub enum WorkTimeError {
     Holiday,
     #[error("the workTime settings block is invalid")]
     SettingsInvalid,
+    #[error("note is longer than {max} characters")]
+    NoteTooLong { max: usize },
+    #[error("note has more than one line")]
+    NoteMultiline,
     #[error("background task failed")]
     Background,
 }
@@ -54,6 +58,8 @@ impl WorkTimeError {
             WorkTimeError::NotAWorkday => "NotAWorkday",
             WorkTimeError::Holiday => "Holiday",
             WorkTimeError::SettingsInvalid => "SettingsInvalid",
+            WorkTimeError::NoteTooLong { .. } => "NoteTooLong",
+            WorkTimeError::NoteMultiline => "NoteMultiline",
             WorkTimeError::Background => "Background",
         }
     }

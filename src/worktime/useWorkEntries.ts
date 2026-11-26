@@ -111,12 +111,13 @@ export function useWorkEntries(day: string) {
   );
 
   const add = useCallback(
-    (start: string, end: string) => withBusy(null, () => addWorkEntry(start, end)),
+    (start: string, end: string, note: string) =>
+      withBusy(null, () => addWorkEntry(start, end, note)),
     [withBusy],
   );
   const update = useCallback(
-    (id: number, start: string, end: string | null) =>
-      withBusy(id, () => updateWorkEntry(id, start, end)),
+    (id: number, start: string, end: string | null, note: string) =>
+      withBusy(id, () => updateWorkEntry(id, start, end, note)),
     [withBusy],
   );
   const remove = useCallback((id: number) => withBusy(id, () => removeWorkEntry(id)), [withBusy]);

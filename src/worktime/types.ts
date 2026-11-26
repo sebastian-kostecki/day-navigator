@@ -18,6 +18,8 @@ export type WorkTimeError =
   | { kind: "NotAWorkday" }
   | { kind: "Holiday" }
   | { kind: "SettingsInvalid" }
+  | { kind: "NoteTooLong"; detail: { max: number } }
+  | { kind: "NoteMultiline" }
   | { kind: "Background" };
 
 /**
@@ -60,6 +62,8 @@ export interface EntryRow {
   startLocal: string;
   endLocal: string | null;
   dayPortionMs: number;
+  /** Trimmed one-line note; `""` = none. */
+  note: string;
 }
 
 export interface DayEntries {

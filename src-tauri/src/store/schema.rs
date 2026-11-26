@@ -240,6 +240,15 @@ CREATE UNIQUE INDEX todo_items_live_github
   error_kind   TEXT
 );",
     },
+    // S-06 (work-entry-note): optional one-line note on a work-time entry,
+    // `''` = none. Typed by the user; never logged and never in the event log.
+    // The CHECK mirrors `work_time::note::NOTE_MAX` (second line of defence;
+    // Rust validates first).
+    Migration {
+        version: 11,
+        sql: "ALTER TABLE work_entries ADD COLUMN note TEXT NOT NULL DEFAULT ''
+  CHECK (length(note) <= 200 AND instr(note, char(10)) = 0 AND instr(note, char(13)) = 0);",
+    },
 ];
 
 /// Versions must start at 1 and rise by exactly 1.

@@ -1,7 +1,7 @@
 ---
 change_id: configurable-daily-norm
 title: Configurable daily norm
-status: preparing
+status: planned
 created: 2026-11-26
 updated: 2026-11-26
 archived_at: null

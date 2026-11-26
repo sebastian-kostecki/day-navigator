@@ -16,6 +16,10 @@ export type WorkTimeError =
   | { kind: "InvalidLocalTime" }
   | { kind: "RunningEndEdit" }
   | { kind: "NotAWorkday" }
+  | { kind: "Holiday" }
+  | { kind: "SettingsInvalid" }
+  | { kind: "NoteTooLong"; detail: { max: number } }
+  | { kind: "NoteMultiline" }
   | { kind: "Background" };
 
 /**
@@ -58,6 +62,8 @@ export interface EntryRow {
   startLocal: string;
   endLocal: string | null;
   dayPortionMs: number;
+  /** Trimmed one-line note; `""` = none. */
+  note: string;
 }
 
 export interface DayEntries {
@@ -70,7 +76,7 @@ export interface DayEntries {
   dayEndMs: number;
 }
 
-export type DayKind = "workday" | "dayOff" | "weekend";
+export type DayKind = "workday" | "dayOff" | "holiday" | "weekend";
 
 export type MonthPhase = "past" | "current" | "future";
 
@@ -82,6 +88,10 @@ export interface DayReport {
   normMs: number;
   deviationMs: number | null;
   entryCount: number;
+  /** Name of the public holiday on this day (any kind of day), else null. */
+  holiday: string | null;
+  /** True when the holiday falls on a Saturday: a day off is owed for it. */
+  dayOffOwed: boolean;
 }
 
 interface MonthReportBase {
@@ -91,7 +101,10 @@ interface MonthReportBase {
   workedMs: number;
   normMs: number;
   workdays: number;
-  /** `YYYY-MM-DD`, sorted, this month only. */
+  /**
+   * `YYYY-MM-DD`, sorted, this month only. Rows on a public holiday are left
+   * out: the holiday shadows them.
+   */
   daysOff: string[];
   /** All days of the month, ascending. */
   days: DayReport[];

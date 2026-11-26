@@ -65,7 +65,14 @@ fn writer_process() {
         while matches!(day.weekday(), Weekday::Sat | Weekday::Sun) {
             day = day.succ_opt().unwrap();
         }
-        report::set_day_off(&mut store, day, true, 1_767_225_600_000).unwrap();
+        report::set_day_off(
+            &mut store,
+            day,
+            true,
+            1_767_225_600_000,
+            &common::manual_only(),
+        )
+        .unwrap();
         day = day.succ_opt().unwrap();
         n += 1;
         report_commit(n);

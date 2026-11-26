@@ -6,6 +6,8 @@ use std::collections::BTreeSet;
 use chrono::{Datelike, Months, NaiveDate, Weekday};
 use serde::Serialize;
 
+use super::holidays::HolidayCalendar;
+
 const MINUTE_MS: i64 = 60_000;
 
 /// The daily norm: a fixed 8 h per workday.
@@ -25,24 +27,31 @@ pub fn is_weekend(day: NaiveDate) -> bool {
     matches!(day.weekday(), Weekday::Sat | Weekday::Sun)
 }
 
-/// Monday to Friday days in `[first, next_first)` that are not in `days_off`.
-/// A weekend is never a workday, even when it is listed in `days_off`.
+/// Monday to Friday days in `[first, next_first)` that are not in `days_off`
+/// and not a public holiday of `holidays`. A weekend is never a workday, even
+/// when it is listed in `days_off`.
 pub fn workdays(
     first: NaiveDate,
     next_first: NaiveDate,
     days_off: &BTreeSet<NaiveDate>,
+    holidays: HolidayCalendar,
 ) -> Vec<NaiveDate> {
     first
         .iter_days()
         .take_while(|d| *d < next_first)
-        .filter(|d| !is_weekend(*d) && !days_off.contains(d))
+        .filter(|d| !is_weekend(*d) && !days_off.contains(d) && holidays.holiday(*d).is_none())
         .collect()
 }
 
-/// Norm of one day: 8 h on a Monday-to-Friday day that is not in `days_off`,
-/// otherwise 0. A weekend is 0 even when listed in `days_off`.
-pub fn day_norm_ms(day: NaiveDate, days_off: &BTreeSet<NaiveDate>) -> i64 {
-    if is_weekend(day) || days_off.contains(&day) {
+/// Norm of one day: 8 h on a Monday-to-Friday day that is not in `days_off`
+/// and not a public holiday, otherwise 0. A weekend is 0 even when listed in
+/// `days_off`.
+pub fn day_norm_ms(
+    day: NaiveDate,
+    days_off: &BTreeSet<NaiveDate>,
+    holidays: HolidayCalendar,
+) -> i64 {
+    if is_weekend(day) || days_off.contains(&day) || holidays.holiday(day).is_some() {
         0
     } else {
         DAILY_NORM_MS

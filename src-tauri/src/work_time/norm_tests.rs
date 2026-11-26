@@ -6,14 +6,24 @@ use chrono::NaiveDate;
 use chrono_tz::Europe::Warsaw;
 use tempfile::TempDir;
 
+use super::holidays::HolidayCalendar;
 use super::norm::{self, DAILY_NORM_MS, MonthPhase};
 use super::report::{self, MonthReport};
 use super::rules::resolve_local;
 use super::*;
+use crate::settings::WorkTimeSettings;
 use crate::store::schema;
 
 const MIN: i64 = 60_000;
 const HOUR: i64 = 60 * MIN;
+
+/// Settings with the holiday calendar off: public holidays are ordinary
+/// weekdays, so a test can mark them as manual days off.
+pub(super) fn manual_only() -> WorkTimeSettings {
+    WorkTimeSettings {
+        holidays: HolidayCalendar::Off,
+    }
+}
 
 fn t(local: &str) -> i64 {
     resolve_local(local, &Warsaw).unwrap()
@@ -42,7 +52,7 @@ fn open() -> (TempDir, Store) {
 /// Adds a closed entry; the "now" used for the future check is far ahead, so
 /// the report's own `now` can be chosen freely.
 fn add_entry(store: &mut Store, from: &str, to: &str) {
-    add(store, from, to, t("2027-12-31T12:00"), &Warsaw).unwrap();
+    add(store, from, to, "", t("2027-12-31T12:00"), &Warsaw).unwrap();
 }
 
 /// 8 h (08:00-16:00) on each given day.
@@ -72,13 +82,13 @@ const NOV_DAYS: [&str; 14] = [
 
 /// The worked example: day off 2026-11-11, 14 full days plus 4 h today = 116 h.
 fn worked_example(store: &mut Store) {
-    report::set_day_off(store, d("2026-11-11"), true, now()).unwrap();
+    report::set_day_off(store, d("2026-11-11"), true, now(), &manual_only()).unwrap();
     work_days(store, &NOV_DAYS);
     add_entry(store, "2026-11-23T08:00", "2026-11-23T12:00");
 }
 
 fn report_at(store: &Store, day: &str, now: i64) -> MonthReport {
-    report::month_report(store, d(day), now, &Warsaw).unwrap()
+    report::month_report(store, d(day), now, &Warsaw, &manual_only()).unwrap()
 }
 
 fn day_off_rows(store: &Store) -> i64 {
@@ -96,11 +106,11 @@ fn november_2026_workdays_with_and_without_a_day_off() {
     let (first, next) = norm::month_days(d("2026-11-17"));
     assert_eq!((first, next), (d("2026-11-01"), d("2026-12-01")));
     let none = BTreeSet::new();
-    let w = norm::workdays(first, next, &none);
+    let w = norm::workdays(first, next, &none, HolidayCalendar::Off);
     assert_eq!(w.len(), 21);
     assert_eq!(DAILY_NORM_MS * 21, 168 * HOUR);
     let off = BTreeSet::from([d("2026-11-11")]);
-    let w = norm::workdays(first, next, &off);
+    let w = norm::workdays(first, next, &off, HolidayCalendar::Off);
     assert_eq!(w.len(), 20);
     assert_eq!(DAILY_NORM_MS * 20, 160 * HOUR);
 }
@@ -118,7 +128,10 @@ fn weekends_are_never_workdays_even_when_listed() {
     let (first, next) = norm::month_days(d("2026-11-01"));
     // 2026-11-01 is a Sunday, 2026-11-07 a Saturday.
     let listed = BTreeSet::from([d("2026-11-01"), d("2026-11-07")]);
-    assert_eq!(norm::workdays(first, next, &listed).len(), 21);
+    assert_eq!(
+        norm::workdays(first, next, &listed, HolidayCalendar::Off).len(),
+        21
+    );
     assert!(norm::is_weekend(d("2026-11-01")));
     assert!(norm::is_weekend(d("2026-11-07")));
     assert!(!norm::is_weekend(d("2026-11-09")));
@@ -197,7 +210,7 @@ fn last_workday_shows_the_remaining_shortfall_and_no_needed_figure() {
 #[test]
 fn norm_met_has_zero_remaining_and_zero_needed() {
     let (_tmp, mut store) = open();
-    report::set_day_off(&mut store, d("2026-11-11"), true, now()).unwrap();
+    report::set_day_off(&mut store, d("2026-11-11"), true, now(), &manual_only()).unwrap();
     // Seven 23 h days = 161 h >= 160 h.
     for day in 2..=8 {
         add_entry(
@@ -217,7 +230,7 @@ fn norm_met_has_zero_remaining_and_zero_needed() {
 fn marking_today_off_drops_it_from_the_norm_to_date() {
     let (_tmp, mut store) = open();
     worked_example(&mut store);
-    report::set_day_off(&mut store, d("2026-11-23"), true, now()).unwrap();
+    report::set_day_off(&mut store, d("2026-11-23"), true, now(), &manual_only()).unwrap();
     let r = report_at(&store, "2026-11-23", now());
     assert_eq!(r.figures.workdays, 19);
     assert_eq!(r.figures.norm_to_date_ms, Some(112 * HOUR));
@@ -239,7 +252,7 @@ fn weekend_today_counts_only_the_days_before_it() {
 #[test]
 fn hours_on_a_day_off_and_on_a_saturday_still_count() {
     let (_tmp, mut store) = open();
-    report::set_day_off(&mut store, d("2026-11-11"), true, now()).unwrap();
+    report::set_day_off(&mut store, d("2026-11-11"), true, now(), &manual_only()).unwrap();
     work_days(&mut store, &["2026-11-11", "2026-11-07"]);
     let r = report_at(&store, "2026-11-23", now());
     assert_eq!(r.worked_ms, 16 * HOUR);
@@ -310,7 +323,7 @@ fn a_past_month_has_a_final_deviation_and_a_future_month_only_the_norm() {
 fn status_month_deviation_equals_the_report_deviation() {
     let (_tmp, mut store) = open();
     worked_example(&mut store);
-    let s = status(&store, now(), &Warsaw).unwrap();
+    let s = status(&store, now(), &Warsaw, &manual_only()).unwrap();
     let r = report_at(&store, "2026-11-23", now());
     assert_eq!(Some(s.month_deviation_ms), r.figures.deviation_ms);
     assert_eq!(s.month_deviation_ms, -4 * HOUR);
@@ -319,7 +332,7 @@ fn status_month_deviation_equals_the_report_deviation() {
     // With a running entry the two still come from the same instant.
     start(&mut store, t("2026-11-23T13:00"), &Warsaw).unwrap();
     let later = t("2026-11-23T15:30");
-    let s = status(&store, later, &Warsaw).unwrap();
+    let s = status(&store, later, &Warsaw, &manual_only()).unwrap();
     let r = report_at(&store, "2026-11-23", later);
     assert_eq!(Some(s.month_deviation_ms), r.figures.deviation_ms);
     assert_eq!(s.month_deviation_ms, -4 * HOUR + 2 * HOUR + 30 * MIN);
@@ -329,8 +342,8 @@ fn status_month_deviation_equals_the_report_deviation() {
 fn set_day_off_is_idempotent_and_refuses_a_weekend_without_a_row() {
     let (_tmp, mut store) = open();
     let day = d("2026-11-11");
-    report::set_day_off(&mut store, day, true, now()).unwrap();
-    report::set_day_off(&mut store, day, true, now() + HOUR).unwrap();
+    report::set_day_off(&mut store, day, true, now(), &manual_only()).unwrap();
+    report::set_day_off(&mut store, day, true, now() + HOUR, &manual_only()).unwrap();
     assert_eq!(day_off_rows(&store), 1);
     // The first mark is kept.
     let created: i64 = store
@@ -339,18 +352,18 @@ fn set_day_off_is_idempotent_and_refuses_a_weekend_without_a_row() {
         })
         .unwrap();
     assert_eq!(created, now());
-    assert!(!report::is_workday(&store, day).unwrap());
-    report::set_day_off(&mut store, day, false, now()).unwrap();
-    report::set_day_off(&mut store, day, false, now()).unwrap();
+    assert!(!report::is_workday(&store, day, &manual_only()).unwrap());
+    report::set_day_off(&mut store, day, false, now(), &manual_only()).unwrap();
+    report::set_day_off(&mut store, day, false, now(), &manual_only()).unwrap();
     assert_eq!(day_off_rows(&store), 0);
-    assert!(report::is_workday(&store, day).unwrap());
+    assert!(report::is_workday(&store, day, &manual_only()).unwrap());
 
     for weekend in ["2026-11-14", "2026-11-15"] {
         for off in [true, false] {
-            let r = report::set_day_off(&mut store, d(weekend), off, now());
+            let r = report::set_day_off(&mut store, d(weekend), off, now(), &manual_only());
             assert!(matches!(r, Err(WorkTimeError::NotAWorkday)), "{weekend}");
         }
-        assert!(!report::is_workday(&store, d(weekend)).unwrap());
+        assert!(!report::is_workday(&store, d(weekend), &manual_only()).unwrap());
     }
     assert_eq!(day_off_rows(&store), 0);
 }
@@ -377,7 +390,7 @@ fn a_day_off_key_the_check_refuses_fails_instead_of_being_ignored() {
     // Monday 10000-01-03 formats as `+10000-01-03`, which the GLOB CHECK refuses.
     let far = NaiveDate::from_ymd_opt(10000, 1, 3).unwrap();
     assert!(!norm::is_weekend(far));
-    let r = report::set_day_off(&mut store, far, true, now());
+    let r = report::set_day_off(&mut store, far, true, now(), &manual_only());
     assert!(matches!(r, Err(WorkTimeError::Store(_))), "{r:?}");
     assert_eq!(day_off_rows(&store), 0);
 }
@@ -385,9 +398,9 @@ fn a_day_off_key_the_check_refuses_fails_instead_of_being_ignored() {
 #[test]
 fn day_entries_report_all_three_day_kinds() {
     let (_tmp, mut store) = open();
-    report::set_day_off(&mut store, d("2026-11-11"), true, now()).unwrap();
+    report::set_day_off(&mut store, d("2026-11-11"), true, now(), &manual_only()).unwrap();
     let kind = |day: &str| {
-        entries_for_day(&store, d(day), now(), &Warsaw)
+        entries_for_day(&store, d(day), now(), &Warsaw, &manual_only())
             .unwrap()
             .day_kind
     };
@@ -405,11 +418,23 @@ fn day_row<'a>(r: &'a MonthReport, day: &str) -> &'a report::DayReport {
 #[test]
 fn day_norm_is_eight_hours_on_a_workday_and_zero_otherwise() {
     let off = BTreeSet::from([d("2026-11-11"), d("2026-11-14")]);
-    assert_eq!(norm::day_norm_ms(d("2026-11-10"), &off), DAILY_NORM_MS);
-    assert_eq!(norm::day_norm_ms(d("2026-11-11"), &off), 0);
-    assert_eq!(norm::day_norm_ms(d("2026-11-15"), &off), 0);
+    assert_eq!(
+        norm::day_norm_ms(d("2026-11-10"), &off, HolidayCalendar::Off),
+        DAILY_NORM_MS
+    );
+    assert_eq!(
+        norm::day_norm_ms(d("2026-11-11"), &off, HolidayCalendar::Off),
+        0
+    );
+    assert_eq!(
+        norm::day_norm_ms(d("2026-11-15"), &off, HolidayCalendar::Off),
+        0
+    );
     // A Saturday listed in days_off is still 0.
-    assert_eq!(norm::day_norm_ms(d("2026-11-14"), &off), 0);
+    assert_eq!(
+        norm::day_norm_ms(d("2026-11-14"), &off, HolidayCalendar::Off),
+        0
+    );
 }
 
 #[test]
@@ -545,7 +570,13 @@ proptest::proptest! {
     fn day_rows_add_up_to_the_month_figures(
         cuts in proptest::collection::vec(0i64..(22 * 24 * 60), 0..12),
         off_flags in proptest::collection::vec(proptest::prelude::any::<bool>(), 30),
+        with_holidays in proptest::prelude::any::<bool>(),
     ) {
+        let settings = if with_holidays {
+            WorkTimeSettings::default()
+        } else {
+            manual_only()
+        };
         let (_tmp, mut store) = open();
         let base = t("2026-11-01T00:00");
         let mut cuts = cuts;
@@ -569,11 +600,12 @@ proptest::proptest! {
             .unwrap();
         for (i, flag) in off_flags.iter().enumerate() {
             let day = d("2026-11-01") + chrono::Days::new(i as u64);
-            if *flag && !norm::is_weekend(day) {
-                report::set_day_off(&mut store, day, true, now()).unwrap();
+            // Under the default calendar a holiday cannot be marked.
+            if *flag && !norm::is_weekend(day) && settings.holidays.holiday(day).is_none() {
+                report::set_day_off(&mut store, day, true, now(), &settings).unwrap();
             }
         }
-        let r = report_at(&store, "2026-11-23", now());
+        let r = report::month_report(&store, d("2026-11-23"), now(), &Warsaw, &settings).unwrap();
         proptest::prop_assert_eq!(r.days.len(), 30);
         proptest::prop_assert_eq!(r.days.iter().map(|x| x.worked_ms).sum::<i64>(), r.worked_ms);
         proptest::prop_assert_eq!(
@@ -582,4 +614,201 @@ proptest::proptest! {
         );
         proptest::prop_assert_eq!(r.days.iter().map(|x| x.norm_ms).sum::<i64>(), r.figures.norm_ms);
     }
+}
+
+// ---- public holidays (default calendar) ----
+
+fn report_pl(store: &Store, day: &str) -> MonthReport {
+    report::month_report(store, d(day), now(), &Warsaw, &WorkTimeSettings::default()).unwrap()
+}
+
+#[test]
+fn pure_norm_counts_holidays_out() {
+    let none = BTreeSet::new();
+    let (first, next) = norm::month_days(d("2026-11-01"));
+    assert_eq!(
+        norm::workdays(first, next, &none, HolidayCalendar::Pl).len(),
+        20
+    );
+    assert_eq!(
+        norm::workdays(first, next, &none, HolidayCalendar::Off).len(),
+        21
+    );
+    let (first, next) = norm::month_days(d("2026-12-01"));
+    assert_eq!(
+        norm::workdays(first, next, &none, HolidayCalendar::Pl).len(),
+        21
+    );
+    assert_eq!(
+        norm::day_norm_ms(d("2026-11-11"), &none, HolidayCalendar::Pl),
+        0
+    );
+    assert_eq!(
+        norm::day_norm_ms(d("2026-11-11"), &none, HolidayCalendar::Off),
+        DAILY_NORM_MS
+    );
+}
+
+#[test]
+fn november_2026_has_a_160_hour_norm_and_december_168() {
+    let (_tmp, store) = open();
+    let nov = report_pl(&store, "2026-11-23");
+    assert_eq!(nov.figures.workdays, 20);
+    assert_eq!(nov.figures.norm_ms, 160 * HOUR);
+    assert_eq!(day_row(&nov, "2026-11-11").kind, DayKind::Holiday);
+    assert_eq!(day_row(&nov, "2026-11-11").norm_ms, 0);
+    assert_eq!(day_row(&nov, "2026-11-01").kind, DayKind::Weekend);
+    assert_eq!(day_row(&nov, "2026-11-02").kind, DayKind::Workday);
+
+    let dec = report_pl(&store, "2026-12-01");
+    assert_eq!(dec.figures.workdays, 21);
+    assert_eq!(dec.figures.norm_ms, 168 * HOUR);
+    assert_eq!(day_row(&dec, "2026-12-24").kind, DayKind::Holiday);
+    assert_eq!(day_row(&dec, "2026-12-25").kind, DayKind::Holiday);
+    assert_eq!(day_row(&dec, "2026-12-26").kind, DayKind::Weekend);
+}
+
+#[test]
+fn easter_sunday_is_a_weekend_and_easter_monday_a_holiday() {
+    let (_tmp, store) = open();
+    let apr = report_pl(&store, "2026-04-15");
+    assert_eq!(day_row(&apr, "2026-04-05").kind, DayKind::Weekend);
+    assert_eq!(day_row(&apr, "2026-04-06").kind, DayKind::Holiday);
+}
+
+#[test]
+fn set_day_off_refuses_a_holiday_both_ways_and_writes_nothing() {
+    let (_tmp, mut store) = open();
+    let pl = WorkTimeSettings::default();
+    for off in [true, false] {
+        let r = report::set_day_off(&mut store, d("2026-11-11"), off, now(), &pl);
+        assert!(matches!(r, Err(WorkTimeError::Holiday)), "{off}");
+    }
+    assert_eq!(day_off_rows(&store), 0);
+    // A weekend holiday is still refused as a weekend.
+    let r = report::set_day_off(&mut store, d("2026-12-26"), true, now(), &pl);
+    assert!(matches!(r, Err(WorkTimeError::NotAWorkday)));
+    assert!(!report::is_workday(&store, d("2026-11-11"), &pl).unwrap());
+    assert!(report::is_workday(&store, d("2026-11-10"), &pl).unwrap());
+}
+
+#[test]
+fn a_row_shadowed_by_a_holiday_shows_again_when_the_calendar_is_off() {
+    let (_tmp, mut store) = open();
+    report::set_day_off(&mut store, d("2026-11-11"), true, now(), &manual_only()).unwrap();
+    let pl = report_pl(&store, "2026-11-23");
+    assert_eq!(day_row(&pl, "2026-11-11").kind, DayKind::Holiday);
+    assert_eq!(pl.figures.norm_ms, 160 * HOUR);
+    let off = report_at(&store, "2026-11-23", now());
+    assert_eq!(day_row(&off, "2026-11-11").kind, DayKind::DayOff);
+    assert_eq!(off.figures.norm_ms, 160 * HOUR);
+}
+
+#[test]
+fn status_and_day_entries_follow_the_holiday_calendar() {
+    let (_tmp, store) = open();
+    let pl = WorkTimeSettings::default();
+    let at = t("2026-11-23T12:00");
+    let s = status(&store, at, &Warsaw, &pl).unwrap();
+    let r = report_pl(&store, "2026-11-23");
+    assert_eq!(s.month_deviation_ms, r.figures.deviation_ms.unwrap());
+    // 15 workdays up to the 23rd (the 11th is out), nothing worked.
+    assert_eq!(s.month_deviation_ms, -15 * DAILY_NORM_MS);
+    let kind = |day: &str, st: &WorkTimeSettings| {
+        entries_for_day(&store, d(day), at, &Warsaw, st)
+            .unwrap()
+            .day_kind
+    };
+    assert_eq!(kind("2026-11-11", &pl), DayKind::Holiday);
+    assert_eq!(kind("2026-11-11", &manual_only()), DayKind::Workday);
+}
+
+#[test]
+fn day_kind_and_error_serialize_as_the_ui_expects() {
+    assert_eq!(
+        serde_json::to_value(DayKind::Holiday).unwrap(),
+        serde_json::json!("holiday")
+    );
+    assert_eq!(
+        serde_json::to_value(WorkTimeError::Holiday).unwrap(),
+        serde_json::json!({ "kind": "Holiday" })
+    );
+}
+
+// ---- holiday names, the Saturday hint and shadowed rows ----
+
+fn holiday_of<'a>(r: &'a MonthReport, day: &str) -> (Option<&'a str>, bool) {
+    let row = day_row(r, day);
+    (row.holiday.as_deref(), row.day_off_owed)
+}
+
+#[test]
+fn rows_carry_the_holiday_name_and_the_saturday_hint() {
+    let (_tmp, store) = open();
+    let nov = report_pl(&store, "2026-11-23");
+    assert_eq!(
+        holiday_of(&nov, "2026-11-11"),
+        (Some("Święto Niepodległości"), false)
+    );
+    assert_eq!(
+        holiday_of(&nov, "2026-11-01"),
+        (Some("Wszystkich Świętych"), false)
+    );
+    assert_eq!(holiday_of(&nov, "2026-11-02"), (None, false));
+
+    let dec = report_pl(&store, "2026-12-01");
+    assert_eq!(holiday_of(&dec, "2026-12-24"), (Some("Wigilia"), false));
+    assert_eq!(
+        holiday_of(&dec, "2026-12-25"),
+        (Some("Boże Narodzenie"), false)
+    );
+    assert_eq!(
+        holiday_of(&dec, "2026-12-26"),
+        (Some("Drugi dzień Bożego Narodzenia"), true)
+    );
+
+    let aug = report_pl(&store, "2026-08-10");
+    assert!(day_row(&aug, "2026-08-15").day_off_owed);
+    let apr = report_pl(&store, "2026-04-15");
+    assert_eq!(holiday_of(&apr, "2026-04-05"), (Some("Wielkanoc"), false));
+}
+
+#[test]
+fn a_shadowed_row_is_not_listed_as_a_manual_day_off() {
+    let (_tmp, mut store) = open();
+    report::set_day_off(&mut store, d("2026-11-11"), true, now(), &manual_only()).unwrap();
+    report::set_day_off(&mut store, d("2026-11-12"), true, now(), &manual_only()).unwrap();
+    let pl = report_pl(&store, "2026-11-23");
+    assert_eq!(pl.days_off, vec!["2026-11-12".to_string()]);
+    let off = report_at(&store, "2026-11-23", now());
+    assert_eq!(
+        off.days_off,
+        vec!["2026-11-11".to_string(), "2026-11-12".to_string()]
+    );
+}
+
+#[test]
+fn with_the_calendar_off_no_row_has_a_holiday() {
+    let (_tmp, store) = open();
+    for month in ["2026-11-23", "2026-12-01", "2026-08-10", "2026-04-15"] {
+        let r = report_at(&store, month, now());
+        assert!(
+            r.days
+                .iter()
+                .all(|x| x.holiday.is_none() && !x.day_off_owed)
+        );
+    }
+}
+
+#[test]
+fn day_report_serializes_the_holiday_fields() {
+    let (_tmp, store) = open();
+    let nov = report_pl(&store, "2026-11-23");
+    let hol = serde_json::to_value(day_row(&nov, "2026-11-11")).unwrap();
+    assert_eq!(hol["kind"], "holiday");
+    assert_eq!(hol["holiday"], "Święto Niepodległości");
+    assert_eq!(hol["dayOffOwed"], false);
+    let plain = serde_json::to_value(day_row(&nov, "2026-11-02")).unwrap();
+    assert!(plain["holiday"].is_null());
+    assert_eq!(plain["dayOffOwed"], false);
 }

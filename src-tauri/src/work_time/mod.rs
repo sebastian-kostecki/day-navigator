@@ -10,23 +10,31 @@
 
 pub mod commands;
 pub mod error;
+pub mod holidays;
 pub mod norm;
+pub mod note;
 pub mod reminders;
 pub mod report;
 pub mod rules;
+pub mod today;
 
+#[cfg(test)]
+mod holidays_tests;
 #[cfg(test)]
 mod norm_tests;
 #[cfg(test)]
 mod reminders_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod today_tests;
 
 use chrono::{NaiveDate, NaiveDateTime, TimeZone};
 use rusqlite::Connection;
 use serde::Serialize;
 
 use crate::events::{self, NewEvent};
+use crate::settings::WorkTimeSettings;
 use crate::store::Store;
 pub use error::WorkTimeError;
 pub use report::DayKind;
@@ -64,6 +72,8 @@ pub struct EntryRow {
     pub start_local: String,
     pub end_local: Option<String>,
     pub day_portion_ms: i64,
+    /// Trimmed one-line note; `""` = none.
+    pub note: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -86,6 +96,7 @@ struct Entry {
     id: i64,
     start: i64,
     end: Option<i64>,
+    note: String,
 }
 
 fn row_to_entry(r: &rusqlite::Row<'_>) -> rusqlite::Result<Entry> {
@@ -93,13 +104,14 @@ fn row_to_entry(r: &rusqlite::Row<'_>) -> rusqlite::Result<Entry> {
         id: r.get(0)?,
         start: r.get(1)?,
         end: r.get(2)?,
+        note: r.get(3)?,
     })
 }
 
 /// The counted (not removed) entry with this id.
 fn counted_by_id(conn: &Connection, id: i64) -> Result<Option<Entry>, WorkTimeError> {
     let mut stmt = conn.prepare(
-        "SELECT id, start_ms, end_ms FROM work_entries \
+        "SELECT id, start_ms, end_ms, note FROM work_entries \
          WHERE id = ?1 AND removed_at_ms IS NULL",
     )?;
     let mut rows = stmt.query_map([id], row_to_entry)?;
@@ -108,7 +120,7 @@ fn counted_by_id(conn: &Connection, id: i64) -> Result<Option<Entry>, WorkTimeEr
 
 fn running_entry(conn: &Connection) -> Result<Option<Entry>, WorkTimeError> {
     let mut stmt = conn.prepare(
-        "SELECT id, start_ms, end_ms FROM work_entries \
+        "SELECT id, start_ms, end_ms, note FROM work_entries \
          WHERE removed_at_ms IS NULL AND end_ms IS NULL",
     )?;
     let mut rows = stmt.query_map([], row_to_entry)?;
@@ -123,7 +135,7 @@ fn in_day(
     now: i64,
 ) -> Result<Vec<Entry>, WorkTimeError> {
     let mut stmt = conn.prepare(
-        "SELECT id, start_ms, end_ms FROM work_entries \
+        "SELECT id, start_ms, end_ms, note FROM work_entries \
          WHERE removed_at_ms IS NULL AND start_ms < ?2 AND (end_ms IS NULL OR end_ms > ?1) \
          ORDER BY start_ms, id",
     )?;
@@ -168,6 +180,7 @@ pub fn status<Tz: TimeZone>(
     store: &Store,
     now: i64,
     tz: &Tz,
+    settings: &WorkTimeSettings,
 ) -> Result<WorkTimerStatus, WorkTimeError> {
     let today = local_day(now, tz)?;
     let (day_start, day_end) = day_bounds(today, tz)?;
@@ -185,7 +198,7 @@ pub fn status<Tz: TimeZone>(
             Some(e) => Some(e),
             None => running_entry(c)?,
         };
-        let month = report::compute(c, today, now, tz)?;
+        let month = report::compute(c, today, now, tz, settings)?;
         Ok(WorkTimerStatus {
             running_from_ms: running.as_ref().map(|e| e.start.max(day_start)),
             running: running.map(|e| RunningEntry {
@@ -207,6 +220,7 @@ pub fn entries_for_day<Tz: TimeZone>(
     day: NaiveDate,
     now: i64,
     tz: &Tz,
+    settings: &WorkTimeSettings,
 ) -> Result<DayEntries, WorkTimeError> {
     let (day_start, day_end) = day_bounds(day, tz)?;
     store.read(|c| {
@@ -228,6 +242,7 @@ pub fn entries_for_day<Tz: TimeZone>(
                 start_local: local_string(e.start, tz)?,
                 end_local: e.end.map(|v| local_string(v, tz)).transpose()?,
                 day_portion_ms: p,
+                note: e.note,
             });
         }
         Ok(DayEntries {
@@ -236,7 +251,7 @@ pub fn entries_for_day<Tz: TimeZone>(
             closed_ms,
             running_from_ms,
             day_end_ms: day_end,
-            day_kind: report::day_kind(c, day)?,
+            day_kind: report::day_kind(c, day, settings)?,
         })
     })
 }
@@ -298,9 +313,11 @@ pub fn add<Tz: TimeZone>(
     store: &mut Store,
     start_local: &str,
     end_local: &str,
+    note: &str,
     now: i64,
     tz: &Tz,
 ) -> Result<i64, WorkTimeError> {
+    let note = note::normalize_note(note)?;
     let start = resolve_local(start_local, tz)?;
     let end = resolve_local(end_local, tz)?;
     if end <= start {
@@ -312,9 +329,9 @@ pub fn add<Tz: TimeZone>(
     store.write(|tx| {
         find_overlap(tx, None, start, Some(end))?;
         tx.execute(
-            "INSERT INTO work_entries(start_ms, end_ms, created_at_ms, updated_at_ms) \
-             VALUES (?1, ?2, ?3, ?3)",
-            (start, end, now),
+            "INSERT INTO work_entries(start_ms, end_ms, note, created_at_ms, updated_at_ms) \
+             VALUES (?1, ?2, ?3, ?4, ?4)",
+            (start, end, &note, now),
         )?;
         Ok(tx.last_insert_rowid())
     })
@@ -341,9 +358,11 @@ pub fn update<Tz: TimeZone>(
     id: i64,
     start_local: &str,
     end_local: Option<&str>,
+    note: &str,
     now: i64,
     tz: &Tz,
 ) -> Result<(), WorkTimeError> {
+    let note = note::normalize_note(note)?;
     store.write(|tx| {
         let current = counted_by_id(tx, id)?.ok_or(WorkTimeError::NotFound)?;
         let start = resolve_or_keep(start_local, current.start, tz)?;
@@ -362,8 +381,9 @@ pub fn update<Tz: TimeZone>(
         }
         find_overlap(tx, Some(id), start, end)?;
         tx.execute(
-            "UPDATE work_entries SET start_ms = ?1, end_ms = ?2, updated_at_ms = ?3 WHERE id = ?4",
-            (start, end, now, id),
+            "UPDATE work_entries SET start_ms = ?1, end_ms = ?2, note = ?3, updated_at_ms = ?4 \
+             WHERE id = ?5",
+            (start, end, &note, now, id),
         )?;
         Ok(())
     })

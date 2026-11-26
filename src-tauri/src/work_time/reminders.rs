@@ -17,7 +17,7 @@ use super::report::{self, DayKind};
 use super::rules::{day_bounds, local_day, portion};
 use super::{RunningEntry, in_day, running_entry};
 use crate::health::APP_NAME;
-use crate::settings::ReminderSettings;
+use crate::settings::{ReminderSettings, WorkTimeSettings};
 use crate::store::Store;
 
 const HOUR_MS: i64 = 3_600_000;
@@ -52,6 +52,7 @@ pub fn reminder_facts<Tz: TimeZone>(
     store: &Store,
     now: i64,
     tz: &Tz,
+    settings: &WorkTimeSettings,
 ) -> Result<ReminderFacts, WorkTimeError> {
     let today = local_day(now, tz)?;
     let (day_start, day_end) = day_bounds(today, tz)?;
@@ -66,7 +67,7 @@ pub fn reminder_facts<Tz: TimeZone>(
         Ok(ReminderFacts {
             running,
             today,
-            day_kind: report::day_kind(c, today)?,
+            day_kind: report::day_kind(c, today, settings)?,
             worked_today,
         })
     })

@@ -25,6 +25,25 @@
   min-width: 0;
 }
 
+.wt-days-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.wt-days-note .dn-hours {
+  flex: 1 1 0;
+}
+
+.wt-days-holiday {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .wt-days-num {
   text-align: right;
 }
@@ -151,6 +170,15 @@
   flex-basis: 100%;
 }
 
+.wt-note {
+  flex-basis: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-faint);
+}
+
 .wt-new {
   padding: var(--space-3) var(--space-4);
 }
@@ -194,6 +222,20 @@
 
 .wt-form-fields .dn-field {
   flex: 1 1 180px;
+}
+
+/* Grid, so `.dn-field`'s flex-basis above does not become a height. */
+.wt-note-field {
+  flex: 1 1 100%;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.wt-note-count {
+  justify-self: end;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
 }
 
 .wt-form-actions {

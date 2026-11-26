@@ -29,13 +29,18 @@ export function stopWork(): Promise<WorkTimerStatus> {
 }
 
 /** `start` and `end` are local `YYYY-MM-DDTHH:MM`. */
-export function addWorkEntry(start: string, end: string): Promise<void> {
-  return invoke<void>("add_work_entry", { start, end });
+export function addWorkEntry(start: string, end: string, note: string): Promise<void> {
+  return invoke<void>("add_work_entry", { start, end, note });
 }
 
 /** `end` is null for the running entry. */
-export function updateWorkEntry(id: number, start: string, end: string | null): Promise<void> {
-  return invoke<void>("update_work_entry", { id, start, end });
+export function updateWorkEntry(
+  id: number,
+  start: string,
+  end: string | null,
+  note: string,
+): Promise<void> {
+  return invoke<void>("update_work_entry", { id, start, end, note });
 }
 
 export function removeWorkEntry(id: number): Promise<void> {
@@ -47,7 +52,7 @@ export function workMonthReport(day: string): Promise<MonthReport> {
   return invoke<MonthReport>("work_month_report", { day });
 }
 
-/** `day` is `YYYY-MM-DD`; a weekend is refused with `NotAWorkday`. */
+/** `day` is `YYYY-MM-DD`; a weekend is refused with `NotAWorkday`, a holiday with `Holiday`. */
 export function setDayOff(day: string, off: boolean): Promise<void> {
   return invoke<void>("set_day_off", { day, off });
 }
@@ -138,8 +143,16 @@ export function workTimeErrorMessage(e: unknown, entriesById?: Map<number, Entry
       return "Nieprawidłowy lub nieistniejący czas lokalny";
     case "RunningEndEdit":
       return "Trwający wpis nie ma końca — zakończ go przyciskiem STOP";
+    case "Holiday":
+      return "Święto nie jest dniem roboczym";
+    case "SettingsInvalid":
+      return "Nie można odczytać bloku „workTime” z settings.json: plik musi być poprawnym JSON-em z „version”: 1, a holidays to „pl” albo false.";
     case "NotAWorkday":
       return "Weekend nie jest dniem roboczym";
+    case "NoteTooLong":
+      return `Notatka może mieć najwyżej ${err.detail.max} znaków`;
+    case "NoteMultiline":
+      return "Notatka musi mieścić się w jednej linii";
     case "Background":
       return "Zadanie w tle nie powiodło się, spróbuj ponownie";
     default:

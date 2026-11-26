@@ -62,8 +62,9 @@ function HowCounted() {
     <Panel title="Jak liczę">
       <div className="wt-how body">
         <p>
-          Norma = 8 h × dni robocze: poniedziałek–piątek minus dni oznaczone ręcznie jako wolne
-          (święta, urlop).
+          Norma = 8 h × dni robocze: poniedziałek–piątek minus święta państwowe i dni oznaczone
+          ręcznie jako wolne (urlop). Kalendarz świąt można wyłączyć w settings.json („workTime”).
+          Za święto w sobotę pracodawca wyznacza inny dzień wolny — oznacz go ręcznie.
         </p>
         <p>
           Odchylenie w bieżącym miesiącu to przepracowany czas minus norma za dni robocze do dziś
@@ -72,8 +73,8 @@ function HowCounted() {
         </p>
         <p>
           W tabeli dni odchylenie dnia to przepracowany czas minus norma dnia (8 h w dzień roboczy,
-          0 h w dzień wolny i w weekend), a odchylenia dni do dziś sumują się do odchylenia
-          miesiąca.
+          0 h w dzień wolny, w święto i w weekend), a odchylenia dni do dziś sumują się do
+          odchylenia miesiąca.
         </p>
         <p>
           Średnio / dzień: czas brakujący do normy miesiąca podzielony na dni robocze po dziś,
@@ -147,7 +148,8 @@ export default function WorkTimeView() {
   }
 
   const dayOffControl =
-    entries.state === "loaded" && entries.data.dayKind !== "weekend" ? (
+    entries.state === "loaded" &&
+    (entries.data.dayKind === "workday" || entries.data.dayKind === "dayOff") ? (
       <div className="wt-day-off">
         <label className="wt-check">
           <input

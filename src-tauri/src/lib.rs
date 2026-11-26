@@ -15,6 +15,7 @@ pub mod settings_file;
 pub mod space;
 pub mod store;
 pub mod todo;
+pub mod tray_view;
 pub mod work_reminders;
 pub mod work_time;
 

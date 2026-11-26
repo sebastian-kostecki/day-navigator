@@ -143,17 +143,17 @@ None: only layout changes; no extra renders, hooks or data.
 
 #### Automated
 
-- [x] 1.1 Lint passes: `npm run lint`
-- [x] 1.2 Formatting passes: `npm run format:check`
-- [x] 1.3 Type check and build pass: `npm run build`
-- [x] 1.4 `.dn-columns`, `todo-col-pick` and `todo-col-side` no longer appear in `src/todo/`
-- [x] 1.5 `src/styles/layout.css` is unchanged
+- [x] 1.1 Lint passes: `npm run lint` — 109d1ef
+- [x] 1.2 Formatting passes: `npm run format:check` — 109d1ef
+- [x] 1.3 Type check and build pass: `npm run build` — 109d1ef
+- [x] 1.4 `.dn-columns`, `todo-col-pick` and `todo-col-side` no longer appear in `src/todo/` — 109d1ef
+- [x] 1.5 `src/styles/layout.css` is unchanged — 109d1ef
 
 #### Manual
 
-- [x] 1.6 At a ~1250 px window the view matches mockup variant A
-- [x] 1.7 At the 800 px minimum window the picker stacks without dividers and the bottom panels stack, with no horizontal scroll
-- [x] 1.8 Per-source states still show in their own column
-- [x] 1.9 Adding, ticking and removing work as before, and the empty list says the lists are below
-- [x] 1.10 The other views look unchanged
-- [x] 1.11 The built app's DevTools console shows no CSP violation
+- [x] 1.6 At a ~1250 px window the view matches mockup variant A — 109d1ef
+- [x] 1.7 At the 800 px minimum window the picker stacks without dividers and the bottom panels stack, with no horizontal scroll — 109d1ef
+- [x] 1.8 Per-source states still show in their own column — 109d1ef
+- [x] 1.9 Adding, ticking and removing work as before, and the empty list says the lists are below — 109d1ef
+- [x] 1.10 The other views look unchanged — 109d1ef
+- [x] 1.11 The built app's DevTools console shows no CSP violation — 109d1ef

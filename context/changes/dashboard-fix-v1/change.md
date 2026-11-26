@@ -1,7 +1,7 @@
 ---
 change_id: dashboard-fix-v1
 title: Full-width "Do zrobienia" layout with sources and event log at the bottom
-status: implementing
+status: implemented
 created: 2026-11-26
 updated: 2026-11-26
 archived_at: null

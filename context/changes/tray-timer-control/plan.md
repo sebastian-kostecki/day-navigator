@@ -485,12 +485,12 @@ Agent defaults added by the plan review (`reviews/plan-review.md`; no user was r
 
 #### Automated
 
-- [ ] 5.1 Rust tests pass: `cargo test` (in `src-tauri/`)
-- [ ] 5.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
-- [ ] 5.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
-- [ ] 5.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 5.5 Menu setters are called only in `update_tray` (grep for `set_text|set_enabled`)
-- [ ] 5.6 No frontend, capability or config change: `git diff --quiet HEAD -- src src-tauri/capabilities src-tauri/tauri.conf.json`
+- [x] 5.1 Rust tests pass: `cargo test` (in `src-tauri/`)
+- [x] 5.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
+- [x] 5.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
+- [x] 5.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 5.5 Menu setters are called only in `update_tray` (grep for `set_text|set_enabled`)
+- [x] 5.6 No frontend, capability or config change: `git diff --quiet HEAD -- src src-tauri/capabilities src-tauri/tauri.conf.json`
 
 #### Manual
 

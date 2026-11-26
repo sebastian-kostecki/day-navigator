@@ -8,6 +8,9 @@
 //! The one lock held across tray and emit calls is `published`, which only the
 //! check and watchdog threads take, never the main thread. The `work` line lock
 //! is likewise never held across a tray, emit or toast call.
+//! Menu setters block like tray setters and run only in `update_tray`; the
+//! menu callback runs on the main thread and only reads the shown action and
+//! spawns, so it never touches the store or those locks.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -17,7 +20,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use chrono::{Local, NaiveDate};
 use tauri::image::Image;
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
@@ -27,7 +30,7 @@ use crate::github_refresh::GithubRefreshState;
 use crate::gitlab_refresh::GitlabRefreshState;
 use crate::health::{self, AppDataDetails, HealthSnapshot, Overall, SourceStatus};
 use crate::store::{StoreError, StoreHandle};
-use crate::tray_view::{self, TrayIconKind, WorkLine};
+use crate::tray_view::{self, TimerAction, TrayIconKind, WorkLine};
 use crate::work_time::WorkTimeError;
 use crate::work_time::today::today_work;
 
@@ -168,16 +171,56 @@ fn tray_image(icon: TrayIconKind) -> Image<'static> {
     }
 }
 
+/// The tray's START/STOP item and the action it currently shows. `shown` is
+/// `None` while the item is disabled or its label is changing, so a click then
+/// does nothing; the handler never reads the store to decide.
+struct TrayWorkItem {
+    item: MenuItem<tauri::Wry>,
+    shown: Mutex<Option<TimerAction>>,
+}
+
+impl TrayWorkItem {
+    fn set_shown(&self, action: Option<TimerAction>) {
+        *self.shown.lock().unwrap_or_else(|p| p.into_inner()) = action;
+    }
+
+    fn shown(&self) -> Option<TimerAction> {
+        *self.shown.lock().unwrap_or_else(|p| p.into_inner())
+    }
+}
+
+/// Runs a tray START/STOP through the shared functions. `AlreadyRunning` /
+/// `NotRunning` mean the counter changed elsewhere: refresh only, no toast.
+async fn run_tray_action(app: AppHandle, action: TimerAction) {
+    let result = match action {
+        TimerAction::Start => crate::work_time::commands::start_timer(&app).await,
+        TimerAction::Stop => crate::work_time::commands::stop_timer(&app).await,
+    };
+    if let Err(e) = result {
+        if let Some(n) = tray_view::failure_notice(action, &e) {
+            toast(&app, "work_time", &n.title, &n.body);
+        }
+        // A success already refreshed the tray through `notify`.
+        refresh_tray(&app);
+    }
+}
+
 /// Registers `HealthState` and builds the tray in the grey `Starting` state.
 /// Returns the wake receiver for `start`.
 pub fn build_tray(app: &tauri::App) -> tauri::Result<mpsc::Receiver<()>> {
     let (state, rx) = HealthState::new();
     app.manage(state);
 
+    let work = MenuItem::with_id(app, "work", "Czas pracy: wczytywanie…", false, None::<&str>)?;
+    app.manage(TrayWorkItem {
+        item: work.clone(),
+        shown: Mutex::new(None),
+    });
+    let separator = PredefinedMenuItem::separator(app)?;
     let open = MenuItem::with_id(app, "open", "Otwórz", true, None::<&str>)?;
     let check = MenuItem::with_id(app, "check", "Sprawdź teraz", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Zakończ", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &check, &quit])?;
+    let menu = Menu::with_items(app, &[&work, &separator, &open, &check, &quit])?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(tray_image(TrayIconKind::Idle))
@@ -189,6 +232,12 @@ pub fn build_tray(app: &tauri::App) -> tauri::Result<mpsc::Receiver<()>> {
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
+            "work" => {
+                let shown = app.try_state::<TrayWorkItem>().and_then(|w| w.shown());
+                if let Some(action) = shown {
+                    tauri::async_runtime::spawn(run_tray_action(app.clone(), action));
+                }
+            }
             "open" => show_main(app),
             "check" => {
                 let _ = app.state::<GitlabRefreshState>().wake();
@@ -232,6 +281,19 @@ pub fn start(app: &AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Rec
 }
 
 fn update_tray(app: &AppHandle, snap: &HealthSnapshot, work: &WorkLine) {
+    // The menu setters are called only here. The shown action is cleared before
+    // them and set after, so a click during the change does nothing.
+    if let Some(w) = app.try_state::<TrayWorkItem>() {
+        let item = tray_view::work_item(snap.overall, work);
+        w.set_shown(None);
+        if let Err(e) = w.item.set_text(item.text) {
+            log::warn!("health: tray work item text failed: {e}");
+        }
+        if let Err(e) = w.item.set_enabled(item.action.is_some()) {
+            log::warn!("health: tray work item enable failed: {e}");
+        }
+        w.set_shown(item.action);
+    }
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return;
     };

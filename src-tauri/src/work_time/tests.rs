@@ -27,13 +27,13 @@ fn open() -> (TempDir, Store) {
     (tmp, store)
 }
 
-type Snapshot = Vec<(i64, i64, Option<i64>, Option<i64>, i64, i64)>;
+type Snapshot = Vec<(i64, i64, Option<i64>, Option<i64>, i64, i64, String)>;
 
 fn snapshot(store: &Store) -> Snapshot {
     store
         .read::<_, WorkTimeError>(|c| {
             let mut stmt = c.prepare(
-                "SELECT id, start_ms, end_ms, removed_at_ms, created_at_ms, updated_at_ms \
+                "SELECT id, start_ms, end_ms, removed_at_ms, created_at_ms, updated_at_ms, note \
                  FROM work_entries ORDER BY id",
             )?;
             let rows = stmt.query_map([], |r| {
@@ -44,6 +44,7 @@ fn snapshot(store: &Store) -> Snapshot {
                     r.get(3)?,
                     r.get(4)?,
                     r.get(5)?,
+                    r.get(6)?,
                 ))
             })?;
             Ok(rows.collect::<Result<_, _>>()?)
@@ -56,7 +57,7 @@ fn day(s: &str) -> NaiveDate {
 }
 
 fn add_entry(store: &mut Store, from: &str, to: &str) -> i64 {
-    add(store, from, to, now(), &Warsaw).unwrap()
+    add(store, from, to, "", now(), &Warsaw).unwrap()
 }
 
 /// Asserts the refusal and that the table is unchanged.
@@ -90,6 +91,7 @@ fn gap_local_time_is_refused_and_nothing_is_saved() {
         &mut store,
         "2027-03-28T02:30",
         "2027-03-28T03:30",
+        "",
         t("2027-04-01T12:00"),
         &Warsaw,
     );
@@ -137,6 +139,7 @@ fn dst_days_are_25_and_23_hours_long() {
         &mut store,
         "2026-10-25T00:00",
         "2026-10-26T00:00",
+        "",
         late,
         &Warsaw,
     )
@@ -145,6 +148,7 @@ fn dst_days_are_25_and_23_hours_long() {
         &mut store,
         "2027-03-28T00:00",
         "2027-03-29T00:00",
+        "",
         late,
         &Warsaw,
     )
@@ -183,7 +187,7 @@ fn overlap_with_a_closed_entry_is_refused_by_id() {
         ("2026-11-20T09:00", "2026-11-20T10:00"),
         ("2026-11-20T07:00", "2026-11-20T13:00"),
     ] {
-        let r = add(&mut store, from, to, now(), &Warsaw);
+        let r = add(&mut store, from, to, "", now(), &Warsaw);
         refused(
             &store,
             &before,
@@ -204,6 +208,7 @@ fn overlap_with_the_running_entry_is_refused() {
         &mut store,
         "2026-11-23T10:00",
         "2026-11-23T11:00",
+        "",
         now(),
         &Warsaw,
     );
@@ -225,6 +230,7 @@ fn future_times_are_refused() {
         &mut store,
         "2026-11-23T11:00",
         "2026-11-23T12:01",
+        "",
         now(),
         &Warsaw,
     );
@@ -233,6 +239,7 @@ fn future_times_are_refused() {
         &mut store,
         "2026-11-23T12:01",
         "2026-11-23T12:30",
+        "",
         now(),
         &Warsaw,
     );
@@ -247,6 +254,7 @@ fn future_times_are_refused() {
         id,
         "2026-11-23T08:00",
         Some("2026-11-23T12:01"),
+        "",
         now(),
         &Warsaw,
     );
@@ -261,7 +269,7 @@ fn end_not_after_start_is_refused() {
         ("2026-11-20T10:00", "2026-11-20T09:00"),
         ("2026-11-20T10:00", "2026-11-20T10:00"),
     ] {
-        let r = add(&mut store, from, to, now(), &Warsaw);
+        let r = add(&mut store, from, to, "", now(), &Warsaw);
         refused(&store, &before, r, |e| {
             matches!(e, WorkTimeError::EndNotAfterStart)
         });
@@ -273,6 +281,7 @@ fn end_not_after_start_is_refused() {
         id,
         "2026-11-20T08:00",
         Some("2026-11-20T07:00"),
+        "",
         now(),
         &Warsaw,
     );
@@ -340,6 +349,7 @@ fn running_entry_rejects_an_end_edit_and_allows_a_start_edit() {
         id,
         "2026-11-23T10:00",
         Some("2026-11-23T11:00"),
+        "",
         now(),
         &Warsaw,
     );
@@ -347,7 +357,7 @@ fn running_entry_rejects_an_end_edit_and_allows_a_start_edit() {
         matches!(e, WorkTimeError::RunningEndEdit)
     });
 
-    update(&mut store, id, "2026-11-23T09:00", None, now(), &Warsaw).unwrap();
+    update(&mut store, id, "2026-11-23T09:00", None, "", now(), &Warsaw).unwrap();
     let s = status(&store, now(), &Warsaw).unwrap();
     assert_eq!(s.running.unwrap().start_ms, t("2026-11-23T09:00"));
     assert_eq!(s.running_from_ms, Some(t("2026-11-23T09:00")));
@@ -355,7 +365,15 @@ fn running_entry_rejects_an_end_edit_and_allows_a_start_edit() {
     // A closed entry cannot be saved without an end.
     let closed = add_entry(&mut store, "2026-11-20T08:00", "2026-11-20T09:00");
     let before = snapshot(&store);
-    let r = update(&mut store, closed, "2026-11-20T08:00", None, now(), &Warsaw);
+    let r = update(
+        &mut store,
+        closed,
+        "2026-11-20T08:00",
+        None,
+        "",
+        now(),
+        &Warsaw,
+    );
     refused(&store, &before, r, |e| {
         matches!(e, WorkTimeError::InvalidLocalTime)
     });
@@ -387,6 +405,7 @@ fn removed_entries_are_ignored_by_totals_and_overlap_checks() {
         id,
         "2026-11-20T08:00",
         Some("2026-11-20T09:00"),
+        "",
         now(),
         &Warsaw,
     );
@@ -505,6 +524,7 @@ fn editing_only_the_end_keeps_the_start_milliseconds() {
         id,
         "2026-11-23T09:00",
         Some("2026-11-23T10:00"),
+        "",
         now(),
         &Warsaw,
     )
@@ -530,6 +550,7 @@ fn editing_only_the_end_keeps_the_start_milliseconds() {
         id2,
         "2026-11-23T10:15",
         Some("2026-11-23T11:00"),
+        "",
         now(),
         &Warsaw,
     )
@@ -549,7 +570,16 @@ fn entry_started_right_after_a_stop_in_the_same_minute_stays_editable() {
     let later = now() + 5 * MIN;
 
     // Re-sending the untouched start must not resolve to 12:00:00 and collide.
-    update(&mut store, second, "2026-11-23T12:00", None, later, &Warsaw).unwrap();
+    update(
+        &mut store,
+        second,
+        "2026-11-23T12:00",
+        None,
+        "",
+        later,
+        &Warsaw,
+    )
+    .unwrap();
     assert_eq!(snapshot(&store)[1].1, now() + 40_000);
 
     // Same for the first entry's end, with its start edited.
@@ -558,10 +588,153 @@ fn entry_started_right_after_a_stop_in_the_same_minute_stays_editable() {
         first,
         "2026-11-23T10:30",
         Some("2026-11-23T12:00"),
+        "",
         later,
         &Warsaw,
     )
     .unwrap();
     let rows = snapshot(&store);
     assert_eq!(rows[0].2, Some(now() + 30_000));
+}
+
+// ---- S-06: the note on an entry ----
+
+fn notes(store: &Store) -> Vec<String> {
+    snapshot(store).into_iter().map(|r| r.6).collect()
+}
+
+#[test]
+fn add_stores_the_trimmed_note_and_the_day_list_reads_it() {
+    let (_tmp, mut store) = open();
+    add(
+        &mut store,
+        "2026-11-20T08:00",
+        "2026-11-20T09:00",
+        "  Notatka A ",
+        now(),
+        &Warsaw,
+    )
+    .unwrap();
+    let got = entries_for_day(&store, day("2026-11-20"), now(), &Warsaw).unwrap();
+    assert_eq!(got.entries[0].note, "Notatka A");
+}
+
+#[test]
+fn editing_only_the_note_keeps_the_instants_and_empty_clears_it() {
+    let (_tmp, mut store) = open();
+    let s = t("2026-11-23T09:00") + 12_345;
+    let e = t("2026-11-23T09:30") + 45_000;
+    let id = start(&mut store, s, &Warsaw).unwrap();
+    stop(&mut store, e, &Warsaw).unwrap();
+    let edit = |store: &mut Store, note: &str| {
+        update(
+            store,
+            id,
+            "2026-11-23T09:00",
+            Some("2026-11-23T09:30"),
+            note,
+            now(),
+            &Warsaw,
+        )
+        .unwrap();
+    };
+    edit(&mut store, "Nowa notatka");
+    let rows = snapshot(&store);
+    assert_eq!((rows[0].1, rows[0].2), (s, Some(e)));
+    assert_eq!(rows[0].6, "Nowa notatka");
+    edit(&mut store, "");
+    assert_eq!(notes(&store), vec![""]);
+    assert_eq!(snapshot(&store)[0].1, s);
+}
+
+#[test]
+fn the_running_entry_takes_a_note_and_keeps_running() {
+    let (_tmp, mut store) = open();
+    let id = start(&mut store, t("2026-11-23T10:00"), &Warsaw).unwrap();
+    update(
+        &mut store,
+        id,
+        "2026-11-23T10:00",
+        None,
+        "Trwa",
+        now(),
+        &Warsaw,
+    )
+    .unwrap();
+    assert!(is_running(&store).unwrap());
+    assert_eq!(notes(&store), vec!["Trwa"]);
+}
+
+#[test]
+fn start_creates_an_entry_without_a_note() {
+    let (_tmp, mut store) = open();
+    add(
+        &mut store,
+        "2026-11-20T08:00",
+        "2026-11-20T09:00",
+        "Notatka",
+        now(),
+        &Warsaw,
+    )
+    .unwrap();
+    start(&mut store, t("2026-11-23T10:00"), &Warsaw).unwrap();
+    assert_eq!(notes(&store), vec!["Notatka", ""]);
+}
+
+#[test]
+fn a_bad_note_is_refused_by_add_and_update_and_changes_nothing() {
+    let (_tmp, mut store) = open();
+    let id = add_entry(&mut store, "2026-11-20T08:00", "2026-11-20T09:00");
+    let before = snapshot(&store);
+    let long = "x".repeat(201);
+    for (bad, long_note) in [(long.as_str(), true), ("a\nb", false)] {
+        let check = |e: &WorkTimeError| {
+            if long_note {
+                matches!(e, WorkTimeError::NoteTooLong { max: 200 })
+            } else {
+                matches!(e, WorkTimeError::NoteMultiline)
+            }
+        };
+        let r = add(
+            &mut store,
+            "2026-11-21T08:00",
+            "2026-11-21T09:00",
+            bad,
+            now(),
+            &Warsaw,
+        );
+        refused(&store, &before, r, check);
+        let r = update(
+            &mut store,
+            id,
+            "2026-11-20T08:00",
+            Some("2026-11-20T09:00"),
+            bad,
+            now(),
+            &Warsaw,
+        );
+        refused(&store, &before, r, check);
+    }
+}
+
+#[test]
+fn the_note_error_wins_over_a_time_error() {
+    let (_tmp, mut store) = open();
+    let id = add_entry(&mut store, "2026-11-20T08:00", "2026-11-20T09:00");
+    let before = snapshot(&store);
+    let r = add(
+        &mut store,
+        "2026-11-21T10:00",
+        "2026-11-21T09:00",
+        "a\nb",
+        now(),
+        &Warsaw,
+    );
+    refused(&store, &before, r, |e| {
+        matches!(e, WorkTimeError::NoteMultiline)
+    });
+    let r = update(&mut store, id, "not a time", None, "a\nb", now(), &Warsaw);
+    refused(&store, &before, r, |e| {
+        matches!(e, WorkTimeError::NoteMultiline)
+    });
 }

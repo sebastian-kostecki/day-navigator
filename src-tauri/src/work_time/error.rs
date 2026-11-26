@@ -30,6 +30,10 @@ pub enum WorkTimeError {
     RunningEndEdit,
     #[error("a weekend is not a workday")]
     NotAWorkday,
+    #[error("note is longer than {max} characters")]
+    NoteTooLong { max: usize },
+    #[error("note has more than one line")]
+    NoteMultiline,
     #[error("background task failed")]
     Background,
 }
@@ -48,6 +52,8 @@ impl WorkTimeError {
             WorkTimeError::InvalidLocalTime => "InvalidLocalTime",
             WorkTimeError::RunningEndEdit => "RunningEndEdit",
             WorkTimeError::NotAWorkday => "NotAWorkday",
+            WorkTimeError::NoteTooLong { .. } => "NoteTooLong",
+            WorkTimeError::NoteMultiline => "NoteMultiline",
             WorkTimeError::Background => "Background",
         }
     }

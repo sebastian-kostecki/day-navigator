@@ -42,7 +42,7 @@ fn open() -> (TempDir, Store) {
 /// Adds a closed entry; the "now" used for the future check is far ahead, so
 /// the report's own `now` can be chosen freely.
 fn add_entry(store: &mut Store, from: &str, to: &str) {
-    add(store, from, to, t("2027-12-31T12:00"), &Warsaw).unwrap();
+    add(store, from, to, "", t("2027-12-31T12:00"), &Warsaw).unwrap();
 }
 
 /// 8 h (08:00-16:00) on each given day.

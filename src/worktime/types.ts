@@ -16,6 +16,8 @@ export type WorkTimeError =
   | { kind: "InvalidLocalTime" }
   | { kind: "RunningEndEdit" }
   | { kind: "NotAWorkday" }
+  | { kind: "NoteTooLong"; detail: { max: number } }
+  | { kind: "NoteMultiline" }
   | { kind: "Background" };
 
 /**

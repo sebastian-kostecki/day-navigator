@@ -11,6 +11,7 @@
 pub mod commands;
 pub mod error;
 pub mod norm;
+pub mod note;
 pub mod reminders;
 pub mod report;
 pub mod rules;
@@ -303,9 +304,11 @@ pub fn add<Tz: TimeZone>(
     store: &mut Store,
     start_local: &str,
     end_local: &str,
+    note: &str,
     now: i64,
     tz: &Tz,
 ) -> Result<i64, WorkTimeError> {
+    let note = note::normalize_note(note)?;
     let start = resolve_local(start_local, tz)?;
     let end = resolve_local(end_local, tz)?;
     if end <= start {
@@ -317,9 +320,9 @@ pub fn add<Tz: TimeZone>(
     store.write(|tx| {
         find_overlap(tx, None, start, Some(end))?;
         tx.execute(
-            "INSERT INTO work_entries(start_ms, end_ms, created_at_ms, updated_at_ms) \
-             VALUES (?1, ?2, ?3, ?3)",
-            (start, end, now),
+            "INSERT INTO work_entries(start_ms, end_ms, note, created_at_ms, updated_at_ms) \
+             VALUES (?1, ?2, ?3, ?4, ?4)",
+            (start, end, &note, now),
         )?;
         Ok(tx.last_insert_rowid())
     })
@@ -346,9 +349,11 @@ pub fn update<Tz: TimeZone>(
     id: i64,
     start_local: &str,
     end_local: Option<&str>,
+    note: &str,
     now: i64,
     tz: &Tz,
 ) -> Result<(), WorkTimeError> {
+    let note = note::normalize_note(note)?;
     store.write(|tx| {
         let current = counted_by_id(tx, id)?.ok_or(WorkTimeError::NotFound)?;
         let start = resolve_or_keep(start_local, current.start, tz)?;
@@ -367,8 +372,9 @@ pub fn update<Tz: TimeZone>(
         }
         find_overlap(tx, Some(id), start, end)?;
         tx.execute(
-            "UPDATE work_entries SET start_ms = ?1, end_ms = ?2, updated_at_ms = ?3 WHERE id = ?4",
-            (start, end, now, id),
+            "UPDATE work_entries SET start_ms = ?1, end_ms = ?2, note = ?3, updated_at_ms = ?4 \
+             WHERE id = ?5",
+            (start, end, &note, now, id),
         )?;
         Ok(())
     })

@@ -363,11 +363,11 @@ Zmiana była planowana bez dostępu do użytkownika. Decyzje użytkownika (stał
 
 #### Automated
 
-- [ ] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym testy jednostkowe `work_time::note` (przycięcie, pusta, 200/201 znaków wielobajtowych i emoji, `\n`/`\r\n`/`\r`, brak wycieku, kształt JSON), nowe testy w `src-tauri/src/work_time/tests.rs` (zapis, zachowanie instantów, czyszczenie, trwający wpis, START bez notatki, odmowy bez zmian w tabeli, kolejność walidacji) i w `src-tauri/tests/work_time.rs` (trwałość, brak notatki w dzienniku zdarzeń, odmowy bez sentinela)
-- [ ] 2.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
-- [ ] 2.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 2.4 `git grep -n "log::" -- src-tauri/src/work_time` pokazuje dokładnie trzy linie, wszystkie w `commands.rs` (dotychczasowe: dwa logi rodzaju błędu i błąd emitu)
-- [ ] 2.5 `git grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(" -- src/worktime/WorkTime.css` nic nie znajduje, a `git grep -n "invoke" -- src/worktime` znajduje `invoke` tylko w `src/worktime/api.ts`
+- [x] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym testy jednostkowe `work_time::note` (przycięcie, pusta, 200/201 znaków wielobajtowych i emoji, `\n`/`\r\n`/`\r`, brak wycieku, kształt JSON), nowe testy w `src-tauri/src/work_time/tests.rs` (zapis, zachowanie instantów, czyszczenie, trwający wpis, START bez notatki, odmowy bez zmian w tabeli, kolejność walidacji) i w `src-tauri/tests/work_time.rs` (trwałość, brak notatki w dzienniku zdarzeń, odmowy bez sentinela)
+- [x] 2.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
+- [x] 2.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 2.4 `git grep -n "log::" -- src-tauri/src/work_time` pokazuje dokładnie trzy linie, wszystkie w `commands.rs` (dotychczasowe: dwa logi rodzaju błędu i błąd emitu)
+- [x] 2.5 `git grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(" -- src/worktime/WorkTime.css` nic nie znajduje, a `git grep -n "invoke" -- src/worktime` znajduje `invoke` tylko w `src/worktime/api.ts`
 
 #### Manual
 

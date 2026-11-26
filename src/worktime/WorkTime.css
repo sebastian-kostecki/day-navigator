@@ -205,6 +205,20 @@
   flex: 1 1 180px;
 }
 
+/* Grid, so `.dn-field`'s flex-basis above does not become a height. */
+.wt-note-field {
+  flex: 1 1 100%;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.wt-note-count {
+  justify-self: end;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
 .wt-form-actions {
   display: flex;
   gap: var(--space-2);

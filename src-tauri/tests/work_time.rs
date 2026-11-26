@@ -99,6 +99,7 @@ fn history_and_removed_rows_survive_reopening() {
             &mut store,
             "2026-11-20T08:00",
             "2026-11-20T12:00",
+            "",
             now,
             &Warsaw,
         )
@@ -149,7 +150,7 @@ fn reminder_facts_report_the_running_entry_and_counted_work() {
 
     // A removed entry today and one that ends exactly at midnight do not count.
     let add = |store: &mut Store, from: &str, to: &str| {
-        work_time::add(store, from, to, now, &Warsaw).unwrap()
+        work_time::add(store, from, to, "", now, &Warsaw).unwrap()
     };
     let removed = add(&mut store, "2026-11-23T08:00", "2026-11-23T09:00");
     work_time::remove(&mut store, removed, now).unwrap();
@@ -179,6 +180,7 @@ fn reminder_facts_count_a_midnight_spanning_portion() {
         &mut store,
         "2026-11-22T23:00",
         "2026-11-23T00:30",
+        "",
         now,
         &Warsaw,
     )
@@ -355,5 +357,140 @@ mod note_column {
         assert!(!json.contains(SENTINEL));
         assert!(!err.to_string().contains(SENTINEL));
         assert!(!format!("{err:?}").contains(SENTINEL));
+    }
+}
+
+// ---- S-06: writing the note ----
+
+mod note_write {
+    use super::*;
+    use day_navigator_lib::events;
+    use day_navigator_lib::store::StoreError;
+
+    const SENTINEL: &str = "SENTINEL-invented-4d2a9";
+
+    fn sentinel_hits(store: &Store) -> i64 {
+        store
+            .read::<_, StoreError>(|c| {
+                Ok(c.query_row(
+                    "SELECT count(*) FROM events WHERE coalesce(reference,'') || \
+                     coalesce(title,'') || coalesce(source_label,'') || \
+                     coalesce(error_kind,'') LIKE '%' || ?1 || '%'",
+                    [SENTINEL],
+                    |r| r.get::<_, i64>(0),
+                )?)
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn note_survives_closing_and_reopening_the_store() {
+        let (_tmp, dir) = test_store_dir();
+        let now = t("2026-11-23T12:00");
+        {
+            let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+            work_time::add(
+                &mut store,
+                "2026-11-23T08:00",
+                "2026-11-23T09:00",
+                "  Wymyślona notatka ",
+                now,
+                &Warsaw,
+            )
+            .unwrap();
+        }
+        let store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+        let day = work_time::entries_for_day(&store, today(), now, &Warsaw).unwrap();
+        assert_eq!(day.entries[0].note, "Wymyślona notatka");
+    }
+
+    #[test]
+    fn note_never_reaches_the_event_log() {
+        let (_tmp, dir) = test_store_dir();
+        let now = t("2026-11-23T12:00");
+        let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+        let id = work_time::add(
+            &mut store,
+            "2026-11-23T08:00",
+            "2026-11-23T09:00",
+            SENTINEL,
+            now,
+            &Warsaw,
+        )
+        .unwrap();
+        work_time::update(
+            &mut store,
+            id,
+            "2026-11-23T08:00",
+            Some("2026-11-23T09:00"),
+            SENTINEL,
+            now,
+            &Warsaw,
+        )
+        .unwrap();
+        assert!(
+            events::list_today(&store, today())
+                .unwrap()
+                .events
+                .is_empty()
+        );
+
+        let running = work_time::start(&mut store, t("2026-11-23T10:00"), &Warsaw).unwrap();
+        work_time::update(
+            &mut store,
+            running,
+            "2026-11-23T10:00",
+            None,
+            SENTINEL,
+            now,
+            &Warsaw,
+        )
+        .unwrap();
+        work_time::stop(&mut store, t("2026-11-23T11:00"), &Warsaw).unwrap();
+        assert_eq!(events::list_today(&store, today()).unwrap().events.len(), 2);
+        assert_eq!(sentinel_hits(&store), 0);
+    }
+
+    #[test]
+    fn refusals_with_a_note_leak_nothing() {
+        let (_tmp, dir) = test_store_dir();
+        let now = t("2026-11-23T12:00");
+        let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+        let id = work_time::add(
+            &mut store,
+            "2026-11-23T08:00",
+            "2026-11-23T09:00",
+            "",
+            now,
+            &Warsaw,
+        )
+        .unwrap();
+        let overlap = work_time::add(
+            &mut store,
+            "2026-11-23T08:30",
+            "2026-11-23T09:30",
+            SENTINEL,
+            now,
+            &Warsaw,
+        )
+        .unwrap_err();
+        assert!(matches!(overlap, WorkTimeError::Overlap { .. }));
+        work_time::remove(&mut store, id, now).unwrap();
+        let missing = work_time::update(
+            &mut store,
+            id,
+            "2026-11-23T08:00",
+            Some("2026-11-23T09:00"),
+            SENTINEL,
+            now,
+            &Warsaw,
+        )
+        .unwrap_err();
+        assert!(matches!(missing, WorkTimeError::NotFound));
+        for e in [overlap, missing] {
+            let text = format!("{e} {e:?} {}", serde_json::to_string(&e).unwrap());
+            assert!(!text.contains(SENTINEL));
+            assert!(!e.kind().contains(SENTINEL));
+        }
     }
 }

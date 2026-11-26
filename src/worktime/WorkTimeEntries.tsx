@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button, Field, Notice, Panel } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { workTimeErrorMessage } from "./api";
@@ -26,20 +26,38 @@ function localLabel(local: string, day: string): string {
 }
 
 /** Resolves to `null` on success, or to the failure for `workTimeErrorMessage`. */
-type SaveFn = (start: string, end: string | null) => Promise<unknown>;
+type SaveFn = (start: string, end: string | null, note: string) => Promise<unknown>;
+
+/** Same as Rust `work_time::note::NOTE_MAX`; no `maxLength` on purpose, Rust is the only limit. */
+const ENTRY_NOTE_MAX = 200;
+
+/** Characters (code points), as Rust counts them. */
+const charCount = (v: string) => [...v].length;
 
 function EntryForm(props: {
   initialStart: string;
   initialEnd: string | null;
+  initialNote: string;
   showEnd: boolean;
   submitLabel: string;
   onSave: SaveFn;
   onCancel: () => void;
   entriesById: Map<number, EntryRow>;
 }) {
-  const { initialStart, initialEnd, showEnd, submitLabel, onSave, onCancel, entriesById } = props;
+  const {
+    initialStart,
+    initialEnd,
+    initialNote,
+    showEnd,
+    submitLabel,
+    onSave,
+    onCancel,
+    entriesById,
+  } = props;
   const [start, setStart] = useState(initialStart);
   const [end, setEnd] = useState(initialEnd ?? "");
+  const [note, setNote] = useState(initialNote);
+  const noteCountId = useId();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,7 +65,7 @@ function EntryForm(props: {
     e.preventDefault();
     setError(null);
     setSaving(true);
-    const err = await onSave(start, showEnd ? end : null);
+    const err = await onSave(start, showEnd ? end : null, note);
     setSaving(false);
     if (err) setError(workTimeErrorMessage(err, entriesById));
   }
@@ -73,6 +91,17 @@ function EntryForm(props: {
             required
           />
         )}
+        <div className="wt-note-field">
+          <Field
+            label="Notatka (opcjonalnie)"
+            value={note}
+            onChange={(e) => setNote(e.currentTarget.value)}
+            aria-describedby={noteCountId}
+          />
+          <span id={noteCountId} className="meta wt-note-count">
+            {charCount(note)}/{ENTRY_NOTE_MAX}
+          </span>
+        </div>
         <div className="wt-form-actions">
           <Button type="submit" variant="secondary">
             {submitLabel}
@@ -98,7 +127,7 @@ function EntryItem(props: {
   durationMs: number;
   busy: boolean;
   entriesById: Map<number, EntryRow>;
-  onUpdate: (id: number, start: string, end: string | null) => Promise<unknown>;
+  onUpdate: (id: number, start: string, end: string | null, note: string) => Promise<unknown>;
   onRemove: (id: number) => Promise<unknown>;
 }) {
   const { row, day, durationMs, busy, entriesById, onUpdate, onRemove } = props;
@@ -120,11 +149,12 @@ function EntryItem(props: {
         <EntryForm
           initialStart={row.startLocal}
           initialEnd={row.endLocal}
+          initialNote={row.note}
           showEnd={row.endMs !== null}
           submitLabel="Zapisz"
           entriesById={entriesById}
-          onSave={async (start, end) => {
-            const err = await onUpdate(row.id, start, end);
+          onSave={async (start, end, note) => {
+            const err = await onUpdate(row.id, start, end, note);
             if (!err) setMode("view");
             return err;
           }}
@@ -198,8 +228,8 @@ function LoadedEntries(props: {
   day: string;
   nowMs: number;
   busyIds: Set<number>;
-  add: (start: string, end: string) => Promise<unknown>;
-  update: (id: number, start: string, end: string | null) => Promise<unknown>;
+  add: (start: string, end: string, note: string) => Promise<unknown>;
+  update: (id: number, start: string, end: string | null, note: string) => Promise<unknown>;
   remove: (id: number) => Promise<unknown>;
 }) {
   const { data, day, nowMs, busyIds, add, update, remove } = props;
@@ -237,11 +267,12 @@ function LoadedEntries(props: {
             key={day}
             initialStart={`${day}T08:00`}
             initialEnd={`${day}T09:00`}
+            initialNote=""
             showEnd
             submitLabel="Dopisz"
             entriesById={entriesById}
-            onSave={async (start, end) => {
-              const err = await add(start, end ?? "");
+            onSave={async (start, end, note) => {
+              const err = await add(start, end ?? "", note);
               if (!err) setAddingDay(null);
               return err;
             }}
@@ -263,8 +294,8 @@ export function EntriesPanel(props: {
   entries: EntriesState;
   nowMs: number;
   busyIds: Set<number>;
-  add: (start: string, end: string) => Promise<unknown>;
-  update: (id: number, start: string, end: string | null) => Promise<unknown>;
+  add: (start: string, end: string, note: string) => Promise<unknown>;
+  update: (id: number, start: string, end: string | null, note: string) => Promise<unknown>;
   remove: (id: number) => Promise<unknown>;
   retry: () => void;
 }) {

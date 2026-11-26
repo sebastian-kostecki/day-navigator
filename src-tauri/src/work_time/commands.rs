@@ -67,8 +67,6 @@ pub async fn list_work_entries(app: AppHandle, day: String) -> Result<DayEntries
     .await
 }
 
-// START/STOP notify as soon as the write commits and only then read the new
-// status, so a failed read can't hide a committed change from the listeners.
 /// The one START path, for the header command and the tray: domain write, then
 /// `work-time-changed`, then `events-changed`. Nothing is emitted on failure.
 pub(crate) async fn start_timer(app: &AppHandle) -> Result<(), WorkTimeError> {
@@ -91,6 +89,8 @@ pub(crate) async fn stop_timer(app: &AppHandle) -> Result<(), WorkTimeError> {
     Ok(())
 }
 
+// START/STOP notify as soon as the write commits and only then read the new
+// status, so a failed read can't hide a committed change from the listeners.
 #[tauri::command]
 pub async fn start_work(app: AppHandle) -> Result<WorkTimerStatus, WorkTimeError> {
     start_timer(&app).await?;

@@ -104,3 +104,10 @@ What was checked:
 - **Detail**: The line comment "START/STOP notify as soon as the write commits and only then read the new status…" is now stacked directly above the `///` doc of `start_timer`. The status read it describes now happens in `start_work` / `stop_work` (`:94-104`), and `stop_timer` has no such note. This is harmless, but a reader of the S-07 hook point may misread where the ordering is enforced.
 - **Fix**: Move the `//` comment above `start_work` (or fold it into one sentence in the `start_timer` / `stop_timer` docs: "callers read the status only after this returns").
 - **Decision**: PENDING
+
+## Fixes applied
+
+- F2 (tray menu item re-applied every round): fixed. `TrayWorkItem` keeps the last applied `WorkItem`; `update_tray` skips the clear and the setters when the item is unchanged, and records it as applied only when both setters succeed.
+- F3 (misplaced ordering comment): fixed. The comment now sits above `start_work`.
+
+Commit: `fix(tray-timer-control): skip unchanged tray menu item updates (review)`.

@@ -177,11 +177,21 @@ fn tray_image(icon: TrayIconKind) -> Image<'static> {
 struct TrayWorkItem {
     item: MenuItem<tauri::Wry>,
     shown: Mutex<Option<TimerAction>>,
+    /// The item last written to the menu; an unchanged item is not written again.
+    applied: Mutex<Option<tray_view::WorkItem>>,
 }
 
 impl TrayWorkItem {
     fn set_shown(&self, action: Option<TimerAction>) {
         *self.shown.lock().unwrap_or_else(|p| p.into_inner()) = action;
+    }
+
+    fn applied(&self) -> Option<tray_view::WorkItem> {
+        *self.applied.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    fn set_applied(&self, item: Option<tray_view::WorkItem>) {
+        *self.applied.lock().unwrap_or_else(|p| p.into_inner()) = item;
     }
 
     fn shown(&self) -> Option<TimerAction> {
@@ -215,6 +225,7 @@ pub fn build_tray(app: &tauri::App) -> tauri::Result<mpsc::Receiver<()>> {
     app.manage(TrayWorkItem {
         item: work.clone(),
         shown: Mutex::new(None),
+        applied: Mutex::new(None),
     });
     let separator = PredefinedMenuItem::separator(app)?;
     let open = MenuItem::with_id(app, "open", "Otwórz", true, None::<&str>)?;
@@ -285,14 +296,26 @@ fn update_tray(app: &AppHandle, snap: &HealthSnapshot, work: &WorkLine) {
     // them and set after, so a click during the change does nothing.
     if let Some(w) = app.try_state::<TrayWorkItem>() {
         let item = tray_view::work_item(snap.overall, work);
-        w.set_shown(None);
-        if let Err(e) = w.item.set_text(item.text) {
-            log::warn!("health: tray work item text failed: {e}");
+        // An unchanged item is left alone, so a click is never swallowed by a
+        // needless clear. After a failed setter `applied` stays unset: retry.
+        if w.applied() != Some(item) {
+            w.set_applied(None);
+            w.set_shown(None);
+            let text_ok = w
+                .item
+                .set_text(item.text)
+                .inspect_err(|e| log::warn!("health: tray work item text failed: {e}"))
+                .is_ok();
+            let enabled_ok = w
+                .item
+                .set_enabled(item.action.is_some())
+                .inspect_err(|e| log::warn!("health: tray work item enable failed: {e}"))
+                .is_ok();
+            w.set_shown(item.action);
+            if text_ok && enabled_ok {
+                w.set_applied(Some(item));
+            }
         }
-        if let Err(e) = w.item.set_enabled(item.action.is_some()) {
-            log::warn!("health: tray work item enable failed: {e}");
-        }
-        w.set_shown(item.action);
     }
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return;

@@ -734,3 +734,81 @@ fn day_kind_and_error_serialize_as_the_ui_expects() {
         serde_json::json!({ "kind": "Holiday" })
     );
 }
+
+// ---- holiday names, the Saturday hint and shadowed rows ----
+
+fn holiday_of<'a>(r: &'a MonthReport, day: &str) -> (Option<&'a str>, bool) {
+    let row = day_row(r, day);
+    (row.holiday.as_deref(), row.day_off_owed)
+}
+
+#[test]
+fn rows_carry_the_holiday_name_and_the_saturday_hint() {
+    let (_tmp, store) = open();
+    let nov = report_pl(&store, "2026-11-23");
+    assert_eq!(
+        holiday_of(&nov, "2026-11-11"),
+        (Some("Święto Niepodległości"), false)
+    );
+    assert_eq!(
+        holiday_of(&nov, "2026-11-01"),
+        (Some("Wszystkich Świętych"), false)
+    );
+    assert_eq!(holiday_of(&nov, "2026-11-02"), (None, false));
+
+    let dec = report_pl(&store, "2026-12-01");
+    assert_eq!(holiday_of(&dec, "2026-12-24"), (Some("Wigilia"), false));
+    assert_eq!(
+        holiday_of(&dec, "2026-12-25"),
+        (Some("Boże Narodzenie"), false)
+    );
+    assert_eq!(
+        holiday_of(&dec, "2026-12-26"),
+        (Some("Drugi dzień Bożego Narodzenia"), true)
+    );
+
+    let aug = report_pl(&store, "2026-08-10");
+    assert!(day_row(&aug, "2026-08-15").day_off_owed);
+    let apr = report_pl(&store, "2026-04-15");
+    assert_eq!(holiday_of(&apr, "2026-04-05"), (Some("Wielkanoc"), false));
+}
+
+#[test]
+fn a_shadowed_row_is_not_listed_as_a_manual_day_off() {
+    let (_tmp, mut store) = open();
+    report::set_day_off(&mut store, d("2026-11-11"), true, now(), &manual_only()).unwrap();
+    report::set_day_off(&mut store, d("2026-11-12"), true, now(), &manual_only()).unwrap();
+    let pl = report_pl(&store, "2026-11-23");
+    assert_eq!(pl.days_off, vec!["2026-11-12".to_string()]);
+    let off = report_at(&store, "2026-11-23", now());
+    assert_eq!(
+        off.days_off,
+        vec!["2026-11-11".to_string(), "2026-11-12".to_string()]
+    );
+}
+
+#[test]
+fn with_the_calendar_off_no_row_has_a_holiday() {
+    let (_tmp, store) = open();
+    for month in ["2026-11-23", "2026-12-01", "2026-08-10", "2026-04-15"] {
+        let r = report_at(&store, month, now());
+        assert!(
+            r.days
+                .iter()
+                .all(|x| x.holiday.is_none() && !x.day_off_owed)
+        );
+    }
+}
+
+#[test]
+fn day_report_serializes_the_holiday_fields() {
+    let (_tmp, store) = open();
+    let nov = report_pl(&store, "2026-11-23");
+    let hol = serde_json::to_value(day_row(&nov, "2026-11-11")).unwrap();
+    assert_eq!(hol["kind"], "holiday");
+    assert_eq!(hol["holiday"], "Święto Niepodległości");
+    assert_eq!(hol["dayOffOwed"], false);
+    let plain = serde_json::to_value(day_row(&nov, "2026-11-02")).unwrap();
+    assert!(plain["holiday"].is_null());
+    assert_eq!(plain["dayOffOwed"], false);
+}

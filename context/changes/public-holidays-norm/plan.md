@@ -737,9 +737,9 @@ Plan review (`reviews/plan-review.md`) defaults, chosen by agent, user may revis
 
 #### Automated
 
-- [ ] 4.1 Report tests pass, old and new: `cargo test work_time` and `cargo test --test work_time`
-- [ ] 4.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [ ] 4.3 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 4.1 Report tests pass, old and new: `cargo test work_time` and `cargo test --test work_time`
+- [x] 4.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 4.3 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 
 ### Phase 5: Settings at the edges and the invalid-block error
 

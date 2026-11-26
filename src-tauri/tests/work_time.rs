@@ -9,6 +9,7 @@ use chrono_tz::Europe::Warsaw;
 use common::test_store_dir;
 use day_navigator_lib::settings::WorkTimeSettings;
 use day_navigator_lib::store::{Store, schema};
+use day_navigator_lib::work_time::holidays::HolidayCalendar;
 use day_navigator_lib::work_time::reminders::reminder_facts;
 use day_navigator_lib::work_time::report;
 use day_navigator_lib::work_time::rules::resolve_local;
@@ -291,4 +292,17 @@ fn a_public_holiday_is_a_holiday_for_status_entries_and_reminders() {
     }
     let month = report::month_report(&store, holiday, now, &Warsaw, &defaults).unwrap();
     assert!(month.days_off.is_empty());
+    let row = month.days.iter().find(|r| r.day == "2026-11-11").unwrap();
+    assert_eq!(row.holiday.as_deref(), Some("Święto Niepodległości"));
+    assert!(!row.day_off_owed);
+
+    // A row marked while the calendar was off is shadowed, not listed.
+    let off = WorkTimeSettings {
+        holidays: HolidayCalendar::Off,
+    };
+    report::set_day_off(&mut store, holiday, true, now, &off).unwrap();
+    let shadowed = report::month_report(&store, holiday, now, &Warsaw, &defaults).unwrap();
+    assert!(shadowed.days_off.is_empty());
+    let shown = report::month_report(&store, holiday, now, &Warsaw, &off).unwrap();
+    assert_eq!(shown.days_off, vec!["2026-11-11".to_string()]);
 }

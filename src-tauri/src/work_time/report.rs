@@ -6,7 +6,7 @@
 
 use std::collections::BTreeSet;
 
-use chrono::{Datelike, NaiveDate, TimeZone};
+use chrono::{Datelike, NaiveDate, TimeZone, Weekday};
 use rusqlite::Connection;
 use serde::Serialize;
 
@@ -39,7 +39,8 @@ pub struct MonthReport {
     pub worked_ms: i64,
     #[serde(flatten)]
     pub figures: NormFigures,
-    /// `YYYY-MM-DD`, sorted, this month only.
+    /// `YYYY-MM-DD`, sorted, this month only. Rows on a public holiday under
+    /// the active calendar are left out: the holiday shadows them.
     pub days_off: Vec<String>,
     /// Every local day of the month, ascending.
     pub days: Vec<DayReport>,
@@ -57,6 +58,10 @@ pub struct DayReport {
     pub deviation_ms: Option<i64>,
     /// Entries with a non-zero portion in the day.
     pub entry_count: u32,
+    /// Name of the public holiday under the active calendar, on any kind of day.
+    pub holiday: Option<String>,
+    /// True exactly when the holiday falls on a Saturday: a day off is owed.
+    pub day_off_owed: bool,
 }
 
 fn days_off_between(
@@ -149,6 +154,7 @@ pub(super) fn compute<Tz: TimeZone>(
             }
         }
         let norm_ms = norm::day_norm_ms(d, &days_off, holidays);
+        let holiday = holidays.holiday(d);
         days.push(DayReport {
             day: d.format(DAY_FORMAT).to_string(),
             kind: classify(d, days_off.contains(&d), holidays),
@@ -156,6 +162,8 @@ pub(super) fn compute<Tz: TimeZone>(
             norm_ms,
             deviation_ms: norm::day_deviation_ms(d, today, norm_ms, day_worked),
             entry_count,
+            holiday: holiday.map(str::to_string),
+            day_off_owed: holiday.is_some() && d.weekday() == Weekday::Sat,
         });
     }
 
@@ -167,6 +175,7 @@ pub(super) fn compute<Tz: TimeZone>(
         figures: norm::figures(&workdays, today, phase, worked_ms),
         days_off: days_off
             .iter()
+            .filter(|d| holidays.holiday(**d).is_none())
             .map(|d| d.format(DAY_FORMAT).to_string())
             .collect(),
         days,

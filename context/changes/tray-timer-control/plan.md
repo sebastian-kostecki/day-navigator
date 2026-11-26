@@ -475,11 +475,11 @@ Agent defaults added by the plan review (`reviews/plan-review.md`; no user was r
 
 #### Manual
 
-- [ ] 4.7 Tray tooltip shows two lines: health text, then "Czas pracy dziś: H:MM" (line break renders)
-- [ ] 4.8 Header START/STOP switches the tray icon to running and back, and "(trwa)" appears and disappears
-- [ ] 4.9 Running icon is legible at 16 px and clearly different from the error and ok icons
-- [ ] 4.10 A source error while running shows the error icon and the tooltip still ends with the work line
-- [ ] 4.11 Tooltip minutes follow the header's clock within about 30 s
+- [x] 4.7 Tray tooltip shows two lines: health text, then "Czas pracy dziś: H:MM" (line break renders) — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 4.8 Header START/STOP switches the tray icon to running and back, and "(trwa)" appears and disappears — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 4.9 Running icon is legible at 16 px and clearly different from the error and ok icons — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 4.10 A source error while running shows the error icon and the tooltip still ends with the work line — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 4.11 Tooltip minutes follow the header's clock within about 30 s — checked by the user on 2026-11-26 on m3-wave1-integration
 
 ### Phase 5: START/STOP item in the tray menu
 
@@ -494,9 +494,9 @@ Agent defaults added by the plan review (`reviews/plan-review.md`; no user was r
 
 #### Manual
 
-- [ ] 5.7 Tray menu shows START/STOP at the top, above a separator and the existing items
-- [ ] 5.8 Tray START with the window hidden starts the counter; header and event log show it
-- [ ] 5.9 Tray STOP stops at once without a question; header and event log follow without focusing the window
-- [ ] 5.10 An open header "Zakończyć pracę?" question disappears after a tray STOP
-- [ ] 5.11 Built app (`npm run tauri build -- --debug --no-bundle`): tray item works, no CSP violation, no "IPC custom protocol failed"
-- [ ] 5.12 Konsola design-system artifact documents the running tray state and the START/STOP item (user, outside the repo)
+- [x] 5.7 Tray menu shows START/STOP at the top, above a separator and the existing items — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 5.8 Tray START with the window hidden starts the counter; header and event log show it — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 5.9 Tray STOP stops at once without a question; header and event log follow without focusing the window — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 5.10 An open header "Zakończyć pracę?" question disappears after a tray STOP — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 5.11 Built app (`npm run tauri build -- --debug --no-bundle`): tray item works, no CSP violation, no "IPC custom protocol failed" — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 5.12 Konsola design-system artifact documents the running tray state and the START/STOP item (user, outside the repo) — artifact updated by the main session, 2026-11-26

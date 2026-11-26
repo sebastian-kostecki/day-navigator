@@ -10,11 +10,14 @@
 
 pub mod commands;
 pub mod error;
+pub mod holidays;
 pub mod norm;
 pub mod reminders;
 pub mod report;
 pub mod rules;
 
+#[cfg(test)]
+mod holidays_tests;
 #[cfg(test)]
 mod norm_tests;
 #[cfg(test)]

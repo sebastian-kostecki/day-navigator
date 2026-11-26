@@ -712,8 +712,8 @@ Plan review (`reviews/plan-review.md`) defaults, chosen by agent, user may revis
 
 #### Automated
 
-- [ ] 1.1 Holiday unit tests pass: `cargo test holidays`
-- [ ] 1.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 1.1 Holiday unit tests pass: `cargo test holidays`
+- [x] 1.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
 
 ### Phase 2: `workTime` settings block
 

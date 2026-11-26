@@ -26,6 +26,7 @@ use crate::github_refresh::GithubRefreshState;
 use crate::gitlab_refresh::GitlabRefreshState;
 use crate::health::{self, AppDataDetails, HealthSnapshot, Overall, SourceStatus};
 use crate::store::{StoreError, StoreHandle};
+use crate::tray_view::{self, TrayIconKind, WorkLine};
 
 const TRAY_ID: &str = "health";
 const CHECK_INTERVAL: Duration = Duration::from_secs(30);
@@ -136,11 +137,12 @@ pub(crate) fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-fn tray_image(overall: Overall) -> Image<'static> {
-    match overall {
-        Overall::Ok => tauri::include_image!("icons/tray/ok.png"),
-        Overall::Error => tauri::include_image!("icons/tray/error.png"),
-        Overall::Starting | Overall::NotRunning => tauri::include_image!("icons/tray/idle.png"),
+fn tray_image(icon: TrayIconKind) -> Image<'static> {
+    match icon {
+        TrayIconKind::Idle => tauri::include_image!("icons/tray/idle.png"),
+        TrayIconKind::Ok => tauri::include_image!("icons/tray/ok.png"),
+        TrayIconKind::Running => tauri::include_image!("icons/tray/running.png"),
+        TrayIconKind::Error => tauri::include_image!("icons/tray/error.png"),
     }
 }
 
@@ -156,7 +158,7 @@ pub fn build_tray(app: &tauri::App) -> tauri::Result<mpsc::Receiver<()>> {
     let menu = Menu::with_items(app, &[&open, &check, &quit])?;
 
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(tray_image(Overall::Starting))
+        .icon(tray_image(TrayIconKind::Idle))
         .tooltip(health::tooltip(Overall::Starting, &[]))
         .menu(&menu)
         .show_menu_on_left_click(false)
@@ -207,7 +209,10 @@ fn update_tray(app: &AppHandle, snap: &HealthSnapshot) {
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return;
     };
-    if let Err(e) = tray.set_icon(Some(tray_image(snap.overall))) {
+    if let Err(e) = tray.set_icon(Some(tray_image(tray_view::tray_icon(
+        snap.overall,
+        &WorkLine::Loading,
+    )))) {
         log::warn!("health: tray icon update failed: {e}");
     }
     if let Err(e) = tray.set_tooltip(Some(health::tooltip(snap.overall, &snap.sources))) {

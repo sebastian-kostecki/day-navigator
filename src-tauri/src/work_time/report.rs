@@ -12,9 +12,9 @@ use serde::Serialize;
 
 use super::error::WorkTimeError;
 use super::holidays::HolidayCalendar;
-use super::in_day;
 use super::norm::{self, MonthPhase, NormFigures};
 use super::rules::{day_bounds, local_day, portion};
+use super::{Entry, in_day};
 use crate::settings::WorkTimeSettings;
 use crate::store::Store;
 
@@ -64,7 +64,7 @@ pub struct DayReport {
     pub day_off_owed: bool,
 }
 
-fn days_off_between(
+pub(super) fn days_off_between(
     conn: &Connection,
     first: NaiveDate,
     next_first: NaiveDate,
@@ -118,6 +118,42 @@ pub(super) fn day_kind(
     Ok(classify(day, is_day_off(conn, day)?, settings.holidays))
 }
 
+/// The one place a day's worked time, norm, deviation and kind are computed.
+/// `entries` and `days_off` must cover `d` (a wider range is fine).
+pub(super) fn day_report<Tz: TimeZone>(
+    d: NaiveDate,
+    today: NaiveDate,
+    now: i64,
+    tz: &Tz,
+    entries: &[Entry],
+    days_off: &BTreeSet<NaiveDate>,
+    settings: &WorkTimeSettings,
+) -> Result<DayReport, WorkTimeError> {
+    let holidays = settings.holidays;
+    let (start, end) = day_bounds(d, tz)?;
+    let mut day_worked = 0;
+    let mut entry_count = 0;
+    for e in entries {
+        let p = portion(e.start, e.end, now, start, end);
+        if p > 0 {
+            day_worked += p;
+            entry_count += 1;
+        }
+    }
+    let norm_ms = norm::day_norm_ms(d, days_off, holidays);
+    let holiday = holidays.holiday(d);
+    Ok(DayReport {
+        day: d.format(DAY_FORMAT).to_string(),
+        kind: classify(d, days_off.contains(&d), holidays),
+        worked_ms: day_worked,
+        norm_ms,
+        deviation_ms: norm::day_deviation_ms(d, today, norm_ms, day_worked),
+        entry_count,
+        holiday: holiday.map(str::to_string),
+        day_off_owed: holiday.is_some() && d.weekday() == Weekday::Sat,
+    })
+}
+
 /// The report of the month containing `day`, on an open connection.
 pub(super) fn compute<Tz: TimeZone>(
     conn: &Connection,
@@ -143,28 +179,9 @@ pub(super) fn compute<Tz: TimeZone>(
 
     let mut days = Vec::new();
     for d in first.iter_days().take_while(|d| *d < next_first) {
-        let (start, end) = day_bounds(d, tz)?;
-        let mut day_worked = 0;
-        let mut entry_count = 0;
-        for e in &entries {
-            let p = portion(e.start, e.end, now, start, end);
-            if p > 0 {
-                day_worked += p;
-                entry_count += 1;
-            }
-        }
-        let norm_ms = norm::day_norm_ms(d, &days_off, holidays);
-        let holiday = holidays.holiday(d);
-        days.push(DayReport {
-            day: d.format(DAY_FORMAT).to_string(),
-            kind: classify(d, days_off.contains(&d), holidays),
-            worked_ms: day_worked,
-            norm_ms,
-            deviation_ms: norm::day_deviation_ms(d, today, norm_ms, day_worked),
-            entry_count,
-            holiday: holiday.map(str::to_string),
-            day_off_owed: holiday.is_some() && d.weekday() == Weekday::Sat,
-        });
+        days.push(day_report(
+            d, today, now, tz, &entries, &days_off, settings,
+        )?);
     }
 
     Ok(MonthReport {

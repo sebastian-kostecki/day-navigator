@@ -415,13 +415,13 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Automated
 
-- [ ] 1.1 Rust tests pass with the month tests untouched: `cargo test` (in `src-tauri/`)
-- [ ] 1.2 Month tests not edited: `git diff --quiet HEAD -- src-tauri/src/work_time/norm_tests.rs src-tauri/src/work_time/tests.rs src-tauri/tests`
-- [ ] 1.3 Only `report.rs` changes in Rust: `git diff --name-only HEAD -- src-tauri` lists only `src-tauri/src/work_time/report.rs`
-- [ ] 1.4 One `DayReport` construction site: `rg -n "DayReport \{" src-tauri/src/work_time/report.rs` lists the struct definition and one literal inside `day_report`
-- [ ] 1.5 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
-- [ ] 1.6 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
-- [ ] 1.7 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 1.1 Rust tests pass with the month tests untouched: `cargo test` (in `src-tauri/`)
+- [x] 1.2 Month tests not edited: `git diff --quiet HEAD -- src-tauri/src/work_time/norm_tests.rs src-tauri/src/work_time/tests.rs src-tauri/tests`
+- [x] 1.3 Only `report.rs` changes in Rust: `git diff --name-only HEAD -- src-tauri` lists only `src-tauri/src/work_time/report.rs`
+- [x] 1.4 One `DayReport` construction site: `rg -n "DayReport \{" src-tauri/src/work_time/report.rs` lists the struct definition and one literal inside `day_report`
+- [x] 1.5 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
+- [x] 1.6 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
+- [x] 1.7 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 
 #### Manual
 

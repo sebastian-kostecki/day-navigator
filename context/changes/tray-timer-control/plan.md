@@ -454,13 +454,13 @@ Agent defaults added by the plan review (`reviews/plan-review.md`; no user was r
 
 #### Automated
 
-- [x] 3.1 The recipe still reproduces the shipped icon: regenerated `tray-ok.svg` `32x32.png` hash equals `src-tauri/icons/tray/ok.png`
-- [x] 3.2 `running.png` is 32x32 RGBA (IHDR check prints `32x32 type 6`)
-- [x] 3.3 Bundle icons untouched: `git status --short src-tauri/icons` lists only `tray-running.svg` and `running.png`
-- [x] 3.4 Rust tests pass: `cargo test` (in `src-tauri/`)
-- [x] 3.5 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
-- [x] 3.6 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
-- [x] 3.7 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 3.1 The recipe still reproduces the shipped icon: regenerated `tray-ok.svg` `32x32.png` hash equals `src-tauri/icons/tray/ok.png` — 1aab6c9
+- [x] 3.2 `running.png` is 32x32 RGBA (IHDR check prints `32x32 type 6`) — 1aab6c9
+- [x] 3.3 Bundle icons untouched: `git status --short src-tauri/icons` lists only `tray-running.svg` and `running.png` — 1aab6c9
+- [x] 3.4 Rust tests pass: `cargo test` (in `src-tauri/`) — 1aab6c9
+- [x] 3.5 Formatting passes: `cargo fmt --check` (in `src-tauri/`) — 1aab6c9
+- [x] 3.6 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`) — 1aab6c9
+- [x] 3.7 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — 1aab6c9
 
 ### Phase 4: Shared START/STOP path and live tray state
 

@@ -751,8 +751,8 @@ Plan review (`reviews/plan-review.md`) defaults, chosen by agent, user may revis
 
 #### Manual
 
-- [ ] 5.4 Invalid `workTime` block shows ErrorState in the report and days panel and "raport niedostępny" on the dashboard while START/STOP and entries keep working
-- [ ] 5.5 Fixing the file brings the report back without a restart
+- [x] 5.4 Invalid `workTime` block shows ErrorState in the report and days panel and "raport niedostępny" on the dashboard while START/STOP and entries keep working — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 5.5 Fixing the file brings the report back without a restart — checked by the user on 2026-11-26 on m3-wave1-integration
 
 ### Phase 6: Days table and day panel UI
 
@@ -764,12 +764,12 @@ Plan review (`reviews/plan-review.md`) defaults, chosen by agent, user may revis
 
 #### Manual
 
-- [ ] 6.4 November 2026 shows 11.11 and 1.11 correctly with a 160 h norm
-- [ ] 6.5 December 2026 shows 24.12, 25.12 and the 26.12 Saturday hint with a 168 h norm
-- [ ] 6.6 "Wybrany dzień" hides the day-off checkbox on a holiday and keeps it on a weekday
-- [ ] 6.7 `"holidays": false` restores the plain weekday and shows earlier manual rows
-- [ ] 6.8 Dashboard "Średnio / dzień" matches the month report with a holiday ahead
-- [ ] 6.9 Long holiday names do not break the row layout
+- [x] 6.4 November 2026 shows 11.11 and 1.11 correctly with a 160 h norm — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 6.5 December 2026 shows 24.12, 25.12 and the 26.12 Saturday hint with a 168 h norm — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 6.6 "Wybrany dzień" hides the day-off checkbox on a holiday and keeps it on a weekday — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 6.7 `"holidays": false` restores the plain weekday and shows earlier manual rows — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 6.8 Dashboard "Średnio / dzień" matches the month report with a holiday ahead — checked by the user on 2026-11-26 on m3-wave1-integration
+- [x] 6.9 Long holiday names do not break the row layout — checked by the user on 2026-11-26 on m3-wave1-integration
 
 ### Phase 7: PRD and README
 
@@ -782,4 +782,4 @@ Plan review (`reviews/plan-review.md`) defaults, chosen by agent, user may revis
 
 #### Manual
 
-- [ ] 7.5 The user accepts the PRD and README wording
+- [x] 7.5 The user accepts the PRD and README wording — checked by the user on 2026-11-26 on m3-wave1-integration

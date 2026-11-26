@@ -433,11 +433,11 @@ Agent defaults added by the plan review (`reviews/plan-review.md`; no user was r
 
 #### Automated
 
-- [x] 1.1 Rust tests pass, including the new `work_time::today_tests`: `cargo test` (in `src-tauri/`)
-- [x] 1.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
-- [x] 1.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
-- [x] 1.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [x] 1.5 No frontend, capability or config change: `git diff --quiet HEAD -- src src-tauri/capabilities src-tauri/tauri.conf.json`
+- [x] 1.1 Rust tests pass, including the new `work_time::today_tests`: `cargo test` (in `src-tauri/`) — 211a452
+- [x] 1.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`) — 211a452
+- [x] 1.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`) — 211a452
+- [x] 1.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — 211a452
+- [x] 1.5 No frontend, capability or config change: `git diff --quiet HEAD -- src src-tauri/capabilities src-tauri/tauri.conf.json` — 211a452
 
 ### Phase 2: Tray view rules
 

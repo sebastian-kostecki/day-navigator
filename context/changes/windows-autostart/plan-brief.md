@@ -28,7 +28,7 @@ With the key on, an installed build keeps one HKCU Run value `com.sebas.day-navi
 | Value | Name = bundle identifier; data = quoted exe + `--autostart` | Matches the "under its bundle identifier" rule; safe with spaces in the path | Research |
 | Detection | Fixed `--autostart` argument, exact match | No other argument parsing | Research |
 | Debug builds | Never touch the registry; key on → calm Unavailable | A dev exe in a worktree must not become a login item | Research |
-| Display | New health source "Autostart", generic row, no UI change | Reuses tray colour, toast, event log | Research |
+| Display | New health source "Autostart", generic row, no view change; event log learns the key (`source_from_key` + TS `EventSourceId`) | Reuses tray colour, toast, event log; an unknown key would make today's event log unreadable | Research, plan review |
 | Error kinds | `SettingsInvalid`; new `AutostartFailed` with `io::ErrorKind` only | Fixed, value-free texts | Plan |
 | Uninstall | README note, no NSIS hook | Simplest safe option | Plan |
 | Task Manager disable | Not read, not overridden; documented | Undocumented byte format; respects the user's choice | Plan |
@@ -38,7 +38,7 @@ With the key on, an installed build keeps one HKCU Run value `com.sebas.day-navi
 
 **In scope:** `autostart` settings block; pure sync rules with an in-memory fake; HKCU Run value via `winreg`; start-up thread and health source; hidden start and single-instance guard; AGENTS.md exception; README, CHANGELOG, PRD wording.
 
-**Out of scope:** `tauri-plugin-autostart`; any UI/TS/capability/CSP change; writing `settings.json`; HKLM, Task Scheduler or Startup folder; `StartupApproved`; NSIS uninstall hook; re-sync while running; real-registry tests; roadmap edit; store migration.
+**Out of scope:** `tauri-plugin-autostart`; any UI, capability or CSP change and any TS change beyond the one `EventSourceId` key; writing `settings.json`; HKLM, Task Scheduler or Startup folder; `StartupApproved`; NSIS uninstall hook; re-sync while running; real-registry tests; roadmap edit; store migration.
 
 ## Architecture / Approach
 
@@ -48,7 +48,7 @@ With the key on, an installed build keeps one HKCU Run value `com.sebas.day-navi
 
 | Phase | What it delivers | Key risk |
 | --- | --- | --- |
-| 1. Settings block and pure rules | Loader, `SourceId::Autostart`, sync rules and status mapping, fully unit-tested | Loader drifting from the `workTime` pattern |
+| 1. Settings block and pure rules | Loader, `SourceId::Autostart` (with event-log key and TS mirror), sync rules and status mapping, fully unit-tested | Loader drifting from the `workTime` pattern |
 | 2. Registry entry, sync and hidden start | `winreg` dep, `HkcuRun`, start-up thread, health row, hidden start, AGENTS.md exception | Real registry behaviour verifiable only by hand in an installed build |
 | 3. Docs and PRD | README key/timing/Task Manager/uninstall, CHANGELOG bullet, PRD wording | Small merge conflicts with parallel slices on README and PRD lines |
 
@@ -58,7 +58,9 @@ With the key on, an installed build keeps one HKCU Run value `com.sebas.day-navi
 ## Open Risks & Assumptions
 
 - Not verified: how Explorer launches the quoted Run value at sign-in (documented-safe form; manual row 2.12).
-- Window-state saving after a session where the window was never shown (manual row 2.14).
+- Window-state saving after a session where the window was never shown (manual row 2.14); a saved maximized state does not show the hidden window (tao skips it, checked in source; manual row 2.12).
+- Release builds abort on panic, so the sync path must not panic (no `unwrap`/`expect`).
+- Any release copy started with the key on (for example `target/release`) repoints the Run value until the installed app starts again.
 - The Autostart row reads OK while Task Manager has the entry disabled (documented, not detected).
 - A leftover Run value after uninstall points to a missing exe; README covers clean-up.
 

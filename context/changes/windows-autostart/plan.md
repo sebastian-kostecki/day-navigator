@@ -12,7 +12,9 @@ Roadmap S-04 (M-3), issue #17, anchor MS-17 (no new FR). The user can have Nawig
 - Close hides the window and only "Zakończ" quits (`lib.rs:176-187`, `:226-235`), so a tray-only process stays alive.
 - Settings are read per block, never cached, never written. The newest block loader is `settings/work_time.rs:31-88` (Raw struct with `deny_unknown_fields`, missing file / absent / `null` = default, everything else invalid, unit error type without detail); it is wired with one `mod` and one `pub use` line (`src-tauri/src/settings.rs:16-17`). `check_settings` ignores unknown top-level keys (`settings.rs:50-53`), so a new block breaks nothing.
 - Health: `SourceId` with stable keys (`src-tauri/src/health/mod.rs:24-48`), `SourceState` `Ok | NotConfigured | Unavailable{message} | Error{kind,message}` (`:62-78`), fixed toast phrases per error kind in `short_reason` (`:192-215`). `probe_round` assembles the sources each round (`src-tauri/src/runtime.rs:363-387`); `check_round` feeds it the GitLab/GitHub snapshots from managed state (`runtime.rs:410-419`). Transitions give the red tray, toast, event-log entry and log line with no new code. The fixed-text pattern for a block source is `reminders_status` / `REMINDERS_INVALID_PL` (`src-tauri/src/health/probe.rs:132-156`).
-- The UI renders any non-card source as a generic row under "Pozostałe źródła" (`src/health/HealthPanel.tsx:118,177`; `src/health/sourceView.ts:50-57,86-88`); `SourceStatus.id` is a plain `string` (`src/health/types.ts:13-17`). No frontend change is needed.
+- The UI renders any non-card source as a generic row under "Pozostałe źródła" (`src/health/HealthPanel.tsx:118,177`; `src/health/sourceView.ts:50-57,86-88`); `SourceStatus.id` is a plain `string` (`src/health/types.ts:13-17`). The health view needs no change.
+- The event log stores a source transition by `SourceId::key()` and reads it back through a closed list, `events::source_from_key` (`src-tauri/src/events/mod.rs:167-177`); an unknown key makes the whole of today's list fail as `Damaged` ("event record is unreadable", `:320-324`, `:350-355`, `:416-426`). Its TS mirror `EventSourceId` is a closed union (`src/events/types.ts:7-8`), and `tests/events.rs:180-205` (`every_source_id_round_trips`) matches every `SourceId` with no wildcard. A new `SourceId` must be added in all three places.
+- The release profile sets `panic = "abort"` (`src-tauri/Cargo.toml:77-82`): a panic on any thread ends the whole app.
 - `winreg 0.56.0` is already in `Cargo.lock` as a build-only dependency (`tauri-build` → `tauri-winres` → `embed-resource`); `[target.'cfg(windows)'.dependencies]` holds `windows-sys 0.61` (`src-tauri/Cargo.toml:55-56`).
 - CI builds, lints and tests Rust only on `windows-latest`, in the debug profile (`.github/workflows/ci.yml:59-60`).
 - No lessons file exists (`context/foundation/lessons.md` absent). No metadata helper script ships with the skill in this repo; `change.md` is patched by hand.
@@ -45,13 +47,14 @@ Verify with `cargo test` (pure rules with an in-memory fake) and in an installed
 
 - One condition at `lib.rs:173` plus one in the single-instance callback (`lib.rs:136-138`) is the whole hidden-start change.
 - `tauri-plugin-autostart` 2.7.0 (via `auto-launch 0.6`) writes the exe path unquoted, tries HKLM first and overwrites the Task Manager "disabled" flag (`research.md` §3); the installed path `%LOCALAPPDATA%\Nawigator dnia\day-navigator.exe` contains a space. A direct HKCU write with `winreg` avoids all three and adds no new crate.
-- The window-state plugin never restores `VISIBLE`, so it cannot pop the window up after a hidden start (`lib.rs:141`).
+- The window-state plugin never restores `VISIBLE`, so it cannot pop the window up after a hidden start (`lib.rs:141`). A saved maximized state does not show it either: the plugin calls `maximize()` on the hidden window, and tao 0.37 skips `ShowWindow(SW_MAXIMIZE)` while the window is not visible (`tao-0.37.3/src/platform_impl/windows/window_state.rs`, "Skip this if the window is hidden"). On "Zakończ" the plugin saves the restored size and position of the never-shown window.
+- The single-instance plugin (2.5.5, Windows) forwards `std::env::args_os()` of the second process, program path first, and that process exits before `setup` runs, so it never starts a second sync.
 - The GitLab "seen" mark is never sent on mount (`src/gitlab/useGitlabSeenMark.ts:10-37`), and data hooks refetch on `visibilitychange`/`focus`, so a hidden start marks nothing as seen and the first show loads fresh data.
 - In this crate, `pub` items in `pub mod`s are never dead code, so the pure rules can land in Phase 1 before anything calls them.
 
 ## What We're NOT Doing
 
-- No `tauri-plugin-autostart`, no npm package, no capability or CSP change, no Tauri command, no TS type change, no UI change.
+- No `tauri-plugin-autostart`, no npm package, no capability or CSP change, no Tauri command, no UI change. The only TS change is the key `"autostart"` added to the `EventSourceId` mirror (`src/events/types.ts`), in the same commit as `SourceId::Autostart`.
 - The app never writes `settings.json`; there is no in-app switch.
 - No HKLM entry, no Task Scheduler task, no Startup-folder shortcut.
 - No read or write of `Explorer\StartupApproved\Run` (the Task Manager "disabled" flag): the user's Task Manager choice is respected and not shown.
@@ -64,18 +67,19 @@ Verify with `cargo test` (pure rules with an in-memory fake) and in an installed
 
 Pure rules first, side effects last, following the repo split (`settings/` and `health/` are `tauri`-free; side effects live in thin glue):
 
-1. **Phase 1** adds the `autostart` settings block and a `tauri`-free `autostart` module: the argument check, the sync decision, the sync driven through a `RunEntry` trait, and the mapping from the result to a `SourceStatus`. Everything is tested with an in-memory fake. Nothing calls it yet.
+1. **Phase 1** adds the `autostart` settings block, the `Autostart` source id (with its event-log key and TS mirror) and a `tauri`-free `autostart` module: the argument check, the sync decision, the sync driven through a `RunEntry` trait, and the mapping from the result to a `SourceStatus`. Everything is tested with an in-memory fake. Nothing calls it yet.
 2. **Phase 2** adds the one production `RunEntry` (HKCU Run value via `winreg`), the start-up glue (managed state, one thread, wake the health round), the few lines in `lib.rs` / `runtime.rs`, and the AGENTS.md exception in the same commit, so the rule and the first registry write land together.
 3. **Phase 3** updates README, CHANGELOG and PRD wording.
 
-New logic sits in new files (`settings/autostart.rs`, `autostart/mod.rs`, `autostart/hkcu.rs`, `autostart/startup.rs`); shared files (`lib.rs`, `runtime.rs`, `settings.rs`, `health/mod.rs`, `Cargo.toml`, `Cargo.lock`, README, CHANGELOG, AGENTS.md, PRD) get a few local lines each, because S-02, S-05, S-07 and S-08 edit some of them in parallel.
+New logic sits in new files (`settings/autostart.rs`, `autostart/mod.rs`, `autostart/hkcu.rs`, `autostart/startup.rs`); shared files (`lib.rs`, `runtime.rs`, `settings.rs`, `health/mod.rs`, `events/mod.rs`, `tests/events.rs`, `src/events/types.ts`, `Cargo.toml`, `Cargo.lock`, README, CHANGELOG, AGENTS.md, PRD) get a few local lines each, because S-02, S-05, S-07 and S-08 edit some of them in parallel.
 
 ## Critical Implementation Details
 
 - **Debug no-op without dead code.** CI runs `cargo clippy --all-targets -- -D warnings` in the debug profile only. Choose "apply to the registry" with the `cfg!(debug_assertions)` macro as a plain `bool` (`let apply = !cfg!(debug_assertions);`), never with a `#[cfg(...)]` attribute on the call, so the `HkcuRun` path is compiled, type-checked and linted in debug builds and is not flagged as dead code.
 - **Ordering in `setup`.** `autostart::startup::start` must run before `runtime::start` (it manages `AutostartState`, which the first health round reads), and `check_round` reads that state with `try_state`, so a missing state can never panic the health thread.
 - **Argument check.** The single-instance callback's `args` start with the program path; both callers pass the arguments after the program name. The check is an exact match on `--autostart`; no other argument is parsed.
-- **Shared-file merges.** `settings.rs:16-17`, the README example/table and the PRD line `prd.md:234` are also touched by parallel slices (S-02 adds a `workTime` field and row; S-07/S-08 may reword the same PRD line, which also lists "zamknięcie dnia" and "widok tygodnia"). Add new lines next to them rather than reflowing existing ones; in the PRD remove only the word "autostart" from that sentence and put the new sentence on its own line.
+- **No panic on the sync path.** The release profile aborts on panic (`Cargo.toml:81`), so a panic in `autostart-sync` (or in `startup::status`, which the health thread calls) would end the app at sign-in with nothing visible. `startup.rs` and `hkcu.rs` use no `unwrap`/`expect`/indexing; the `AutostartState` mutex is locked with `unwrap_or_else(|p| p.into_inner())`, as in `runtime.rs`.
+- **Shared-file merges.** `settings.rs:16-17`, the README example/table and the PRD line `prd.md:234` are also touched by parallel slices (S-02 edits the `workTime` example line and table row; S-08 edits the `workTime` paragraph at `README.md:125`; S-07/S-08 reword the same PRD line, which also lists "zamknięcie dnia" and "widok tygodnia"). Add new lines next to them rather than reflowing existing ones, and never on a line adjacent to one another slice edits: in README insert the example line and the table row between the `todo` and `reminders` lines (so no existing line gains a comma), and the paragraph after the `workTime` paragraph with the blank line kept between them; in the PRD remove only the word "autostart" from that sentence and put the new sentence on its own line. `probe_round` is touched by no other open slice (S-07 edits only `run_tray_action` in `runtime.rs`).
 
 ## Phase 1: Autostart settings block and pure rules
 
@@ -93,13 +97,13 @@ The `autostart` block loader, the `Autostart` source id, and a `tauri`-free modu
 
 **Contract**: `pub struct AutostartSettings { pub enabled: bool }` (`Default` = `enabled: false`); unit error `pub struct AutostartSettingsInvalid` (no detail, serde errors can quote values); `pub fn load_autostart_settings(path: &Path) -> Result<AutostartSettings, AutostartSettingsInvalid>`. Raw struct `#[serde(deny_unknown_fields, rename_all = "camelCase")] { #[serde(default)] enabled: Option<serde_json::Value> }`. Value match: absent / `null` / `false` → off, `true` → on, anything else → invalid. Missing file → default; any other read error, non-UTF-8, bad JSON, `version` ≠ 1, non-object block → invalid; UTF-8 BOM accepted. Doc comment shows the JSON shape. In `settings.rs`, one `mod autostart;` and one `pub use autostart::{AutostartSettings, AutostartSettingsInvalid, load_autostart_settings};` line next to the `work_time` lines.
 
-#### 2. Source id and toast phrase
+#### 2. Source id, toast phrase and event-log key
 
-**File**: `src-tauri/src/health/mod.rs`
+**File**: `src-tauri/src/health/mod.rs`, `src-tauri/src/events/mod.rs`, `src-tauri/tests/events.rs`, `src/events/types.ts`
 
-**Intent**: Give the new source a stable key and a fixed toast phrase for its failure kind.
+**Intent**: Give the new source a stable key and a fixed toast phrase for its failure kind, and make the event log read back the transitions the health round records for it.
 
-**Contract**: `SourceId::Autostart` (doc: the `autostart` block and the Windows Run entry, "Autostart"), key `"autostart"`; `short_reason("AutostartFailed") = "nie udało się ustawić autostartu"`. Extend `source_keys_are_stable` and add a notice-line test ("Autostart: nie udało się ustawić autostartu", "Autostart: nieprawidłowe ustawienia").
+**Contract**: `SourceId::Autostart` (doc: the `autostart` block and the Windows Run entry, "Autostart"), key `"autostart"`; `short_reason("AutostartFailed") = "nie udało się ustawić autostartu"`. Extend `source_keys_are_stable` and add a notice-line test ("Autostart: nie udało się ustawić autostartu", "Autostart: nieprawidłowe ustawienia"). Add `SourceId::Autostart` to the list in `events::source_from_key`; in `tests/events.rs` `every_source_id_round_trips` add the `SourceId::Autostart => "autostart"` arm and the variant to `sources`. In the same commit, `EventSourceId` in `src/events/types.ts` gains `| "autostart"` (AGENTS.md: Rust type and TS mirror together). Without this, the first Autostart error or recovery makes today's event log unreadable (`Damaged`) for the rest of the day.
 
 #### 3. Pure autostart rules
 
@@ -110,6 +114,7 @@ The `autostart` block loader, the `Autostart` source id, and a `tauri`-free modu
 **Contract**:
 
 - `pub const AUTOSTART_ARG: &str = "--autostart";`
+- `pub const RUN_KEY: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";` and `pub const VALUE_NAME: &str = "com.sebas.day-navigator";` (plain strings, no registry type; `hkcu.rs` uses them). A unit test here asserts `VALUE_NAME` equals the `identifier` in `tauri.conf.json` (read with `include_str!("../../tauri.conf.json")` and `serde_json`).
 - `pub fn started_by_autostart<I, S>(args: I) -> bool where I: IntoIterator<Item = S>, S: AsRef<std::ffi::OsStr>` — true when any given argument equals `AUTOSTART_ARG` exactly (callers pass the arguments after the program name).
 - `pub fn expected_value(exe: &Path) -> Option<String>` — `"\"<exe>\" --autostart"`; `None` when the path is not valid UTF-8.
 - `pub trait RunEntry { fn read(&self) -> io::Result<Option<String>>; fn write(&self, value: &str) -> io::Result<()>; fn remove(&self) -> io::Result<()>; }` — `read` of a missing value (or missing key) is `Ok(None)`; `remove` of a missing value is `Ok(())`.
@@ -140,6 +145,8 @@ The `autostart` block loader, the `Autostart` source id, and a `tauri`-free modu
 - `sync_action`: full table of `(enabled, current, expected)`.
 - `run` with a fake `RunEntry` (a `RefCell<Option<String>>` plus injectable `io::Error`s for read/write/remove, and a call counter): every `Outcome` branch; invalid and `apply == false` make no entry call; an existing equal value is not rewritten; a different value is overwritten; read failure writes nothing.
 - `status`: every `Outcome` maps to the table in "Desired End State"; messages contain no invented path fragment (`Test User`, `C:\`) and serialize with `id == "autostart"`.
+- `VALUE_NAME` equals the `tauri.conf.json` identifier (no registry access).
+- Event log: `every_source_id_round_trips` covers `Autostart` (see §2).
 
 ### Success Criteria:
 
@@ -150,7 +157,8 @@ The `autostart` block loader, the `Autostart` source id, and a `tauri`-free modu
 - Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
 - Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 - The new rule files import nothing from `tauri`: `git grep -n -E "use tauri|tauri::" -- src-tauri/src/autostart/mod.rs src-tauri/src/settings/autostart.rs` returns nothing
-- No frontend, capability, config or dependency change: `git diff --quiet HEAD -- src src-tauri/capabilities src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock`
+- The only frontend change is the `EventSourceId` key; no capability, config or dependency change: `git diff --name-only HEAD -- src` lists only `src/events/types.ts`, and `git diff --quiet HEAD -- src-tauri/capabilities src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock`
+- The event log knows the new key: `git grep -n "SourceId::Autostart" -- src-tauri/src/events/mod.rs src-tauri/tests/events.rs` finds `source_from_key` and both lines of `every_source_id_round_trips`, and `git grep -n "\"autostart\"" -- src/events/types.ts` finds `EventSourceId`
 
 **Implementation Note**: Commit as `feat(windows-autostart): settings block and pure autostart rules (p1)`.
 
@@ -170,7 +178,7 @@ The one production `RunEntry` (the HKCU Run value via `winreg`), the start-up gl
 
 **Intent**: Use the already-locked `winreg` as a normal Windows-only dependency instead of adding a plugin.
 
-**Contract**: one line `winreg = "0.56"` under `[target.'cfg(windows)'.dependencies]`; `Cargo.lock` only gains the `winreg` edge on `day-navigator` (no new package). `cargo audit` stays clean.
+**Contract**: one line `winreg = "0.56"` under `[target.'cfg(windows)'.dependencies]`; `Cargo.lock` only gains the `winreg` edge on `day-navigator` (no new package) and is committed with `Cargo.toml` (CI runs clippy, build and test with `--locked`, `ci.yml`). `cargo audit` stays clean (it runs on `ubuntu-latest` from the lock file; `winreg 0.56.0` is already in it). Only the `windows-latest` job compiles Rust, so the `cfg(windows)` dependency is always built and linted in CI.
 
 #### 2. HKCU Run value
 
@@ -178,15 +186,17 @@ The one production `RunEntry` (the HKCU Run value via `winreg`), the start-up gl
 
 **Intent**: The only code in the app that touches the registry: one fixed value under one fixed key in HKCU.
 
-**Contract**: `pub struct HkcuRun;` implementing `RunEntry` with fixed `RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"` and `VALUE_NAME = "com.sebas.day-navigator"`; REG_SZ; `read` maps a missing key or value (`io::ErrorKind::NotFound`) to `Ok(None)`; `remove` maps `NotFound` to `Ok(())`; HKCU only, never HKLM, never `StartupApproved`. A unit test (no registry access) asserts `VALUE_NAME` equals the `identifier` in `tauri.conf.json` (read with `include_str!` and `serde_json`).
+**Contract**: `pub struct HkcuRun;` implementing `RunEntry` with the fixed `super::RUN_KEY` and `super::VALUE_NAME` (Phase 1); REG_SZ; `read` maps a missing key or value (`io::ErrorKind::NotFound`) to `Ok(None)`; `remove` maps `NotFound` to `Ok(())`; HKCU only, never HKLM, never `StartupApproved`. `hkcu.rs` has no `#[cfg(test)]` module (the identifier test lives in `autostart/mod.rs`), so no test can reach `HkcuRun` through it.
 
 #### 3. Start-up glue
 
-**File**: `src-tauri/src/autostart/startup.rs` (new)
+**File**: `src-tauri/src/autostart/startup.rs` (new, `pub mod startup;` in `autostart/mod.rs`; the declaration imports nothing, so `mod.rs` stays `tauri`-free)
 
 **Intent**: Run the sync once per start off the main thread and make its result a health source, waking the health round when it is known.
 
 **Contract**:
+
+- No `#[cfg(test)]` module and no `unwrap`/`expect` (release builds abort on panic); the mutex is locked with `unwrap_or_else(|p| p.into_inner())`.
 
 - `pub struct AutostartState(Mutex<Option<SourceStatus>>)`.
 - `pub fn start(app: &AppHandle, settings_path: Option<PathBuf>)`: manages `AutostartState(None)`; with `None` settings path does nothing more (the "Ustawienia" source already reports it, like `reminders`); otherwise spawns a thread named `autostart-sync` that loads the block, calls `autostart::run(settings, !cfg!(debug_assertions), &HkcuRun, std::env::current_exe().ok().as_deref())` (on non-Windows targets, which the app does not ship for, `apply` is always `false` and a private no-op `RunEntry` stands in for `HkcuRun`), stores `status(&outcome)`, logs one value-free line (`info` for On/Off/DevOnly with the action taken, `warn` with the step and `io::ErrorKind` for failures), and calls `runtime::refresh_tray(app)`. A failed thread spawn stores `Failed { Thread, kind }` instead of staying silent.
@@ -222,15 +232,15 @@ The one production `RunEntry` (the HKCU Run value via `winreg`), the start-up gl
 - Dependency audit passes: `cargo audit` (in `src-tauri/`)
 - Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 - Registry code lives only in `hkcu.rs`: `git grep -n -E "winreg|HKEY_" -- src-tauri/src` lists only `src-tauri/src/autostart/hkcu.rs`
-- No test uses the real registry: `git grep -n "HkcuRun" -- src-tauri/src src-tauri/tests` lists only `autostart/hkcu.rs` and `autostart/startup.rs`, and neither occurrence is inside a `#[cfg(test)]` module
-- `winreg` is a normal dependency of the app with no new package: `cargo tree -i winreg -e normal` (in `src-tauri/`) shows `day-navigator`, and `git diff HEAD -- src-tauri/Cargo.lock` adds no `[[package]]`
+- No test uses the real registry: `git grep -n "HkcuRun" -- src-tauri/src src-tauri/tests` lists only `autostart/hkcu.rs` and `autostart/startup.rs`, and `git grep -n "cfg(test)" -- src-tauri/src/autostart/hkcu.rs src-tauri/src/autostart/startup.rs` returns nothing
+- `winreg` is a normal dependency of the app with no new package: `cargo tree -i winreg -e normal` (in `src-tauri/`) shows `day-navigator`, `git diff HEAD -- src-tauri/Cargo.lock` adds no `[[package]]` and only the `winreg` line in `day-navigator`'s dependencies, and `cargo build --locked` passes (CI uses `--locked`)
 - No frontend, capability or config change: `git diff --quiet HEAD -- src src-tauri/capabilities src-tauri/tauri.conf.json`
 
 #### Manual Verification:
 
 - Installed release build without an `autostart` block: the "Autostart" row reads NIESKONFIGUROWANE and `reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v com.sebas.day-navigator` finds nothing
 - With `"autostart": { "enabled": true }` and the app restarted: the row reads OK and the value is `"<install dir>\day-navigator.exe" --autostart`, quoted
-- Sign out and in: the app is in the tray, the window stays hidden, the tray tooltip is OK; opening it from the tray shows fresh data
+- Sign out and in: the app is in the tray, the window stays hidden, the tray tooltip is OK; opening it from the tray shows fresh data. Repeat once after a session that ended with the window maximized: it still stays hidden until opened, then opens maximized
 - A manual start shows the window as before; a second start while running shows it; running the exe with `--autostart` while it runs does not show it
 - After a tray-only session and "Zakończ", the next manual start restores the saved window size and position
 - With `"enabled": false` and the app restarted: the value is gone and the row reads NIESKONFIGUROWANE
@@ -256,7 +266,7 @@ README, CHANGELOG and PRD describe the new key; no code change.
 
 **Intent**: Document the key where the other blocks are documented, including the timing and the clean-up steps.
 
-**Contract**: add `"autostart": { "enabled": true }` to the JSON example (new last line); add an `autostart` table row ("`enabled`: `true` starts the app with Windows into the tray, window hidden; off by default. Read at start: restart the app after a change."); add a short paragraph: the app keeps one entry named `com.sebas.day-navigator` in the current user's Run key and removes it when the key is off; disabling it in Task Manager → Startup apps also works and the app leaves that choice alone (the row still reads OK); before uninstalling, set `enabled` to `false` and start the app once, or remove the entry in Task Manager; the result shows as "Autostart" in **Źródła**.
+**Contract**: add the line `"autostart": { "enabled": true },` to the JSON example between the `todo` and `reminders` lines (no existing line changes; S-02 edits the `workTime` line); add an `autostart` table row between the `todo` and `reminders` rows ("`enabled`: `true` starts the app with Windows into the tray, window hidden; off by default. Read at start: restart the app after a change."); add a short paragraph after the `workTime` paragraph, keeping the blank line between them (S-08 edits that paragraph): the app keeps one entry named `com.sebas.day-navigator` in the current user's Run key, pointing at the copy of the app that last started with the key on, and removes it when the key is off; disabling it in Task Manager → Startup apps also works and the app leaves that choice alone (the row still reads OK); before uninstalling, set `enabled` to `false` and start the app once, or remove the entry in Task Manager; the result shows as "Autostart" in **Źródła**.
 
 #### 2. CHANGELOG
 
@@ -295,8 +305,9 @@ README, CHANGELOG and PRD describe the new key; no code change.
 
 - `settings::autostart`: the loader table (defaults, accepted values, refused values, unknown key, non-object block, file-level errors, BOM, block isolation).
 - `autostart`: `started_by_autostart`, `expected_value` (path with a space), the `sync_action` table, `run` against the fake `RunEntry` (every `Outcome`, no entry call when invalid or not applying, no rewrite of an equal value, overwrite of a different value, nothing written after a read failure), `status` mapping and value-free messages.
-- `autostart::hkcu`: `VALUE_NAME` equals the bundle identifier in `tauri.conf.json` (no registry access).
+- `autostart`: `VALUE_NAME` equals the bundle identifier in `tauri.conf.json` (no registry access).
 - `health`: the new key and toast lines.
+- `events` (`tests/events.rs`): `every_source_id_round_trips` includes `Autostart`.
 
 ### Integration Tests:
 
@@ -304,7 +315,7 @@ README, CHANGELOG and PRD describe the new key; no code change.
 
 ### Manual Testing Steps:
 
-1. Build and install a release build (`npm run tauri build`, then the NSIS installer).
+1. Build and install a release build (`npm run tauri build`, then the NSIS installer). Start only the installed exe for these rows: a release exe started from `src-tauri/target/release` reads the same `settings.json` (same identifier) and, with the key on, repoints the Run value at itself until the installed app starts again.
 2. Run the Phase 2 manual rows in order: no block → on → sign out/in → manual and second starts → quit and restart → off → Task Manager disabled → invalid block.
 3. Build a debug app (`npm run tauri build -- --debug --no-bundle`) with the key on and confirm the calm NIEDOSTĘPNY row and an untouched Run value.
 
@@ -314,7 +325,7 @@ One settings read and at most one registry read plus one write/remove per start,
 
 ## Migration Notes
 
-No store change. Existing users see a new "Autostart" row reading NIESKONFIGUROWANE until they add the key. A Run value left behind by an uninstall points to a missing exe; Windows skips it, and README tells how to remove it.
+No store change. Existing users see a new "Autostart" row reading NIESKONFIGUROWANE until they add the key. A Run value left behind by an uninstall points to a missing exe; Windows skips it, and README tells how to remove it. "Release build" is the proxy for "installed": any release copy started with the key on (for example from `target/release`) writes its own path, and the next start of the installed app writes the installed path back (A3).
 
 ## Decisions
 
@@ -330,14 +341,14 @@ User decisions (binding, given with the task):
 No user was reachable during planning; each default follows `research.md` unless noted.
 
 - **A1.** Mechanism: a direct HKCU Run value via `winreg 0.56` (already locked); no `tauri-plugin-autostart` (unquoted path, HKLM first, overrides Task Manager). This departs from the plugin suggested in issue #17's comment.
-- **A2.** Value name `com.sebas.day-navigator` (the bundle identifier), guarded by a test against `tauri.conf.json`.
+- **A2.** Value name `com.sebas.day-navigator` (the bundle identifier), guarded by a test against `tauri.conf.json`; the constant and its test live in `autostart/mod.rs`, so `hkcu.rs` has no test module (revised in plan review, F2).
 - **A3.** Value data `"<current_exe>" --autostart`, quoted; compared as an exact string; a different value (for example after a reinstall elsewhere) is overwritten.
 - **A4.** Settings shape `"autostart": { "enabled": true }`; absent / `null` / `false` = off; any other value, unknown key or non-object block = invalid.
 - **A5.** Detection: the fixed `--autostart` argument. It hides the window whatever the key says; a single-instance relaunch with it does not show the window.
 - **A6.** The sync runs once per start, on its own `autostart-sync` thread; an edited key takes effect at the next start (documented in README); no re-sync while running.
 - **A7.** Invalid block or unreadable Run value: nothing is written or removed; the source reports an error.
 - **A8.** Debug builds never touch the registry: key on → calm `Unavailable` ("tylko w zainstalowanej wersji"), key off → `NotConfigured`; chosen with `cfg!(debug_assertions)` so the release path is still compiled and linted. Non-Windows builds never apply (same calm states) and compile no registry code.
-- **A9.** A new health source "Autostart" (key `autostart`) shown as a generic row in "Źródła"; no frontend change. Absent until the sync finishes.
+- **A9.** A new health source "Autostart" (key `autostart`) shown as a generic row in "Źródła"; no view change. Absent until the sync finishes. The event log learns the key (`source_from_key`, TS `EventSourceId`) in the same commit (revised in plan review, F1).
 - **A10.** Error kinds: `SettingsInvalid` for an invalid block, new `AutostartFailed` ("nie udało się ustawić autostartu") for registry read/write/remove failures, an unknown exe path and a failed thread spawn; messages carry only the `io::ErrorKind` name.
 - **A11.** Fixed Polish texts as in Phase 1 §3 (no paths, no values).
 - **A12.** Uninstall: README note only (set `enabled: false` and start once, or remove the entry in Task Manager); no NSIS uninstall hook.
@@ -354,6 +365,8 @@ No user was reachable during planning; each default follows `research.md` unless
 - Health round: `src-tauri/src/runtime.rs:148-156`, `:275-292`, `:363-387`, `:410-419`
 - Health model: `src-tauri/src/health/mod.rs:24-48`, `:62-78`, `:151-175`, `:192-215`; `src-tauri/src/health/probe.rs:132-156`
 - Settings block template: `src-tauri/src/settings/work_time.rs:31-243`; wiring `src-tauri/src/settings.rs:16-17`, `:50-53`
+- Event log source keys: `src-tauri/src/events/mod.rs:167-177`, `:320-355`; `src-tauri/tests/events.rs:180-205`; `src/events/types.ts:7-8`
+- Plan review: `context/changes/windows-autostart/reviews/plan-review.md`
 - UI rows: `src/health/HealthPanel.tsx:118,177`, `src/health/sourceView.ts:27-57,86-88`, `src/health/types.ts:13-17`
 - Docs: `AGENTS.md:11`, `AGENTS.md:22`, `README.md:92-125`, `CHANGELOG.md` `[Unreleased]`, `context/foundation/prd.md:233-234`
 - Roadmap: `context/foundation/roadmap.md:30`, `:134-146`; issue #17
@@ -372,7 +385,8 @@ No user was reachable during planning; each default follows `research.md` unless
 - [ ] 1.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
 - [ ] 1.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 - [ ] 1.5 The new rule files import nothing from `tauri`
-- [ ] 1.6 No frontend, capability, config or dependency change
+- [ ] 1.6 The only frontend change is the `EventSourceId` key; no capability, config or dependency change
+- [ ] 1.7 The event log knows the new key
 
 ### Phase 2: Registry entry, start-up sync and hidden start
 
@@ -392,7 +406,7 @@ No user was reachable during planning; each default follows `research.md` unless
 
 - [ ] 2.10 Installed build without an `autostart` block: row NIESKONFIGUROWANE, no Run value
 - [ ] 2.11 Key on and app restarted: row OK, Run value is the quoted exe path with `--autostart`
-- [ ] 2.12 Sign out and in: app in the tray, window hidden, fresh data when opened
+- [ ] 2.12 Sign out and in: app in the tray, window hidden (also after a maximized session), fresh data when opened
 - [ ] 2.13 Manual start and second start show the window; a `--autostart` relaunch does not
 - [ ] 2.14 After a tray-only session and "Zakończ", the next start restores window size and position
 - [ ] 2.15 Key off and app restarted: Run value removed, row NIESKONFIGUROWANE

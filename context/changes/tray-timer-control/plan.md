@@ -466,12 +466,12 @@ Agent defaults added by the plan review (`reviews/plan-review.md`; no user was r
 
 #### Automated
 
-- [x] 4.1 Rust tests pass: `cargo test` (in `src-tauri/`)
-- [x] 4.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
-- [x] 4.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
-- [x] 4.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [x] 4.5 One START and one STOP call into the domain (grep lists exactly two lines in `commands.rs`, none elsewhere)
-- [x] 4.6 No frontend, capability or config change: `git diff --quiet HEAD -- src src-tauri/capabilities src-tauri/tauri.conf.json`
+- [x] 4.1 Rust tests pass: `cargo test` (in `src-tauri/`) — b171395
+- [x] 4.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`) — b171395
+- [x] 4.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`) — b171395
+- [x] 4.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — b171395
+- [x] 4.5 One START and one STOP call into the domain (grep lists exactly two lines in `commands.rs`, none elsewhere) — b171395
+- [x] 4.6 No frontend, capability or config change: `git diff --quiet HEAD -- src src-tauri/capabilities src-tauri/tauri.conf.json` — b171395
 
 #### Manual
 

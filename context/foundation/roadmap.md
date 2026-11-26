@@ -55,7 +55,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | S-03 | tray-timer-control      | start and stop the counter from the tray and see today's time in its tooltip   | —             | MS-23, FR-013         | ready    |
 | S-04 | windows-autostart       | have the app start with Windows into the tray                                  | —             | MS-17, FR-018         | ready    |
 | S-05 | month-report-copy       | copy the month report to the clipboard and paste it into a spreadsheet         | —             | MS-24, FR-014, FR-020 | ready    |
-| S-06 | work-entry-note         | add a short note to a work-time entry                                          | —             | MS-27, FR-017         | ready    |
+| S-06 | work-entry-note         | add a short note to a work-time entry                                          | —             | MS-27, FR-017         | done |
 | S-07 | end-of-day-summary      | see a summary of the day after STOP                                            | —             | MS-19, FR-013, FR-014 | ready    |
 | S-08 | week-summary            | see the week's sum against the week's norm in "Work time"                      | S-01          | MS-18, FR-014         | proposed |
 
@@ -170,7 +170,7 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
 - **Unknowns:**
   - Entry notes must be added to the AGENTS.md list of what the app keeps in its data dir. — Owner: user. Block: no (recorded in `/10x-plan`).
 - **Risk:** A new migration and user content in the store; the note must not reach the app log or the event log.
-- **Status:** ready
+- **Status:** done
 
 ### S-07: End-of-day summary
 
@@ -269,3 +269,4 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-07: user can see in the "Dane aplikacji" card the time of the last backup, the number of kept backups ("7 z 7"), the schema version, and open the backups folder.** — Archived 2026-11-24 → `context/archive/2026-11-24-app-data-details/`. Lesson: —.
 - **F-05: (foundation) the "Day Navigator — Konsola" artifact's README and components match the app: Flag tone `new`, `ItemRow` id, `ItemRow` labels, `HoursBar` with a required `norm` (from Rust), `DataTable` row states `current`/`hatched` and cell tones `info`/`warn`, numbered navigation with shortcuts, `Notice`, START/STOP confirmation, app and tray icons.** — Archived 2026-11-24 → `context/archive/2026-11-24-design-system-artifact-sync/`. Lesson: —.
 - **S-01: user can see Polish public holidays (fixed dates and the Easter-based ones) counted out of the month's norm and shown in the days table like a day off, with the holiday's name; a setting turns the calendar off.** — Archived 2026-11-26 → `context/archive/2026-11-26-public-holidays-norm/`. Lesson: —.
+- **S-06: user can add, edit and see a short plain-text note on a work-time entry.** — Archived 2026-11-26 → `context/archive/2026-11-26-work-entry-note/`. Lesson: —.

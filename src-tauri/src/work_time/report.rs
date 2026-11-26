@@ -11,9 +11,11 @@ use rusqlite::Connection;
 use serde::Serialize;
 
 use super::error::WorkTimeError;
+use super::holidays::HolidayCalendar;
 use super::in_day;
 use super::norm::{self, MonthPhase, NormFigures};
 use super::rules::{day_bounds, local_day, portion};
+use crate::settings::WorkTimeSettings;
 use crate::store::Store;
 
 const DAY_FORMAT: &str = "%Y-%m-%d";
@@ -23,6 +25,7 @@ const DAY_FORMAT: &str = "%Y-%m-%d";
 pub enum DayKind {
     Workday,
     DayOff,
+    Holiday,
     Weekend,
 }
 
@@ -87,24 +90,27 @@ fn is_day_off(conn: &Connection, day: NaiveDate) -> Result<bool, WorkTimeError> 
     Ok(found)
 }
 
-fn kind_of(day: NaiveDate, days_off: &BTreeSet<NaiveDate>) -> DayKind {
+/// The one classification rule: a weekend is `Weekend` (a Saturday or Sunday
+/// holiday too), a weekday holiday is `Holiday` even when marked off, a marked
+/// day is `DayOff`, anything else is `Workday`.
+fn classify(day: NaiveDate, marked_off: bool, holidays: HolidayCalendar) -> DayKind {
     if norm::is_weekend(day) {
         DayKind::Weekend
-    } else if days_off.contains(&day) {
+    } else if holidays.holiday(day).is_some() {
+        DayKind::Holiday
+    } else if marked_off {
         DayKind::DayOff
     } else {
         DayKind::Workday
     }
 }
 
-pub(super) fn day_kind(conn: &Connection, day: NaiveDate) -> Result<DayKind, WorkTimeError> {
-    Ok(if norm::is_weekend(day) {
-        DayKind::Weekend
-    } else if is_day_off(conn, day)? {
-        DayKind::DayOff
-    } else {
-        DayKind::Workday
-    })
+pub(super) fn day_kind(
+    conn: &Connection,
+    day: NaiveDate,
+    settings: &WorkTimeSettings,
+) -> Result<DayKind, WorkTimeError> {
+    Ok(classify(day, is_day_off(conn, day)?, settings.holidays))
 }
 
 /// The report of the month containing `day`, on an open connection.
@@ -113,7 +119,9 @@ pub(super) fn compute<Tz: TimeZone>(
     day: NaiveDate,
     now: i64,
     tz: &Tz,
+    settings: &WorkTimeSettings,
 ) -> Result<MonthReport, WorkTimeError> {
+    let holidays = settings.holidays;
     let (first, next_first) = norm::month_days(day);
     let (month_start, _) = day_bounds(first, tz)?;
     let (month_end, _) = day_bounds(next_first, tz)?;
@@ -121,7 +129,7 @@ pub(super) fn compute<Tz: TimeZone>(
     let phase = norm::phase(first, today);
 
     let days_off = days_off_between(conn, first, next_first)?;
-    let workdays = norm::workdays(first, next_first, &days_off);
+    let workdays = norm::workdays(first, next_first, &days_off, holidays);
     let entries = in_day(conn, month_start, month_end, now)?;
     let worked_ms = entries
         .iter()
@@ -140,10 +148,10 @@ pub(super) fn compute<Tz: TimeZone>(
                 entry_count += 1;
             }
         }
-        let norm_ms = norm::day_norm_ms(d, &days_off);
+        let norm_ms = norm::day_norm_ms(d, &days_off, holidays);
         days.push(DayReport {
             day: d.format(DAY_FORMAT).to_string(),
-            kind: kind_of(d, &days_off),
+            kind: classify(d, days_off.contains(&d), holidays),
             worked_ms: day_worked,
             norm_ms,
             deviation_ms: norm::day_deviation_ms(d, today, norm_ms, day_worked),
@@ -171,8 +179,9 @@ pub fn month_report<Tz: TimeZone>(
     day: NaiveDate,
     now: i64,
     tz: &Tz,
+    settings: &WorkTimeSettings,
 ) -> Result<MonthReport, WorkTimeError> {
-    store.read(|c| compute(c, day, now, tz))
+    store.read(|c| compute(c, day, now, tz, settings))
 }
 
 /// Parses a `YYYY-MM-DD` day from the UI. Only a four-digit year in the
@@ -187,15 +196,21 @@ pub fn parse_day(day: &str) -> Result<NaiveDate, WorkTimeError> {
         .ok_or(WorkTimeError::InvalidLocalTime)
 }
 
-/// Marks or unmarks a day off. Idempotent; a weekend is refused.
+/// Marks or unmarks a day off. Idempotent; a weekend is refused with
+/// `NotAWorkday` and a weekday holiday with `Holiday`, both before any write
+/// and in both directions.
 pub fn set_day_off(
     store: &mut Store,
     day: NaiveDate,
     off: bool,
     now: i64,
+    settings: &WorkTimeSettings,
 ) -> Result<(), WorkTimeError> {
     if norm::is_weekend(day) {
         return Err(WorkTimeError::NotAWorkday);
+    }
+    if settings.holidays.holiday(day).is_some() {
+        return Err(WorkTimeError::Holiday);
     }
     let key = day.format(DAY_FORMAT).to_string();
     store.write(|tx| {
@@ -213,10 +228,12 @@ pub fn set_day_off(
     })
 }
 
-/// Whether `day` is a Monday-to-Friday day that is not marked off.
-pub fn is_workday(store: &Store, day: NaiveDate) -> Result<bool, WorkTimeError> {
-    if norm::is_weekend(day) {
-        return Ok(false);
-    }
-    store.read(|c| Ok(!is_day_off(c, day)?))
+/// Whether `day` is a Monday-to-Friday day that is neither a holiday nor
+/// marked off.
+pub fn is_workday(
+    store: &Store,
+    day: NaiveDate,
+    settings: &WorkTimeSettings,
+) -> Result<bool, WorkTimeError> {
+    store.read(|c| Ok(day_kind(c, day, settings)? == DayKind::Workday))
 }

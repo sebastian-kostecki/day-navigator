@@ -16,6 +16,7 @@ export type WorkTimeError =
   | { kind: "InvalidLocalTime" }
   | { kind: "RunningEndEdit" }
   | { kind: "NotAWorkday" }
+  | { kind: "Holiday" }
   | { kind: "Background" };
 
 /**
@@ -70,7 +71,7 @@ export interface DayEntries {
   dayEndMs: number;
 }
 
-export type DayKind = "workday" | "dayOff" | "weekend";
+export type DayKind = "workday" | "dayOff" | "holiday" | "weekend";
 
 export type MonthPhase = "past" | "current" | "future";
 

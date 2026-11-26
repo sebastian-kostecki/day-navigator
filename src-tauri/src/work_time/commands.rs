@@ -12,6 +12,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use super::report::{self, MonthReport};
 use super::{DayEntries, WorkTimeError, WorkTimerStatus};
 use crate::blocking;
+use crate::settings::WorkTimeSettings;
 use crate::store::{Store, StoreHandle};
 
 pub const EVENT: &str = "work-time-changed";
@@ -51,7 +52,7 @@ fn notify(app: &AppHandle) {
 #[tauri::command]
 pub async fn work_timer_status(app: AppHandle) -> Result<WorkTimerStatus, WorkTimeError> {
     run(&app, "status", |store, now| {
-        super::status(store, now, &Local)
+        super::status(store, now, &Local, &WorkTimeSettings::default())
     })
     .await
 }
@@ -60,7 +61,7 @@ pub async fn work_timer_status(app: AppHandle) -> Result<WorkTimerStatus, WorkTi
 pub async fn list_work_entries(app: AppHandle, day: String) -> Result<DayEntries, WorkTimeError> {
     let day = report::parse_day(&day)?;
     run(&app, "list", move |store, now| {
-        super::entries_for_day(store, day, now, &Local)
+        super::entries_for_day(store, day, now, &Local, &WorkTimeSettings::default())
     })
     .await
 }
@@ -129,7 +130,7 @@ pub async fn remove_work_entry(app: AppHandle, id: i64) -> Result<(), WorkTimeEr
 pub async fn work_month_report(app: AppHandle, day: String) -> Result<MonthReport, WorkTimeError> {
     let day = report::parse_day(&day)?;
     run(&app, "month_report", move |store, now| {
-        report::month_report(store, day, now, &Local)
+        report::month_report(store, day, now, &Local, &WorkTimeSettings::default())
     })
     .await
 }
@@ -138,7 +139,7 @@ pub async fn work_month_report(app: AppHandle, day: String) -> Result<MonthRepor
 pub async fn set_day_off(app: AppHandle, day: String, off: bool) -> Result<(), WorkTimeError> {
     let day = report::parse_day(&day)?;
     run(&app, "set_day_off", move |store, now| {
-        report::set_day_off(store, day, off, now)
+        report::set_day_off(store, day, off, now, &WorkTimeSettings::default())
     })
     .await?;
     notify(&app);

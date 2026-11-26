@@ -727,11 +727,11 @@ Plan review (`reviews/plan-review.md`) defaults, chosen by agent, user may revis
 
 #### Automated
 
-- [ ] 3.1 Work-time tests pass, old and new: `cargo test work_time` and `cargo test --test work_time`
-- [ ] 3.2 Crash harness test still passes: `cargo test --test days_off_crash`
-- [ ] 3.3 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [ ] 3.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 3.5 No `lib.rs` change
+- [x] 3.1 Work-time tests pass, old and new: `cargo test work_time` and `cargo test --test work_time`
+- [x] 3.2 Crash harness test still passes: `cargo test --test days_off_crash`
+- [x] 3.3 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 3.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 3.5 No `lib.rs` change
 
 ### Phase 4: Holiday name, Saturday hint and shadowed rows in the report
 

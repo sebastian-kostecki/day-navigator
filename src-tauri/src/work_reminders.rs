@@ -15,8 +15,8 @@ use tauri::{AppHandle, Manager};
 
 use crate::runtime;
 use crate::settings::{
-    ReminderOrigin, ReminderSettings, ReminderSettingsError, load_reminder_settings,
-    load_reminder_settings_detailed,
+    ReminderOrigin, ReminderSettings, ReminderSettingsError, WorkTimeSettings,
+    load_reminder_settings, load_reminder_settings_detailed,
 };
 use crate::settings_file;
 use crate::store::StoreHandle;
@@ -58,7 +58,7 @@ fn reminder_round(app: &AppHandle, settings_path: &Option<PathBuf>, memory: &mut
     let facts = app
         .state::<StoreHandle>()
         .with_store(Local::now().date_naive(), |s| {
-            reminder_facts(s, now, &Local)
+            reminder_facts(s, now, &Local, &WorkTimeSettings::default())
         });
     // The store lock is released here, before any toast.
     let facts = match facts {

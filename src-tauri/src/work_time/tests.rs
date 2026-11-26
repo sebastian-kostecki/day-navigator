@@ -4,6 +4,7 @@ use chrono::{NaiveDate, TimeZone, Utc};
 use chrono_tz::Europe::Warsaw;
 use tempfile::TempDir;
 
+use super::norm_tests::manual_only;
 use super::rules::{day_bounds, resolve_local};
 use super::*;
 use crate::store::schema;
@@ -107,7 +108,7 @@ fn entry_across_midnight_counts_two_hours_on_each_day() {
     let (_tmp, mut store) = open();
     let id = add_entry(&mut store, "2026-11-20T22:00", "2026-11-21T02:00");
     for d in ["2026-11-20", "2026-11-21"] {
-        let got = entries_for_day(&store, day(d), now(), &Warsaw).unwrap();
+        let got = entries_for_day(&store, day(d), now(), &Warsaw, &manual_only()).unwrap();
         assert_eq!(got.entries.len(), 1, "{d}");
         assert_eq!(got.entries[0].id, id);
         assert_eq!(got.entries[0].day_portion_ms, 2 * HOUR, "{d}");
@@ -119,7 +120,7 @@ fn entry_across_midnight_counts_two_hours_on_each_day() {
             Some("2026-11-21T02:00")
         );
     }
-    let other = entries_for_day(&store, day("2026-11-22"), now(), &Warsaw).unwrap();
+    let other = entries_for_day(&store, day("2026-11-22"), now(), &Warsaw, &manual_only()).unwrap();
     assert!(other.entries.is_empty());
     assert_eq!(other.closed_ms, 0);
 }
@@ -149,9 +150,9 @@ fn dst_days_are_25_and_23_hours_long() {
         &Warsaw,
     )
     .unwrap();
-    let autumn = entries_for_day(&store, day("2026-10-25"), late, &Warsaw).unwrap();
+    let autumn = entries_for_day(&store, day("2026-10-25"), late, &Warsaw, &manual_only()).unwrap();
     assert_eq!(autumn.closed_ms, 25 * HOUR);
-    let spring = entries_for_day(&store, day("2027-03-28"), late, &Warsaw).unwrap();
+    let spring = entries_for_day(&store, day("2027-03-28"), late, &Warsaw, &manual_only()).unwrap();
     assert_eq!(spring.closed_ms, 23 * HOUR);
 }
 
@@ -161,7 +162,7 @@ fn adjacent_entries_are_allowed() {
     add_entry(&mut store, "2026-11-20T08:00", "2026-11-20T12:00");
     add_entry(&mut store, "2026-11-20T12:00", "2026-11-20T13:00");
     add_entry(&mut store, "2026-11-20T07:00", "2026-11-20T08:00");
-    let got = entries_for_day(&store, day("2026-11-20"), now(), &Warsaw).unwrap();
+    let got = entries_for_day(&store, day("2026-11-20"), now(), &Warsaw, &manual_only()).unwrap();
     assert_eq!(got.entries.len(), 3);
     assert_eq!(got.closed_ms, 6 * HOUR);
     // Sorted by start.
@@ -348,7 +349,7 @@ fn running_entry_rejects_an_end_edit_and_allows_a_start_edit() {
     });
 
     update(&mut store, id, "2026-11-23T09:00", None, now(), &Warsaw).unwrap();
-    let s = status(&store, now(), &Warsaw).unwrap();
+    let s = status(&store, now(), &Warsaw, &manual_only()).unwrap();
     assert_eq!(s.running.unwrap().start_ms, t("2026-11-23T09:00"));
     assert_eq!(s.running_from_ms, Some(t("2026-11-23T09:00")));
 
@@ -372,7 +373,7 @@ fn removed_entries_are_ignored_by_totals_and_overlap_checks() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].3, Some(now()));
 
-    let got = entries_for_day(&store, day("2026-11-20"), now(), &Warsaw).unwrap();
+    let got = entries_for_day(&store, day("2026-11-20"), now(), &Warsaw, &manual_only()).unwrap();
     assert!(got.entries.is_empty());
     assert_eq!(got.closed_ms, 0);
     // The same interval can be added again.
@@ -401,7 +402,7 @@ fn removing_the_running_entry_stops_counting_and_allows_a_new_start() {
     let id = start(&mut store, t("2026-11-23T09:00"), &Warsaw).unwrap();
     remove(&mut store, id, now()).unwrap();
     assert!(!is_running(&store).unwrap());
-    let s = status(&store, now(), &Warsaw).unwrap();
+    let s = status(&store, now(), &Warsaw, &manual_only()).unwrap();
     assert!(s.running.is_none());
     assert_eq!(s.today_closed_ms, 0);
     start(&mut store, now(), &Warsaw).unwrap();
@@ -458,7 +459,7 @@ fn status_counts_only_todays_closed_entries() {
     add_entry(&mut store, "2026-11-23T08:00", "2026-11-23T09:00");
     // Yesterday's entry does not count today.
     add_entry(&mut store, "2026-11-22T08:00", "2026-11-22T10:00");
-    let s = status(&store, now(), &Warsaw).unwrap();
+    let s = status(&store, now(), &Warsaw, &manual_only()).unwrap();
     let (day_start, day_end) = day_bounds(day("2026-11-23"), &Warsaw).unwrap();
     assert_eq!(s.today_closed_ms, HOUR);
     assert_eq!((s.day_start_ms, s.day_end_ms), (day_start, day_end));
@@ -471,24 +472,26 @@ fn running_entry_from_before_midnight_counts_only_from_midnight() {
     let started = t("2026-11-22T23:00");
     start(&mut store, started, &Warsaw).unwrap();
     let late = t("2026-11-23T01:00");
-    let s = status(&store, late, &Warsaw).unwrap();
+    let s = status(&store, late, &Warsaw, &manual_only()).unwrap();
     let (day_start, _) = day_bounds(day("2026-11-23"), &Warsaw).unwrap();
     assert_eq!(s.running.as_ref().unwrap().start_ms, started);
     assert_eq!(s.running_from_ms, Some(day_start));
     assert_eq!(s.today_closed_ms, 0);
 
-    let yesterday = entries_for_day(&store, day("2026-11-22"), late, &Warsaw).unwrap();
+    let yesterday =
+        entries_for_day(&store, day("2026-11-22"), late, &Warsaw, &manual_only()).unwrap();
     assert_eq!(yesterday.entries.len(), 1);
     assert_eq!(yesterday.entries[0].day_portion_ms, HOUR);
     assert_eq!(yesterday.running_from_ms, None);
     // The running entry's part of a day that has ended is in that day's total.
     assert_eq!(yesterday.closed_ms, HOUR);
-    let today = entries_for_day(&store, day("2026-11-23"), late, &Warsaw).unwrap();
+    let today = entries_for_day(&store, day("2026-11-23"), late, &Warsaw, &manual_only()).unwrap();
     assert_eq!(today.entries[0].day_portion_ms, HOUR);
     assert_eq!(today.running_from_ms, Some(day_start));
     assert_eq!(today.closed_ms, 0);
     // A day that has not begun does not list the running entry.
-    let tomorrow = entries_for_day(&store, day("2026-11-24"), late, &Warsaw).unwrap();
+    let tomorrow =
+        entries_for_day(&store, day("2026-11-24"), late, &Warsaw, &manual_only()).unwrap();
     assert!(tomorrow.entries.is_empty());
 }
 

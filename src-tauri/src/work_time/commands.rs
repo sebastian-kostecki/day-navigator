@@ -109,6 +109,8 @@ fn notify(app: &AppHandle) {
     if let Err(e) = app.emit(EVENT, ()) {
         log::warn!("work_time: emit failed: {e}");
     }
+    // Every work-time write wakes the health round, the tray's only writer.
+    crate::runtime::refresh_tray(app);
 }
 
 #[tauri::command]
@@ -131,24 +133,39 @@ pub async fn list_work_entries(app: AppHandle, day: String) -> Result<DayEntries
     .await
 }
 
+/// The one START path, for the header command and the tray: domain write, then
+/// `work-time-changed`, then `events-changed`. Nothing is emitted on failure.
+pub(crate) async fn start_timer(app: &AppHandle) -> Result<(), WorkTimeError> {
+    run(app, "start", |store, now| {
+        super::start(store, now, &Local).map(|_| ())
+    })
+    .await?;
+    notify(app);
+    crate::events::commands::notify(app);
+    Ok(())
+}
+
+/// The one STOP path, for the header command and the tray. A later notice
+/// after STOP hooks in here (for every STOP) or in the tray caller (tray STOP
+/// only).
+pub(crate) async fn stop_timer(app: &AppHandle) -> Result<(), WorkTimeError> {
+    run(app, "stop", |store, now| super::stop(store, now, &Local)).await?;
+    notify(app);
+    crate::events::commands::notify(app);
+    Ok(())
+}
+
 // START/STOP notify as soon as the write commits and only then read the new
 // status, so a failed read can't hide a committed change from the listeners.
 #[tauri::command]
 pub async fn start_work(app: AppHandle) -> Result<WorkTimerStatus, WorkTimeError> {
-    run(&app, "start", |store, now| {
-        super::start(store, now, &Local).map(|_| ())
-    })
-    .await?;
-    notify(&app);
-    crate::events::commands::notify(&app);
+    start_timer(&app).await?;
     work_timer_status(app).await
 }
 
 #[tauri::command]
 pub async fn stop_work(app: AppHandle) -> Result<WorkTimerStatus, WorkTimeError> {
-    run(&app, "stop", |store, now| super::stop(store, now, &Local)).await?;
-    notify(&app);
-    crate::events::commands::notify(&app);
+    stop_timer(&app).await?;
     work_timer_status(app).await
 }
 

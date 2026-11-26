@@ -16,7 +16,7 @@ pub use probe::{
 
 /// Longest tooltip the Windows tray accepts, in UTF-16 units (`szTip` holds 128
 /// including the terminator).
-const TOOLTIP_MAX_UTF16: usize = 127;
+pub const TOOLTIP_MAX_UTF16: usize = 127;
 pub(crate) const MAX_NOTICE_LINES: usize = 3;
 pub(crate) const APP_NAME: &str = "Nawigator dnia";
 
@@ -288,7 +288,9 @@ pub fn tooltip(overall: Overall, sources: &[SourceStatus]) -> String {
     cap_utf16(text, TOOLTIP_MAX_UTF16)
 }
 
-fn cap_utf16(text: String, max: usize) -> String {
+/// Cuts `text` to at most `max` UTF-16 units including the "…", never splitting a
+/// character.
+pub fn cap_utf16(text: String, max: usize) -> String {
     if text.encode_utf16().count() <= max {
         return text;
     }

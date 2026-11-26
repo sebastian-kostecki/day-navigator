@@ -6,7 +6,11 @@
 //! runs them, and sync commands run on the main thread. So the `snapshot` lock
 //! is never held across a tray, notification or emit call.
 //! The one lock held across tray and emit calls is `published`, which only the
-//! check and watchdog threads take, never the main thread.
+//! check and watchdog threads take, never the main thread. The `work` line lock
+//! is likewise never held across a tray, emit or toast call.
+//! Menu setters block like tray setters and run only in `update_tray`; the
+//! menu callback runs on the main thread and only reads the shown action and
+//! spawns, so it never touches the store or those locks.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -16,7 +20,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use chrono::{Local, NaiveDate};
 use tauri::image::Image;
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_notification::NotificationExt;
@@ -26,6 +30,9 @@ use crate::github_refresh::GithubRefreshState;
 use crate::gitlab_refresh::GitlabRefreshState;
 use crate::health::{self, AppDataDetails, HealthSnapshot, Overall, SourceStatus};
 use crate::store::{StoreError, StoreHandle};
+use crate::tray_view::{self, TimerAction, TrayIconKind, WorkLine};
+use crate::work_time::WorkTimeError;
+use crate::work_time::today::today_work;
 
 const TRAY_ID: &str = "health";
 const CHECK_INTERVAL: Duration = Duration::from_secs(30);
@@ -48,6 +55,8 @@ pub struct HealthState {
     stale: AtomicBool,
     /// `seq` of the last snapshot pushed to the tray and the webview.
     published: Mutex<u64>,
+    /// Today's work for the tray; not part of the serialised snapshot.
+    work: RwLock<WorkLine>,
 }
 
 impl HealthState {
@@ -66,6 +75,7 @@ impl HealthState {
             heartbeat_ms: AtomicU64::new(0),
             stale: AtomicBool::new(false),
             published: Mutex::new(0),
+            work: RwLock::new(WorkLine::Loading),
         };
         (state, rx)
     }
@@ -81,6 +91,14 @@ impl HealthState {
 
     fn write(&self) -> RwLockWriteGuard<'_, HealthSnapshot> {
         self.snapshot.write().unwrap_or_else(|p| p.into_inner())
+    }
+
+    fn work_line(&self) -> WorkLine {
+        *self.work.read().unwrap_or_else(|p| p.into_inner())
+    }
+
+    fn set_work_line(&self, line: WorkLine) {
+        *self.work.write().unwrap_or_else(|p| p.into_inner()) = line;
     }
 
     fn stamp_heartbeat(&self) {
@@ -120,6 +138,14 @@ pub async fn check_health_now(
         .map_err(|_| "Wątek sprawdzania nie działa".to_string())
 }
 
+/// Wakes the health round so the tray follows a work-time write. A closed
+/// channel is ignored: a stalled check loop is already shown.
+pub(crate) fn refresh_tray(app: &AppHandle) {
+    if let Some(state) = app.try_state::<HealthState>() {
+        let _ = state.wake.send(());
+    }
+}
+
 /// Shows, unminimises and focuses the main window.
 pub fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
@@ -136,11 +162,56 @@ pub(crate) fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-fn tray_image(overall: Overall) -> Image<'static> {
-    match overall {
-        Overall::Ok => tauri::include_image!("icons/tray/ok.png"),
-        Overall::Error => tauri::include_image!("icons/tray/error.png"),
-        Overall::Starting | Overall::NotRunning => tauri::include_image!("icons/tray/idle.png"),
+fn tray_image(icon: TrayIconKind) -> Image<'static> {
+    match icon {
+        TrayIconKind::Idle => tauri::include_image!("icons/tray/idle.png"),
+        TrayIconKind::Ok => tauri::include_image!("icons/tray/ok.png"),
+        TrayIconKind::Running => tauri::include_image!("icons/tray/running.png"),
+        TrayIconKind::Error => tauri::include_image!("icons/tray/error.png"),
+    }
+}
+
+/// The tray's START/STOP item and the action it currently shows. `shown` is
+/// `None` while the item is disabled or its label is changing, so a click then
+/// does nothing; the handler never reads the store to decide.
+struct TrayWorkItem {
+    item: MenuItem<tauri::Wry>,
+    shown: Mutex<Option<TimerAction>>,
+    /// The item last written to the menu; an unchanged item is not written again.
+    applied: Mutex<Option<tray_view::WorkItem>>,
+}
+
+impl TrayWorkItem {
+    fn set_shown(&self, action: Option<TimerAction>) {
+        *self.shown.lock().unwrap_or_else(|p| p.into_inner()) = action;
+    }
+
+    fn applied(&self) -> Option<tray_view::WorkItem> {
+        *self.applied.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    fn set_applied(&self, item: Option<tray_view::WorkItem>) {
+        *self.applied.lock().unwrap_or_else(|p| p.into_inner()) = item;
+    }
+
+    fn shown(&self) -> Option<TimerAction> {
+        *self.shown.lock().unwrap_or_else(|p| p.into_inner())
+    }
+}
+
+/// Runs a tray START/STOP through the shared functions. `AlreadyRunning` /
+/// `NotRunning` mean the counter changed elsewhere: refresh only, no toast.
+async fn run_tray_action(app: AppHandle, action: TimerAction) {
+    let result = match action {
+        TimerAction::Start => crate::work_time::commands::start_timer(&app).await,
+        TimerAction::Stop => crate::work_time::commands::stop_timer(&app).await,
+    };
+    if let Err(e) = result {
+        if let Some(n) = tray_view::failure_notice(action, &e) {
+            toast(&app, "work_time", &n.title, &n.body);
+        }
+        // A success already refreshed the tray through `notify`.
+        refresh_tray(&app);
     }
 }
 
@@ -150,17 +221,34 @@ pub fn build_tray(app: &tauri::App) -> tauri::Result<mpsc::Receiver<()>> {
     let (state, rx) = HealthState::new();
     app.manage(state);
 
+    let work = MenuItem::with_id(app, "work", "Czas pracy: wczytywanie…", false, None::<&str>)?;
+    app.manage(TrayWorkItem {
+        item: work.clone(),
+        shown: Mutex::new(None),
+        applied: Mutex::new(None),
+    });
+    let separator = PredefinedMenuItem::separator(app)?;
     let open = MenuItem::with_id(app, "open", "Otwórz", true, None::<&str>)?;
     let check = MenuItem::with_id(app, "check", "Sprawdź teraz", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Zakończ", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &check, &quit])?;
+    let menu = Menu::with_items(app, &[&work, &separator, &open, &check, &quit])?;
 
     TrayIconBuilder::with_id(TRAY_ID)
-        .icon(tray_image(Overall::Starting))
-        .tooltip(health::tooltip(Overall::Starting, &[]))
+        .icon(tray_image(TrayIconKind::Idle))
+        .tooltip(tray_view::tooltip(
+            Overall::Starting,
+            &[],
+            &WorkLine::Loading,
+        ))
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id().as_ref() {
+            "work" => {
+                let shown = app.try_state::<TrayWorkItem>().and_then(|w| w.shown());
+                if let Some(action) = shown {
+                    tauri::async_runtime::spawn(run_tray_action(app.clone(), action));
+                }
+            }
             "open" => show_main(app),
             "check" => {
                 let _ = app.state::<GitlabRefreshState>().wake();
@@ -203,14 +291,39 @@ pub fn start(app: &AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Rec
     }
 }
 
-fn update_tray(app: &AppHandle, snap: &HealthSnapshot) {
+fn update_tray(app: &AppHandle, snap: &HealthSnapshot, work: &WorkLine) {
+    // The menu setters are called only here. The shown action is cleared before
+    // them and set after, so a click during the change does nothing.
+    if let Some(w) = app.try_state::<TrayWorkItem>() {
+        let item = tray_view::work_item(snap.overall, work);
+        // An unchanged item is left alone, so a click is never swallowed by a
+        // needless clear. After a failed setter `applied` stays unset: retry.
+        if w.applied() != Some(item) {
+            w.set_applied(None);
+            w.set_shown(None);
+            let text_ok = w
+                .item
+                .set_text(item.text)
+                .inspect_err(|e| log::warn!("health: tray work item text failed: {e}"))
+                .is_ok();
+            let enabled_ok = w
+                .item
+                .set_enabled(item.action.is_some())
+                .inspect_err(|e| log::warn!("health: tray work item enable failed: {e}"))
+                .is_ok();
+            w.set_shown(item.action);
+            if text_ok && enabled_ok {
+                w.set_applied(Some(item));
+            }
+        }
+    }
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return;
     };
-    if let Err(e) = tray.set_icon(Some(tray_image(snap.overall))) {
+    if let Err(e) = tray.set_icon(Some(tray_image(tray_view::tray_icon(snap.overall, work)))) {
         log::warn!("health: tray icon update failed: {e}");
     }
-    if let Err(e) = tray.set_tooltip(Some(health::tooltip(snap.overall, &snap.sources))) {
+    if let Err(e) = tray.set_tooltip(Some(tray_view::tooltip(snap.overall, &snap.sources, work))) {
         log::warn!("health: tray tooltip update failed: {e}");
     }
 }
@@ -232,7 +345,8 @@ fn publish(app: &AppHandle, state: &HealthState) {
         return;
     }
     *last = snap.seq;
-    update_tray(app, &snap);
+    let work = state.work_line();
+    update_tray(app, &snap, &work);
     emit_snapshot(app, &snap);
 }
 
@@ -295,13 +409,28 @@ fn check_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Rec
 
 fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut Vec<SourceStatus>) {
     let state = app.state::<HealthState>();
+    let today = Local::now().date_naive();
     let (sources, app_data) = probe_round(
         settings_path,
         &app.state::<StoreHandle>(),
-        Local::now().date_naive(),
+        today,
         health::gitlab_status(&app.state::<GitlabRefreshState>().snapshot()),
         health::github_status(&app.state::<GithubRefreshState>().snapshot()),
     );
+    // Today's work next to the probe, so a hanging read is caught by the
+    // watchdog. Stored before `seq` is bumped below: a publish that sees the new
+    // `seq` also sees the new work line.
+    let read = app.state::<StoreHandle>().with_store(today, |store| {
+        today_work(store, chrono::Utc::now().timestamp_millis(), &Local)
+    });
+    match read {
+        Ok(w) => state.set_work_line(WorkLine::Known(w)),
+        Err(WorkTimeError::Store(StoreError::Busy)) => log::debug!("work_time: tray read busy"),
+        Err(e) => {
+            log::warn!("work_time: tray read failed: {}", e.kind());
+            state.set_work_line(WorkLine::Unavailable);
+        }
+    }
     // Stamp as soon as the probe returns. The probe is the part that can hang;
     // stamping after the blocking tray calls below let the watchdog flag a
     // finished round as stalled.

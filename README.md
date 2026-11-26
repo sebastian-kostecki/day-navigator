@@ -54,7 +54,9 @@ the hours you spend on it.
   survives restarts and crashes. Also includes:
   - day and month sums against an 8-hour workday norm, with Polish public holidays counted out;
   - a table of the month's days and days off;
-  - reminders when the counter runs too long, or is not running after a set hour on a workday.
+  - reminders when the counter runs too long, or is not running after a set hour on a workday;
+  - START/STOP from the tray menu; the tray tooltip shows today's work time and the tray icon
+    shows when the counter runs.
 - **Źródła (Sources):** the health of GitLab, GitHub and the app's own data in one panel and
   in the tray icon, plus today's event log. A failed source shows an error, never an empty
   list.

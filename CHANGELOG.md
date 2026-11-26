@@ -16,6 +16,10 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
 - "Czas pracy": a work-time entry can have a short one-line note (up to 200
   characters). Set it when adding or editing the entry; the day's entry list
   shows it under the times.
+- The tray menu has START/STOP for the work-time counter (no confirmation,
+  logged in the event log like the header). The tray tooltip shows today's
+  work time under the source state, and the tray icon has a "counter running"
+  variant (a source error still shows the error icon).
 
 ## [0.10.1] - 2026-11-26
 

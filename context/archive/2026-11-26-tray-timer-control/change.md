@@ -1,10 +1,10 @@
 ---
 change_id: tray-timer-control
 title: Tray timer control
-status: impl_reviewed
+status: archived
 created: 2026-11-26
 updated: 2026-11-26
-archived_at: null
+archived_at: 2026-11-26T13:02:12Z
 ---
 
 ## Notes

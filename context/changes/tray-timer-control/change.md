@@ -1,7 +1,7 @@
 ---
 change_id: tray-timer-control
 title: Tray timer control
-status: preparing
+status: planned
 created: 2026-11-26
 updated: 2026-11-26
 archived_at: null

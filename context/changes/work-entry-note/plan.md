@@ -382,7 +382,7 @@ Zmiana była planowana bez dostępu do użytkownika. Decyzje użytkownika (stał
 
 #### Automated
 
-- [ ] 3.1 `cargo test` w `src-tauri/` przechodzi, w tym `tests/work_entry_note_crash.rs` (wszystkie rundy zabicia, `quick_check`, brak utraconego commita, notatki zgodne z modelem)
-- [ ] 3.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
-- [ ] 3.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 3.4 `git grep -n "optional one-line note" -- AGENTS.md` i `git grep -n "one-line note" -- CHANGELOG.md` znajdują nowe brzmienie, a `git grep -n "Never user content or vault data there" -- AGENTS.md` nic nie znajduje
+- [x] 3.1 `cargo test` w `src-tauri/` przechodzi, w tym `tests/work_entry_note_crash.rs` (wszystkie rundy zabicia, `quick_check`, brak utraconego commita, notatki zgodne z modelem)
+- [x] 3.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
+- [x] 3.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 3.4 `git grep -n "optional one-line note" -- AGENTS.md` i `git grep -n "one-line note" -- CHANGELOG.md` znajdują nowe brzmienie, a `git grep -n "Never user content or vault data there" -- AGENTS.md` nic nie znajduje

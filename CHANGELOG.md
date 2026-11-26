@@ -11,6 +11,12 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
 
 ## [Unreleased]
 
+### Added
+
+- "Czas pracy": a work-time entry can have a short one-line note (up to 200
+  characters). Set it when adding or editing the entry; the day's entry list
+  shows it under the times.
+
 ## [0.10.1] - 2026-11-26
 
 ### Changed

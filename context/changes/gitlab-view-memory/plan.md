@@ -6,7 +6,7 @@ After the app is quit ("Zakończ", reboot, autostart launch) and started again, 
 
 The two values go into one fixed row of a new app-data table (migration v14), read once when the provider mounts and written on every user change. A failed read or write never blocks the view: it starts with the defaults and Rust logs the failure by error kind only.
 
-This plan was written non-interactively by an agent. Every point where `/10x-plan` would ask the user is settled below and marked "default chosen by agent"; the user decisions given with the task are marked "user decision".
+This plan was written non-interactively by an agent. Every point where `/10x-plan` would ask the user is settled below and marked "default chosen by agent"; the user decisions given with the task are marked "user decision". Revised after `reviews/plan-review.md` (findings F1-F4 applied).
 
 ## Current State Analysis
 
@@ -25,7 +25,7 @@ This plan was written non-interactively by an agent. Every point where `/10x-pla
 
 - Migration v14 creates `gitlab_view_state` with at most one row: `kind` (one of the three values) and `show_hidden` (0/1). Nothing else, no work data.
 - A new Rust module `gitlab_view_state` offers `load` (defaults when there is no row) and `save` (one upsert in one `write`), plus two async commands `gitlab_view_state` and `set_gitlab_view_state` with a tagged, value-free error type and its TS mirror.
-- `useGitlabListViewSource` loads once on mount, applies each loaded field only if the user has not changed that field meanwhile, and saves both fields after every user change (latest value, one save in flight). The `GitlabListView` contract and `GitlabView.tsx` stay unchanged.
+- `useGitlabListViewSource` loads once on mount, applies each loaded field only if the user has not changed that field meanwhile, and saves both fields from the setters after every user change that changes a value (latest value, one save at a time, after the load). The `GitlabListView` contract and `GitlabView.tsx` stay unchanged.
 - AGENTS.md lists the new record in the app-data list and says that type and hidden expansion are remembered while the view filter stays in memory.
 - Verification: the Rust tests below pass; in a built app, choices survive "Zakończ" + restart while filter values reset (Manual rows, checked later by the user in an integrated build).
 
@@ -37,6 +37,9 @@ This plan was written non-interactively by an agent. Every point where `/10x-pla
 - `src-tauri/tests/new_assignments.rs:203-237` — upgrade-test template: find the migration by SQL content, open `MIGRATIONS[..pos]`, write old rows, reopen with the full list.
 - `src-tauri/tests/half_day_off_crash.rs` and `src-tauri/tests/common/crash.rs:38-140` — crash-test template and harness (`run_writer_until`, `KillAt`, `MAX_WRITER_COMMITS`, `WRITER_DIR_ENV`).
 - `src/main.tsx:8` — the app runs in `React.StrictMode`, so the mount effect runs twice in dev.
+- `src/components/Segmented/Segmented.tsx:36` — `onChange` fires for the option that is already selected too, so the hook must treat a same-value `setKind` as a no-op.
+- `eslint.config.js` uses `reactHooks.configs.flat.recommended` with `eslint-plugin-react-hooks` 7.1.1 (`package-lock.json`), which includes the `react-hooks/refs` rule: a ref read or written during render fails `npm run lint`.
+- `src/gitlab/useGitlabListView.ts:44-47` — `setKind` / `setShowHidden` are in the `useMemo` deps today as stable `useState` setters; their replacements must stay stable too.
 
 ## What We're NOT Doing
 
@@ -59,21 +62,25 @@ Decisions (each is used by the phases below):
 3. **Table shape** — one fixed row: `id INTEGER PRIMARY KEY CHECK (id = 1)`, `kind TEXT NOT NULL CHECK (kind IN ('all','issue','mergeRequest'))`, `show_hidden INTEGER NOT NULL CHECK (show_hidden IN (0, 1))` (default chosen by agent).
 4. **Defaults** — live in Rust: `load` returns `{ kind: all, showHidden: false }` when there is no row (first start, right after the upgrade). The TS hook uses the same values only as its pre-load initial state (default chosen by agent).
 5. **Write policy** — write on every user change, one command sending both fields; no debounce, so a hard kill loses nothing already shown (default chosen by agent).
-6. **Save ordering** — the hook sends saves one at a time, each carrying the latest in-memory value, and only after the mount load has settled; a later click never loses to an earlier in-flight save (default chosen by agent).
-7. **Load timing** — the provider loads once at mount; each loaded field is applied only if the user has not changed that field meanwhile; StrictMode-safe via a cancelled flag in the effect cleanup; no gating of the toolbar while loading (default chosen by agent).
+6. **Save ordering** — saves are queued by the setters (no persist effect), one at a time on a promise chain that starts with the mount load, each sending the latest value from a ref that the setters and the load callback keep current; a later click never loses to an earlier in-flight save, and a click before the load never writes a default over a stored field (default chosen by agent; review F1, Fix A).
+7. **Load timing** — the provider loads once at mount; each loaded field is applied only if the user has not changed that field meanwhile; a same-value click (e.g. the already selected `Segmented` option) is a no-op and does not count as a change; StrictMode-safe via a cancelled flag in the effect cleanup; no gating of the toolbar while loading (default chosen by agent).
 8. **Failure behaviour** — a failed load or save never blocks the view and shows no UI hint: the view keeps the defaults (or the user's in-memory choice), the TS call swallows the error like `useGitlabSeenMark`, and Rust logs it by error kind only (`Busy` at `debug`, everything else at `warn`). A damaged or missing store is already reported by the tray as "Dane aplikacji". This is a convenience record, not a source, so the "never render an empty list in place of a failed source" rule does not apply (default chosen by agent).
-9. **Unknown stored kind** — cannot happen (CHECK), but if `load` reads a value it does not know, it returns a value-free `Store(Sql { reason: "unknown view kind" })` error (no reset, no value in the message); the UI then keeps the defaults (default chosen by agent).
+9. **Unparseable stored row** — cannot happen (CHECKs), but if `load` reads a `kind` text it does not know or a `show_hidden` other than 0/1, it returns one fixed, value-free `Store(Sql { reason: "invalid view state row" })` error for either case (no reset, no value in the message); the UI then keeps the defaults. The DB-text parse is unit-tested because SQL cannot reach it (default chosen by agent; review F3).
 10. **Command placement** — a new module `src-tauri/src/gitlab_view_state/` (not `gitlab_refresh.rs`, not `new_assignments`), run through `crate::blocking` + `StoreHandle::with_store`, like `mark_gitlab_seen`. `on_store` would need a visibility change in `lib.rs`; `blocking` keeps the `lib.rs` diff to one `mod` line and two handler lines (default chosen by agent).
 11. **Error type** — own `GitlabViewStateError { Store(StoreError), Background }`, `thiserror` + `Serialize`, `#[serde(tag = "kind", content = "detail")]`, with a TS mirror (default chosen by agent; matches `NewAssignmentError`).
-12. **Tests** — Rust integration tests (defaults, round-trip, single row, DB-level refusal, v13→v14 upgrade found by SQL content), a serde-shape unit test, a crash test on the harness, and the `events.rs` assert fix. Invented data only (default chosen by agent; the crash test follows AGENTS.md "data slices reuse the crash harness" even though the comparable seen mark has none).
+12. **Tests** — Rust integration tests (defaults, round-trip, single row, DB-level refusal, v13→v14 upgrade found by SQL content), a serde-shape and DB-text-parse unit test, a crash test on the harness, and the `events.rs` assert fix. Invented data only (default chosen by agent; the crash test follows AGENTS.md "data slices reuse the crash harness" even though the comparable seen mark has none).
 13. **AGENTS.md** — both lines updated in this change (user decision); the data-list line lands with the migration (Phase 1), the Frontend Conventions sentence with the hook change (Phase 2) (default chosen by agent).
 14. **Phases** — two phases; Rust command types and their TS mirror land in the same phase and commit (AGENTS.md rule) (default chosen by agent).
 
 ## Critical Implementation Details
 
-**State sequencing (hook).** Persist from an effect on the combined view state, guarded by "has the user changed a field yet": with no user change the effect does nothing, so the mount render (defaults) and a pure load-apply never write, and the StrictMode double mount is a no-op. Mark a field as user-changed in the setter, outside the `setState` updater (updaters run twice under StrictMode and must stay pure). Chain saves on one promise kept in a ref that starts as the load promise, and read the value to send from a "latest" ref at send time, not at click time; otherwise a click before the load finishes would write the default for the field the load then restores.
+**State sequencing (hook).** Saves come from the setters, never from an effect that watches state (review F1, Fix A). Three refs: `latest` (the `GitlabViewState` the next save sends, initially the defaults), `changed` (`{ kind: boolean, showHidden: boolean }`, initially both `false`) and `chain` (the promise saves are queued on). Refs are written only in the setters and in the mount effect (the chain start and the load callback), and never read or written during render (`react-hooks/refs`).
 
-**Migration numbering.** Only this slice adds a migration in this wave. If another migration lands on `develop` first anyway, renumber to the next free version and update the one assert in the upgrade test that names `14` (the rest finds the migration by SQL content and uses `MIGRATIONS.len()`).
+- Setters, both `useCallback(…, [])` so the context value stays stable (review F2): compute `next` from `latest.current` — `setKind(k)` uses `{ ...latest.current, kind: k }`; `setShowHidden(update)` calls `update(latest.current.showHidden)` once, directly, outside any `setState` updater. If `next` equals `latest.current`, return (so clicking the already selected `Segmented` option before the load lands neither marks the field nor saves, and the load can still restore it). Otherwise set `changed.current.<field> = true`, `latest.current = next`, call `setView(next)` (a plain value, not an updater) and queue `chain.current = chain.current.then(() => setGitlabViewState(latest.current)).catch(() => {})`. The value is read when the save runs, not when it is queued, and the chain never rejects.
+- Mount effect: `let cancelled = false`; `const loaded = getGitlabViewState().then((stored) => { if (cancelled) return; const merged = { kind: changed.current.kind ? latest.current.kind : stored.kind, showHidden: changed.current.showHidden ? latest.current.showHidden : stored.showHidden }; latest.current = merged; setView(merged); }).catch(() => {})`; `chain.current = loaded`; cleanup sets `cancelled = true`. The load callback runs before any queued save (saves are chained after `loaded`), so the first save already sends the merged value: no window where the ref lags the state, and a quit between the two cannot lose a stored field. The load itself never writes.
+- StrictMode: the double mount runs the effect, its cleanup and the effect again in one commit; refs survive it. The first load is cancelled and applies nothing; the second run replaces `chain.current` with the second load before any event handler can run, so no save is queued on the cancelled load, and `changed` and `latest` are untouched by either run. Event handlers (the setters) are not double-invoked, and `setView` gets plain values, so nothing impure runs twice. In production the provider never unmounts, so the cancelled path is dev-only.
+
+**Migration numbering.** Only this slice adds a migration in this wave. If another migration lands on `develop` first anyway, merge `develop` into the slice, renumber to the next free version and update the one assert in the upgrade test that names `14` (the rest finds the migration by SQL content and uses `MIGRATIONS.len()`). The untouched-file gates diff against `$(git merge-base HEAD develop)`, so they stay right after such a merge (review F4).
 
 ## Phase 1: Store record, Rust commands and TS mirror
 
@@ -101,9 +108,10 @@ Add migration v14, the `gitlab_view_state` Rust module (types, `load`, `save`, e
 - `mod.rs`:
   - `pub enum ViewKind { All, Issue, MergeRequest }` — `Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default` (`All` is the default), `#[serde(rename_all = "camelCase")]`; DB text via a small `as_db()` / parse pair (`"all"`, `"issue"`, `"mergeRequest"`).
   - `pub struct GitlabViewState { pub kind: ViewKind, pub show_hidden: bool }` — same derives, `Default` = `{ All, false }`, `#[serde(rename_all = "camelCase")]` (JSON `{ "kind": "mergeRequest", "showHidden": true }`).
-  - `pub fn load(store: &Store) -> Result<GitlabViewState, GitlabViewStateError>` — reads row `id = 1` with `Store::read`; no row gives `GitlabViewState::default()`; an unknown `kind` text or a `show_hidden` other than 0/1 gives `Store(StoreError::Sql { reason: "unknown view kind" })` (fixed text, no value).
+  - A private DB-text parse, e.g. `fn from_row(kind: &str, show_hidden: i64) -> Result<GitlabViewState, GitlabViewStateError>`, built on `ViewKind::from_db(&str) -> Option<ViewKind>` and `0`/`1` → `false`/`true`; anything else gives `Store(StoreError::Sql { reason: "invalid view state row".into() })` — one fixed reason for an unknown `kind` and an invalid `show_hidden` alike, never the value.
+  - `pub fn load(store: &Store) -> Result<GitlabViewState, GitlabViewStateError>` — reads row `id = 1` with `Store::read` and passes the two columns through the parse; no row gives `GitlabViewState::default()`.
   - `pub fn save(store: &mut Store, view: GitlabViewState) -> Result<(), GitlabViewStateError>` — one `Store::write` with `INSERT INTO gitlab_view_state (id, kind, show_hidden) VALUES (1, ?1, ?2) ON CONFLICT (id) DO UPDATE SET kind = excluded.kind, show_hidden = excluded.show_hidden`.
-  - `#[cfg(test)]` unit test: serde shape of `GitlabViewState` for each kind (`"all"`, `"issue"`, `"mergeRequest"`, `showHidden`), deserialization of the same JSON, refusal of an unknown kind string by serde, and the serialized shapes of `GitlabViewStateError` (`{"kind":"Store","detail":{"kind":"Busy"}}`, `{"kind":"Background"}`).
+  - `#[cfg(test)]` unit test: serde shape of `GitlabViewState` for each kind (`"all"`, `"issue"`, `"mergeRequest"`, `showHidden`), deserialization of the same JSON, refusal of an unknown kind string by serde, and the serialized shapes of `GitlabViewStateError` (`{"kind":"Store","detail":{"kind":"Busy"}}`, `{"kind":"Background"}`); plus the DB-text parse, which the CHECKs make unreachable through SQL: `as_db` / `from_db` round-trip for the three kinds, `from_row` for every valid combination, and `from_row("epic", 0)` and `from_row("all", 2)` each giving exactly `Store(Sql { reason: "invalid view state row" })`.
 - `error.rs`: `GitlabViewStateError { Store(StoreError), Background }`, `thiserror::Error` + `Serialize`, `#[serde(tag = "kind", content = "detail")]`; `From<StoreError>`, `From<rusqlite::Error>`, `From<crate::BackgroundFailed>`; `kind() -> &'static str`. Same shape and invariant comment as `new_assignments/error.rs` (no variant carries row values).
 - `commands.rs`:
   - `#[tauri::command] pub async fn gitlab_view_state(app: AppHandle) -> Result<GitlabViewState, GitlabViewStateError>`
@@ -176,8 +184,8 @@ Add migration v14, the `gitlab_view_state` Rust module (types, `load`, `save`, e
 - `npm run lint` passes (after a one-time `npm install`; any `package-lock.json` change reverted)
 - `npm run format:check` passes
 - `npm run build` passes with zero errors
-- `git diff --stat 2b6ac08 -- src/gitlab/GitlabView.tsx src-tauri/src/gitlab_refresh.rs src-tauri/src/github_refresh.rs` prints nothing
-- `git diff 2b6ac08 -- src-tauri/src/lib.rs` shows only the `pub mod gitlab_view_state;` line and the two handler lines
+- `git diff --stat $(git merge-base HEAD develop) -- src/gitlab/GitlabView.tsx src-tauri/src/gitlab_refresh.rs src-tauri/src/github_refresh.rs` prints nothing
+- `git diff $(git merge-base HEAD develop) -- src-tauri/src/lib.rs` shows only the `pub mod gitlab_view_state;` line and the two handler lines
 
 **Implementation Note**: After completing this phase and all automated verification passes, commit (gates first, Conventional Commit, e.g. `feat(gitlab-view-memory): store the GitLab view state (v14)`) and continue with Phase 2. This phase has no manual checks of its own; the user checks the whole slice later in an integrated build.
 
@@ -198,10 +206,11 @@ Wire `useGitlabListViewSource` to load the remembered values once on mount and s
 **Intent**: Make `kind` and `showHidden` survive a restart without changing what consumers see; the view filter (`selection`, `toggle`, `clear`) stays exactly as it is, in memory only.
 
 **Contract**:
-- Hold `kind` and `showHidden` as one `GitlabViewState` value (initial `{ kind: "all", showHidden: false }`); `GitlabListView` (`:6-14`) is unchanged, including the updater signature of `setShowHidden`.
-- Mount effect: call `getGitlabViewState()` once; on success apply each field only if the user has not changed that field yet; on failure keep the current values (no UI state, `.catch(() => {})`). A `cancelled` flag in the cleanup stops a StrictMode first run from applying.
-- `setKind` / `setShowHidden` mark their field as user-changed (outside the updater) and update the value.
-- Persist effect on the value: does nothing until the user has changed a field; then queues `setGitlabViewState(latest)` on a promise chain that starts with the load, so at most one save is in flight, saves run after the load settled, and each sends the latest value at send time; every failure is swallowed (Rust logs it).
+- Hold `kind` and `showHidden` as one `GitlabViewState` value in `useState` (initial `{ kind: "all", showHidden: false }`); `GitlabListView` (`:6-14`) is unchanged, including the updater signature of `setShowHidden`.
+- Refs `latest`, `changed` and `chain` as in Critical Implementation Details ("State sequencing"); written only in the setters and the mount effect, never during render.
+- Mount effect (empty deps): call `getGitlabViewState()` once; on success build the merged value (each loaded field only where `changed` is still `false`), assign `latest.current = merged`, then `setView(merged)`; on failure keep the current values (no UI state, `.catch(() => {})`); `chain.current` starts from this load promise. A `cancelled` flag in the cleanup stops a StrictMode first run from applying.
+- No persist effect. `setKind` / `setShowHidden` are `useCallback(…, [])`, read only refs, compute `next` from `latest.current` (the `setShowHidden` updater is applied to `latest.current.showHidden` once, outside any `setState` updater), return early when `next` equals `latest.current`, and otherwise mark the field as user-changed, assign `latest.current = next`, call `setView(next)` and queue `chain.current = chain.current.then(() => setGitlabViewState(latest.current)).catch(() => {})`. So saves run one at a time, only after the load settled, each with the value current when it runs; every failure is swallowed (Rust logs it).
+- The returned `useMemo` lists `view` (or its two fields), `selection` and the stable callbacks; `npm run lint` (including `react-hooks/refs` and `react-hooks/exhaustive-deps`) stays clean without disable comments.
 - Update the doc comment of `useGitlabListViewSource`: type and hidden are remembered in the app data store, the view filter is in memory only.
 
 #### 2. Provider comment
@@ -228,7 +237,7 @@ Wire `useGitlabListViewSource` to load the remembered values once on mount and s
 - `npm run format:check` passes
 - `npm run build` passes with zero errors
 - `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test` pass in `src-tauri/`
-- `git diff --stat 2b6ac08 -- src/gitlab/GitlabView.tsx` prints nothing
+- `git diff --stat $(git merge-base HEAD develop) -- src/gitlab/GitlabView.tsx` prints nothing
 - `grep -c "the type and the hidden expansion are remembered in the app data store" AGENTS.md` prints `1`
 
 #### Manual Verification:
@@ -250,6 +259,7 @@ Wire `useGitlabListViewSource` to load the remembered values once on mount and s
 ### Unit Tests:
 
 - Serde shape of `GitlabViewState` and `ViewKind` (camelCase, three kind strings, unknown kind refused) and of `GitlabViewStateError` (tagged `kind`/`detail`) — the TS mirror depends on it.
+- DB-text parse (`as_db` / `from_db` / `from_row`): valid values round-trip; `"epic"` and `show_hidden = 2` give the one fixed `"invalid view state row"` reason (unreachable through SQL because of the CHECKs).
 
 ### Integration Tests:
 
@@ -308,8 +318,8 @@ Parallel slices in this wave: F-01 `source-refresh-skeleton` and S-04 `gitlab-of
 - [ ] 1.4 `npm run lint` passes (after a one-time `npm install`; any `package-lock.json` change reverted)
 - [ ] 1.5 `npm run format:check` passes
 - [ ] 1.6 `npm run build` passes with zero errors
-- [ ] 1.7 `git diff --stat 2b6ac08 -- src/gitlab/GitlabView.tsx src-tauri/src/gitlab_refresh.rs src-tauri/src/github_refresh.rs` prints nothing
-- [ ] 1.8 `git diff 2b6ac08 -- src-tauri/src/lib.rs` shows only the `pub mod gitlab_view_state;` line and the two handler lines
+- [ ] 1.7 `git diff --stat $(git merge-base HEAD develop) -- src/gitlab/GitlabView.tsx src-tauri/src/gitlab_refresh.rs src-tauri/src/github_refresh.rs` prints nothing
+- [ ] 1.8 `git diff $(git merge-base HEAD develop) -- src-tauri/src/lib.rs` shows only the `pub mod gitlab_view_state;` line and the two handler lines
 
 ### Phase 2: Load and save in the list-state hook
 
@@ -319,7 +329,7 @@ Parallel slices in this wave: F-01 `source-refresh-skeleton` and S-04 `gitlab-of
 - [ ] 2.2 `npm run format:check` passes
 - [ ] 2.3 `npm run build` passes with zero errors
 - [ ] 2.4 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test` pass in `src-tauri/`
-- [ ] 2.5 `git diff --stat 2b6ac08 -- src/gitlab/GitlabView.tsx` prints nothing
+- [ ] 2.5 `git diff --stat $(git merge-base HEAD develop) -- src/gitlab/GitlabView.tsx` prints nothing
 - [ ] 2.6 `grep -c "the type and the hidden expansion are remembered in the app data store" AGENTS.md` prints `1`
 
 #### Manual

@@ -24,11 +24,12 @@ A one-row table (`gitlab_view_state`, migration v14) holds the type and the hidd
 | AGENTS.md | App-data list + "in memory only" sentence updated in this change | The record must be listed where app data is enumerated | User decision |
 | Table shape | One fixed row (`id = 1` CHECK, `kind` CHECK, `show_hidden` 0/1), not account-keyed | Typed like the rest of the schema; no dependency on `GitlabRefreshState` (F-01) | Plan (default chosen by agent) |
 | Defaults | In Rust: no row loads `{ all, false }` | One source of truth for the first start and the upgrade | Plan (default chosen by agent) |
-| Write policy | Every user change, one command with both fields, one save in flight, latest value | Rare clicks; nothing lost on a hard kill; no stale overwrite | Plan (default chosen by agent) |
-| Load timing | Once at provider mount; apply a field only if the user has not changed it; StrictMode-safe | Never overwrite a choice made while loading | Plan (default chosen by agent) |
+| Write policy | Saved from the (stable) setters on every value-changing click, no persist effect; one command with both fields, chained after the load, one at a time, latest value from a ref kept current by the setters and the load | Rare clicks; nothing lost on a hard kill; no stale overwrite; lint-clean (no ref access in render) | Plan (default chosen by agent; review F1/F2) |
+| Load timing | Once at provider mount; apply a field only if the user has not changed it; a same-value click is not a change; StrictMode-safe | Never overwrite a choice made while loading; re-clicking the selected option keeps the restore | Plan (default chosen by agent) |
+| Invalid stored row | One fixed value-free reason `"invalid view state row"`; parse unit-tested | CHECKs make it unreachable through SQL | Plan (default chosen by agent; review F3) |
 | Failures | No UI hint; TS swallows, Rust logs kind only | Convenience record; store health is already in the tray | Plan (default chosen by agent) |
 | Placement | New module `gitlab_view_state`, `crate::blocking` + `with_store`, own tagged error + TS mirror | Keeps out of `gitlab_refresh.rs` (F-01) and limits `lib.rs` to 3 lines | Plan (default chosen by agent) |
-| Tests | Integration (defaults, round-trip, one row, DB refusal, v13→v14 upgrade), serde unit test, crash test | Data slices reuse the crash harness (AGENTS.md) | Plan (default chosen by agent) |
+| Tests | Integration (defaults, round-trip, one row, DB refusal, v13→v14 upgrade), serde and DB-text-parse unit test, crash test | Data slices reuse the crash harness (AGENTS.md) | Plan (default chosen by agent) |
 
 ## Scope
 
@@ -59,7 +60,7 @@ A one-row table (`gitlab_view_state`, migration v14) holds the type and the hidd
 
 ## Open Risks & Assumptions
 
-- Assumes no other migration lands in this wave; otherwise renumber v14 and its one version assert.
+- Assumes no other migration lands in this wave; otherwise merge `develop`, renumber v14 and its one version assert (the untouched-file gates diff against `git merge-base HEAD develop`, so they survive that merge).
 - One global row: with several GitLab accounts over time, they share the choice (accepted).
 - Manual checks need a built app (`npm run tauri build -- --debug --no-bundle`); they are left for the user in an integrated build.
 

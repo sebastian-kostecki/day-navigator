@@ -7,7 +7,7 @@
 - **Verdict**: SOUND
 - **Findings**: 0 critical, 1 warning, 3 observations
 
-Run non-interactively: the triage question was answered with "Save report only" (the safest option); every decision stays PENDING for the agent that revises the plan.
+Run non-interactively: the triage question was answered with "Save report only" (the safest option); every decision stayed PENDING for the agent that revises the plan. All four were resolved and applied to `plan.md` / `plan-brief.md` on 2026-11-27 (see each Decision line).
 
 ## Verdicts
 
@@ -53,7 +53,7 @@ Confirmed along the way (no finding):
   - Tradeoff: two places write the ref and an effect still mirrors state into IPC; same-value clicks still need an explicit "unchanged" check.
   - Confidence: MED — correct if the implementer follows both pins exactly.
   - Blind spot: Effect ordering against the mount effect must still be checked under StrictMode.
-- **Decision**: PENDING
+- **Decision**: RESOLVED — Fix A applied (plan revision, 2026-11-27): no persist effect; stable setters compute `next` from `latest.current`, return on a same-value call, otherwise mark the field, assign `latest.current = next`, `setView(next)` and chain the save; the load callback assigns the merged value to `latest` before `setView`; the chain starts from the load promise; refs written only in the setters and the mount effect, never during render; the StrictMode double mount is reasoned through in Critical Implementation Details.
 
 ### F2 — Setters must stay referentially stable
 
@@ -63,7 +63,7 @@ Confirmed along the way (no finding):
 - **Location**: Phase 2 §1
 - **Detail**: Today `setKind` / `setShowHidden` are `useState` setters (stable) and sit in the `useMemo` dependency list (`useGitlabListView.ts:44-47`). The new wrapped setters are not stable unless the plan says so; then the context value changes on every provider render and `react-hooks/exhaustive-deps` may ask for extra deps.
 - **Fix**: Add "both setters are `useCallback(…, [])` and read only refs" to the Phase 2 §1 contract (covered by Fix A of F1).
-- **Decision**: PENDING
+- **Decision**: RESOLVED — applied with F1 Fix A: both setters are `useCallback(…, [])` and read only refs (Phase 2 §1, Critical Implementation Details).
 
 ### F3 — One error text for two different invalid values, and the parse refusal is untested
 
@@ -73,7 +73,7 @@ Confirmed along the way (no finding):
 - **Location**: Phase 1 §2 (`load`), Implementation Approach decision 9
 - **Detail**: `load` returns `Sql { reason: "unknown view kind" }` also for a `show_hidden` other than 0/1, which is misleading in the log. The CHECKs make both cases impossible to reach through SQL, so the integration tests never exercise this branch, and the unit test only covers serde, not the DB-text parse.
 - **Fix**: Use one fixed, value-free reason such as `"invalid view state row"` for both cases, and add the parse pair (`as_db` / parse of `"epic"` and of `2`) to the `#[cfg(test)]` unit test.
-- **Decision**: PENDING
+- **Decision**: RESOLVED — applied: one fixed reason `"invalid view state row"` via a private `from_row` parse; the unit test covers the `as_db` / `from_db` round-trip and `from_row("epic", 0)` / `from_row("all", 2)` (Phase 1 §2, decision 9, Testing Strategy).
 
 ### F4 — The untouched-file gates diff against a fixed commit
 
@@ -83,4 +83,4 @@ Confirmed along the way (no finding):
 - **Location**: Phase 1 Automated 1.7, 1.8; Phase 2 Automated 2.5; Critical Implementation Details ("Migration numbering")
 - **Detail**: The plan itself foresees taking `develop` into the slice if another migration lands first. After such a merge, `git diff 2b6ac08 -- src/gitlab/GitlabView.tsx src-tauri/src/gitlab_refresh.rs …` also shows F-01's and S-04's changes, so 1.7, 1.8 and 2.5 fail although this slice touched nothing.
 - **Fix**: Diff against `$(git merge-base HEAD develop)` instead of `2b6ac08` in 1.7, 1.8 and 2.5 (same result today, still right after a `develop` merge).
-- **Decision**: PENDING
+- **Decision**: RESOLVED — applied: gates 1.7, 1.8 and 2.5 and their Progress rows diff against `$(git merge-base HEAD develop)`; the Migration numbering note says so.

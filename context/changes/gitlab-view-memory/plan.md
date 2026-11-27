@@ -312,14 +312,14 @@ Parallel slices in this wave: F-01 `source-refresh-skeleton` and S-04 `gitlab-of
 
 #### Automated
 
-- [x] 1.1 `cargo fmt --check` passes in `src-tauri/` — 2fb4a7e
-- [x] 1.2 `cargo clippy --all-targets -- -D warnings` passes in `src-tauri/` — 2fb4a7e
-- [x] 1.3 `cargo test` passes in `src-tauri/`, including `tests/gitlab_view_state.rs`, `tests/gitlab_view_state_crash.rs`, the serde unit test in `gitlab_view_state` and the updated `tests/events.rs` — 2fb4a7e
-- [x] 1.4 `npm run lint` passes (after a one-time `npm install`; any `package-lock.json` change reverted) — 2fb4a7e
-- [x] 1.5 `npm run format:check` passes — 2fb4a7e
-- [x] 1.6 `npm run build` passes with zero errors — 2fb4a7e
-- [x] 1.7 `git diff --stat $(git merge-base HEAD develop) -- src/gitlab/GitlabView.tsx src-tauri/src/gitlab_refresh.rs src-tauri/src/github_refresh.rs` prints nothing — 2fb4a7e
-- [x] 1.8 `git diff $(git merge-base HEAD develop) -- src-tauri/src/lib.rs` shows only the `pub mod gitlab_view_state;` line and the two handler lines — 2fb4a7e
+- [x] 1.1 `cargo fmt --check` passes in `src-tauri/` — 45b29f5
+- [x] 1.2 `cargo clippy --all-targets -- -D warnings` passes in `src-tauri/` — 45b29f5
+- [x] 1.3 `cargo test` passes in `src-tauri/`, including `tests/gitlab_view_state.rs`, `tests/gitlab_view_state_crash.rs`, the serde unit test in `gitlab_view_state` and the updated `tests/events.rs` — 45b29f5
+- [x] 1.4 `npm run lint` passes (after a one-time `npm install`; any `package-lock.json` change reverted) — 45b29f5
+- [x] 1.5 `npm run format:check` passes — 45b29f5
+- [x] 1.6 `npm run build` passes with zero errors — 45b29f5
+- [x] 1.7 `git diff --stat $(git merge-base HEAD develop) -- src/gitlab/GitlabView.tsx src-tauri/src/gitlab_refresh.rs src-tauri/src/github_refresh.rs` prints nothing — 45b29f5
+- [x] 1.8 `git diff $(git merge-base HEAD develop) -- src-tauri/src/lib.rs` shows only the `pub mod gitlab_view_state;` line and the two handler lines — 45b29f5
 
 ### Phase 2: Load and save in the list-state hook
 

@@ -420,10 +420,10 @@ Phases, contracts and Manual rows are otherwise unchanged.
 
 #### Manual
 
-- [ ] 3.6 Built app: "Praca (GitLab)" loads and "Sprawdź teraz" refreshes as before
-- [ ] 3.7 Without VPN: GitLab calm unavailable card with the same next-try text
-- [ ] 3.8 Built app: "Projekty (GitHub)" loads and "Sprawdź teraz" refreshes as before
-- [ ] 3.9 Tray "check", tray status and wake after sleep behave as before for both sources
-- [ ] 3.10 GitLab hide/show, NEW flag and new-assignment notice behave as before
-- [ ] 3.11 App log shows the same refresh lines and targets, no `source_refresh` target
-- [ ] 3.12 Built app DevTools console: no CSP violation, no "IPC custom protocol failed"
+- [x] 3.6 Built app: "Praca (GitLab)" loads and "Sprawdź teraz" refreshes as before — manual 2026-11-27
+- [x] 3.7 Without VPN: GitLab calm unavailable card with the same next-try text — manual 2026-11-27
+- [x] 3.8 Built app: "Projekty (GitHub)" loads and "Sprawdź teraz" refreshes as before — manual 2026-11-27
+- [x] 3.9 Tray "check", tray status and wake after sleep behave as before for both sources — manual 2026-11-27
+- [x] 3.10 GitLab hide/show, NEW flag and new-assignment notice behave as before — manual 2026-11-27
+- [x] 3.11 App log shows the same refresh lines and targets, no `source_refresh` target — manual 2026-11-27
+- [x] 3.12 Built app DevTools console: no CSP violation, no "IPC custom protocol failed" — manual 2026-11-27

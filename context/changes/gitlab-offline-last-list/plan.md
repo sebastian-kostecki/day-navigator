@@ -149,12 +149,12 @@ None. No store schema change.
 
 #### Manual
 
-- [ ] 1.8 VPN off after a successful round: calm card plus dimmed last list, header shows counts
-- [ ] 1.9 Start with VPN off: card alone, header "źródło niedostępne"
-- [ ] 1.10 Hidden rows on the dimmed offline list are readable
-- [ ] 1.11 Row actions and filter bar, "Zamknięte" panel, footnote work dimmed offline
-- [ ] 1.12 VPN back on: list returns to normal; error and ok states unchanged
-- [ ] 1.13 Empty kept list offline: card, dimmed empty message under it, header `0 widoczne · 0 ukryte`
-- [ ] 1.14 NOWE flags still show on the dimmed offline list
+- [x] 1.8 VPN off after a successful round: calm card plus dimmed last list, header shows counts — manual 2026-11-27
+- [x] 1.9 Start with VPN off: card alone, header "źródło niedostępne" — manual 2026-11-27
+- [x] 1.10 Hidden rows on the dimmed offline list are readable — manual 2026-11-27
+- [x] 1.11 Row actions and filter bar, "Zamknięte" panel, footnote work dimmed offline — manual 2026-11-27
+- [x] 1.12 VPN back on: list returns to normal; error and ok states unchanged — manual 2026-11-27
+- [x] 1.13 Empty kept list offline: card, dimmed empty message under it, header `0 widoczne · 0 ukryte` — manual 2026-11-27
+- [x] 1.14 NOWE flags still show on the dimmed offline list — manual 2026-11-27
 
 Note: no CSP check needed, no new resource or connection.

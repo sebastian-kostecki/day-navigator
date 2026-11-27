@@ -334,10 +334,10 @@ Parallel slices in this wave: F-01 `source-refresh-skeleton` and S-04 `gitlab-of
 - [x] 2.6 `grep -c "the type and the hidden expansion are remembered in the app data store" AGENTS.md` prints `1` — e4aabdc
 #### Manual
 
-- [ ] 2.7 In a built app (`npm run tauri build -- --debug --no-bundle`, database backed up first), choose "MR-y" and turn on "Pokaż ukryte", quit via the tray "Zakończ", start again: "Praca (GitLab)" shows "MR-y" with the hidden rows
-- [ ] 2.8 With project/label/milestone filter values selected, quit via "Zakończ" and start again: the filter values are empty, while type and "Pokaż ukryte" are remembered
-- [ ] 2.9 Switch back to "Wszystko" and turn "Pokaż ukryte" off, quit and start again: the defaults are shown (changing back is saved too)
-- [ ] 2.10 With "Pokaż ukryte" remembered on and no hidden issues, the button stays enabled and turns it off
-- [ ] 2.11 First start on a copy of the 0.11.0 (v13) database: the app opens, the GitLab view starts with "Wszystko" and hidden off, the tray "Dane aplikacji" stays healthy
-- [ ] 2.12 On a backup copy with a refused store (e.g. `day-navigator.db` replaced by a zero-byte file): the GitLab view still opens with the defaults, the toggles work in memory, the app log shows a `gitlab_view_state` warning with the error kind only
-- [ ] 2.13 The app log contains no type or filter values from the view-state commands, and the DevTools console of the built app shows no CSP violation or "IPC custom protocol failed"
+- [x] 2.7 In a built app (`npm run tauri build -- --debug --no-bundle`, database backed up first), choose "MR-y" and turn on "Pokaż ukryte", quit via the tray "Zakończ", start again: "Praca (GitLab)" shows "MR-y" with the hidden rows — manual 2026-11-27
+- [x] 2.8 With project/label/milestone filter values selected, quit via "Zakończ" and start again: the filter values are empty, while type and "Pokaż ukryte" are remembered — manual 2026-11-27
+- [x] 2.9 Switch back to "Wszystko" and turn "Pokaż ukryte" off, quit and start again: the defaults are shown (changing back is saved too) — manual 2026-11-27
+- [x] 2.10 With "Pokaż ukryte" remembered on and no hidden issues, the button stays enabled and turns it off — manual 2026-11-27
+- [x] 2.11 First start on a copy of the 0.11.0 (v13) database: the app opens, the GitLab view starts with "Wszystko" and hidden off, the tray "Dane aplikacji" stays healthy — manual 2026-11-27
+- [x] 2.12 On a backup copy with a refused store (e.g. `day-navigator.db` replaced by a zero-byte file): the GitLab view still opens with the defaults, the toggles work in memory, the app log shows a `gitlab_view_state` warning with the error kind only — manual 2026-11-27
+- [x] 2.13 The app log contains no type or filter values from the view-state commands, and the DevTools console of the built app shows no CSP violation or "IPC custom protocol failed" — manual 2026-11-27

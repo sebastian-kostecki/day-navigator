@@ -44,7 +44,7 @@ Grounding: 6/6 paths ✓ (`src/gitlab/GitlabView.tsx`, `GitlabView.css`, `src/gi
 - **Location**: Phase 1 — Manual Verification; Progress 1.8–1.13
 - **Detail**: The plan's one judgement call against the AGENTS.md empty-list rule ("A kept list that is empty shows its normal dimmed empty message under the card") has no manual row, and neither has the NOWE flag on a stale list (archived `gitlab-new-and-hidden-date` plan expects it to stay). Row 1.13 ("No CSP check needed") is a statement, not a check the user can tick.
 - **Fix**: Add manual rows "Successful round with an empty list, then VPN off: card on top, dimmed empty message under it, header `0 widoczne · 0 ukryte`" and "NOWE flags from the last round still show on the dimmed list"; turn 1.13 into a note under the phase or drop it.
-- **Decision**: PENDING
+- **Decision**: FIXED
 
 ### F2 — Criterion 1.7 depends on a single implementation commit
 
@@ -54,7 +54,7 @@ Grounding: 6/6 paths ✓ (`src/gitlab/GitlabView.tsx`, `GitlabView.css`, `src/gi
 - **Location**: Phase 1 — Automated Verification, row 1.7
 - **Detail**: `git diff --stat HEAD~1 -- src src-tauri` only proves the scope if the implementation lands as exactly one commit right after the docs commits. A fix-up commit or a rebase onto S-05 makes `HEAD~1` the wrong base.
 - **Fix**: Use the branch base: `git diff --stat develop...HEAD -- src src-tauri` lists only `src/gitlab/GitlabView.tsx`.
-- **Decision**: PENDING
+- **Decision**: FIXED
 
 ### F3 — Staleness of the list is visual only
 
@@ -64,4 +64,4 @@ Grounding: 6/6 paths ✓ (`src/gitlab/GitlabView.tsx`, `GitlabView.css`, `src/gi
 - **Location**: Phase 1, change 2 (`<Lists>` condition)
 - **Detail**: Dimming is `opacity: 0.55` (hidden rows ≈ 0.33); nothing in the list itself tells assistive tech or a low-contrast reader that the rows are stale. Mitigated: the `role="status"` card is announced first and sits above the list, and GitHub and the GitLab error state behave identically. Changing it here would widen the diff in a file shared with S-05 and break GitHub parity, so it is not a reason to revise this plan.
 - **Fix**: Accept for this slice (parity with GitHub); if wanted, a later cross-view follow-up can add an sr-only "nieaktualne" to both stale wrappers. Row 1.10 already covers the hidden-row readability check.
-- **Decision**: PENDING
+- **Decision**: ACCEPTED

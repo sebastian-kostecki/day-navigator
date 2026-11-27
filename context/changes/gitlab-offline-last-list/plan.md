@@ -74,7 +74,7 @@ Render `<Lists>` in the `unavailable` state when the session has a kept list, an
 - Rust formatting passes: `cargo fmt --check` (in `src-tauri/`)
 - Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
 - Rust tests pass, including `snapshot_unavailable_keeps_items`: `cargo test` (in `src-tauri/`)
-- Only `src/gitlab/GitlabView.tsx` changes among code files: `git diff --stat HEAD~1 -- src src-tauri` lists that one file
+- Only `src/gitlab/GitlabView.tsx` changes among code files: `git diff --stat develop...HEAD -- src src-tauri` lists that one file
 
 #### Manual Verification:
 
@@ -83,7 +83,10 @@ Render `<Lists>` in the `unavailable` state when the session has a kept list, an
 - On the dimmed offline list, "Pokaż ukryte" shows hidden rows; their nested dimming (about 0.33 opacity) is still readable
 - On the dimmed offline list, hide, unhide, dismiss and "+" (add to "Do zrobienia") work without errors; the filter bar, "Zamknięte" panel and footnote show dimmed
 - Turn VPN back on and refresh: the list returns to full opacity with fresh data; `error` and `ok` states look as before
-- No CSP check in the built app is needed (no new webview resource or connection)
+- Successful round with an empty list, then VPN off: card on top, dimmed empty message under it, header `0 widoczne · 0 ukryte`
+- NOWE flags from the last round still show on the dimmed offline list
+
+Note: no CSP check in the built app is needed (no new webview resource or connection).
 
 **Implementation Note**: After automated verification passes, commit the phase. The Manual rows stay unchecked; the user checks them later in the integrated build.
 

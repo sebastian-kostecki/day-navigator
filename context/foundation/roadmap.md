@@ -57,7 +57,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | S-05 | month-report-copy       | copy the month report to the clipboard and paste it into a spreadsheet         | —             | MS-24, FR-014, FR-020 | ready    |
 | S-06 | work-entry-note         | add a short note to a work-time entry                                          | —             | MS-27, FR-017         | done |
 | S-07 | end-of-day-summary      | see a summary of the day after STOP                                            | —             | MS-19, FR-013, FR-014 | ready    |
-| S-08 | week-summary            | see the week's sum against the week's norm in "Work time"                      | S-01          | MS-18, FR-014         | ready    |
+| S-08 | week-summary            | see the week's sum against the week's norm in "Work time"                      | S-01          | MS-18, FR-014         | done |
 
 ## Streams
 
@@ -196,7 +196,7 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
 - **Unknowns:**
   - A section in "Work time" or a separate view; a week that crosses months. — Owner: user. Block: no (settled in `/10x-plan`).
 - **Risk:** The week's norm must use the same rule as the month (holidays from S-01), computed in Rust, not summed again in the UI.
-- **Status:** ready
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -272,3 +272,4 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-06: user can add, edit and see a short plain-text note on a work-time entry.** — Archived 2026-11-26 → `context/archive/2026-11-26-work-entry-note/`. Lesson: —.
 - **S-03: user can start and stop the work-time counter from the tray menu and see today's work time in the tray tooltip next to the source state.** — Archived 2026-11-26 → `context/archive/2026-11-26-tray-timer-control/`. Lesson: —.
 - **S-02: user can set the daily norm in settings (default 8 h) and mark a half day off in the days table, and the report counts both.** — Archived 2026-11-27 → `context/archive/2026-11-26-configurable-daily-norm/`. Lesson: —.
+- **S-08: user can see in "Work time" the current week's sum against the week's norm, day by day.** — Archived 2026-11-27 → `context/archive/2026-11-26-week-summary/`. Lesson: —.

@@ -399,14 +399,14 @@ Phases, contracts and Manual rows are otherwise unchanged.
 
 #### Automated
 
-- [x] 2.1 All gates pass in the worktree
-- [x] 2.2 Existing test bodies are unchanged
-- [x] 2.3 Every skeleton log call carries a target
-- [x] 2.4 `lib.rs` still differs from the merge base by exactly `+pub mod source_refresh;`
-- [x] 2.5 Nothing outside the scope changed
-- [x] 2.6 Identity strings each appear exactly once in the refresh files
-- [x] 2.7 No copied mechanics remain in the source modules
-- [x] 2.8 Committed: `refactor(source-refresh): move GitLab refresh onto the shared skeleton`
+- [x] 2.1 All gates pass in the worktree — 5c747e1
+- [x] 2.2 Existing test bodies are unchanged — 5c747e1
+- [x] 2.3 Every skeleton log call carries a target — 5c747e1
+- [x] 2.4 `lib.rs` still differs from the merge base by exactly `+pub mod source_refresh;` — 5c747e1
+- [x] 2.5 Nothing outside the scope changed — 5c747e1
+- [x] 2.6 Identity strings each appear exactly once in the refresh files — 5c747e1
+- [x] 2.7 No copied mechanics remain in the source modules — 5c747e1
+- [x] 2.8 Committed: `refactor(source-refresh): move GitLab refresh onto the shared skeleton` — 5c747e1
 
 ### Phase 3: Agent pointer and final checks
 

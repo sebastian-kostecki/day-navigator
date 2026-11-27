@@ -669,10 +669,10 @@ Rollback to an older build is safe. Old code never reads the marker row, and the
 
 #### Automated
 
-- [ ] 1.1 Guard test passes with the new counts and refuses the negative review endpoint
-- [ ] 1.2 Runner echo test covers the new examples
-- [ ] 1.3 cargo fmt --check and cargo clippy --all-targets -- -D warnings are clean
-- [ ] 1.4 Full suite green: cargo test
+- [x] 1.1 Guard test passes with the new counts and refuses the negative review endpoint
+- [x] 1.2 Runner echo test covers the new examples
+- [x] 1.3 cargo fmt --check and cargo clippy --all-targets -- -D warnings are clean
+- [x] 1.4 Full suite green: cargo test
 
 ### Phase 2: Review list in the round: fetch, dedupe, filter, kept list, TS mirror
 

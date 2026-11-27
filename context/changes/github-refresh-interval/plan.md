@@ -299,11 +299,11 @@ Same base `develop` 00e6a19. Edits in shared files stay small and appended; no r
 
 #### Automated
 
-- [ ] 2.1 cargo test passes with the snapshot default, carry-over, serialisation and refresh_interval tests and all existing tests
-- [ ] 2.2 cargo fmt --check and cargo clippy --all-targets -- -D warnings pass
-- [ ] 2.3 npm run lint, npm run format:check and npm run build pass
-- [ ] 2.4 REFRESH_INTERVAL no longer exists in github_refresh.rs
-- [ ] 2.5 git diff --stat shows changes only in github/mod.rs, github_refresh.rs and src/github/types.ts
+- [x] 2.1 cargo test passes with the snapshot default, carry-over, serialisation and refresh_interval tests and all existing tests — 50c8b78
+- [x] 2.2 cargo fmt --check and cargo clippy --all-targets -- -D warnings pass — 50c8b78
+- [x] 2.3 npm run lint, npm run format:check and npm run build pass — 50c8b78
+- [x] 2.4 REFRESH_INTERVAL no longer exists in github_refresh.rs — 50c8b78
+- [x] 2.5 git diff --stat shows changes only in github/mod.rs, github_refresh.rs and src/github/types.ts — 50c8b78
 
 ### Phase 3: Shared next-try text in the GitHub view, notice and README
 

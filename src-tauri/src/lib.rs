@@ -7,6 +7,7 @@ pub mod github;
 pub mod github_refresh;
 pub mod gitlab;
 pub mod gitlab_refresh;
+pub mod gitlab_view_state;
 pub mod health;
 pub mod hidden_issues;
 pub mod new_assignments;
@@ -210,6 +211,8 @@ pub fn run() {
             hidden_issues::commands::hide_gitlab_issue,
             hidden_issues::commands::unhide_gitlab_issue,
             hidden_issues::commands::dismiss_gitlab_change,
+            gitlab_view_state::commands::gitlab_view_state,
+            gitlab_view_state::commands::set_gitlab_view_state,
             list_own_tasks,
             add_own_task,
             edit_own_task,

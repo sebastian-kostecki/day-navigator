@@ -181,7 +181,6 @@ fn a_v11_database_upgrades_through_the_day_off_kind_then_the_events_rebuild() {
     let rebuild = position("CREATE TABLE events_new");
     assert_eq!(schema::MIGRATIONS[kind].version, 12);
     assert_eq!(schema::MIGRATIONS[rebuild].version, 13);
-    assert_eq!(schema::MIGRATIONS.len(), 13);
     {
         let mut old = Store::open(&dir, &schema::MIGRATIONS[..kind], day(23)).unwrap();
         assert_eq!(scalar(&old, "PRAGMA user_version"), 11);
@@ -197,7 +196,10 @@ fn a_v11_database_upgrades_through_the_day_off_kind_then_the_events_rebuild() {
     }
 
     let mut store = open(&dir);
-    assert_eq!(scalar(&store, "PRAGMA user_version"), 13);
+    assert_eq!(
+        scalar(&store, "PRAGMA user_version"),
+        schema::MIGRATIONS.len() as i64
+    );
     assert_eq!(
         scalar(&store, "SELECT count(*) FROM days_off WHERE kind = 'full'"),
         1

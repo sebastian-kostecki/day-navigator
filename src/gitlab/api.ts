@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { storeErrorMessage } from "../components/storeError";
-import type { GitlabSnapshot, HiddenIssueError, OpenSettingsError } from "./types";
+import type { GitlabSnapshot, GitlabViewState, HiddenIssueError, OpenSettingsError } from "./types";
 
 export function getGitlabSnapshot(): Promise<GitlabSnapshot> {
   return invoke<GitlabSnapshot>("gitlab_snapshot");
@@ -89,4 +89,14 @@ export function openSettingsErrorMessage(e: unknown): string {
     }
   }
   return `Nieoczekiwany błąd: ${String(e)}`;
+}
+
+/** The remembered type choice and hidden expansion. A failure rejects with `GitlabViewStateError`; Rust has already logged it. */
+export function getGitlabViewState(): Promise<GitlabViewState> {
+  return invoke<GitlabViewState>("gitlab_view_state");
+}
+
+/** Saves the type choice and hidden expansion. A failure rejects with `GitlabViewStateError`; Rust has already logged it. */
+export function setGitlabViewState(view: GitlabViewState): Promise<void> {
+  return invoke<void>("set_gitlab_view_state", { view });
 }

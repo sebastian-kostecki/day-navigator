@@ -129,3 +129,12 @@ export type HiddenIssueError =
 /** Mirrors `settings_file::OpenSettingsError`. */
 export type OpenSettingsError =
   { kind: "ConfigDirUnresolved" } | { kind: "Missing" } | { kind: "OpenFailed" };
+
+/** Mirrors gitlab_view_state::ViewKind. */
+export type KindFilter = "all" | "issue" | "mergeRequest";
+
+/** Mirrors gitlab_view_state::GitlabViewState. */
+export type GitlabViewState = { kind: KindFilter; showHidden: boolean };
+
+/** Mirrors gitlab_view_state::GitlabViewStateError. */
+export type GitlabViewStateError = { kind: "Store"; detail: StoreError } | { kind: "Background" };

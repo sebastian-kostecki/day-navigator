@@ -425,7 +425,7 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Manual
 
-- [ ] 1.8 In the running app, "Dni miesiąca" and the month tiles of the current month show the same figures as before the refactor.
+- [x] 1.8 In the running app, "Dni miesiąca" and the month tiles of the current month show the same figures as before the refactor. — checked by the user on 2026-11-27 on m3-wave2-integration
 
 ### Phase 2: Week report domain
 
@@ -469,10 +469,10 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Manual
 
-- [ ] 4.8 In the running app, "Bieżący tydzień" shows seven rows Monday to Sunday of the current week, today highlighted, and the head shows the week's dates.
-- [ ] 4.9 With the counter running, today's row (worked, bar, ±) grows live and matches the header's "Dziś"; the totals catch up within about 60 s or after STOP.
-- [ ] 4.10 Marking a weekday of this week as a day off in "Dni miesiąca" hatches it in the week panel, drops its norm to "—" and lowers "z H:MM normy" by one workday; unmarking restores it.
-- [ ] 4.11 A week with a holiday or a month boundary (check with the month chevrons that the week panel does not move, and on a real such week when available) shows all seven days and the holiday name.
-- [ ] 4.12 Clicking a day label in the week panel switches "Wybrany dzień" and the entries panel to that day.
-- [ ] 4.13 An invalid `workTime` block in `settings.json` shows the error state with retry in the week panel as in the month report; fixing it and retrying recovers.
-- [ ] 4.14 At 800 px window width the week table fits the column without clipped numbers.
+- [x] 4.8 In the running app, "Bieżący tydzień" shows seven rows Monday to Sunday of the current week, today highlighted, and the head shows the week's dates. — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 4.9 With the counter running, today's row (worked, bar, ±) grows live and matches the header's "Dziś"; the totals catch up within about 60 s or after STOP. — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 4.10 Marking a weekday of this week as a day off in "Dni miesiąca" hatches it in the week panel, drops its norm to "—" and lowers "z H:MM normy" by one workday; unmarking restores it. — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 4.11 A week with a holiday or a month boundary (check with the month chevrons that the week panel does not move, and on a real such week when available) shows all seven days and the holiday name. — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 4.12 Clicking a day label in the week panel switches "Wybrany dzień" and the entries panel to that day. — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 4.13 An invalid `workTime` block in `settings.json` shows the error state with retry in the week panel as in the month report; fixing it and retrying recovers. — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 4.14 At 800 px window width the week table fits the column without clipped numbers. — checked by the user on 2026-11-27 on m3-wave2-integration

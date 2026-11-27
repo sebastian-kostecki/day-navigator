@@ -504,10 +504,10 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): jedna
 
 #### Automated
 
-- [x] 3.1 `cargo test` w `src-tauri/` przechodzi, w tym test deserializacji `DayMark`
-- [x] 3.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
-- [x] 3.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [x] 3.4 `git grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(" -- src/worktime/WorkTime.css src/components/Segmented/Segmented.css` nic nie znajduje, a `git grep -n "invoke" -- src/worktime` znajduje `invoke` tylko w `src/worktime/api.ts`
+- [x] 3.1 `cargo test` w `src-tauri/` przechodzi, w tym test deserializacji `DayMark` — 6968a74
+- [x] 3.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag — 6968a74
+- [x] 3.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą — 6968a74
+- [x] 3.4 `git grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(" -- src/worktime/WorkTime.css src/components/Segmented/Segmented.css` nic nie znajduje, a `git grep -n "invoke" -- src/worktime` znajduje `invoke` tylko w `src/worktime/api.ts` — 6968a74
 
 #### Manual
 
@@ -521,6 +521,6 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): jedna
 
 #### Automated
 
-- [ ] 4.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą; w `src-tauri/` `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` przechodzą
-- [ ] 4.2 `git grep -n "8 h" -- context/foundation/prd.md` znajduje tylko wzmianki „domyślnie 8 h”, a `git grep -n "dailyNormHours" -- README.md CHANGELOG.md` znajduje oba pliki
-- [ ] 4.3 `git diff <commit fazy 3>.. --stat` nie pokazuje `context/foundation/roadmap.md`
+- [x] 4.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą; w `src-tauri/` `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` przechodzą
+- [x] 4.2 `git grep -n "8 h" -- context/foundation/prd.md` znajduje tylko wzmianki „domyślnie 8 h”, a `git grep -n "dailyNormHours" -- README.md CHANGELOG.md` znajduje oba pliki
+- [x] 4.3 `git diff <commit fazy 3>.. --stat` nie pokazuje `context/foundation/roadmap.md`

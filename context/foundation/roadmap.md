@@ -23,13 +23,13 @@ milestone_status: open
 
 **M-4: Sources — GitHub on a par with GitLab** — Status: open
 
-- **Intent:** "Projects (GitHub)" behaves like "Work (GitLab)": a refresh interval from settings with the next try shown, a NEW flag and new-assignment notices, hiding with resurfacing on change, all on one shared refresh mechanism for both sources. "Work (GitLab)" closes its own gaps: the last list stays visible without VPN, the view's type and "Hidden" section are remembered between runs, merge requests where the user is a reviewer get a "Do review" section, and merge requests can be hidden too. Outcome-scoped; no dates.
+- **Intent:** "Projects (GitHub)" behaves like "Work (GitLab)": a refresh interval from settings with the next try shown, a NEW flag on new assignments, hiding with resurfacing on change, all on one shared refresh mechanism for both sources. "Work (GitLab)" closes its own gaps: the last list stays visible without VPN, the view's type and "Hidden" section are remembered between runs, merge requests where the user is a reviewer get a "Do review" section, and merge requests can be hidden too. Outcome-scoped; no dates.
 - **Source materials:** GitHub issues #28–#35 (GitHub milestone "M-4: Źródła – GitHub na równi z GitLabem"); `context/foundation/prd.md` v2 for the existing source rules (FR-001–FR-005, FR-015, FR-023, FR-024, FR-026). The later GitHub milestones M-5 and M-6 stay outside this milestone.
 - **Done when:** every F-NN and S-NN below is `done`, and the preserved behaviour still holds: "never an empty list instead of an error", a calm "GitLab unavailable" without VPN (FR-015), the read-only `glab`/`gh` rule with every new call covered by the guard test, and no work data in the repo, tests or logs.
 - **Scope anchors:** The user decided on 2026-11-27 that M-4 adds no new FR to the PRD; each issue is anchored here and each `MS-NN` number matches its issue number:
   - MS-28: One shared refresh skeleton for GitLab and GitHub (thread, interval, wake after sleep, "Check now", snapshot publication, `lastSuccessMs`, `nextRefreshAtMs`); the source-specific fetch and rules stay in each source's module; no change in behaviour or commands (issue #28).
   - MS-29: `githubRefresh.minutes` in `settings.json` (same range and default as GitLab), validated in Rust, and "every N min — next try in M min (HH:MM)" in GitHub's unavailable and error states (issue #29).
-  - MS-30: GitHub seen-assignment keys in today's shape, a NEW flag since the last visit to the view, and a Windows notice of a new assignment with the FR-004 batch threshold (issue #30).
+  - MS-30: GitHub seen-assignment keys in today's shape and a NEW flag on items that appeared since the last visit to the view; no Windows notice for GitHub (issue #30; decided 2026-11-27: private projects are usually self-assigned, so a notice would be noise).
   - MS-31: Hide and show in a GitHub row, a "Hidden (n)" section with the hide date, resurfacing marked "Changed" on a state change or a comment by someone else, snapshots in the app data store, data through a new read-only `gh` call (issue #31).
   - MS-32: Without VPN, "Work (GitLab)" shows the calm unavailable card and under it the session's last list, dimmed, and the view header shows that list's counts (issue #32; the user chose the fix over `wontfix` on 2026-11-27).
   - MS-33: Hide on a GitLab merge request, resurfacing on a state change or a comment by someone else, data through a new read-only `glab api` call (issue #33).
@@ -53,7 +53,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | F-01 | source-refresh-skeleton    | (foundation) GitLab and GitHub refresh on one shared skeleton, behaviour unchanged | —             | MS-28, FR-015                 | ready    |
 | S-01 | github-hide-resurface      | hide a GitHub issue and see it come back marked "Changed"                         | F-01          | MS-31, FR-003, FR-005         | proposed |
 | S-02 | github-refresh-interval    | set GitHub's refresh interval and see when the next try happens                    | F-01          | MS-29, FR-005, FR-024         | proposed |
-| S-03 | github-new-and-notify      | see a NEW flag on GitHub items and get a notice of a new assignment                | F-01          | MS-30, FR-004, FR-005, FR-023 | proposed |
+| S-03 | github-new-and-notify      | see a NEW flag on GitHub items that appeared since their last visit              | F-01          | MS-30, FR-005, FR-023         | proposed |
 | S-04 | gitlab-offline-last-list   | see the last GitLab list, dimmed, under the unavailable card without VPN           | —             | MS-32, FR-015                 | ready    |
 | S-05 | gitlab-view-memory         | find "Work (GitLab)" with the same type and "Hidden" section after a restart       | —             | MS-34, FR-001, FR-003         | ready    |
 | S-06 | gitlab-review-requests     | see merge requests waiting for their review in a "Do review" section               | F-01          | MS-35, FR-001, FR-002, FR-004 | proposed |
@@ -109,7 +109,7 @@ Slices below assume these are present and do NOT re-scaffold them.
 - **Parallel with:** S-02, S-04, S-05, S-06
 - **Blockers:** —
 - **Unknowns:**
-  - Where the GitHub login comes from to tell the user's own comments apart (`gh api user`, read-only). — Owner: user. Block: no (settled before its wave).
+  - Resolved 2026-11-27: the GitHub login comes from a new read-only `gh api user` call (a new `CliCall` covered by the guard test), not from a setting. — Owner: user. Block: no.
   - Can the rules in `hidden_issues/rules.rs` be shared without a copy, and can the new storage hold GitLab merge requests too, so S-07 needs no migration? — Owner: team. Block: no (settled in `/10x-plan`).
 - **Risk:** A migration and a new `gh` call; it runs in a wave with no other migration, and the shared hiding rules it settles are what S-07 builds on.
 - **Status:** proposed
@@ -126,17 +126,17 @@ Slices below assume these are present and do NOT re-scaffold them.
 - **Risk:** Small once F-01 exposes the interval and `nextRefreshAtMs` for every source; shares the GitHub view with S-01 and S-03.
 - **Status:** proposed
 
-### S-03: GitHub NEW flag and new-assignment notice
+### S-03: GitHub NEW flag
 
-- **Outcome:** user can see a NEW flag on GitHub items that appeared since their last visit to the view and gets a Windows notice of a new assigned GitHub issue, with more than 3 at once as one combined notice.
+- **Outcome:** user can see a NEW flag on GitHub items that appeared since their last visit to the view; GitHub gives no Windows notice (decided 2026-11-27).
 - **Change ID:** github-new-and-notify
-- **PRD refs:** MS-30, FR-004, FR-005, FR-023
+- **PRD refs:** MS-30, FR-005, FR-023
 - **Prerequisites:** F-01
 - **Parallel with:** S-02, S-04, S-05, S-06
 - **Blockers:** —
 - **Unknowns:**
-  - Are GitHub notices needed (private projects, usually self-assigned), or is the NEW flag enough? — Owner: user. Block: no (settled before its wave).
-- **Risk:** A migration (the seen-assignment kind CHECK and a GitHub view mark); it runs in a later wave than S-01 so the two migrations do not collide.
+  - Resolved 2026-11-27: NEW flag only, no GitHub notices. — Owner: user. Block: no.
+- **Risk:** A migration (GitHub seen keys and a GitHub view mark); it runs in a later wave than S-01 so the two migrations do not collide.
 - **Status:** proposed
 
 ### S-04: Last GitLab list without VPN
@@ -184,7 +184,7 @@ Slices below assume these are present and do NOT re-scaffold them.
 - **Parallel with:** S-02, S-03
 - **Blockers:** —
 - **Unknowns:**
-  - What else brings a merge request back: an approval, a new commit, a pipeline change? — Owner: user. Block: no (settled before its wave).
+  - Resolved 2026-11-27: only a state change or a comment by someone else brings a merge request back (the FR-003 rule); no approvals, commits or pipelines. — Owner: user. Block: no.
 - **Risk:** Builds on the hiding rules S-01 generalises and on S-06's review section; a migration unless S-01's storage already holds merge requests.
 - **Status:** proposed
 
@@ -195,7 +195,7 @@ Slices below assume these are present and do NOT re-scaffold them.
 | F-01       | source-refresh-skeleton    | Wspólny mechanizm odświeżania źródeł (GitLab i GitHub)             | yes                   | Issue #28 |
 | S-01       | github-hide-resurface      | GitHub: ukrywanie zgłoszeń z powrotem po zmianie                   | no                    | Issue #31; north star; after F-01 |
 | S-02       | github-refresh-interval    | GitHub: interwał odświeżania w ustawieniach i czas następnej próby | no                    | Issue #29; after F-01 |
-| S-03       | github-new-and-notify      | GitHub: flaga NOWE i powiadomienie o nowym przypisaniu             | no                    | Issue #30; after F-01; migration wave apart from S-01 |
+| S-03       | github-new-and-notify      | GitHub: flaga NOWE (bez powiadomień)                               | no                    | Issue #30; after F-01; migration wave apart from S-01 |
 | S-04       | gitlab-offline-last-list   | GitLab: ostatnia lista znika przy braku VPN                        | yes                   | Issue #32 |
 | S-05       | gitlab-view-memory         | GitLab: filtr widoku zapamiętany między uruchomieniami             | yes                   | Issue #34 |
 | S-06       | gitlab-review-requests     | Decyzja: MR-y, w których jestem reviewerem                         | no                    | Issue #35; after F-01 |

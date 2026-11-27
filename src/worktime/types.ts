@@ -16,6 +16,10 @@ export type WorkTimeError =
   | { kind: "InvalidLocalTime" }
   | { kind: "RunningEndEdit" }
   | { kind: "NotAWorkday" }
+  | { kind: "Holiday" }
+  | { kind: "SettingsInvalid" }
+  | { kind: "NoteTooLong"; detail: { max: number } }
+  | { kind: "NoteMultiline" }
   | { kind: "Background" };
 
 /**
@@ -58,6 +62,8 @@ export interface EntryRow {
   startLocal: string;
   endLocal: string | null;
   dayPortionMs: number;
+  /** Trimmed one-line note; `""` = none. */
+  note: string;
 }
 
 export interface DayEntries {
@@ -70,7 +76,10 @@ export interface DayEntries {
   dayEndMs: number;
 }
 
-export type DayKind = "workday" | "dayOff" | "weekend";
+export type DayKind = "workday" | "halfDayOff" | "dayOff" | "holiday" | "weekend";
+
+/** The state a day is set to; the three settable `DayKind`s. */
+export type DayMark = "workday" | "halfDayOff" | "dayOff";
 
 export type MonthPhase = "past" | "current" | "future";
 
@@ -82,6 +91,10 @@ export interface DayReport {
   normMs: number;
   deviationMs: number | null;
   entryCount: number;
+  /** Name of the public holiday on this day (any kind of day), else null. */
+  holiday: string | null;
+  /** True when the holiday falls on a Saturday: a day off is owed for it. */
+  dayOffOwed: boolean;
 }
 
 interface MonthReportBase {
@@ -90,9 +103,16 @@ interface MonthReportBase {
   asOfMs: number;
   workedMs: number;
   normMs: number;
+  /** The configured full-day norm (`workTime.dailyNormHours`, default eight hours). */
+  dailyNormMs: number;
   workdays: number;
-  /** `YYYY-MM-DD`, sorted, this month only. */
+  /**
+   * `YYYY-MM-DD`, sorted, this month only. Rows on a public holiday are left
+   * out: the holiday shadows them.
+   */
   daysOff: string[];
+  /** Half days off, `YYYY-MM-DD`, sorted; holiday-shadowed rows left out too. */
+  halfDaysOff: string[];
   /** All days of the month, ascending. */
   days: DayReport[];
 }
@@ -107,6 +127,7 @@ export type MonthReport =
       normToDateMs: number;
       deviationMs: number;
       workdaysAfterToday: null;
+      halfDaysAfterToday: null;
       neededPerDayMs: null;
       remainingMs: null;
     })
@@ -115,6 +136,8 @@ export type MonthReport =
       normToDateMs: number;
       deviationMs: number;
       workdaysAfterToday: number;
+      /** How many of those days are half days off (norm below the full day). */
+      halfDaysAfterToday: number;
       /** `null` when no workday is left after today. */
       neededPerDayMs: number | null;
       remainingMs: number;
@@ -124,6 +147,42 @@ export type MonthReport =
       normToDateMs: null;
       deviationMs: null;
       workdaysAfterToday: null;
+      halfDaysAfterToday: null;
       neededPerDayMs: null;
+      remainingMs: null;
+    });
+
+export type WeekPhase = "past" | "current" | "future";
+
+interface WeekReportBase {
+  /** `YYYY-MM-DD`, first day row. */
+  monday: string;
+  /** `YYYY-MM-DD`, last day row. */
+  sunday: string;
+  asOfMs: number;
+  workedMs: number;
+  normMs: number;
+  /** Exactly seven rows, Monday first. */
+  days: DayReport[];
+}
+
+/** Mirrors the Rust `WeekReport`; which figures are set depends on `phase`. */
+export type WeekReport =
+  | (WeekReportBase & {
+      phase: "past";
+      normToDateMs: number;
+      deviationMs: number;
+      remainingMs: null;
+    })
+  | (WeekReportBase & {
+      phase: "current";
+      normToDateMs: number;
+      deviationMs: number;
+      remainingMs: number;
+    })
+  | (WeekReportBase & {
+      phase: "future";
+      normToDateMs: null;
+      deviationMs: null;
       remainingMs: null;
     });

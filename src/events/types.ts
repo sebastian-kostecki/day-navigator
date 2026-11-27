@@ -5,7 +5,8 @@ import type { ItemKind } from "../gitlab/types";
 export type EventItemSource = "own" | "gitlab" | "github";
 
 /** Mirrors `health::SourceId` (its stable key). */
-export type EventSourceId = "settings" | "app-data" | "gitlab" | "github" | "reminders";
+export type EventSourceId =
+  "settings" | "app-data" | "gitlab" | "github" | "reminders" | "autostart";
 
 /** Mirrors `events::Subject`; `reference` is null for an own task. */
 interface EventSubject {

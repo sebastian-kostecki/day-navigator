@@ -184,6 +184,8 @@ fn not_running_is_silent_when_it_should_be() {
     let silent = [
         idle("2026-11-23", DayKind::Weekend, false),
         idle("2026-11-23", DayKind::DayOff, false),
+        idle("2026-11-23", DayKind::HalfDayOff, false),
+        idle("2026-11-23", DayKind::Holiday, false),
         idle("2026-11-23", DayKind::Workday, true),
     ];
     for f in silent {

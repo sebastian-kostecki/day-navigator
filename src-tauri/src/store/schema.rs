@@ -240,6 +240,49 @@ CREATE UNIQUE INDEX todo_items_live_github
   error_kind   TEXT
 );",
     },
+    // S-06 (work-entry-note): optional one-line note on a work-time entry,
+    // `''` = none. Typed by the user; never logged and never in the event log.
+    // The CHECK mirrors `work_time::note::NOTE_MAX` (second line of defence;
+    // Rust validates first).
+    Migration {
+        version: 11,
+        sql: "ALTER TABLE work_entries ADD COLUMN note TEXT NOT NULL DEFAULT ''
+  CHECK (length(note) <= 200 AND instr(note, char(10)) = 0 AND instr(note, char(13)) = 0);",
+    },
+    // S-02 (configurable-daily-norm): kind of a day off. `full` = whole day (every
+    // existing row), `half` = half of the daily norm; the primary key of `day`
+    // excludes both at once.
+    Migration {
+        version: 12,
+        sql: "ALTER TABLE days_off ADD COLUMN kind TEXT NOT NULL DEFAULT 'full'
+  CHECK (kind IN ('full', 'half'));",
+    },
+    // S-04 (windows-autostart): the event log's `source_id` CHECK learns the
+    // 'autostart' key. SQLite cannot alter a CHECK, so the table is rebuilt
+    // with the same columns; nothing else references `events`. Planned as v12,
+    // renumbered to v13 after S-02 when M-3 wave 2 was merged.
+    Migration {
+        version: 13,
+        sql: "CREATE TABLE events_new (
+  id           INTEGER PRIMARY KEY,
+  at           TEXT    NOT NULL,
+  kind         TEXT    NOT NULL CHECK (kind IN
+    ('assigned','ticked','removed','closedInSource',
+     'workStarted','workStopped','sourceError','sourceRecovered')),
+  item_source  TEXT    CHECK (item_source IN ('own','gitlab','github')),
+  item_kind    TEXT    CHECK (item_kind IN ('issue','mergeRequest')),
+  reference    TEXT,
+  title        TEXT    CHECK (title IS NULL OR length(title) <= 300),
+  source_id    TEXT    CHECK (source_id IN
+    ('settings','app-data','gitlab','github','reminders','autostart')),
+  source_label TEXT,
+  error_kind   TEXT
+);
+INSERT INTO events_new SELECT id, at, kind, item_source, item_kind, reference, title,
+  source_id, source_label, error_kind FROM events;
+DROP TABLE events;
+ALTER TABLE events_new RENAME TO events;",
+    },
 ];
 
 /// Versions must start at 1 and rise by exactly 1.

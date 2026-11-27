@@ -1,6 +1,6 @@
 import { formatHm, type Stat } from "../components";
 import type { HealthSnapshot, SourceStatus } from "../health/types";
-import { formatClock, formatWorkdays } from "../worktime/format";
+import { formatClock, formatDaysAfterToday } from "../worktime/format";
 import { todayTotalMs } from "../worktime/total";
 import type { MonthReportState } from "../worktime/useMonthReport";
 import type { TimerState } from "../worktime/useWorkTimer";
@@ -64,7 +64,7 @@ function monthTiles(state: MonthReportState): Stat[] {
     perDay = {
       label: "Średnio / dzień",
       value: formatHm(report.neededPerDayMs),
-      sub: `przez ${formatWorkdays(report.workdaysAfterToday)}`,
+      sub: formatDaysAfterToday(report.workdaysAfterToday, report.halfDaysAfterToday),
     };
   }
   return [month, deviation, perDay];

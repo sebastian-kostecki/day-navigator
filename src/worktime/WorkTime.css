@@ -11,6 +11,15 @@
   font-size: 13px;
 }
 
+.wt-month-copy {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
 .wt-month {
   display: flex;
   flex-direction: column;
@@ -18,11 +27,30 @@
 }
 
 .wt-days {
-  --dn-table-cols: 84px 76px minmax(0, 1fr) 52px 60px 44px;
+  --dn-table-cols: 84px 76px minmax(0, 1fr) 52px 60px 124px;
 }
 
 .wt-days .dn-hours {
   min-width: 0;
+}
+
+.wt-days-note {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.wt-days-note .dn-hours {
+  flex: 1 1 0;
+}
+
+.wt-days-holiday {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wt-days-num {
@@ -32,10 +60,6 @@
 .wt-days-switch {
   display: flex;
   justify-content: center;
-}
-
-.wt-days .wt-check {
-  min-height: 0;
 }
 
 .wt-stack {
@@ -70,22 +94,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-}
-
-.wt-check {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--size-field);
-  color: var(--ink-muted);
-  cursor: pointer;
-}
-
-.wt-check input {
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  accent-color: var(--accent);
 }
 
 .wt-how {
@@ -151,6 +159,15 @@
   flex-basis: 100%;
 }
 
+.wt-note {
+  flex-basis: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-faint);
+}
+
 .wt-new {
   padding: var(--space-3) var(--space-4);
 }
@@ -196,6 +213,20 @@
   flex: 1 1 180px;
 }
 
+/* Grid, so `.dn-field`'s flex-basis above does not become a height. */
+.wt-note-field {
+  flex: 1 1 100%;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.wt-note-count {
+  justify-self: end;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-faint);
+}
+
 .wt-form-actions {
   display: flex;
   gap: var(--space-2);
@@ -231,4 +262,12 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
+}
+
+.wt-week {
+  --dn-table-cols: 84px minmax(0, 1fr) 52px 52px 60px;
+}
+
+.wt-week .dn-hours {
+  min-width: 0;
 }

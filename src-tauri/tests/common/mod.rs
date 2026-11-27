@@ -13,3 +13,12 @@ pub fn test_store_dir() -> (TempDir, PathBuf) {
     let dir = tmp.path().join("data");
     (tmp, dir)
 }
+
+/// Work-time settings with the holiday calendar off, for tests that mark
+/// holiday dates as manual days off.
+pub fn manual_only() -> day_navigator_lib::settings::WorkTimeSettings {
+    day_navigator_lib::settings::WorkTimeSettings {
+        holidays: day_navigator_lib::work_time::holidays::HolidayCalendar::Off,
+        ..day_navigator_lib::settings::WorkTimeSettings::default()
+    }
+}

@@ -11,6 +11,48 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-27
+
+### Added
+
+- "Czas pracy": Polish public holidays count out of the month's norm and show
+  in the days table like a day off, with their name; a Saturday holiday shows
+  a hint that another day off is owed. Turn the calendar off with
+  `"workTime": { "holidays": false }` in `settings.json`.
+- "Czas pracy": the daily norm is set in `settings.json` with
+  `"workTime": { "dailyNormHours": 8 }` (1–10 hours in whole minutes, default 8).
+  There is one value and no history, so a change recalculates every month,
+  closed ones included. An invalid value is reported and the dashboard tiles
+  show "raport niedostępny".
+- "Czas pracy": half a day off, in the "Wolne" control of the days table
+  ("nie" / "½" / "tak") and in the "Dzień" control of the "Wybrany dzień"
+  panel. It counts half the daily norm, and the "Dni wolne" tile counts it as
+  0.5. Existing days off stay whole days.
+- "Czas pracy": a "Bieżący tydzień" panel shows the current Monday–Sunday week,
+  also across a month or year boundary, day by day against the week's norm (the
+  month's rule: holidays and days off count out, a half day off counts half), with the deviation up to today
+  and what remains.
+- "Czas pracy": a "Kopiuj miesiąc" button copies the shown month to the
+  clipboard as tab-separated text that pastes into a spreadsheet: a summary,
+  one row per day (kind, holiday name, sum, norm, deviation) and one row per
+  entry with its note. Numbers use a decimal comma, for pl-PL Excel and Google
+  Sheets.
+- "Czas pracy": a work-time entry can have a short one-line note (up to 200
+  characters). Set it when adding or editing the entry; the day's entry list
+  shows it under the times.
+- After STOP in the header, a dismissible "Podsumowanie dnia" panel shows
+  today's work time, the month's deviation, what was ticked off in "Do
+  zrobienia" and what carries over to tomorrow (no question asked). After STOP
+  from the tray, a Windows notification shows today's work time and the
+  month's deviation.
+- The tray menu has START/STOP for the work-time counter (no confirmation,
+  logged in the event log like the header). The tray tooltip shows today's
+  work time under the source state, and the tray icon has a "counter running"
+  variant (a source error still shows the error icon).
+- The app can start with Windows into the tray (window hidden) with
+  `"autostart": { "enabled": true }` in `settings.json`. Off by default; the
+  state shows as "Autostart" in "Źródła".
+
 ## [0.10.1] - 2026-11-26
 
 ### Changed

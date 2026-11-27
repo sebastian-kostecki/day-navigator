@@ -1,10 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   DayEntries,
+  DayMark,
   EntryRow,
   MonthReport,
   ReminderSettingsError,
   ReminderThresholds,
+  WeekReport,
   WorkTimeError,
   WorkTimerStatus,
 } from "./types";
@@ -29,13 +31,18 @@ export function stopWork(): Promise<WorkTimerStatus> {
 }
 
 /** `start` and `end` are local `YYYY-MM-DDTHH:MM`. */
-export function addWorkEntry(start: string, end: string): Promise<void> {
-  return invoke<void>("add_work_entry", { start, end });
+export function addWorkEntry(start: string, end: string, note: string): Promise<void> {
+  return invoke<void>("add_work_entry", { start, end, note });
 }
 
 /** `end` is null for the running entry. */
-export function updateWorkEntry(id: number, start: string, end: string | null): Promise<void> {
-  return invoke<void>("update_work_entry", { id, start, end });
+export function updateWorkEntry(
+  id: number,
+  start: string,
+  end: string | null,
+  note: string,
+): Promise<void> {
+  return invoke<void>("update_work_entry", { id, start, end, note });
 }
 
 export function removeWorkEntry(id: number): Promise<void> {
@@ -47,9 +54,19 @@ export function workMonthReport(day: string): Promise<MonthReport> {
   return invoke<MonthReport>("work_month_report", { day });
 }
 
-/** `day` is `YYYY-MM-DD`; a weekend is refused with `NotAWorkday`. */
-export function setDayOff(day: string, off: boolean): Promise<void> {
-  return invoke<void>("set_day_off", { day, off });
+/** `day` is any `YYYY-MM-DD`; the report is the Monday–Sunday week containing it. */
+export function workWeekReport(day: string): Promise<WeekReport> {
+  return invoke<WeekReport>("work_week_report", { day });
+}
+
+/** `day` is any `YYYY-MM-DD` within the month; TSV for the clipboard. */
+export function workMonthReportText(day: string): Promise<string> {
+  return invoke<string>("work_month_report_text", { day });
+}
+
+/** `day` is `YYYY-MM-DD`; a weekend is refused with `NotAWorkday`, a holiday with `Holiday`. */
+export function setDayOff(day: string, mark: DayMark): Promise<void> {
+  return invoke<void>("set_day_off", { day, mark });
 }
 
 /** Read-only: the reminder thresholds and whether `settings.json` set them. */
@@ -138,8 +155,16 @@ export function workTimeErrorMessage(e: unknown, entriesById?: Map<number, Entry
       return "Nieprawidłowy lub nieistniejący czas lokalny";
     case "RunningEndEdit":
       return "Trwający wpis nie ma końca — zakończ go przyciskiem STOP";
+    case "Holiday":
+      return "Święto nie jest dniem roboczym";
+    case "SettingsInvalid":
+      return "Nie można odczytać bloku „workTime” z settings.json: plik musi być poprawnym JSON-em z „version”: 1, a holidays to „pl” albo false, a dailyNormHours to liczba godzin od 1 do 10 w pełnych minutach (np. 7.5).";
     case "NotAWorkday":
       return "Weekend nie jest dniem roboczym";
+    case "NoteTooLong":
+      return `Notatka może mieć najwyżej ${err.detail.max} znaków`;
+    case "NoteMultiline":
+      return "Notatka musi mieścić się w jednej linii";
     case "Background":
       return "Zadanie w tle nie powiodło się, spróbuj ponownie";
     default:

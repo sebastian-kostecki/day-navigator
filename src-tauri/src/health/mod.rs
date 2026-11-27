@@ -16,7 +16,7 @@ pub use probe::{
 
 /// Longest tooltip the Windows tray accepts, in UTF-16 units (`szTip` holds 128
 /// including the terminator).
-const TOOLTIP_MAX_UTF16: usize = 127;
+pub const TOOLTIP_MAX_UTF16: usize = 127;
 pub(crate) const MAX_NOTICE_LINES: usize = 3;
 pub(crate) const APP_NAME: &str = "Nawigator dnia";
 
@@ -33,6 +33,8 @@ pub enum SourceId {
     Github,
     /// The `reminders` block of `settings.json` ("Przypomnienia").
     Reminders,
+    /// The `autostart` block and the Windows Run entry ("Autostart").
+    Autostart,
 }
 
 impl SourceId {
@@ -43,6 +45,7 @@ impl SourceId {
             SourceId::Settings => "settings".to_string(),
             SourceId::AppData => "app-data".to_string(),
             SourceId::Reminders => "reminders".to_string(),
+            SourceId::Autostart => "autostart".to_string(),
         }
     }
 }
@@ -210,6 +213,7 @@ pub(crate) fn short_reason(kind: &str) -> &'static str {
         "ThreadDown" => "wątek odświeżania nie działa",
         "Truncated" => "lista niepełna",
         "RepoFailed" => "błąd repozytorium",
+        "AutostartFailed" => "nie udało się ustawić autostartu",
         _ => "błąd źródła",
     }
 }
@@ -288,7 +292,9 @@ pub fn tooltip(overall: Overall, sources: &[SourceStatus]) -> String {
     cap_utf16(text, TOOLTIP_MAX_UTF16)
 }
 
-fn cap_utf16(text: String, max: usize) -> String {
+/// Cuts `text` to at most `max` UTF-16 units including the "…", never splitting a
+/// character.
+pub fn cap_utf16(text: String, max: usize) -> String {
     if text.encode_utf16().count() <= max {
         return text;
     }
@@ -417,6 +423,7 @@ mod tests {
         assert_eq!(SourceId::Gitlab.key(), "gitlab");
         assert_eq!(SourceId::Github.key(), "github");
         assert_eq!(SourceId::Reminders.key(), "reminders");
+        assert_eq!(SourceId::Autostart.key(), "autostart");
     }
 
     #[test]
@@ -440,6 +447,27 @@ mod tests {
         )];
         let n = notice_for(&transitions(&ok, &bad)).unwrap();
         assert_eq!(n.body, "Przypomnienia: nieprawidłowe ustawienia");
+    }
+
+    #[test]
+    fn autostart_notice_lines() {
+        let ok = vec![st(SourceId::Autostart, "Autostart", SourceState::Ok)];
+        let failed = vec![err(
+            SourceId::Autostart,
+            "Autostart",
+            "AutostartFailed",
+            "m",
+        )];
+        let n = notice_for(&transitions(&ok, &failed)).unwrap();
+        assert_eq!(n.body, "Autostart: nie udało się ustawić autostartu");
+        let invalid = vec![err(
+            SourceId::Autostart,
+            "Autostart",
+            "SettingsInvalid",
+            "m",
+        )];
+        let n = notice_for(&transitions(&ok, &invalid)).unwrap();
+        assert_eq!(n.body, "Autostart: nieprawidłowe ustawienia");
     }
 
     #[test]

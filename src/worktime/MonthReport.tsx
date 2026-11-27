@@ -1,6 +1,6 @@
 import { StatStrip, type Stat } from "../components";
 import { ErrorState } from "../components/ErrorState";
-import { formatClock, formatHm, formatSigned, formatWorkdays } from "./format";
+import { formatClock, formatDaysAfterToday, formatDaysOff, formatHm, formatSigned } from "./format";
 import type { MonthReport as Report } from "./types";
 import type { MonthReportState } from "./useMonthReport";
 
@@ -13,8 +13,11 @@ function stats(report: Report): Stat[] {
   };
   const daysOff: Stat = {
     label: "Dni wolne",
-    value: String(report.daysOff.length),
-    sub: "oznaczone ręcznie",
+    value: formatDaysOff(report.daysOff.length, report.halfDaysOff.length),
+    sub:
+      report.halfDaysOff.length > 0
+        ? `oznaczone ręcznie, w tym ${report.halfDaysOff.length} × pół dnia`
+        : "oznaczone ręcznie",
     tone: "soft",
   };
   if (report.phase === "future") return [worked, daysOff];
@@ -34,7 +37,7 @@ function stats(report: Report): Stat[] {
   } else if (report.neededPerDayMs === null) {
     neededSub = `brak dni roboczych, brakuje ${formatHm(report.remainingMs)}`;
   } else {
-    neededSub = `przez ${formatWorkdays(report.workdaysAfterToday)}`;
+    neededSub = formatDaysAfterToday(report.workdaysAfterToday, report.halfDaysAfterToday);
   }
   return [
     worked,

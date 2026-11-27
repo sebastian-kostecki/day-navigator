@@ -9,7 +9,7 @@ import {
   updateWorkEntry,
   workTimeErrorMessage,
 } from "./api";
-import type { DayEntries } from "./types";
+import type { DayEntries, DayMark } from "./types";
 
 type Result =
   | { state: "error"; message: string; lastOkAt: number | null }
@@ -25,8 +25,8 @@ export function useWorkEntries(day: string) {
   const [result, setResult] = useState<{ day: string; value: Result } | null>(null);
   const [busyIds, setBusyIds] = useState<Set<number>>(new Set());
   // A day-off request stays pending until the reloaded day agrees with it, so
-  // the checkbox neither snaps back nor re-enables before the list catches up.
-  const [dayOffRequest, setDayOffRequest] = useState<{ day: string; off: boolean } | null>(null);
+  // the control neither snaps back nor re-enables before the list catches up.
+  const [dayOffRequest, setDayOffRequest] = useState<{ day: string; mark: DayMark } | null>(null);
   // Bumped by retry to redo the subscribe and the load together.
   const [attempt, setAttempt] = useState(0);
 
@@ -111,19 +111,20 @@ export function useWorkEntries(day: string) {
   );
 
   const add = useCallback(
-    (start: string, end: string) => withBusy(null, () => addWorkEntry(start, end)),
+    (start: string, end: string, note: string) =>
+      withBusy(null, () => addWorkEntry(start, end, note)),
     [withBusy],
   );
   const update = useCallback(
-    (id: number, start: string, end: string | null) =>
-      withBusy(id, () => updateWorkEntry(id, start, end)),
+    (id: number, start: string, end: string | null, note: string) =>
+      withBusy(id, () => updateWorkEntry(id, start, end, note)),
     [withBusy],
   );
   const remove = useCallback((id: number) => withBusy(id, () => removeWorkEntry(id)), [withBusy]);
-  const setDayOff = useCallback(
-    async (off: boolean): Promise<unknown> => {
-      setDayOffRequest({ day, off });
-      const err = await withBusy(null, () => setDayOffCall(day, off));
+  const setDayMark = useCallback(
+    async (mark: DayMark): Promise<unknown> => {
+      setDayOffRequest({ day, mark });
+      const err = await withBusy(null, () => setDayOffCall(day, mark));
       if (err) setDayOffRequest(null);
       return err;
     },
@@ -134,13 +135,17 @@ export function useWorkEntries(day: string) {
   const entries: EntriesState =
     result !== null && result.day === day ? result.value : { state: "loading" };
 
-  const storedOff = entries.state === "loaded" && entries.data.dayKind === "dayOff";
+  const storedMark: DayMark =
+    entries.state === "loaded" &&
+    (entries.data.dayKind === "dayOff" || entries.data.dayKind === "halfDayOff")
+      ? entries.data.dayKind
+      : "workday";
   // A request is done once the reloaded day agrees, or once another day is
   // shown: a later change from elsewhere (the days table) must not leave it
   // pending against the new state.
   if (
     dayOffRequest !== null &&
-    (dayOffRequest.day !== day || (entries.state === "loaded" && dayOffRequest.off === storedOff))
+    (dayOffRequest.day !== day || (entries.state === "loaded" && dayOffRequest.mark === storedMark))
   ) {
     setDayOffRequest(null);
   }
@@ -148,17 +153,17 @@ export function useWorkEntries(day: string) {
     dayOffRequest !== null &&
     dayOffRequest.day === day &&
     entries.state === "loaded" &&
-    dayOffRequest.off !== storedOff;
-  const dayOffChecked = pending ? dayOffRequest.off : storedOff;
+    dayOffRequest.mark !== storedMark;
+  const dayMark = pending ? dayOffRequest.mark : storedMark;
 
   return {
     entries,
     add,
     update,
     remove,
-    setDayOff,
-    dayOffChecked,
-    dayOffBusy: pending,
+    setDayMark,
+    dayMark,
+    dayMarkBusy: pending,
     busyIds,
     retry,
   };

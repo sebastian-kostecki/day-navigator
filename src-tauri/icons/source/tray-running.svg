@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Tray icon, state "running": the app glyph on a transparent background, thicker
+       strokes for 16 px. The amber dot at the bottom right = the counter runs; red and
+       the top-right badge are reserved for errors. -->
+  <defs>
+    <mask id="cut">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <circle cx="512" cy="512" r="52" fill="#000"/>
+      <circle cx="824" cy="824" r="248" fill="#000"/>
+    </mask>
+  </defs>
+  <g mask="url(#cut)">
+    <circle cx="512" cy="512" r="410" fill="none" stroke="#F5A524" stroke-width="120"/>
+    <g transform="rotate(45 512 512)">
+      <polygon points="512,170 632,512 392,512" fill="#F5A524"/>
+      <polygon points="392,512 632,512 512,854" fill="#8A93A3"/>
+    </g>
+  </g>
+  <circle cx="824" cy="824" r="176" fill="#F5A524"/>
+</svg>

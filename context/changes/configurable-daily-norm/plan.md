@@ -484,8 +484,8 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): jedna
 
 #### Manual
 
-- [ ] 1.5 Z `"workTime": { "dailyNormHours": 7.5 }` w `settings.json` po powrocie do okna „Czas pracy” pokazuje „z … normy” jako 7:30 × dni robocze, pasek dnia roboczego ma kreskę normy na 7:30, a „Jak liczę” podaje 7:30; kafelki pulpitu pokazują te same liczby
-- [ ] 1.6 `"dailyNormHours": 11` (albo `"8"`) daje w „Czas pracy” błąd raportu z komunikatem o `dailyNormHours`, a kafelki pulpitu pokazują „raport niedostępny”; START/STOP w nagłówku działa dalej; usunięcie klucza przywraca 8 h
+- [x] 1.5 Z `"workTime": { "dailyNormHours": 7.5 }` w `settings.json` po powrocie do okna „Czas pracy” pokazuje „z … normy” jako 7:30 × dni robocze, pasek dnia roboczego ma kreskę normy na 7:30, a „Jak liczę” podaje 7:30; kafelki pulpitu pokazują te same liczby — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 1.6 `"dailyNormHours": 11` (albo `"8"`) daje w „Czas pracy” błąd raportu z komunikatem o `dailyNormHours`, a kafelki pulpitu pokazują „raport niedostępny”; START/STOP w nagłówku działa dalej; usunięcie klucza przywraca 8 h — checked by the user on 2026-11-27 on m3-wave2-integration
 
 ### Phase 2: Pół dnia wolnego w danych i regule
 
@@ -498,7 +498,7 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): jedna
 
 #### Manual
 
-- [ ] 2.5 Po pierwszym uruchomieniu wersji z v12 na prawdziwych danych (z kopią katalogu danych wg „Ręczne przebiegi dzielą prawdziwą bazę”) „Czas pracy” pokazuje dotychczasowe dni wolne zakreskowane jak przedtem i te same liczby miesiąca, a „Stan źródeł” pokazuje „Dane aplikacji” jako sprawne
+- [x] 2.5 Po pierwszym uruchomieniu wersji z v12 na prawdziwych danych (z kopią katalogu danych wg „Ręczne przebiegi dzielą prawdziwą bazę”) „Czas pracy” pokazuje dotychczasowe dni wolne zakreskowane jak przedtem i te same liczby miesiąca, a „Stan źródeł” pokazuje „Dane aplikacji” jako sprawne — checked by the user on 2026-11-27 on m3-wave2-integration
 
 ### Phase 3: Trzystanowy przełącznik dnia w UI
 
@@ -511,11 +511,11 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): jedna
 
 #### Manual
 
-- [ ] 3.5 W tabeli dni dzień roboczy przełączony na „½” pokazuje dopisek „pół dnia wolnego”, kreskę normy w połowie paska i normę dnia o połowę mniejszą; norma miesiąca i odchylenie zmieniają się o pół normy; „tak” zakreskowuje dzień; „nie” przywraca dzień roboczy; przełącznik nie „odskakuje” w trakcie żądania
-- [ ] 3.6 Panel „Wybrany dzień” pokazuje ten sam stan co tabela i zmiana w jednym miejscu jest widoczna w drugim; weekend i święto nie mają przełącznika w obu miejscach
-- [ ] 3.7 „Dni wolne” pokazuje np. „1,5” z „w tym 1 × pół dnia”, a „Średnio / dzień” na pulpicie i w „Czas pracy” ma ten sam podpis z pół dniem po dziś
-- [ ] 3.8 Tabela dni mieści się bez poziomego przewijania w oknie 800 px; przełącznik działa z klawiatury (Tab, Enter/Spacja)
-- [ ] 3.9 W dzień oznaczony jako pół dnia wolnego przypomnienie „licznik nie biegnie po GG:MM” się nie pokazuje
+- [x] 3.5 W tabeli dni dzień roboczy przełączony na „½” pokazuje dopisek „pół dnia wolnego”, kreskę normy w połowie paska i normę dnia o połowę mniejszą; norma miesiąca i odchylenie zmieniają się o pół normy; „tak” zakreskowuje dzień; „nie” przywraca dzień roboczy; przełącznik nie „odskakuje” w trakcie żądania — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 3.6 Panel „Wybrany dzień” pokazuje ten sam stan co tabela i zmiana w jednym miejscu jest widoczna w drugim; weekend i święto nie mają przełącznika w obu miejscach — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 3.7 „Dni wolne” pokazuje np. „1,5” z „w tym 1 × pół dnia”, a „Średnio / dzień” na pulpicie i w „Czas pracy” ma ten sam podpis z pół dniem po dziś — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 3.8 Tabela dni mieści się bez poziomego przewijania w oknie 800 px; przełącznik działa z klawiatury (Tab, Enter/Spacja) — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 3.9 W dzień oznaczony jako pół dnia wolnego przypomnienie „licznik nie biegnie po GG:MM” się nie pokazuje — checked by the user on 2026-11-27 on m3-wave2-integration
 
 ### Phase 4: Dokumentacja
 

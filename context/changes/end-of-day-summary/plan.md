@@ -432,12 +432,12 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Automated
 
-- [x] 2.1 Rust tests pass, including the notice tests: `cargo test` (in `src-tauri/`)
-- [x] 2.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
-- [x] 2.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
-- [x] 2.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [x] 2.5 `notice.rs` imports nothing from `tauri`
-- [x] 2.6 No frontend, capability, config or dependency change (`git status --porcelain` on those paths prints nothing)
+- [x] 2.1 Rust tests pass, including the notice tests: `cargo test` (in `src-tauri/`) — 097aecb
+- [x] 2.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`) — 097aecb
+- [x] 2.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`) — 097aecb
+- [x] 2.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — 097aecb
+- [x] 2.5 `notice.rs` imports nothing from `tauri` — 097aecb
+- [x] 2.6 No frontend, capability, config or dependency change (`git status --porcelain` on those paths prints nothing) — 097aecb
 
 #### Manual
 
@@ -448,12 +448,12 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Automated
 
-- [ ] 3.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 3.2 Rust gates still pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (in `src-tauri/`)
-- [ ] 3.3 One timer subscription (no timer-status read or `work-time-changed` listener in `src/day-summary` or `App.tsx`; `workTimerStatus()` called only in `useWorkTimer.ts`)
-- [ ] 3.4 `invoke` stays in `src/day-summary/api.ts`
-- [ ] 3.5 No literal colours in `src/day-summary`
-- [ ] 3.6 No Rust, capability or config change: `git diff --quiet HEAD -- src-tauri`
+- [x] 3.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 3.2 Rust gates still pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (in `src-tauri/`)
+- [x] 3.3 One timer subscription (no timer-status read or `work-time-changed` listener in `src/day-summary` or `App.tsx`; `workTimerStatus()` called only in `useWorkTimer.ts`)
+- [x] 3.4 `invoke` stays in `src/day-summary/api.ts`
+- [x] 3.5 No literal colours in `src/day-summary`
+- [x] 3.6 No Rust, capability or config change: `git diff --quiet HEAD -- src-tauri`
 
 #### Manual
 

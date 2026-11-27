@@ -12,7 +12,7 @@ const CONFIRM_GUARD_MS = 400;
 
 type Pending = { action: "start" | "stop"; at: number };
 
-export function WorkTimerHeader() {
+export function WorkTimerHeader({ onStopped }: { onStopped?: () => void }) {
   const { timer, nowMs, busy, actionError, start, stop, retry } = useWorkTimer();
   // START/STOP asks first, so a stray click doesn't open or close a work entry.
   const [asked, setPending] = useState<Pending | null>(null);
@@ -42,7 +42,11 @@ export function WorkTimerHeader() {
     if (!pending || Date.now() - pending.at < CONFIRM_GUARD_MS) return;
     const action = pending.action;
     setPending(null);
-    void (action === "start" ? start() : stop());
+    if (action === "start") void start();
+    else
+      void stop().then((ok) => {
+        if (ok) onStopped?.();
+      });
   };
 
   if (timer.state === "loading") {

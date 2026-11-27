@@ -1,0 +1,27 @@
+/* Layout only: the panel, rows and states come from src/components. */
+
+/* The view below has its own top padding, so the gap is not doubled. */
+.dn-day-summary {
+  padding-bottom: 0;
+}
+
+.dn-day-summary-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.dn-day-summary-head {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.dn-day-summary-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}

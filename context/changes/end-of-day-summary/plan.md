@@ -385,7 +385,7 @@ User decisions (binding, given with the task):
 Agent defaults (no user was reachable; default chosen by agent, user may revise):
 
 - **A1.** In-window form: a `Panel` "Podsumowanie dnia" mounted in `App.tsx` between the header and the active view, figures in a `role="status"` region, "Zamknij" in the footer; no modal, overlay or new tokens.
-- **A2.** No persistence: the panel lives in app state until "Zamknij", a reload, or a START (header or tray); a later STOP shows it again with fresh data; no reopen button. While open it re-reads on `todo-changed`, so a tick in "Do zrobienia" below it after STOP is reflected (plan review F3).
+- **A2.** No persistence: the panel lives in app state until "Zamknij", a reload, or a START (header or tray) made after the panel opened (default chosen by agent, user may revise); a later STOP shows it again with fresh data; no reopen button. While open it re-reads on `todo-changed`, so a tick in "Do zrobienia" below it after STOP is reflected (plan review F3).
 - **A3.** The header learns of its own successful STOP through `stop()` resolving `true` (= `stop_work` resolved, whether or not `apply` kept its status); a STOP that ends in `AlreadyRunning`/`NotRunning` or an error opens nothing. Pre-existing edge kept as is: when the STOP commits but `stop_work`'s follow-up status read fails, the header shows its action error and no panel opens.
 - **A4.** A new one-shot command `day_summary` in a new module; `stop_work` and `WorkTimerStatus` stay unchanged (smaller diff against S-02/S-08).
 - **A5.** Item titles appear in the window panel (read-only rows, same chips and references as "Do zrobienia"); never in the toast or the app log (logs carry error kinds only).
@@ -420,13 +420,13 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Automated
 
-- [x] 1.1 Rust tests pass, including the new `day_summary::tests`: `cargo test` (in `src-tauri/`)
-- [x] 1.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
-- [x] 1.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
-- [x] 1.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [x] 1.5 Only `commands.rs` in the module imports `tauri`
-- [x] 1.6 No norm in the module (grep for `DAILY_NORM_MS|3_600_000` outside tests returns nothing)
-- [x] 1.7 Norm, report and schema untouched: `git diff --quiet HEAD -- src-tauri/src/work_time/norm.rs src-tauri/src/work_time/report.rs src-tauri/src/store/schema.rs`
+- [x] 1.1 Rust tests pass, including the new `day_summary::tests`: `cargo test` (in `src-tauri/`) — fe39556
+- [x] 1.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`) — fe39556
+- [x] 1.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`) — fe39556
+- [x] 1.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — fe39556
+- [x] 1.5 Only `commands.rs` in the module imports `tauri` — fe39556
+- [x] 1.6 No norm in the module (grep for `DAILY_NORM_MS|3_600_000` outside tests returns nothing) — fe39556
+- [x] 1.7 Norm, report and schema untouched: `git diff --quiet HEAD -- src-tauri/src/work_time/norm.rs src-tauri/src/work_time/report.rs src-tauri/src/store/schema.rs` — fe39556
 
 ### Phase 2: Tray STOP notification
 

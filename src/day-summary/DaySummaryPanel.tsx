@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   Button,
   ItemRow,
@@ -49,7 +49,7 @@ function SummaryRow({ item }: { item: TodoItem }) {
 function List({ title, items, empty }: { title: string; items: TodoItem[]; empty: string }) {
   return (
     <div>
-      <h3 className="dn-day-summary-head">{title}</h3>
+      <h3 className="panel-title">{title}</h3>
       {items.length === 0 ? (
         <p className="dn-empty">{empty}</p>
       ) : (
@@ -62,12 +62,14 @@ function List({ title, items, empty }: { title: string; items: TodoItem[]; empty
 export function DaySummaryPanel({ onClose }: { onClose: () => void }) {
   const { state, retry } = useDaySummary();
   const { timer } = useWorkTimer();
-  const running = timer.state === "loaded" && timer.status.running !== null;
+  const [mountedAt] = useState(() => Date.now());
+  const startedMs = timer.state === "loaded" ? (timer.status.running?.startMs ?? null) : null;
 
-  // A later START (header or tray) removes a stale summary.
+  // A START after the panel opened (header or tray) removes a stale summary;
+  // a stale "running" refresh from before the STOP does not.
   useEffect(() => {
-    if (running) onClose();
-  }, [running, onClose]);
+    if (startedMs !== null && startedMs >= mountedAt) onClose();
+  }, [startedMs, mountedAt, onClose]);
 
   const carryOver = state.state === "loaded" && state.summary.carryOver.length > 0;
 

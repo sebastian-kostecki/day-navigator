@@ -102,3 +102,10 @@ Commits reviewed on top of the `develop` merge base `d34904a`: `fe39556` (p1), `
 - **Detail**: Rows 2.7, 2.8 and 3.7–3.12 are unticked. They cover the toast figures against the header and the dashboard, no toast on START or header STOP, the panel lists and dismissal, no panel on a tray STOP, a tick while the panel is open, and the built app with no CSP violation and no "IPC custom protocol failed". The code shows no new resource kind (no inline style, no external request), so CSP should be unaffected, but AGENTS.md requires checking it in `npm run tauri build -- --debug --no-bundle`. One more expected behaviour to confirm: with an invalid `workTime` block (or S-02's invalid `dailyNormHours`), the dashboard tile shows "—" while the summary and the toast use the default calendar and norm (A8, `Policy::Lenient` as in START/STOP).
 - **Fix**: The human runs the manual rows before `/10x-archive`.
 - **Decision**: PENDING — human checklist, not a code problem.
+
+## Fixes applied
+
+- F1: the `<h3>` in `DaySummaryPanel.tsx` uses `panel-title`; the duplicate `.dn-day-summary-head` rule is removed.
+- F2 (hardening done): the panel closes on a running timer only when its `startMs` is at or after the panel's mount instant, so a stale "running" refresh from before STOP does not close it.
+- F4: rows 1.1-1.7 in the plan's Progress carry ` — fe39556`.
+- Commit: this commit. F3 and F5 stay accepted notes.

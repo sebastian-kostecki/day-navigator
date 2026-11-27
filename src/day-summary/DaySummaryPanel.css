@@ -11,13 +11,6 @@
   gap: var(--space-4);
 }
 
-.dn-day-summary-head {
-  margin: 0;
-  font-size: 14px;
-  line-height: 20px;
-  font-weight: 600;
-}
-
 .dn-day-summary-foot {
   display: flex;
   flex-wrap: wrap;

@@ -1,6 +1,8 @@
 //! Side effects of the GitHub list: the `github-refresh` thread, the managed
 //! state, the commands and the `github-changed` event. The rules live in
-//! `github/` and `health/` and stay free of `tauri`.
+//! `github/` and `health/` and stay free of `tauri`. The shared mechanics (the
+//! snapshot cell, the thread start, the wait loop, publication and the round
+//! tail) live in `source_refresh.rs`.
 //!
 //! Locking rule (same as `gitlab_refresh.rs`): the snapshot lock is only held
 //! for a clone or a store, never across `emit`, a tray call or a process. The
@@ -11,45 +13,56 @@
 //! title, a reference, a URL or a serde error.
 
 use std::path::PathBuf;
-use std::sync::mpsc::{self, RecvTimeoutError};
-use std::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::mpsc;
+use std::sync::{Mutex, RwLockWriteGuard};
 use std::time::{Duration, Instant};
 
 use chrono::Local;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 use crate::cli::{CliRunner, GithubConfig};
 use crate::github::fetch::{RepoResult, fetch_assigned};
 use crate::github::{self, GithubError, GithubIssue, GithubSnapshot, GithubState};
 use crate::health;
-use crate::runtime::{HealthState, now_ms};
+use crate::runtime::now_ms;
 use crate::settings::load_github_settings;
+use crate::source_refresh::{self, RefreshSnapshot, SourceCell, SourceId};
 use crate::store::StoreHandle;
 use crate::todo;
 
-const EVENT: &str = "github-changed";
+const SOURCE: SourceId = SourceId {
+    event: "github-changed",
+    thread: "github-refresh",
+    prefix: "github",
+    target: module_path!(),
+};
 const REFRESH_INTERVAL: Duration = Duration::from_secs(10 * 60);
+
+impl RefreshSnapshot for GithubSnapshot {
+    fn seq(&self) -> u64 {
+        self.seq
+    }
+
+    fn begin_refresh(&mut self) {
+        self.refreshing = true;
+        self.seq += 1;
+    }
+}
 
 /// Managed state of the GitHub list, shared by the refresh thread, the health
 /// round and the commands.
 pub struct GithubRefreshState {
-    snapshot: RwLock<GithubSnapshot>,
+    cell: SourceCell<GithubSnapshot>,
     /// The config the kept repos came from. Written by the refresh thread only.
     kept_config: Mutex<Option<GithubConfig>>,
-    /// Wakes the refresh thread for an immediate round.
-    wake: mpsc::Sender<()>,
-    /// `seq` of the last snapshot pushed to the webview.
-    published: Mutex<u64>,
 }
 
 impl GithubRefreshState {
     fn new() -> (Self, mpsc::Receiver<()>) {
-        let (wake, rx) = mpsc::channel();
+        let (cell, rx) = SourceCell::new(GithubSnapshot::starting(), SOURCE);
         let state = GithubRefreshState {
-            snapshot: RwLock::new(GithubSnapshot::starting()),
+            cell,
             kept_config: Mutex::new(None),
-            wake,
-            published: Mutex::new(0),
         };
         (state, rx)
     }
@@ -57,21 +70,17 @@ impl GithubRefreshState {
     /// The stored snapshot (`starting` before the first round): a clone under a
     /// short lock.
     pub fn snapshot(&self) -> GithubSnapshot {
-        self.read().clone()
+        self.cell.snapshot()
     }
 
     /// Asks the refresh thread for a round. Bursts coalesce; fails only when the
     /// thread is gone.
     pub fn wake(&self) -> Result<(), mpsc::SendError<()>> {
-        self.wake.send(())
-    }
-
-    fn read(&self) -> RwLockReadGuard<'_, GithubSnapshot> {
-        self.snapshot.read().unwrap_or_else(|p| p.into_inner())
+        self.cell.wake()
     }
 
     fn write(&self) -> RwLockWriteGuard<'_, GithubSnapshot> {
-        self.snapshot.write().unwrap_or_else(|p| p.into_inner())
+        self.cell.write()
     }
 }
 
@@ -105,34 +114,20 @@ pub fn manage(app: &tauri::App) -> mpsc::Receiver<()> {
 /// dir cannot be resolved.
 pub fn start(app: &AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Receiver<()>) {
     let a = app.clone();
-    if let Err(e) = std::thread::Builder::new()
-        .name("github-refresh".into())
-        .spawn(move || refresh_loop(a, settings_path, wake_rx))
-    {
-        log::error!("github: cannot start refresh thread: {e}");
-        // Never leave the view on "Pobieram…" and the tray without GitHub:
-        // store an error the view and the health round both show.
-        let state = app.state::<GithubRefreshState>();
-        let next = {
-            let prev = state.snapshot();
-            github::next_snapshot(&prev, None, None, Err(GithubError::ThreadDown), now_ms()).0
-        };
-        *state.write() = next;
-        publish(app, &state);
-        let _ = app.state::<HealthState>().wake.send(());
-    }
+    let state = app.state::<GithubRefreshState>();
+    // Never leave the view on "Pobieram…" and the tray without GitHub: when the
+    // thread cannot start, store an error the view and the health round both
+    // show.
+    state.cell.start_thread(
+        app,
+        move || refresh_loop(a, settings_path, wake_rx),
+        |prev| github::next_snapshot(prev, None, None, Err(GithubError::ThreadDown), now_ms()).0,
+    );
 }
 
 fn refresh_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Receiver<()>) {
     let runner = CliRunner::system();
-    loop {
-        refresh_round(&app, &settings_path, &runner);
-        match wake_rx.recv_timeout(REFRESH_INTERVAL) {
-            Ok(()) => while wake_rx.try_recv().is_ok() {},
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => return,
-        }
-    }
+    source_refresh::run_loop(wake_rx, || refresh_round(&app, &settings_path, &runner));
 }
 
 /// Short, value-free name of a snapshot state for log lines.
@@ -165,19 +160,14 @@ fn run_fetch(
     }
 }
 
-fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliRunner) {
+fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliRunner) -> Duration {
     let state = app.state::<GithubRefreshState>();
     let started = Instant::now();
     let before = state.snapshot();
     let before_status = health::github_status(&before);
 
     // Show "refreshing" first; the stored repos and state stay as they were.
-    {
-        let mut guard = state.write();
-        guard.refreshing = true;
-        guard.seq += 1;
-    }
-    publish(app, &state);
+    state.cell.begin_round(app);
 
     let (config, fetched) = run_fetch(settings_path, runner);
 
@@ -197,23 +187,12 @@ fn refresh_round(app: &AppHandle, settings_path: &Option<PathBuf>, runner: &CliR
     let todo_changed = reconcile_todo(app, &next);
     *state.write() = next;
     publish(app, &state);
-    if todo_changed && let Err(e) = app.emit(todo::CHANGED_EVENT, ()) {
-        log::warn!("todo: emit failed: {e}");
-    }
-    if todo_changed {
-        crate::events::commands::notify(app);
-    }
+    SOURCE.notify_todo_changed(app, todo_changed);
 
-    if from != to {
-        log::info!("github: {from} -> {to}");
-    }
-    log::debug!("github: round {to} in {} ms", started.elapsed().as_millis());
-
-    if before_status != after_status {
-        // The GitHub source status changed: run a health round now instead of
-        // waiting up to 30 s for the tray to catch up.
-        let _ = app.state::<HealthState>().wake.send(());
-    }
+    // A changed GitHub source status runs a health round now instead of waiting
+    // up to 30 s for the tray to catch up.
+    SOURCE.end_round(app, &from, &to, started, before_status != after_status);
+    REFRESH_INTERVAL
 }
 
 /// The repos a "To do" reconcile may use: only those that loaded in a
@@ -243,38 +222,13 @@ fn reconcile_todo(app: &AppHandle, next: &GithubSnapshot) -> bool {
     let result = app.state::<StoreHandle>().with_store(now.date(), |s| {
         todo::reconcile_github(s, &loaded, now.date(), now)
     });
-    match result {
-        Ok(changed) => {
-            if changed > 0 {
-                log::debug!("todo: reconcile changed {changed} rows");
-            }
-            changed > 0
-        }
-        // An unopenable store is reported by the health round; a warning every
-        // GitHub round would only repeat it.
-        Err(e @ todo::TodoError::Store(_)) => {
-            log::debug!("todo: reconcile failed: {}", e.kind());
-            false
-        }
-        Err(e) => {
-            log::warn!("todo: reconcile failed: {}", e.kind());
-            false
-        }
-    }
+    SOURCE.log_reconcile(result)
 }
 
 /// Pushes the stored snapshot to the webview unless a newer one was already
-/// pushed. Re-reading under `published` keeps events ordered by `seq`.
+/// pushed.
 pub(crate) fn publish(app: &AppHandle, state: &GithubRefreshState) {
-    let mut last = state.published.lock().unwrap_or_else(|p| p.into_inner());
-    let snap = state.snapshot();
-    if snap.seq <= *last {
-        return;
-    }
-    *last = snap.seq;
-    if let Err(e) = app.emit(EVENT, &snap) {
-        log::warn!("github: emit failed: {e}");
-    }
+    state.cell.publish(app);
 }
 
 #[cfg(test)]

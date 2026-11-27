@@ -50,12 +50,12 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 
 | ID   | Change ID                  | Outcome (user can …)                                                              | Prerequisites | PRD refs                      | Status   |
 | ---- | -------------------------- | --------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
-| F-01 | source-refresh-skeleton    | (foundation) GitLab and GitHub refresh on one shared skeleton, behaviour unchanged | —             | MS-28, FR-015                 | ready    |
+| F-01 | source-refresh-skeleton    | (foundation) GitLab and GitHub refresh on one shared skeleton, behaviour unchanged | —             | MS-28, FR-015                 | done     |
 | S-01 | github-hide-resurface      | hide a GitHub issue and see it come back marked "Changed"                         | F-01          | MS-31, FR-003, FR-005         | proposed |
 | S-02 | github-refresh-interval    | set GitHub's refresh interval and see when the next try happens                    | F-01          | MS-29, FR-005, FR-024         | proposed |
 | S-03 | github-new-and-notify      | see a NEW flag on GitHub items that appeared since their last visit              | F-01          | MS-30, FR-005, FR-023         | proposed |
-| S-04 | gitlab-offline-last-list   | see the last GitLab list, dimmed, under the unavailable card without VPN           | —             | MS-32, FR-015                 | ready    |
-| S-05 | gitlab-view-memory         | find "Work (GitLab)" with the same type and "Hidden" section after a restart       | —             | MS-34, FR-001, FR-003         | ready    |
+| S-04 | gitlab-offline-last-list   | see the last GitLab list, dimmed, under the unavailable card without VPN           | —             | MS-32, FR-015                 | done     |
+| S-05 | gitlab-view-memory         | find "Work (GitLab)" with the same type and "Hidden" section after a restart       | —             | MS-34, FR-001, FR-003         | done     |
 | S-06 | gitlab-review-requests     | see merge requests waiting for their review in a "Do review" section               | F-01          | MS-35, FR-001, FR-002, FR-004 | proposed |
 | S-07 | gitlab-hide-merge-requests | hide a GitLab merge request and see it come back marked "Changed"                 | S-01, S-06    | MS-33, FR-003                 | proposed |
 
@@ -96,7 +96,7 @@ Slices below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** A refactor of the two busiest Rust files (GitLab's refresh round holds six mutexes); it goes first and alone on those files, and the existing tests stay unchanged so a behaviour change shows up as a failing test.
-- **Status:** ready
+- **Status:** done
 
 ## Slices
 
@@ -149,7 +149,7 @@ Slices below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** A UI condition introduced by the Konsola alignment; the fix must keep the calm card (no red, no alarm) and make clear the list is stale.
-- **Status:** ready
+- **Status:** done
 
 ### S-05: Remembered GitLab view state
 
@@ -161,7 +161,7 @@ Slices below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** A migration and a new kind of record in the app data dir (no work data); the AGENTS.md list of app data and the "in memory only" rule change with it.
-- **Status:** ready
+- **Status:** done
 
 ### S-06: "Do review" section for merge requests
 
@@ -268,3 +268,6 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-05: user can copy the month report (days, entries, sums, deviation, days off) to the clipboard as text that pastes into a spreadsheet.** — Archived 2026-11-27 → `context/archive/2026-11-26-month-report-copy/`. Lesson: —.
 - **S-07: user can see, after STOP, a summary of the day: time worked today, the month's deviation, what was ticked off and what carries over to tomorrow, with no decision forced.** — Archived 2026-11-27 → `context/archive/2026-11-26-end-of-day-summary/`. Lesson: —.
 - **S-04: user can have the app start with Windows into the tray, without showing the window, controlled by a switch in `settings.json`.** — Archived 2026-11-27 → `context/archive/2026-11-26-windows-autostart/`. Lesson: —.
+- **F-01: (foundation) GitLab and GitHub refresh through one shared skeleton (thread with a `ThreadDown` stand-in, interval, wake after sleep, "Check now", snapshot publication, `lastSuccessMs` and `nextRefreshAtMs`), with the fetch and rules left in each source's module, and no change in behaviour, commands or existing test bodies.** — Archived 2026-11-27 → `context/archive/2026-11-27-source-refresh-skeleton/`. Lesson: —.
+- **S-04: user can see, without VPN, the calm "GitLab unavailable" card with the last success and next try, and under it the session's last list, dimmed as in GitHub; the view header shows that list's counts instead of only "source unavailable".** — Archived 2026-11-27 → `context/archive/2026-11-27-gitlab-offline-last-list/`. Lesson: —.
+- **S-05: user can close and reopen the app and find "Work (GitLab)" with the same type choice (issues/MRs) and the same "Hidden" section expansion; the view filter still resets.** — Archived 2026-11-27 → `context/archive/2026-11-27-gitlab-view-memory/`. Lesson: —.

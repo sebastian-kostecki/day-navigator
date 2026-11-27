@@ -283,6 +283,18 @@ INSERT INTO events_new SELECT id, at, kind, item_source, item_kind, reference, t
 DROP TABLE events;
 ALTER TABLE events_new RENAME TO events;",
     },
+    // v14 (slice S-05 `gitlab-view-memory`): the remembered type choice and
+    // "Ukryte" expansion of the GitLab view. One fixed row (id = 1); no filter
+    // values and no other work data. `kind` values mirror
+    // `gitlab_view_state::ViewKind`.
+    Migration {
+        version: 14,
+        sql: "CREATE TABLE gitlab_view_state (
+  id          INTEGER PRIMARY KEY CHECK (id = 1),
+  kind        TEXT    NOT NULL CHECK (kind IN ('all','issue','mergeRequest')),
+  show_hidden INTEGER NOT NULL CHECK (show_hidden IN (0, 1))
+);",
+    },
 ];
 
 /// Versions must start at 1 and rise by exactly 1.

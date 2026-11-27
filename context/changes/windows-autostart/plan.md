@@ -99,7 +99,7 @@ The `autostart` block loader, the `Autostart` source id, and a `tauri`-free modu
 
 #### 2. Source id, toast phrase and event-log key
 
-**File**: `src-tauri/src/health/mod.rs`, `src-tauri/src/events/mod.rs`, `src-tauri/tests/events.rs`, `src/events/types.ts`, `src-tauri/src/store/schema.rs` (migration v12, found in p1: rebuilds `events` so its `source_id` CHECK accepts `'autostart'`)
+**File**: `src-tauri/src/health/mod.rs`, `src-tauri/src/events/mod.rs`, `src-tauri/tests/events.rs`, `src/events/types.ts`, `src-tauri/src/store/schema.rs` (migration v13 after the M-3 wave 2 integration, written as v12 in p1: rebuilds `events` so its `source_id` CHECK accepts `'autostart'`)
 
 **Intent**: Give the new source a stable key and a fixed toast phrase for its failure kind, and make the event log read back the transitions the health round records for it.
 
@@ -325,7 +325,7 @@ One settings read and at most one registry read plus one write/remove per start,
 
 ## Migration Notes
 
-Migration v12 (renumber on merge; S-02 also claims v12) rebuilds `events` so its `source_id` CHECK accepts `'autostart'`; same columns and CHECKs otherwise; found in p1. Existing users see a new "Autostart" row reading NIESKONFIGUROWANE until they add the key. A Run value left behind by an uninstall points to a missing exe; Windows skips it, and README tells how to remove it. "Release build" is the proxy for "installed": any release copy started with the key on (for example from `target/release`) writes its own path, and the next start of the installed app writes the installed path back (A3).
+Migration v13 (written as v12 in p1, renumbered at the M-3 wave 2 integration after S-02's v12) rebuilds `events` so its `source_id` CHECK accepts `'autostart'`; same columns and CHECKs otherwise; found in p1. Existing users see a new "Autostart" row reading NIESKONFIGUROWANE until they add the key. A Run value left behind by an uninstall points to a missing exe; Windows skips it, and README tells how to remove it. "Release build" is the proxy for "installed": any release copy started with the key on (for example from `target/release`) writes its own path, and the next start of the installed app writes the installed path back (A3).
 
 ## Decisions
 

@@ -87,3 +87,5 @@ No EXTRA code files. The other files in the diff are the change's own docs (`cha
 - **Detail**: The Format TSV section (and plan-review F6b) says that an entry ending exactly at local midnight (22:00–00:00) shows `Do` with the next day's date (`localLabel` rule), and that it has no row in the next day because its part there is 0. No test asserts this. The code is correct: `local_label` compares the local date prefix, and a part `<= 0` is skipped. A later rewrite of `local_label` that compares against the day bounds could change it without any test failing.
 - **Fix**: In `current_month_matches_the_report` (or a new small test), add an entry `2026-11-17T22:00`–`2026-11-18T00:00` and assert the row `2026-11-17\t22:00\t2026-11-18 00:00\t2:00\t2,00\t` is in the text and that no row for `2026-11-18` comes from it (`entry_count` of 18.11 stays as the report says).
 - **Decision**: PENDING
+
+_F1 and F2 were applied in the commit "test(month-report-copy): pin day-kind labels and midnight end"._

@@ -233,10 +233,13 @@ fn current_month_matches_the_report() {
             day_off_owed,
         } = day;
         assert_eq!(&row[0], date);
-        assert_eq!(
-            row[2],
-            ["roboczy", "wolny", "święto", "weekend"][*kind as usize]
-        );
+        let kind_label = match kind {
+            DayKind::Workday => "roboczy",
+            DayKind::DayOff => "wolny",
+            DayKind::Holiday => "święto",
+            DayKind::Weekend => "weekend",
+        };
+        assert_eq!(row[2], kind_label);
         assert_eq!(row[3], holiday.clone().unwrap_or_default());
         assert!(!day_off_owed);
         assert_eq!(row[4], entry_count.to_string());
@@ -359,6 +362,24 @@ fn future_month_is_empty_but_shaped() {
         );
     }
     assert_eq!(b[2].len(), 1);
+}
+
+#[test]
+fn entry_ending_exactly_at_midnight_has_no_row_on_the_next_day() {
+    let (_tmp, mut store) = open();
+    put(&mut store, "2026-11-17T22:00", "2026-11-18T00:00", "");
+
+    let out = text(&store, "2026-11-01");
+    let rep = month(&store, "2026-11-01");
+    assert_shape(&out);
+    let lines: Vec<&str> = out.split('\n').collect();
+    assert!(lines.contains(&"2026-11-17\t22:00\t2026-11-18 00:00\t2:00\t2,00\t"));
+
+    let b = blocks(&out);
+    let next = rep.days.iter().find(|d| d.day == "2026-11-18").unwrap();
+    let rows = b[2][1..].iter().filter(|r| r[0] == "2026-11-18").count();
+    assert_eq!(rows, next.entry_count as usize);
+    assert_eq!(rows, 0);
 }
 
 #[test]

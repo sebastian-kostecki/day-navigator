@@ -441,8 +441,8 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Manual
 
-- [ ] 2.7 Tray STOP shows one "Nawigator dnia — koniec pracy" toast whose figures match the header and the dashboard
-- [ ] 2.8 Tray START and header STOP show no toast
+- [x] 2.7 Tray STOP shows one "Nawigator dnia — koniec pracy" toast whose figures match the header and the dashboard — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 2.8 Tray START and header STOP show no toast — checked by the user on 2026-11-27 on m3-wave2-integration
 
 ### Phase 3: Summary panel after header STOP
 
@@ -457,12 +457,12 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Manual
 
-- [ ] 3.7 Header STOP shows "Podsumowanie dnia" with "Dziś" and "Odchylenie miesiąca" matching the header and the dashboard
-- [ ] 3.8 "Zrobione dziś" and "Przechodzi na jutro" match the ticked and unticked rows of "Do zrobienia", with explicit empty messages
-- [ ] 3.9 "Zamknij" dismisses with no prompt; view switches keep it; START removes it; a later STOP shows it again
-- [ ] 3.10 A tray STOP shows no panel in the window
-- [ ] 3.11 Built app: panel works, no CSP violation and no "IPC custom protocol failed" in DevTools
-- [ ] 3.12 A tick in "Do zrobienia" while the panel is open moves the row between the panel's lists
+- [x] 3.7 Header STOP shows "Podsumowanie dnia" with "Dziś" and "Odchylenie miesiąca" matching the header and the dashboard — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 3.8 "Zrobione dziś" and "Przechodzi na jutro" match the ticked and unticked rows of "Do zrobienia", with explicit empty messages — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 3.9 "Zamknij" dismisses with no prompt; view switches keep it; START removes it; a later STOP shows it again — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 3.10 A tray STOP shows no panel in the window — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 3.11 Built app: panel works, no CSP violation and no "IPC custom protocol failed" in DevTools — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 3.12 A tick in "Do zrobienia" while the panel is open moves the row between the panel's lists — checked by the user on 2026-11-27 on m3-wave2-integration
 
 ### Phase 4: Docs and PRD wording
 

@@ -290,7 +290,7 @@ CREATE TABLE hidden_items (
 
 - Existing GitLab hidden-issue tests pass unchanged in behaviour: `cargo test --test hidden_issues --test hidden_issues_round --test hidden_issues_crash` and `cargo test hidden_issues::`
 - New store, upgrade and crash tests pass: `cargo test --test hidden_items --test hidden_items_crash`
-- No GitLab call site changed: `git diff develop --stat -- src-tauri/src/gitlab_refresh.rs src-tauri/src/gitlab/ src/gitlab/` is empty
+- No GitLab call site changed: `git diff --stat $(git merge-base develop HEAD) -- src-tauri/src/gitlab_refresh.rs src-tauri/src/gitlab/ src/gitlab/` is empty (against the merge base, so a develop that moved on does not count)
 - All AGENTS.md gates green: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
 
 **Implementation Note**: Commit when all automated rows are green. Phase blocks use plain bullets — the `- [ ]` checkboxes live in `## Progress`.
@@ -324,7 +324,7 @@ The GitHub round as tauri-free functions (check with no lock, commit in one writ
 
 **Intent**: Same commit as the Rust types (AGENTS.md).
 
-**Contract**: `GithubIssue.changed: ChangeReason | null`, `GithubIssue.hiddenAtMs: number | null`, `RepoView.hidden: GithubIssue[]`, `GithubSnapshot.hiddenCheckFailed: number`, `GithubSnapshot.hiddenError: string | null`. `ChangeReason` and `HiddenIssueError` are imported from `../gitlab/types` (one mirror per Rust type), not copied. The view still compiles (it reads only `issues`).
+**Contract**: `GithubIssue.changed: ChangeReason | null`, `GithubIssue.hiddenAtMs: number | null`, `RepoView.hidden: GithubIssue[]`, `GithubSnapshot.hiddenCheckFailed: number`, `GithubSnapshot.hiddenError: string | null`. `ChangeReason` is imported from `../gitlab/types` (one mirror per Rust type), not copied. `HiddenIssueError` is not imported here: nothing in `types.ts` uses it, and an unused import fails `npm run build` (`noUnusedLocals`); Phase 5's `api.ts` imports it from `../gitlab/types`. The view still compiles (it reads only `issues`).
 
 #### 3. GitHub round
 
@@ -336,7 +336,7 @@ The GitHub round as tauri-free functions (check with no lock, commit in one writ
 - `pub struct GithubRoundChecks` (records read before the calls, or the store error; one verdict per `(scope, number)`; `stopped_at: Option<(String, u64)>` with an accessor). `pub fn check_github_round(store: &StoreHandle, runner: &CliRunner, results: &[RepoResult], now_ms: i64, resume_after: Option<(String, u64)>) -> GithubRoundChecks`:
   - reads `list_items(Github, Issue)`; a read failure skips every call;
   - walks the hidden records of repos with an `Ok` outcome whose issue is listed and due (`needs_comment_check`), in `(scope, number)` order rotated after `resume_after`;
-  - fetches the login once, before the first due check; a failed login makes every due check `Err` (when it is `Unavailable`/`LoggedOut`/`ToolMissing` no issue call starts and `stopped_at` keeps `resume_after`);
+  - fetches the login once, before the first due check; on any login failure (`Failed` and `ResponseInvalid` included) no `gh issue view` call starts, every due check is `Err`, and `stopped_at` keeps `resume_after`;
   - an unreadable baseline is `Err` without a call; after the first `Unavailable`/`LoggedOut`/`ToolMissing` from `gh issue view` no further call starts and `stopped_at` is that record;
   - logs only the failed count.
 - `pub struct GithubRoundOutcome { pub repos: Vec<RepoView>, pub check_failed: u32, pub store_error: Option<HiddenIssueError> }`. `pub fn commit_github_round(store, config: &GithubConfig, results: &[RepoResult], checks: GithubRoundChecks, now_ms) -> GithubRoundOutcome`:
@@ -360,7 +360,7 @@ The GitHub round as tauri-free functions (check with no lock, commit in one writ
 - settle check runs once at `SETTLE_MS` and not again;
 - `gh-hidden-closed` → absent, then listed again → `changed = returned`; 30 days absent → pruned;
 - `gh-hidden-beta-fails` → beta's records untouched (no `absent_since_ms`), alpha still reconciled;
-- `gh-hidden-user-fails` → every due check failed, nothing resurfaces by comment, `check_failed` = due count;
+- `gh-hidden-user-fails` → every due check failed, nothing resurfaces by comment, `check_failed` = due count, and the call log (`FAKE_CLI_CALL_LOG`) holds no `issue view` call;
 - `gh-hidden-view-unavailable` with two due issues → one call made, `stopped_at` set, next round checks the other first (call log via `FAKE_CLI_CALL_LOG`);
 - `gh-hidden-bad-json` → failed check, no leak marker in any error;
 - store refused (e.g. a damaged table in a test store) → unpartitioned repos with `store_error`;
@@ -450,7 +450,7 @@ Row actions, the "Pokaż ukryte (n)" toggle, dimmed hidden rows with "ukryte DD.
 
 **Intent**: One typed function per command; GitHub-worded error texts.
 
-**Contract**: `hideGithubIssue(reference)`, `unhideGithubIssue(reference)`, `dismissGithubChange(reference)` → `invoke("hide_github_issue" | "unhide_github_issue" | "dismiss_github_change", { reference })`; `isGithubHiddenStale(e)` (true for `NotFound`/`NotInList`); `githubHiddenErrorMessage(e)` with the GitLab texts except `ListUnavailable` → "Lista GitHuba nie jest jeszcze dostępna.", `Store` → `storeErrorMessage`.
+**Contract**: `hideGithubIssue(reference)`, `unhideGithubIssue(reference)`, `dismissGithubChange(reference)` → `invoke("hide_github_issue" | "unhide_github_issue" | "dismiss_github_change", { reference })`; `isGithubHiddenStale(e)` (true for `NotFound`/`NotInList`; `HiddenIssueError` imported from `../gitlab/types`); `githubHiddenErrorMessage(e)` with the GitLab texts except `ListUnavailable` → "Lista GitHuba nie jest jeszcze dostępna.", `Store` → `storeErrorMessage`.
 
 **File**: `src/github/useGithub.ts`
 
@@ -475,7 +475,7 @@ Row actions, the "Pokaż ukryte (n)" toggle, dimmed hidden rows with "ukryte DD.
 **Contract**:
 - View head: "Pokaż ukryte (n)" (`Button size="sm" variant="quiet" pressed`), disabled when n is 0 and the toggle is off; n = hidden issues across repos without an error; state in `useState`, in memory only.
 - `RepoGroup`: visible rows, then (toggle on) the repo's hidden rows with `dimmed`. Count `[n]` stays the visible count. Empty text: "Brak otwartych zgłoszeń przypisanych do Ciebie." only when the repo has neither visible nor hidden issues; with only hidden issues and the toggle off: "Wszystkie przypisane zgłoszenia są ukryte."
-- `IssueRow`: `flag` stays "W Do zrobienia"; `extra` holds "ukryte DD.MM" (`formatDay(hiddenAtMs, now)`, or "ukryte" without a time) on hidden rows and the "Zmienione" flag on marked rows (tone `change`, tooltip and screen-reader text from the same `CHANGE_LABEL` texts as GitLab: "zmiana statusu", "nowy komentarz", "wróciło na listę"). Actions in GitLab order: "OK, zauważone" (`check-circle`) when marked, "Pokaż na liście" (`eye`) when hidden, else "Ukryj do zmiany" (`eye-off`); disabled while the reference is busy; aria-labels `OK, zauważone: <title>`, `Pokaż: <title>`, `Ukryj: <title>`. `TodoAddButton` only when the row is visible or already in "To do" (as `GitlabView.tsx:249`); the external link stays.
+- `IssueRow`: `flag` stays "W Do zrobienia"; `extra` holds "ukryte DD.MM" (`formatDay(hiddenAtMs, now)`, or "ukryte" without a time) on hidden rows and the "Zmienione" flag on marked rows (tone `change`, tooltip and screen-reader text from the same texts as GitLab's `CHANGE_LABEL`: "zmiana statusu", "nowy komentarz", "wróciło na listę"; `CHANGE_LABEL` is local to `GitlabView.tsx`, so `GithubView.tsx` keeps its own copy and `GitlabView.tsx` is neither edited nor imported from). Actions in GitLab order: "OK, zauważone" (`check-circle`) when marked, "Pokaż na liście" (`eye`) when hidden, else "Ukryj do zmiany" (`eye-off`); disabled while the reference is busy; aria-labels `OK, zauważone: <title>`, `Pokaż: <title>`, `Ukryj: <title>`. `TodoAddButton` only when the row is visible or already in "To do" (as `GitlabView.tsx:249`); the external link stays.
 - "Nic przypisanego" only when no repo has visible or hidden issues.
 - Notices (as `GitlabView.tsx:678-688`): `hiddenError` → "Lista pokazuje wszystkie zgłoszenia, bo nie udało się odczytać ukrytych. <text>"; `hiddenCheckFailed > 0` → "Nie udało się sprawdzić N ukrytych — spróbuję przy następnym odświeżeniu"; `actionError` as an error notice.
 - The "Zakres" panel gains the rule note: "Ukryte zgłoszenie wraca samo, gdy ktoś inny doda komentarz albo zgłoszenie wróci na listę po zamknięciu i ponownym otwarciu." with a comment that it mirrors `plan_round` in `src-tauri/src/hidden_issues/rules.rs`.
@@ -502,7 +502,7 @@ Row actions, the "Pokaż ukryte (n)" toggle, dimmed hidden rows with "ukryte DD.
 #### Automated Verification:
 
 - Type check and build pass with the new fields and props: `npm run build`
-- No colour literal outside tokens: `git diff develop -- src/github src/components/ItemRow | grep -E "^\+.*#[0-9a-fA-F]{3,6}\b"` prints nothing
+- No colour literal outside tokens: `git diff $(git merge-base develop HEAD) -- src/github src/components/ItemRow src/todo | grep -E "^\+.*#[0-9a-fA-F]{3,6}\b"` prints nothing
 - All AGENTS.md gates green: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
 
 #### Manual Verification:

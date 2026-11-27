@@ -9,6 +9,7 @@ import {
   formatAge,
   formatAgo,
   plural,
+  retryText,
   useNow,
 } from "../components";
 import { ErrorState } from "../components/ErrorState";
@@ -99,10 +100,13 @@ function RepoGroup({ repo, now, todo }: { repo: RepoView; now: number; todo: Tod
 function SourceError({
   state,
   lastSuccess,
+  retryNote,
   onRetry,
 }: {
   state: Extract<GithubState, { state: "error" }>;
   lastSuccess: string;
+  /** The interval and next try; `null` when no round will come. */
+  retryNote: string | null;
   onRetry: () => void;
 }) {
   // "LoggedOut" mirrors `GithubError::kind` in src-tauri/src/github/mod.rs.
@@ -114,6 +118,7 @@ function SourceError({
           <>
             Narzędzie gh nie jest zalogowane na tym komputerze. Zaloguj się w terminalu poleceniem{" "}
             <code>gh auth login</code>, potem odśwież.
+            {retryNote !== null && ` ${retryNote}`}
           </>
         }
         onRetry={onRetry}
@@ -124,7 +129,7 @@ function SourceError({
   return (
     <ErrorState
       title="Błąd GitHuba"
-      message={state.message}
+      message={retryNote !== null ? `${state.message} ${retryNote}` : state.message}
       onRetry={onRetry}
       lastSuccess={lastSuccess}
     />
@@ -165,6 +170,7 @@ export function GithubView() {
     lastSuccessMs != null
       ? `ostatnie udane odświeżenie: ${formatAgo(lastSuccessMs, nowMs)}`
       : "brak udanego odświeżenia od uruchomienia aplikacji";
+  const retryNote = retryText(snapshot.refreshMinutes, snapshot.nextRefreshAtMs, refreshing, nowMs);
   const showList = state.state !== "notConfigured" && repos.length > 0;
   const open = repos.reduce((n, r) => n + r.issues.length, 0);
   const allEmpty = state.state === "ok" && open === 0 && repos.every((r) => !r.error);
@@ -214,10 +220,25 @@ export function GithubView() {
           action="Sprawdź teraz"
           onAction={() => void refresh()}
           actionDisabled={refreshing}
-        />
+        >
+          {retryNote}
+        </SourceState>
       )}
       {state.state === "error" && (
-        <SourceError state={state} lastSuccess={lastSuccess} onRetry={() => void refresh()} />
+        <SourceError
+          state={state}
+          lastSuccess={lastSuccess}
+          // "ThreadDown" mirrors `GithubError::kind` in src-tauri/src/github/mod.rs: no round ever comes.
+          retryNote={state.kind === "ThreadDown" ? null : retryNote}
+          onRetry={() => void refresh()}
+        />
+      )}
+      {/* "1–14" and "10 min" mirror REFRESH_MINUTES_MAX and DEFAULT_REFRESH_MINUTES in src-tauri/src/settings.rs. */}
+      {snapshot.refreshSettingInvalid && (
+        <Notice tone="warn">
+          Nieprawidłowe ustawienie <code>githubRefresh.minutes</code> (dozwolone 1–14) — odświeżam
+          co 10 min
+        </Notice>
       )}
       <TodoPicksNotices todo={todo} />
       {showList && allEmpty && (

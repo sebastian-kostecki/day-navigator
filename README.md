@@ -114,6 +114,7 @@ The app reads it and never changes it. Every block is optional. The **Czas pracy
     "closedDays": 7
   },
   "github": { "repos": ["octo-org/alpha", "octo-org/beta"] },
+  "githubRefresh": { "minutes": 10 },
   "todo": { "limit": 5 },
   "autostart": { "enabled": true },
   "reminders": { "longRunningHours": 10, "notRunningAfter": "09:00" },
@@ -127,6 +128,7 @@ The app reads it and never changes it. Every block is optional. The **Czas pracy
 | `gitlabRefresh` | Background refresh interval in minutes, 1–14 (default 10).                                         |
 | `gitlabFilter`  | `include` / `exclude` lists for projects, labels and milestones; `closedDays` 1–30.                |
 | `github`        | `owner/name` repositories to read issues from (up to 50).                                          |
+| `githubRefresh` | GitHub background refresh interval in minutes, 1–14 (default 10). An invalid value shows a notice in **Projekty (GitHub)** and uses 10. |
 | `todo`          | "To do" list limit, 1–20 (default 5).                                                              |
 | `autostart`     | `enabled`: `true` starts the app with Windows into the tray, window hidden; off by default. Read at start: restart the app after a change. |
 | `reminders`     | `longRunningHours` 1–24 and `notRunningAfter` `"HH:MM"`; `false` turns a reminder off.             |

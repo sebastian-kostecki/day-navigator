@@ -104,6 +104,7 @@ mod notices {
             milestone: None,
             is_new: false,
             hidden_at_ms: None,
+            review_requested: false,
         }
     }
 
@@ -327,6 +328,7 @@ mod items {
                 at(ItemKind::Issue, 1, "2026-03-03T08:00:00Z"),
             ],
             hidden_issues: vec![],
+            review_requests: Vec::new(),
         };
         let keys = [key(ItemKind::Issue, 1), key(ItemKind::Issue, 1)];
         assert_eq!(items_for(&full, &keys).len(), 1);
@@ -342,6 +344,7 @@ mod items {
             // The same instant as MR 8 in another offset: a tie keeps key order.
             issues: vec![at(ItemKind::Issue, 7, "2026-03-04T10:00:00+01:00")],
             hidden_issues: vec![at(ItemKind::Issue, 9, "2026-03-02T09:00:00Z")],
+            review_requests: Vec::new(),
         };
         let keys = [
             key(ItemKind::MergeRequest, 7),
@@ -380,6 +383,7 @@ mod items {
                 at(ItemKind::Issue, max + 1, "2026-03-01T09:00:00Z"),
             ],
             hidden_issues: vec![],
+            review_requests: Vec::new(),
         };
         assert_eq!(keys_of(&full), vec![key(ItemKind::Issue, max)]);
     }
@@ -431,6 +435,7 @@ mod flags {
             ],
             issues: vec![item(ItemKind::Issue, 1, "c"), item(ItemKind::Issue, 2, "d")],
             hidden_issues: vec![item(ItemKind::Issue, 3, "e")],
+            review_requests: Vec::new(),
         };
         items.hidden_issues[0].is_new = true;
         let fresh: HashSet<ItemKey> = [

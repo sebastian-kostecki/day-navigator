@@ -9,12 +9,12 @@ use chrono::{DateTime, Duration, FixedOffset, Local, NaiveDate, TimeZone};
 use super::notes::{IssueNote, parse_notes};
 use super::{
     AssignedItems, ClosedItem, GitlabError, ItemKind, parse_issues, parse_merge_requests,
-    parse_recently_closed,
+    parse_recently_closed, split_review_requests,
 };
 use crate::cli::{CliCall, CliRunner, GitlabConfig, GitlabHost, IssueRef, UpdatedAfter};
 
-/// Merge requests first, then issues. The first failure ends the round and the
-/// second call is not started: no partial list. With a configured user the
+/// Merge requests, then issues, then the review list. The first failure ends
+/// the round and the later calls are not started: no partial list. With a configured user the
 /// calls list that user's items instead of the logged-in account's.
 pub fn fetch_assigned(
     runner: &CliRunner,
@@ -25,15 +25,22 @@ pub fn fetch_assigned(
         host.clone(),
         config.user.clone(),
     ))?;
-    let merge_requests = parse_merge_requests(&mrs_out, host)?;
+    let mut merge_requests = parse_merge_requests(&mrs_out, host)?;
     let issues_out = runner.run(&CliCall::GlabAssignedIssues(
         host.clone(),
         config.user.clone(),
     ))?;
     let issues = parse_issues(&issues_out, host)?;
+    let reviews_out = runner.run(&CliCall::GlabReviewMergeRequests(
+        host.clone(),
+        config.user.clone(),
+    ))?;
+    let reviews = parse_merge_requests(&reviews_out, host)?;
+    let review_requests = split_review_requests(&mut merge_requests, reviews);
     Ok(AssignedItems {
         merge_requests,
         issues,
+        review_requests,
         hidden_issues: Vec::new(),
     })
 }

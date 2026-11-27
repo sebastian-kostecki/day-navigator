@@ -212,6 +212,7 @@ mod tests {
             milestone: None,
             is_new: false,
             hidden_at_ms: None,
+            review_requested: false,
         }
     }
 
@@ -221,6 +222,7 @@ mod tests {
             merge_requests: vec![item(ItemKind::MergeRequest, "g/p!1")],
             issues: vec![item(ItemKind::Issue, "g/p#1")],
             hidden_issues: vec![],
+            review_requests: Vec::new(),
         };
         assert!(find_gitlab_item(Some(&items), ItemKind::MergeRequest, "g/p!1").is_some());
         assert!(find_gitlab_item(Some(&items), ItemKind::Issue, "g/p#1").is_some());

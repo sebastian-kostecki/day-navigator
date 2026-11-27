@@ -35,6 +35,8 @@ export type GitlabItem = {
   isNew: boolean;
   /** When the user hid the issue (UTC ms); only on hidden issues. */
   hiddenAtMs: number | null;
+  /** On every "Do review" item and on an assigned MR that also awaits review. */
+  reviewRequested: boolean;
 };
 
 export type AssignedItems = {
@@ -43,6 +45,8 @@ export type AssignedItems = {
   issues: GitlabItem[];
   /** Issues the user has hidden. */
   hiddenIssues: GitlabItem[];
+  /** Open MRs awaiting the user's review, not assigned to them. */
+  reviewRequests: GitlabItem[];
 };
 
 /** `GitlabState` is tagged by `state` and nested under the snapshot's `state`. */
@@ -59,6 +63,7 @@ export type FilteredOut = {
   mergeRequests: number;
   issues: number;
   hiddenIssues: number;
+  reviewRequests: number;
 };
 
 /** A recently closed item. Mirrors `gitlab::ClosedItem` (the item is flattened). */

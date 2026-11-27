@@ -678,12 +678,12 @@ Rollback to an older build is safe. Old code never reads the marker row, and the
 
 #### Automated
 
-- [ ] 2.1 Dedupe unit tests pass
-- [ ] 2.2 Round, filter and kept-list unit tests pass
-- [ ] 2.3 Fetch integration tests pass, including the two new failure scenarios
-- [ ] 2.4 TS mirror type-checks: npm run build
-- [ ] 2.5 npm run lint, npm run format:check, cargo fmt --check, cargo clippy are clean
-- [ ] 2.6 Full suite green: cargo test
+- [x] 2.1 Dedupe unit tests pass
+- [x] 2.2 Round, filter and kept-list unit tests pass
+- [x] 2.3 Fetch integration tests pass, including the two new failure scenarios
+- [x] 2.4 TS mirror type-checks: npm run build
+- [x] 2.5 npm run lint, npm run format:check, cargo fmt --check, cargo clippy are clean
+- [x] 2.6 Full suite green: cargo test
 
 ### Phase 3: FR-004 notices, NEW flags and the silent first-round baseline
 

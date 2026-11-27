@@ -97,6 +97,34 @@ pub struct GitlabItem {
     /// When the user hid the issue, UTC ms (S-02). Only on `hidden_issues`
     /// items; the parser gives `None`.
     pub hidden_at_ms: Option<i64>,
+    /// True on every "Do review" item and on an assigned merge request that
+    /// also awaits the user's review (S-06); the parser gives `false`.
+    pub review_requested: bool,
+}
+
+/// Splits the review list against the assigned merge requests (S-06): flags
+/// every assigned MR that also awaits review, and returns the review-only
+/// items, each flagged. The first occurrence of an id wins; order is kept.
+pub fn split_review_requests(
+    merge_requests: &mut [GitlabItem],
+    reviews: Vec<GitlabItem>,
+) -> Vec<GitlabItem> {
+    let review_ids: std::collections::HashSet<u64> = reviews.iter().map(|r| r.id).collect();
+    for mr in merge_requests.iter_mut() {
+        if review_ids.contains(&mr.id) {
+            mr.review_requested = true;
+        }
+    }
+    let assigned: std::collections::HashSet<u64> = merge_requests.iter().map(|m| m.id).collect();
+    let mut seen = std::collections::HashSet::new();
+    reviews
+        .into_iter()
+        .filter(|r| !assigned.contains(&r.id) && seen.insert(r.id))
+        .map(|mut r| {
+            r.review_requested = true;
+            r
+        })
+        .collect()
 }
 
 impl GitlabItem {
@@ -115,6 +143,9 @@ pub struct AssignedItems {
     /// Issues the user has hidden (S-03). Empty in a fetched list; the round
     /// fills it when it partitions `issues`.
     pub hidden_issues: Vec<GitlabItem>,
+    /// Open merge requests awaiting the user's review and not assigned to
+    /// them (S-06). Empty in a list built before the review call; never hidden.
+    pub review_requests: Vec<GitlabItem>,
 }
 
 /// Why a round produced no list. No variant carries a value from the outside.
@@ -358,6 +389,7 @@ fn build_item(
         milestone: r.milestone.map(|m| m.title),
         is_new: false,
         hidden_at_ms: None,
+        review_requested: false,
     };
     Ok((stamp, item))
 }
@@ -446,6 +478,7 @@ pub struct FilteredOut {
     pub merge_requests: u32,
     pub issues: u32,
     pub hidden_issues: u32,
+    pub review_requests: u32,
 }
 
 /// A recently closed item with the instant it was closed or merged (RFC 3339),
@@ -1516,6 +1549,7 @@ mod tests {
             milestone: None,
             is_new: false,
             hidden_at_ms: None,
+            review_requested: false,
         }
     }
 
@@ -1524,6 +1558,7 @@ mod tests {
             merge_requests: vec![],
             issues: vec![item(reference)],
             hidden_issues: vec![],
+            review_requests: Vec::new(),
         }
     }
 
@@ -1600,6 +1635,79 @@ mod tests {
             assert_eq!(s.checked_at_ms, Some(2000));
             assert_eq!(k, Some(config()));
         }
+    }
+
+    fn review(id: u64, reference: &str) -> GitlabItem {
+        GitlabItem {
+            kind: ItemKind::MergeRequest,
+            id,
+            ..item(reference)
+        }
+    }
+
+    fn ids(list: &[GitlabItem]) -> Vec<u64> {
+        list.iter().map(|i| i.id).collect()
+    }
+
+    #[test]
+    fn split_review_requests_without_overlap_returns_all_flagged() {
+        let mut assigned = vec![review(1, "g/p!1")];
+        let out =
+            split_review_requests(&mut assigned, vec![review(2, "g/p!2"), review(3, "g/p!3")]);
+        assert_eq!(ids(&out), [2, 3]);
+        assert!(out.iter().all(|r| r.review_requested));
+        assert!(!assigned[0].review_requested);
+    }
+
+    #[test]
+    fn split_review_requests_with_full_overlap_flags_the_assigned_and_returns_none() {
+        let mut assigned = vec![review(1, "g/p!1"), review(2, "g/p!2")];
+        let out =
+            split_review_requests(&mut assigned, vec![review(2, "g/p!2"), review(1, "g/p!1")]);
+        assert!(out.is_empty());
+        assert!(assigned.iter().all(|a| a.review_requested));
+    }
+
+    #[test]
+    fn split_review_requests_with_partial_overlap_keeps_only_review_only_items() {
+        let mut assigned = vec![review(1, "g/p!1"), review(2, "g/p!2")];
+        let out =
+            split_review_requests(&mut assigned, vec![review(5, "g/p!5"), review(2, "g/p!2")]);
+        assert_eq!(ids(&out), [5]);
+        assert!(!assigned[0].review_requested);
+        assert!(assigned[1].review_requested);
+    }
+
+    #[test]
+    fn split_review_requests_keeps_the_first_of_a_repeated_id_and_the_order() {
+        let mut assigned: Vec<GitlabItem> = vec![];
+        let out = split_review_requests(
+            &mut assigned,
+            vec![review(7, "g/p!7"), review(4, "g/p!4"), review(7, "g/q!7")],
+        );
+        assert_eq!(ids(&out), [7, 4]);
+        assert_eq!(out[0].reference, "g/p!7");
+    }
+
+    #[test]
+    fn snapshot_unavailable_keeps_the_review_requests() {
+        let mut full = items("g/p#1");
+        full.review_requests = vec![review(9, "g/p!9")];
+        let (ok, kept) = next_snapshot(
+            &GitlabSnapshot::starting(),
+            None,
+            Some(&config()),
+            Ok(full.clone()),
+            1000,
+        );
+        let (s, _) = next_snapshot(
+            &ok,
+            kept.as_ref(),
+            Some(&config()),
+            Err(GitlabError::Unavailable),
+            2000,
+        );
+        assert_eq!(s.items, Some(full));
     }
 
     #[test]
@@ -1908,6 +2016,7 @@ mod tests {
             merge_requests: 1,
             issues: 2,
             hidden_issues: 3,
+            review_requests: 0,
         };
         let prev = GitlabSnapshot {
             items: Some(items("g/p#1")),
@@ -2076,7 +2185,7 @@ mod tests {
         let mut s = GitlabSnapshot::starting();
         assert_eq!(
             serde_json::to_string(&s).unwrap(),
-            r#"{"state":{"state":"starting"},"items":null,"lastSuccessMs":null,"checkedAtMs":null,"refreshing":false,"seq":0,"hiddenCheckFailed":0,"ownCommentsKnown":false,"hiddenError":null,"refreshSettingInvalid":false,"filterActive":false,"filter":{"projects":{"include":[],"exclude":[]},"labels":{"include":[],"exclude":[]},"milestones":{"include":[],"exclude":[]},"closedDays":null},"refreshMinutes":10,"nextRefreshAtMs":null,"filterInvalid":false,"filteredOut":{"mergeRequests":0,"issues":0,"hiddenIssues":0},"closed":null}"#
+            r#"{"state":{"state":"starting"},"items":null,"lastSuccessMs":null,"checkedAtMs":null,"refreshing":false,"seq":0,"hiddenCheckFailed":0,"ownCommentsKnown":false,"hiddenError":null,"refreshSettingInvalid":false,"filterActive":false,"filter":{"projects":{"include":[],"exclude":[]},"labels":{"include":[],"exclude":[]},"milestones":{"include":[],"exclude":[]},"closedDays":null},"refreshMinutes":10,"nextRefreshAtMs":null,"filterInvalid":false,"filteredOut":{"mergeRequests":0,"issues":0,"hiddenIssues":0,"reviewRequests":0},"closed":null}"#
         );
         s.closed = Some(ClosedSection {
             days: 7,

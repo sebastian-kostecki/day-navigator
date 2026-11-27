@@ -3,7 +3,7 @@ change_id: week-summary
 title: Week summary in "Czas pracy" against the week's norm
 status: plan_reviewed
 created: 2026-11-26
-updated: 2026-11-26
+updated: 2026-11-27
 archived_at: null
 ---
 

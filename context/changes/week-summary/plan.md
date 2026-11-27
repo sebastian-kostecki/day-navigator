@@ -431,17 +431,17 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Automated
 
-- [x] 2.1 Rust tests pass, including the new `work_time::week_tests`: `cargo test` (in `src-tauri/`)
-- [x] 2.2 No fixed norm in the week code: `rg -n "DAILY_NORM_MS|figures\(|3_600_000|28_800_000|28800000" src-tauri/src/work_time/week.rs` returns nothing
-- [x] 2.3 No settings struct literal in the week tests: `rg -n "WorkTimeSettings \{" src-tauri/src/work_time/week.rs src-tauri/src/work_time/week_tests.rs` returns nothing
-- [x] 2.4 `week.rs` imports nothing from `tauri`: `rg -n "use tauri|tauri::" src-tauri/src/work_time/week.rs` returns nothing
-- [x] 2.5 Norm rules untouched: `git diff --quiet HEAD -- src-tauri/src/work_time/norm.rs src-tauri/src/work_time/report.rs`
-- [x] 2.6 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
-- [x] 2.7 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
-- [x] 2.8 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [x] 2.9 No frontend change: `git diff --quiet HEAD -- src`
-- [x] 2.10 No fixed norm or hand-built days-off set in the week tests: `rg -n "DAILY_NORM_MS|norm::figures|BTreeSet" src-tauri/src/work_time/week.rs src-tauri/src/work_time/week_tests.rs` returns nothing
-- [x] 2.11 One day-off write path in the week tests: `rg -n "set_day_off" src-tauri/src/work_time/week_tests.rs` finds one line (inside `mark_off`)
+- [x] 2.1 Rust tests pass, including the new `work_time::week_tests`: `cargo test` (in `src-tauri/`) — 99b039d
+- [x] 2.2 No fixed norm in the week code: `rg -n "DAILY_NORM_MS|figures\(|3_600_000|28_800_000|28800000" src-tauri/src/work_time/week.rs` returns nothing — 99b039d
+- [x] 2.3 No settings struct literal in the week tests: `rg -n "WorkTimeSettings \{" src-tauri/src/work_time/week.rs src-tauri/src/work_time/week_tests.rs` returns nothing — 99b039d
+- [x] 2.4 `week.rs` imports nothing from `tauri`: `rg -n "use tauri|tauri::" src-tauri/src/work_time/week.rs` returns nothing — 99b039d
+- [x] 2.5 Norm rules untouched: `git diff --quiet HEAD -- src-tauri/src/work_time/norm.rs src-tauri/src/work_time/report.rs` — 99b039d
+- [x] 2.6 Formatting passes: `cargo fmt --check` (in `src-tauri/`) — 99b039d
+- [x] 2.7 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`) — 99b039d
+- [x] 2.8 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — 99b039d
+- [x] 2.9 No frontend change: `git diff --quiet HEAD -- src` — 99b039d
+- [x] 2.10 No fixed norm or hand-built days-off set in the week tests: `rg -n "DAILY_NORM_MS|norm::figures|BTreeSet" src-tauri/src/work_time/week.rs src-tauri/src/work_time/week_tests.rs` returns nothing — 99b039d
+- [x] 2.11 One day-off write path in the week tests: `rg -n "set_day_off" src-tauri/src/work_time/week_tests.rs` finds one line (inside `mark_off`) — 99b039d
 
 ### Phase 3: Command and contract
 

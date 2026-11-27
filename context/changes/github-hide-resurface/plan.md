@@ -592,9 +592,9 @@ v15 only creates `hidden_items`; existing data is untouched and no GitLab row mo
 
 #### Automated
 
-- [ ] 1.1 Guard test passes with the two new shapes and every near-miss rejected
-- [ ] 1.2 Parser and fake-cli tests pass with no leak marker in any error or Debug output
-- [ ] 1.3 All AGENTS.md gates green
+- [x] 1.1 Guard test passes with the two new shapes and every near-miss rejected
+- [x] 1.2 Parser and fake-cli tests pass with no leak marker in any error or Debug output
+- [x] 1.3 All AGENTS.md gates green
 
 #### Manual
 

@@ -302,6 +302,42 @@ impl std::fmt::Debug for IssueRef {
     }
 }
 
+/// One GitHub issue number: a non-zero decimal that can only render as digits
+/// in an argument. Debug is opaque so a number never reaches a log.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct GithubIssueNumber(u64);
+
+impl GithubIssueNumber {
+    pub fn new(number: u64) -> Option<GithubIssueNumber> {
+        (number > 0).then_some(GithubIssueNumber(number))
+    }
+
+    pub fn get(&self) -> u64 {
+        self.0
+    }
+}
+
+impl std::fmt::Debug for GithubIssueNumber {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("GithubIssueNumber(..)")
+    }
+}
+
+fn gh_issue_comments_args(repo: &GithubRepo, number: &GithubIssueNumber) -> Vec<String> {
+    [
+        "issue",
+        "view",
+        &number.get().to_string(),
+        "-R",
+        repo.as_str(),
+        "--json",
+        "comments",
+    ]
+    .iter()
+    .map(|a| a.to_string())
+    .collect()
+}
+
 /// Endpoint of an issue's notes, newest first: `projects/<id>/issues/<iid>` +
 /// this suffix. Numeric segments only (`glab api` expands `:id` placeholders
 /// from the working directory's repo).
@@ -342,6 +378,11 @@ pub enum CliCall {
     /// `gh issue list` of one repository: open issues assigned to the account
     /// (read-only).
     GhAssignedIssues(GithubRepo),
+    /// `gh api user`: the login of the logged-in account (read-only GET).
+    GhUser,
+    /// `gh issue view <N> -R <repo> --json comments`: one issue's comments
+    /// (read-only).
+    GhIssueComments(GithubRepo, GithubIssueNumber),
 }
 
 impl CliCall {
@@ -351,6 +392,7 @@ impl CliCall {
         CliCall::GlabAuthStatus,
         CliCall::GhVersion,
         CliCall::GhAuthStatus,
+        CliCall::GhUser,
     ];
 
     /// Every variant, the GitLab ones with an invented host, without and with
@@ -400,6 +442,10 @@ impl CliCall {
         all.push(CliCall::GhAssignedIssues(
             GithubRepo::parse("octo-test/alpha").expect("valid example repo"),
         ));
+        all.push(CliCall::GhIssueComments(
+            GithubRepo::parse("octo-test/alpha").expect("valid example repo"),
+            GithubIssueNumber::new(12).expect("valid example number"),
+        ));
         all
     }
 
@@ -412,7 +458,11 @@ impl CliCall {
             | CliCall::GlabRecentlyClosedIssues(..)
             | CliCall::GlabRecentlyClosedMergeRequests(..)
             | CliCall::GlabIssueNotes(..) => Tool::Glab,
-            CliCall::GhVersion | CliCall::GhAuthStatus | CliCall::GhAssignedIssues(..) => Tool::Gh,
+            CliCall::GhVersion
+            | CliCall::GhAuthStatus
+            | CliCall::GhAssignedIssues(..)
+            | CliCall::GhUser
+            | CliCall::GhIssueComments(..) => Tool::Gh,
         }
     }
 
@@ -445,6 +495,8 @@ impl CliCall {
             ),
             CliCall::GlabIssueNotes(host, issue) => issue_notes_args(host, issue),
             CliCall::GhAssignedIssues(repo) => gh_assigned_issues_args(repo),
+            CliCall::GhUser => vec!["api".to_string(), "user".to_string()],
+            CliCall::GhIssueComments(repo, number) => gh_issue_comments_args(repo, number),
         }
     }
 
@@ -461,6 +513,8 @@ impl CliCall {
             CliCall::GlabRecentlyClosedMergeRequests(..) => "glab:closed-mrs",
             CliCall::GlabIssueNotes(..) => "glab:issue-notes",
             CliCall::GhAssignedIssues(..) => "gh:assigned-issues",
+            CliCall::GhUser => "gh:user",
+            CliCall::GhIssueComments(..) => "gh:issue-comments",
         }
     }
 }
@@ -526,9 +580,9 @@ impl CliError {
 mod tests {
     use super::*;
 
-    const VARIANT_COUNT: usize = 10;
+    const VARIANT_COUNT: usize = 12;
 
-    const EXAMPLE_COUNT: usize = 14;
+    const EXAMPLE_COUNT: usize = 16;
 
     fn example_host() -> GitlabHost {
         GitlabHost::parse("gitlab.example.invalid").unwrap()
@@ -552,6 +606,8 @@ mod tests {
             CliCall::GhAssignedIssues(..) => 7,
             CliCall::GlabRecentlyClosedIssues(..) => 8,
             CliCall::GlabRecentlyClosedMergeRequests(..) => 9,
+            CliCall::GhUser => 10,
+            CliCall::GhIssueComments(..) => 11,
         }
     }
 
@@ -565,7 +621,7 @@ mod tests {
             assert!(o < VARIANT_COUNT, "ordinal out of range for {c:?}");
             seen[o] += 1;
         }
-        assert_eq!(seen, [1, 1, 1, 1, 2, 2, 1, 1, 2, 2]);
+        assert_eq!(seen, [1, 1, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1]);
         let with_user = examples
             .iter()
             .filter(|c| {
@@ -589,6 +645,7 @@ mod tests {
                         | CliCall::GlabRecentlyClosedMergeRequests(..)
                         | CliCall::GlabIssueNotes(..)
                         | CliCall::GhAssignedIssues(..)
+                        | CliCall::GhIssueComments(..)
                 ),
                 "ALL must stay parameterless"
             );
@@ -739,7 +796,16 @@ mod tests {
             && args[..3] == ["issue", "list", "-R"]
             && guard_repo_ok(args[3])
             && args[4..] == GH_ISSUES_TAIL;
-        if !simple && !gitlab_api && !gh_issues {
+        let gh_user = args == ["api", "user"];
+        let gh_comments = args.len() == 7
+            && args[0] == "issue"
+            && args[1] == "view"
+            && guard_number_ok(args[2])
+            && args[3] == "-R"
+            && guard_repo_ok(args[4])
+            && args[5] == "--json"
+            && args[6] == "comments";
+        if !simple && !gitlab_api && !gh_issues && !gh_user && !gh_comments {
             return Err("not a known read-only shape".into());
         }
         for (i, a) in args.iter().enumerate() {
@@ -1138,6 +1204,148 @@ mod tests {
         assert!(gh_guard(&shorter).is_err());
         assert!(check_read_only(&["issue", "create"]).is_err());
         assert!(check_read_only(&["issue", "list", "-R", "octo-test/alpha"]).is_err());
+    }
+
+    #[test]
+    fn gh_user_has_exact_arguments_name_and_tool() {
+        let call = CliCall::GhUser;
+        assert_eq!(call.args(), ["api", "user"]);
+        assert_eq!(call.name(), "gh:user");
+        assert_eq!(call.tool(), Tool::Gh);
+        assert!(CliCall::ALL.contains(&CliCall::GhUser));
+        assert!(gh_guard(&call.args()).is_ok());
+    }
+
+    #[test]
+    fn guard_rejects_near_misses_of_gh_user() {
+        let bad: &[&[&str]] = &[
+            &["api", "user", "extra"],
+            &["api", "users"],
+            &["api", "user/emails"],
+            &["api", "user", "-X", "GET"],
+            &["api", "user", "-X", "POST"],
+            &["api", "user", "--method", "PATCH"],
+            &["api"],
+            &["user", "api"],
+        ];
+        for args in bad {
+            assert!(check_read_only(args).is_err(), "{args:?}");
+        }
+    }
+
+    fn gh_view_args(number: &str, repo: &str) -> Vec<String> {
+        ["issue", "view", number, "-R", repo, "--json", "comments"]
+            .iter()
+            .map(|a| a.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn gh_issue_comments_has_exact_arguments_name_and_tool() {
+        let call = CliCall::GhIssueComments(
+            GithubRepo::parse("Octo-Test/Alpha").unwrap(),
+            GithubIssueNumber::new(12).unwrap(),
+        );
+        assert_eq!(call.args(), gh_view_args("12", "Octo-Test/Alpha"));
+        assert_eq!(call.name(), "gh:issue-comments");
+        assert_eq!(call.tool(), Tool::Gh);
+        assert!(!format!("{call:?}").contains("Octo"));
+        assert!(!format!("{call:?}").contains("12"));
+        assert!(gh_guard(&call.args()).is_ok());
+        assert!(GithubIssueNumber::new(0).is_none());
+        assert_eq!(GithubIssueNumber::new(7).unwrap().get(), 7);
+        assert_eq!(
+            format!("{:?}", GithubIssueNumber::new(7).unwrap()),
+            "GithubIssueNumber(..)"
+        );
+    }
+
+    #[test]
+    fn guard_rejects_near_misses_of_gh_issue_view() {
+        assert!(gh_guard(&gh_view_args("12", "octo-test/alpha")).is_ok());
+        for bad_number in ["012", "0", "1a", "-1", "", "1 2", "1.5"] {
+            assert!(
+                gh_guard(&gh_view_args(bad_number, "octo-test/alpha")).is_err(),
+                "{bad_number:?}"
+            );
+        }
+        for bad_repo in ["-X/foo", "a/b c", "a", "a/.."] {
+            assert!(
+                gh_guard(&gh_view_args("12", bad_repo)).is_err(),
+                "{bad_repo:?}"
+            );
+        }
+        // Every literal position must match.
+        for i in [0, 1, 3, 5, 6] {
+            let mut args = gh_view_args("12", "octo-test/alpha");
+            args[i] = "other".to_string();
+            assert!(gh_guard(&args).is_err(), "position {i}");
+        }
+        let near: &[&[&str]] = &[
+            &[
+                "issue",
+                "view",
+                "12",
+                "-R",
+                "octo-test/alpha",
+                "--json",
+                "comments",
+                "--web",
+            ],
+            &["issue", "view", "12", "-R", "octo-test/alpha", "--web"],
+            &[
+                "issue",
+                "view",
+                "12",
+                "-R",
+                "octo-test/alpha",
+                "--json",
+                "body",
+            ],
+            &[
+                "issue",
+                "view",
+                "12",
+                "-R",
+                "octo-test/alpha",
+                "--json",
+                "comments,body",
+            ],
+            &["issue", "view", "12", "-R", "octo-test/alpha", "--comments"],
+            &["issue", "view", "12", "--json", "comments"],
+            &[
+                "issue",
+                "view",
+                "12",
+                "--json",
+                "comments",
+                "-R",
+                "octo-test/alpha",
+            ],
+            &[
+                "issue",
+                "view",
+                "-R",
+                "octo-test/alpha",
+                "12",
+                "--json",
+                "comments",
+            ],
+            &[
+                "issue",
+                "view",
+                "12",
+                "-R",
+                "octo-test/alpha",
+                "--json",
+                "comments",
+                "-X",
+                "POST",
+            ],
+        ];
+        for args in near {
+            assert!(check_read_only(args).is_err(), "{args:?}");
+        }
     }
 
     #[test]

@@ -5,6 +5,7 @@
 //! error value, log line or message carries a repository name, a URL, a title,
 //! a `serde_json` error or any other response content.
 
+pub mod comments;
 pub mod fetch;
 
 use std::cmp::Reverse;

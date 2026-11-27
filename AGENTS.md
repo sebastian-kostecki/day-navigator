@@ -21,6 +21,7 @@ Day Navigator is a personal Windows 11 desktop app built on Tauri 2: a Rust back
 - `src-tauri/tauri.conf.json` — app identity, window and bundle config.
 - `src-tauri/src/autostart/` — the only code that touches the Windows registry (`hkcu.rs`); tests use the in-memory `RunEntry` fake, never the real registry.
 - `src-tauri/src/cli/` — the only code that starts `glab` / `gh`. A new call is a new `CliCall` variant with fixed arguments (read-only, covered by the guard test). Tests use the `fake-cli` bin (test-support only), never real work data.
+- `src-tauri/src/source_refresh.rs` — the shared refresh skeleton (snapshot cell, thread with the `ThreadDown` stand-in, wait loop, publication, round tail). A source module (`gitlab_refresh.rs`, `github_refresh.rs`) keeps its fetch, rules and locks and calls the skeleton instead of copying it; skeleton log calls pass the source's `module_path!()` as the target.
 
 ## Frontend Conventions (React 19, no router)
 

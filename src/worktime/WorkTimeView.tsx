@@ -8,6 +8,7 @@ import { MonthReport } from "./MonthReport";
 import { RemindersPanel } from "./RemindersPanel";
 import { todayTotalMs } from "./total";
 import { EntriesPanel } from "./WorkTimeEntries";
+import { WeekSummary } from "./WeekSummary";
 import { useDayOffToggle } from "./useDayOffToggle";
 import { useMonthReport } from "./useMonthReport";
 import { useWorkEntries } from "./useWorkEntries";
@@ -224,6 +225,7 @@ export default function WorkTimeView() {
               {dayOffControl}
             </div>
           </Panel>
+          <WeekSummary onPickDay={setDay} />
           <Panel title="Dni miesiąca" meta={formatMonth(month)}>
             {daysBody}
           </Panel>

@@ -11,7 +11,7 @@ function dm(day: string): string {
 }
 
 /** Today's figures follow the running counter; every other day shows the report. */
-function liveFigures(
+export function liveFigures(
   row: DayReport,
   isLiveToday: boolean,
   liveTodayMs: number | null,

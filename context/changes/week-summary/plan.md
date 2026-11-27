@@ -458,14 +458,14 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Automated
 
-- [ ] 4.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 4.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (in `src-tauri/`)
-- [ ] 4.3 No 8 h rule in the UI: `rg -n "28800000|28_800_000|8 \* 3600|8 \* 60 \* 60|norm = 8|norm \?\? 8" src/` returns nothing
-- [ ] 4.4 The timer is read only through the context: `rg -n "useWorkTimerSource" src/` finds only `useWorkTimer.ts` and `WorkTimerProvider.tsx`
-- [ ] 4.5 `invoke` stays in `api.ts`: `rg -n "@tauri-apps/api/core" src/worktime` finds only `api.ts`
-- [ ] 4.6 No literal colours in view CSS: `rg -n "#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(" src/worktime/WorkTime.css` returns nothing
-- [ ] 4.7 No Rust change in this phase: `git diff --quiet HEAD -- src-tauri`
-- [ ] 4.15 The PRD no longer lists the week view as not built and gains no FR: `rg -n "widok tygodnia," context/foundation/prd.md` returns nothing and `git diff HEAD -- context/foundation/prd.md | rg "^\+.*FR-0[0-9]{2}:"` returns nothing
+- [x] 4.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 4.2 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (in `src-tauri/`)
+- [x] 4.3 No 8 h rule in the UI: `rg -n "28800000|28_800_000|8 \* 3600|8 \* 60 \* 60|norm = 8|norm \?\? 8" src/` returns nothing
+- [x] 4.4 The timer is read only through the context: `rg -n "useWorkTimerSource" src/` finds only `useWorkTimer.ts` and `WorkTimerProvider.tsx`
+- [x] 4.5 `invoke` stays in `api.ts`: `rg -n "@tauri-apps/api/core" src/worktime` finds only `api.ts`
+- [x] 4.6 No literal colours in view CSS: `rg -n "#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(" src/worktime/WorkTime.css` returns nothing
+- [x] 4.7 No Rust change in this phase: `git diff --quiet HEAD -- src-tauri`
+- [x] 4.15 The PRD no longer lists the week view as not built and gains no FR: `rg -n "widok tygodnia," context/foundation/prd.md` returns nothing and `git diff HEAD -- context/foundation/prd.md | rg "^\+.*FR-0[0-9]{2}:"` returns nothing
 
 #### Manual
 

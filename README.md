@@ -54,6 +54,7 @@ the hours you spend on it.
   survives restarts and crashes. Also includes:
   - day and month sums against an 8-hour workday norm, with Polish public holidays counted out;
   - a table of the month's days and days off;
+  - a summary of the current week (Monday to Sunday, also across months) against the week's norm, day by day;
   - reminders when the counter runs too long, or is not running after a set hour on a workday;
   - START/STOP from the tray menu; the tray tooltip shows today's work time and the tray icon
     shows when the counter runs.
@@ -122,7 +123,7 @@ The app reads it and never changes it. Every block is optional. The **Czas pracy
 | `reminders`     | `longRunningHours` 1–24 and `notRunningAfter` `"HH:MM"`; `false` turns a reminder off.             |
 | `workTime`      | `holidays`: `"pl"` (default) counts Polish public holidays out of the norm; `false` turns the calendar off. |
 
-An invalid block is reported in the **Źródła** view and does not affect the other blocks. The exception is `workTime`: an invalid block is reported in the **Czas pracy** view (month report and days table) and in the dashboard's month tiles, not in **Źródła**; START/STOP keeps working.
+An invalid block is reported in the **Źródła** view and does not affect the other blocks. The exception is `workTime`: an invalid block is reported in the **Czas pracy** view (month report, days table and week summary) and in the dashboard's month tiles, not in **Źródła**; START/STOP keeps working.
 
 ## Development
 

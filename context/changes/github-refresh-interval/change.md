@@ -1,7 +1,7 @@
 ---
 change_id: github-refresh-interval
 title: Github refresh interval
-status: plan_reviewed
+status: impl_reviewed
 created: 2026-11-27
 updated: 2026-11-27
 archived_at: null

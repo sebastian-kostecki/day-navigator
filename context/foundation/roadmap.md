@@ -1,6 +1,6 @@
 ---
 project: "Nawigator dnia"
-version: 6
+version: 7
 status: draft
 created: 2026-11-20
 updated: 2026-11-27
@@ -9,7 +9,7 @@ main_goal: quality
 top_blocker: decisions
 milestone_id: worktime-and-tray
 milestone_seq: 3
-milestone_status: open
+milestone_status: closed
 ---
 
 # Roadmap: Nawigator dnia
@@ -21,7 +21,7 @@ milestone_status: open
 
 ## Milestone
 
-**M-3: Work time and the tray** — Status: open
+**M-3: Work time and the tray** — Status: closed
 
 - **Intent:** The work-time counter and its norm report can be trusted and reached without opening the window: public holidays and a configurable norm count in the norm, the counter is controlled from the tray and the app starts with Windows, the month report can be copied out, entries can carry a note, and the day and week can be summed up. Outcome-scoped; no dates.
 - **Source materials:** GitHub issues #17, #18, #19, #23, #24, #25, #26, #27 (GitHub milestone "M-3: Czas pracy i zasobnik"); `context/foundation/prd.md` v2 for the existing work-time rules (FR-013, FR-014, FR-017, FR-018, FR-020, FR-021). The later GitHub milestones M-4–M-6 (#20, #28–#52) stay outside this milestone.
@@ -232,6 +232,7 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
 
 - **M-1: The narrowed day flow runs in the app** (`full-day-flow`) — closed 2026-11-23. The day flow from PRD v1 runs in the app: GitLab issues and MRs (filter, hiding, notifications), GitHub issues, own tasks, the "To do" list, and the work-time counter with its norm report and reminders. FR-001–FR-008 and FR-010–FR-018 are covered.
 - **M-2: Konsola mockup gaps closed and the codebase cleaned up** (`konsola-gaps-and-cleanup`) — closed 2026-11-24. The Konsola mockup gaps are now in the app: the event log, the days table, the reminders panel, the app-data details, the GitLab NEW flag, hidden date and filter bar, GitHub labels, and "+" to "To do". They sit on a cleaner base (shared UI tools and timer state, no vault layer), and the design-system artifact matches the app. Releases carry a changelog and real metadata (0.2.1, 0.3.0). FR-019–FR-026 and MS-09–MS-12 and MS-14–MS-16 are covered. MS-13 (installer signing) was parked.
+- **M-3: Work time and the tray** (`worktime-and-tray`) — closed 2026-11-27. The work-time counter and its norm report can be trusted and reached without opening the window: Polish public holidays count out of the norm, the daily norm is configurable with a half day off, the counter starts and stops from the tray (with today's time in the tooltip and a running icon), the app can start with Windows into the tray, the month report copies to the clipboard for a spreadsheet, work-time entries carry a short note, STOP shows an end-of-day summary, and "Work time" shows a week summary against the week's norm. MS-17, MS-18, MS-19 and MS-23–MS-27 are covered.
 
 ## Done
 

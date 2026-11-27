@@ -366,10 +366,10 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): TSV; 
 
 #### Manual
 
-- [ ] 2.6 W zbudowanej aplikacji (`npm run tauri build -- --debug --no-bundle`) „Kopiuj miesiąc” kliknięty w skupionym oknie aplikacji (nie z konsoli DevTools) pokazuje „Skopiowano.”, a wklejenie do Notatnika daje trzy bloki; konsola DevTools nie pokazuje naruszenia CSP ani „IPC custom protocol failed”
-- [ ] 2.7 Wklejenie do Excela z ustawieniami pl-PL: każda wartość we własnej komórce, daty ISO jako daty, `7:30` jako czas, `40:15` w podsumowaniu jako czas trwania, `7,50` i `-1,50` jako liczby, notatka zaczynająca się od `=` lub `"` jako tekst bez formuły, notatka z tabulatorem w jednej komórce
-- [ ] 2.8 To samo wklejenie w Arkuszach Google z ustawieniami regionalnymi Polska
-- [ ] 2.9 Zapisane w planie, czy w schowku są końce linii LF czy CRLF (np. czy wynik `Get-Clipboard -Raw` w PowerShell zawiera znak CR), a wklejenie działa w obu arkuszach
-- [ ] 2.10 Przycisk jest nieaktywny podczas ładowania i przy błędzie raportu; po zepsuciu bloku „workTime” w settings.json przy wczytanym raporcie pierwsze kliknięcie po powrocie do okna pokazuje komunikat błędu albo przycisk jest już nieaktywny (powrót do okna odświeża raport), nigdy „Skopiowano.” (potem przywrócić settings.json)
-- [ ] 2.11 Przy biegnącym liczniku dzisiejszy wiersz kopii zgadza się z tabelą dni w chwili kliknięcia; po zmianie miesiąca „Skopiowano.” znika
-- [ ] 2.12 Plik logu aplikacji z tej sesji i panel „Dziennik zdarzeń” nie zawierają treści notatek po kopiowaniu
+- [x] 2.6 W zbudowanej aplikacji (`npm run tauri build -- --debug --no-bundle`) „Kopiuj miesiąc” kliknięty w skupionym oknie aplikacji (nie z konsoli DevTools) pokazuje „Skopiowano.”, a wklejenie do Notatnika daje trzy bloki; konsola DevTools nie pokazuje naruszenia CSP ani „IPC custom protocol failed” — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 2.7 Wklejenie do Excela z ustawieniami pl-PL: każda wartość we własnej komórce, daty ISO jako daty, `7:30` jako czas, `40:15` w podsumowaniu jako czas trwania, `7,50` i `-1,50` jako liczby, notatka zaczynająca się od `=` lub `"` jako tekst bez formuły, notatka z tabulatorem w jednej komórce — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 2.8 To samo wklejenie w Arkuszach Google z ustawieniami regionalnymi Polska — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 2.9 Zapisane w planie, czy w schowku są końce linii LF czy CRLF (np. czy wynik `Get-Clipboard -Raw` w PowerShell zawiera znak CR), a wklejenie działa w obu arkuszach — checked by the user on 2026-11-27 on m3-wave2-integration: paste worked; line-ending type not recorded
+- [x] 2.10 Przycisk jest nieaktywny podczas ładowania i przy błędzie raportu; po zepsuciu bloku „workTime” w settings.json przy wczytanym raporcie pierwsze kliknięcie po powrocie do okna pokazuje komunikat błędu albo przycisk jest już nieaktywny (powrót do okna odświeża raport), nigdy „Skopiowano.” (potem przywrócić settings.json) — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 2.11 Przy biegnącym liczniku dzisiejszy wiersz kopii zgadza się z tabelą dni w chwili kliknięcia; po zmianie miesiąca „Skopiowano.” znika — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 2.12 Plik logu aplikacji z tej sesji i panel „Dziennik zdarzeń” nie zawierają treści notatek po kopiowaniu — checked by the user on 2026-11-27 on m3-wave2-integration

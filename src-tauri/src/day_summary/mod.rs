@@ -8,6 +8,7 @@
 
 pub mod commands;
 pub mod error;
+pub mod notice;
 
 #[cfg(test)]
 mod tests;

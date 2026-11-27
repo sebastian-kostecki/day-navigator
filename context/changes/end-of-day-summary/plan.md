@@ -432,12 +432,12 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Automated
 
-- [ ] 2.1 Rust tests pass, including the notice tests: `cargo test` (in `src-tauri/`)
-- [ ] 2.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
-- [ ] 2.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
-- [ ] 2.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 2.5 `notice.rs` imports nothing from `tauri`
-- [ ] 2.6 No frontend, capability, config or dependency change (`git status --porcelain` on those paths prints nothing)
+- [x] 2.1 Rust tests pass, including the notice tests: `cargo test` (in `src-tauri/`)
+- [x] 2.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
+- [x] 2.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
+- [x] 2.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 2.5 `notice.rs` imports nothing from `tauri`
+- [x] 2.6 No frontend, capability, config or dependency change (`git status --porcelain` on those paths prints nothing)
 
 #### Manual
 

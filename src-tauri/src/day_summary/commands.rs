@@ -6,8 +6,9 @@
 use chrono::{Local, Utc};
 use tauri::{AppHandle, Manager};
 
-use super::{DaySummary, DaySummaryError};
+use super::{DaySummary, DaySummaryError, notice};
 use crate::blocking;
+use crate::health::Notice;
 use crate::settings_file;
 use crate::store::StoreHandle;
 use crate::work_time::commands::{Policy, work_time_settings};
@@ -28,4 +29,28 @@ pub async fn day_summary(app: AppHandle) -> Result<DaySummary, DaySummaryError> 
         log::warn!("day_summary: read failed: {}", e.kind());
     }
     result
+}
+
+/// The toast after a committed tray STOP: today's time and the month's
+/// deviation from `work_time::status` only (no todo write). The store lock is
+/// released before this returns. A failed read gives the figure-free text.
+pub(crate) async fn stop_notice(app: &AppHandle) -> Notice {
+    let path = settings_file::settings_path(app);
+    let handle = app.clone();
+    let today = Local::now().date_naive();
+    let result = blocking(move || {
+        let settings = work_time_settings(path.as_deref(), Policy::Lenient)?;
+        handle.state::<StoreHandle>().with_store(today, |store| {
+            crate::work_time::status(store, Utc::now().timestamp_millis(), &Local, &settings)
+        })
+    })
+    .await;
+    match result {
+        Ok(status) => notice::stop_notice(super::today_ms(&status), status.month_deviation_ms),
+        Err(e) => {
+            let e = DaySummaryError::from(e);
+            log::warn!("day_summary: stop figures failed: {}", e.kind());
+            notice::stop_notice_unavailable()
+        }
+    }
 }

@@ -201,17 +201,25 @@ impl TrayWorkItem {
 
 /// Runs a tray START/STOP through the shared functions. `AlreadyRunning` /
 /// `NotRunning` mean the counter changed elsewhere: refresh only, no toast.
+/// A successful STOP shows the end-of-day toast (today's time, month deviation).
 async fn run_tray_action(app: AppHandle, action: TimerAction) {
     let result = match action {
         TimerAction::Start => crate::work_time::commands::start_timer(&app).await,
         TimerAction::Stop => crate::work_time::commands::stop_timer(&app).await,
     };
-    if let Err(e) = result {
-        if let Some(n) = tray_view::failure_notice(action, &e) {
-            toast(&app, "work_time", &n.title, &n.body);
+    match result {
+        Ok(()) if action == TimerAction::Stop => {
+            // A success already refreshed the tray through `notify`.
+            let n = crate::day_summary::commands::stop_notice(&app).await;
+            toast(&app, "day_summary", &n.title, &n.body);
         }
-        // A success already refreshed the tray through `notify`.
-        refresh_tray(&app);
+        Ok(()) => {}
+        Err(e) => {
+            if let Some(n) = tray_view::failure_notice(action, &e) {
+                toast(&app, "work_time", &n.title, &n.body);
+            }
+            refresh_tray(&app);
+        }
     }
 }
 

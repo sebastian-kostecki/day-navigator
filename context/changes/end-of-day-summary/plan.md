@@ -468,8 +468,8 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Automated
 
-- [x] 4.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [x] 4.2 Rust gates still pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (in `src-tauri/`)
-- [x] 4.3 Only docs change (`CHANGELOG.md`, `README.md`, `context/foundation/prd.md`, plan Progress)
-- [x] 4.4 The PRD no longer lists "zamknięcie dnia" as unbuilt and names MS-19
-- [x] 4.5 Across the slice, norm, report and schema are untouched (diff against the merge base with `develop`)
+- [x] 4.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — 7f37603
+- [x] 4.2 Rust gates still pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (in `src-tauri/`) — 7f37603
+- [x] 4.3 Only docs change (`CHANGELOG.md`, `README.md`, `context/foundation/prd.md`, plan Progress) — 7f37603
+- [x] 4.4 The PRD no longer lists "zamknięcie dnia" as unbuilt and names MS-19 — 7f37603
+- [x] 4.5 Across the slice, norm, report and schema are untouched (diff against the merge base with `develop`) — 7f37603

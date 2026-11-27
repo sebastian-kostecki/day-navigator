@@ -136,13 +136,13 @@ None. No store schema change.
 
 #### Automated
 
-- [x] 1.1 Lint passes: `npm run lint`
-- [x] 1.2 Formatting passes: `npm run format:check`
-- [x] 1.3 Type check and build pass: `npm run build`
-- [x] 1.4 Rust formatting passes: `cargo fmt --check`
-- [x] 1.5 Clippy passes: `cargo clippy --all-targets -- -D warnings`
-- [x] 1.6 Rust tests pass: `cargo test`
-- [x] 1.7 Only `src/gitlab/GitlabView.tsx` changes among code files: `git diff --stat develop...HEAD -- src src-tauri`
+- [x] 1.1 Lint passes: `npm run lint` — 545e47d
+- [x] 1.2 Formatting passes: `npm run format:check` — 545e47d
+- [x] 1.3 Type check and build pass: `npm run build` — 545e47d
+- [x] 1.4 Rust formatting passes: `cargo fmt --check` — 545e47d
+- [x] 1.5 Clippy passes: `cargo clippy --all-targets -- -D warnings` — 545e47d
+- [x] 1.6 Rust tests pass: `cargo test` — 545e47d
+- [x] 1.7 Only `src/gitlab/GitlabView.tsx` changes among code files: `git diff --stat develop...HEAD -- src src-tauri` — 545e47d
 
 #### Manual
 

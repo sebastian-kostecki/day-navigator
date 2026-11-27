@@ -42,6 +42,11 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
   one row per day (kind, holiday name, sum, norm, deviation) and one row per
   entry with its note. Numbers use a decimal comma, for pl-PL Excel and Google
   Sheets.
+- After STOP in the header, a dismissible "Podsumowanie dnia" panel shows
+  today's work time, the month's deviation, what was ticked off in "Do
+  zrobienia" and what carries over to tomorrow (no question asked). After STOP
+  from the tray, a Windows notification shows today's work time and the
+  month's deviation.
 
 ## [0.10.1] - 2026-11-26
 

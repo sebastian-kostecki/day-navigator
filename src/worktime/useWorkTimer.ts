@@ -24,8 +24,9 @@ export type WorkTimer = {
   nowMs: number;
   busy: boolean;
   actionError: string | null;
-  start: () => Promise<void>;
-  stop: () => Promise<void>;
+  /** Resolve `true` when the action committed, `false` otherwise. */
+  start: () => Promise<boolean>;
+  stop: () => Promise<boolean>;
   retry: () => void;
 };
 
@@ -154,12 +155,15 @@ export function useWorkTimerSource(): WorkTimer {
   }, [running, dayEndMs, refresh]);
 
   const act = useCallback(
-    async (action: "start" | "stop", call: () => Promise<WorkTimerStatus>) => {
+    async (action: "start" | "stop", call: () => Promise<WorkTimerStatus>): Promise<boolean> => {
       setBusy(true);
       setActionError(null);
       const id = ++issued.current;
       try {
-        apply(id, { state: "loaded", status: await call() });
+        const status = await call();
+        // Committed even if `apply` drops the status as stale.
+        apply(id, { state: "loaded", status });
+        return true;
       } catch (e) {
         const kind = asWorkTimeError(e)?.kind;
         if (kind === "AlreadyRunning" || kind === "NotRunning") {
@@ -168,6 +172,7 @@ export function useWorkTimerSource(): WorkTimer {
         } else {
           setActionError(timerActionErrorMessage(action, e));
         }
+        return false;
       } finally {
         setBusy(false);
       }

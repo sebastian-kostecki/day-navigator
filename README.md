@@ -62,7 +62,8 @@ the hours you spend on it.
     paste as text or as a wrong number (7,50 as 750), while the H:MM columns stay correct;
   - reminders when the counter runs too long, or is not running after a set hour on a workday;
   - START/STOP from the tray menu; the tray tooltip shows today's work time and the tray icon
-    shows when the counter runs.
+    shows when the counter runs;
+  - after STOP: a day summary in the window (header STOP) or a short notification (tray STOP).
 - **Źródła (Sources):** the health of GitLab, GitHub and the app's own data in one panel and
   in the tray icon, plus today's event log. A failed source shows an error, never an empty
   list.

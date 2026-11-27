@@ -1,5 +1,6 @@
 pub mod backups_folder;
 pub mod cli;
+pub mod day_summary;
 pub mod events;
 pub mod github;
 pub mod github_refresh;
@@ -204,6 +205,7 @@ pub fn run() {
             edit_own_task,
             set_own_task_done,
             own_task_default_space,
+            day_summary::commands::day_summary,
             todo::commands::list_todo,
             todo::commands::add_todo_own_task,
             todo::commands::add_todo_gitlab_item,

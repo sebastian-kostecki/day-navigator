@@ -412,11 +412,11 @@ Phases, contracts and Manual rows are otherwise unchanged.
 
 #### Automated
 
-- [x] 3.1 All gates pass in the worktree
-- [x] 3.2 Existing test bodies are unchanged
-- [x] 3.3 `AGENTS.md` differs from the merge base by exactly one added line
-- [x] 3.4 The whole change touches only the planned files
-- [x] 3.5 Committed: `docs(source-refresh-skeleton): point AGENTS.md at the shared refresh skeleton`
+- [x] 3.1 All gates pass in the worktree — dc2a1b6
+- [x] 3.2 Existing test bodies are unchanged — dc2a1b6
+- [x] 3.3 `AGENTS.md` differs from the merge base by exactly one added line — dc2a1b6
+- [x] 3.4 The whole change touches only the planned files — dc2a1b6
+- [x] 3.5 Committed: `docs(source-refresh-skeleton): point AGENTS.md at the shared refresh skeleton` — dc2a1b6
 
 #### Manual
 

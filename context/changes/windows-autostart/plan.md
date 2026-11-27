@@ -404,15 +404,15 @@ No user was reachable during planning; each default follows `research.md` unless
 
 #### Manual
 
-- [ ] 2.10 Installed build without an `autostart` block: row NIESKONFIGUROWANE, no Run value
-- [ ] 2.11 Key on and app restarted: row OK, Run value is the quoted exe path with `--autostart`
-- [ ] 2.12 Sign out and in: app in the tray, window hidden (also after a maximized session), fresh data when opened
-- [ ] 2.13 Manual start and second start show the window; a `--autostart` relaunch does not
-- [ ] 2.14 After a tray-only session and "Zakończ", the next start restores window size and position
-- [ ] 2.15 Key off and app restarted: Run value removed, row NIESKONFIGUROWANE
-- [ ] 2.16 Task Manager "disabled" stays disabled after a restart and the app does not start at sign-in
-- [ ] 2.17 Invalid block: red tray, toast, fixed text, Run value unchanged
-- [ ] 2.18 Debug build with the key on: calm NIEDOSTĘPNY row, Run value untouched
+- [x] 2.10 Installed build without an `autostart` block: row NIESKONFIGUROWANE, no Run value — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 2.11 Key on and app restarted: row OK, Run value is the quoted exe path with `--autostart` — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 2.12 Sign out and in: app in the tray, window hidden (also after a maximized session), fresh data when opened — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 2.13 Manual start and second start show the window; a `--autostart` relaunch does not — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 2.14 After a tray-only session and "Zakończ", the next start restores window size and position — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 2.15 Key off and app restarted: Run value removed, row NIESKONFIGUROWANE — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 2.16 Task Manager "disabled" stays disabled after a restart and the app does not start at sign-in — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 2.17 Invalid block: red tray, toast, fixed text, Run value unchanged — checked by the user on 2026-11-27 on m3-wave2-integration
+- [x] 2.18 Debug build with the key on: calm NIEDOSTĘPNY row, Run value untouched — checked by the user on 2026-11-27 on m3-wave2-integration
 
 ### Phase 3: User docs and PRD wording
 

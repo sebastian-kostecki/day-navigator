@@ -13,6 +13,9 @@ import type { DayOffToggle } from "./useDayOffToggle";
 
 const HOUR_MS = 3_600_000;
 
+/** The note on a half day off, in the days table and the week summary. */
+export const HALF_DAY_OFF_LABEL = "pół dnia wolnego";
+
 const DAY_MARK_OPTIONS = [
   { value: "workday", label: "nie" },
   { value: "halfDayOff", label: "½" },
@@ -25,7 +28,7 @@ function dm(day: string): string {
 }
 
 /** Today's figures follow the running counter; every other day shows the report. */
-function liveFigures(
+export function liveFigures(
   row: DayReport,
   isLiveToday: boolean,
   liveTodayMs: number | null,
@@ -98,7 +101,9 @@ function DayRow(props: {
               {row.dayOffOwed ? `${row.holiday} · należy się inny dzień wolny` : row.holiday}
             </span>
           )}
-          {row.kind === "halfDayOff" && <span className="wt-days-holiday">pół dnia wolnego</span>}
+          {row.kind === "halfDayOff" && (
+            <span className="wt-days-holiday">{HALF_DAY_OFF_LABEL}</span>
+          )}
         </span>
       </DataTableCell>
       <DataTableCell tone={showSum ? textTone : "faint"} className="wt-days-num code">

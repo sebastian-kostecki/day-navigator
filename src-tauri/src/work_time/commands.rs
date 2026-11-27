@@ -12,6 +12,7 @@ use chrono::{Local, Utc};
 use tauri::{AppHandle, Emitter, Manager};
 
 use super::report::{self, MonthReport};
+use super::week::{self, WeekReport};
 use super::{DayEntries, WorkTimeError, WorkTimerStatus};
 use crate::blocking;
 use crate::settings::{WorkTimeSettings, load_work_time_settings};
@@ -218,6 +219,18 @@ pub async fn work_month_report(app: AppHandle, day: String) -> Result<MonthRepor
         "month_report",
         Policy::Strict,
         move |store, now, settings| report::month_report(store, day, now, &Local, settings),
+    )
+    .await
+}
+
+#[tauri::command]
+pub async fn work_week_report(app: AppHandle, day: String) -> Result<WeekReport, WorkTimeError> {
+    let day = report::parse_day(&day)?;
+    run_with_settings(
+        &app,
+        "week_report",
+        Policy::Strict,
+        move |store, now, settings| week::week_report(store, day, now, &Local, settings),
     )
     .await
 }

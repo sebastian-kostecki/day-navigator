@@ -151,3 +151,38 @@ export type MonthReport =
       neededPerDayMs: null;
       remainingMs: null;
     });
+
+export type WeekPhase = "past" | "current" | "future";
+
+interface WeekReportBase {
+  /** `YYYY-MM-DD`, first day row. */
+  monday: string;
+  /** `YYYY-MM-DD`, last day row. */
+  sunday: string;
+  asOfMs: number;
+  workedMs: number;
+  normMs: number;
+  /** Exactly seven rows, Monday first. */
+  days: DayReport[];
+}
+
+/** Mirrors the Rust `WeekReport`; which figures are set depends on `phase`. */
+export type WeekReport =
+  | (WeekReportBase & {
+      phase: "past";
+      normToDateMs: number;
+      deviationMs: number;
+      remainingMs: null;
+    })
+  | (WeekReportBase & {
+      phase: "current";
+      normToDateMs: number;
+      deviationMs: number;
+      remainingMs: number;
+    })
+  | (WeekReportBase & {
+      phase: "future";
+      normToDateMs: null;
+      deviationMs: null;
+      remainingMs: null;
+    });

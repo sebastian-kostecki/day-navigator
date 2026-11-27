@@ -6,6 +6,7 @@ import type {
   MonthReport,
   ReminderSettingsError,
   ReminderThresholds,
+  WeekReport,
   WorkTimeError,
   WorkTimerStatus,
 } from "./types";
@@ -51,6 +52,11 @@ export function removeWorkEntry(id: number): Promise<void> {
 /** `day` is any `YYYY-MM-DD` within the month. */
 export function workMonthReport(day: string): Promise<MonthReport> {
   return invoke<MonthReport>("work_month_report", { day });
+}
+
+/** `day` is any `YYYY-MM-DD`; the report is the Monday–Sunday week containing it. */
+export function workWeekReport(day: string): Promise<WeekReport> {
+  return invoke<WeekReport>("work_week_report", { day });
 }
 
 /** `day` is `YYYY-MM-DD`; a weekend is refused with `NotAWorkday`, a holiday with `Holiday`. */

@@ -17,6 +17,7 @@ pub mod reminders;
 pub mod report;
 pub mod rules;
 pub mod today;
+pub mod week;
 
 #[cfg(test)]
 mod holidays_tests;
@@ -28,6 +29,8 @@ mod reminders_tests;
 mod tests;
 #[cfg(test)]
 mod today_tests;
+#[cfg(test)]
+mod week_tests;
 
 use chrono::{NaiveDate, NaiveDateTime, TimeZone};
 use rusqlite::Connection;

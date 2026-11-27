@@ -420,7 +420,7 @@ No user was reachable during planning; each default follows `research.md` unless
 
 - [x] 3.1 README documents the key — 8eb30de
 - [x] 3.2 CHANGELOG has the bullet under `[Unreleased]` — 8eb30de
-- [x] 3.3 PRD no longer lists autostart as not covered and names MS-17
-- [x] 3.4 Only docs changed in this phase
+- [x] 3.3 PRD no longer lists autostart as not covered and names MS-17 — 8eb30de
+- [x] 3.4 Only docs changed in this phase — 8eb30de
 - [x] 3.5 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — 8eb30de
 - [x] 3.6 Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (in `src-tauri/`) — 8eb30de

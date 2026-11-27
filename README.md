@@ -56,6 +56,10 @@ the hours you spend on it.
     Polish public holidays counted out and a half day off counting half the norm;
   - a table of the month's days and days off;
   - a summary of the current week (Monday to Sunday, also across months) against the week's norm, day by day;
+  - a "Kopiuj miesiąc" button that copies the shown month (summary, days, entries with notes,
+    holidays) as tab-separated text for a spreadsheet; numbers use a decimal comma, for Excel or
+    Google Sheets set to Polish (pl-PL); in a sheet with another locale the decimal hours may
+    paste as text or as a wrong number (7,50 as 750), while the H:MM columns stay correct;
   - reminders when the counter runs too long, or is not running after a set hour on a workday;
   - START/STOP from the tray menu; the tray tooltip shows today's work time and the tray icon
     shows when the counter runs.

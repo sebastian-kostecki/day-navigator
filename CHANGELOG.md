@@ -37,6 +37,11 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
   ("nie" / "½" / "tak") and in the "Dzień" control of the "Wybrany dzień"
   panel. It counts half the daily norm, and the "Dni wolne" tile counts it as
   0.5. Existing days off stay whole days.
+- "Czas pracy": a "Kopiuj miesiąc" button copies the shown month to the
+  clipboard as tab-separated text that pastes into a spreadsheet: a summary,
+  one row per day (kind, holiday name, sum, norm, deviation) and one row per
+  entry with its note. Numbers use a decimal comma, for pl-PL Excel and Google
+  Sheets.
 
 ## [0.10.1] - 2026-11-26
 

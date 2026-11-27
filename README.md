@@ -52,11 +52,18 @@ the hours you spend on it.
   date and priority.
 - **Czas pracy (Work time):** a START/STOP counter that is always visible in the header and
   survives restarts and crashes. Also includes:
-  - day and month sums against an 8-hour workday norm, with Polish public holidays counted out;
+  - day and month sums against a daily norm (8 hours by default, set in `settings.json`), with
+    Polish public holidays counted out and a half day off counting half the norm;
   - a table of the month's days and days off;
+  - a summary of the current week (Monday to Sunday, also across months) against the week's norm, day by day;
+  - a "Kopiuj miesiąc" button that copies the shown month (summary, days, entries with notes,
+    holidays) as tab-separated text for a spreadsheet; numbers use a decimal comma, for Excel or
+    Google Sheets set to Polish (pl-PL); in a sheet with another locale the decimal hours may
+    paste as text or as a wrong number (7,50 as 750), while the H:MM columns stay correct;
   - reminders when the counter runs too long, or is not running after a set hour on a workday;
   - START/STOP from the tray menu; the tray tooltip shows today's work time and the tray icon
-    shows when the counter runs.
+    shows when the counter runs;
+  - after STOP: a day summary in the window (header STOP) or a short notification (tray STOP).
 - **Źródła (Sources):** the health of GitLab, GitHub and the app's own data in one panel and
   in the tray icon, plus today's event log. A failed source shows an error, never an empty
   list.
@@ -71,7 +78,8 @@ the hours you spend on it.
   edits, closes, comments on or assigns anything.
 - **Local data.** Your data stays on your machine. Settings are in the app config folder.
   Your own tasks, the "To do" list and work time are kept in a local SQLite database in the
-  app data folder, with a daily backup (7 kept).
+  app data folder, with a daily backup (7 kept). With `autostart` on, the app also keeps one
+  entry in the current user's Windows Run key (see Configuration).
 - **No VPN.** When the work GitLab cannot be reached, the app shows a calm "unavailable"
   state with the time of the last successful refresh.
 
@@ -107,8 +115,9 @@ The app reads it and never changes it. Every block is optional. The **Czas pracy
   },
   "github": { "repos": ["octo-org/alpha", "octo-org/beta"] },
   "todo": { "limit": 5 },
+  "autostart": { "enabled": true },
   "reminders": { "longRunningHours": 10, "notRunningAfter": "09:00" },
-  "workTime": { "holidays": "pl" }
+  "workTime": { "holidays": "pl", "dailyNormHours": 8 }
 }
 ```
 
@@ -119,10 +128,15 @@ The app reads it and never changes it. Every block is optional. The **Czas pracy
 | `gitlabFilter`  | `include` / `exclude` lists for projects, labels and milestones; `closedDays` 1–30.                |
 | `github`        | `owner/name` repositories to read issues from (up to 50).                                          |
 | `todo`          | "To do" list limit, 1–20 (default 5).                                                              |
+| `autostart`     | `enabled`: `true` starts the app with Windows into the tray, window hidden; off by default. Read at start: restart the app after a change. |
 | `reminders`     | `longRunningHours` 1–24 and `notRunningAfter` `"HH:MM"`; `false` turns a reminder off.             |
-| `workTime`      | `holidays`: `"pl"` (default) counts Polish public holidays out of the norm; `false` turns the calendar off. |
+| `workTime`      | `holidays`: `"pl"` (default) counts Polish public holidays out of the norm; `false` turns the calendar off. `dailyNormHours`: the daily norm as a number of hours, 1–10 in whole minutes (for example `7.5`; missing or `null` = 8). One value, no history: changing it recalculates every month, closed ones included. |
 
-An invalid block is reported in the **Źródła** view and does not affect the other blocks. The exception is `workTime`: an invalid block is reported in the **Czas pracy** view (month report and days table) and in the dashboard's month tiles, not in **Źródła**; START/STOP keeps working.
+An invalid block is reported in the **Źródła** view and does not affect the other blocks. The exception is `workTime`: an invalid block is reported in the **Czas pracy** view (month report, days table and week summary) and in the dashboard's month tiles, not in **Źródła**; START/STOP keeps working. With an invalid `dailyNormHours` the report error names it, the dashboard tiles show "raport niedostępny", and the status, entries and reminders fall back to 8 hours.
+
+A day can be a whole or a half day off: in the days table the "Wolne" control has three buttons ("nie" / "½" / "tak"), and the "Wybrany dzień" panel has "Dzień" with "roboczy" / "pół dnia wolnego" / "wolny". A half day off stays a workday with half the daily norm; it is refused on weekends and holidays, and the "counter not running" reminder stays silent that day. The "Dni wolne" tile counts a half day as 0.5, and "Średnio / dzień" is the time needed per full workday.
+
+With `autostart` on, the app keeps one entry named `com.sebas.day-navigator` in the current user's Run key, pointing at the copy of the app that last started with the key on, and removes it when the key is off. A start by Windows goes straight to the tray with the window hidden; a manual start shows the window. Disabling the app in Task Manager → Startup apps also works, and the app leaves that choice alone (the row still reads OK). Before uninstalling, set `enabled` to `false` and start the app once, or remove the entry in Task Manager. The result shows as "Autostart" in **Źródła**.
 
 ## Development
 

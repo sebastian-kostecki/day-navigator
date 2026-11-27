@@ -65,7 +65,7 @@ Wersja 2 tego PRD (2026-11-24): dopisane FR-019–FR-026 z GitHub issues #1–#8
 ### Primary
 - Cały przepływ 1–8 (patrz `## Scope of Change`) przechodzi w aplikacji.
 - Przez 2 kolejne tygodnie użytkownik każdego dnia roboczego używa aplikacji, żeby wybrać, czym się zajmie, i liczyć czas pracy.
-- Na koniec każdego dnia użytkownik wie, ile brakuje mu do normy (odchylenie miesiąca od 8 h na dzień).
+- Na koniec każdego dnia użytkownik wie, ile brakuje mu do normy (odchylenie miesiąca od normy dziennej, domyślnie 8 h).
 - Każde nowe przypisane zgłoszenie z GitLaba użytkownik widzi tego samego dnia, dzięki powiadomieniu systemowemu Windows, bez ręcznego sprawdzania.
 
 ### Secondary
@@ -114,7 +114,7 @@ Wersja 2 tego PRD (2026-11-24): dopisane FR-019–FR-026 z GitHub issues #1–#8
 5. Widok „Do zrobienia”: wybiera spośród trzech list, czym się dziś zajmie.
 6. W ciągu dnia nowe przypisane zgłoszenie z GitLaba daje powiadomienie systemowe Windows.
 7. Na koniec dnia klika STOP.
-8. Raport: ile przepracował dziś i w miesiącu oraz ogólne odchylenie miesiąca od normy 8 h na dzień — żeby wiedzieć, czy pracować dłużej, czy krócej, by wyrobić normę.
+8. Raport: ile przepracował dziś i w miesiącu oraz ogólne odchylenie miesiąca od normy dziennej (domyślnie 8 h, z ustawień) — żeby wiedzieć, czy pracować dłużej, czy krócej, by wyrobić normę.
 
 Aktor: Użytkownik (jedyny). Wszystkie pozycje są must-have — użytkownik świadomie nie obniżył żadnej do nice-to-have (2026-11-22).
 
@@ -152,7 +152,7 @@ Aktor: Użytkownik (jedyny). Wszystkie pozycje są must-have — użytkownik św
 ### Czas pracy
 - [new] FR-013: Użytkownik może przyciskami START i STOP rozpocząć i zakończyć liczenie czasu pracy; licznik jest zawsze widoczny u góry okna. Priority: must-have
   > Socrates: Kontrargument: „zapomniany START albo STOP” — dokładnie ten problem miała stara ewidencja (dziury, licznik bijący przez noc), a bez korekty raport utrwala błąd. Rozstrzygnięcie: przyjęte trzy zabezpieczenia, wydzielone do FR-017 (ręczna korekta) i FR-018 (przypomnienia o STOP i START).
-- [new] FR-014: Użytkownik może zobaczyć raport: sumę czasu pracy dnia i miesiąca oraz ogólne odchylenie miesiąca od normy 8 h na dzień roboczy, gdzie dni robocze to poniedziałek–piątek minus polskie święta państwowe (kalendarz liczony lokalnie, wyłączany w ustawieniach) i dni oznaczone przez użytkownika jako wolne. Priority: must-have
+- [new] FR-014: Użytkownik może zobaczyć raport: sumę czasu pracy dnia i miesiąca oraz ogólne odchylenie miesiąca od normy dziennej (z ustawień, domyślnie 8 h) na dzień roboczy, gdzie dni robocze to poniedziałek–piątek minus polskie święta państwowe (kalendarz liczony lokalnie, wyłączany w ustawieniach) i dni oznaczone przez użytkownika jako wolne; pół dnia wolnego liczy się jako dzień roboczy z połową normy. Priority: must-have
   > Socrates: Kontrargument: „norma bez dni wolnych kłamie” — święta i urlop dają fałszywe odchylenie i raportowi przestaje się ufać. Rozstrzygnięcie: pn–pt minus polskie święta państwowe z kalendarza liczonego lokalnie (MS-25) i dni wolne oznaczane ręcznie; dzień wolny należny za święto w sobotę oraz urlop zostają ręczne.
 - [new] FR-017: Użytkownik może ręcznie poprawić godzinę startu lub końca wpisu czasu pracy albo dopisać brakujący wpis. Priority: must-have
   > Socrates: Wydzielone z FR-013 w rundzie Sokratesa (zapomniany START/STOP).
@@ -173,7 +173,7 @@ Aktor: Użytkownik (jedyny). Wszystkie pozycje są must-have — użytkownik św
 Źródło: GitHub issues #1–#8 (2026-11-24), opisujące elementy makiet „Konsola”, których nie ma w wydaniu 0.2.0. Priorytet must-have oznacza „w zakresie M-2” (użytkownik wziął wszystkie do zrobienia). Bez rundy Sokratesa; treść za issue.
 
 - [new] FR-019: Użytkownik widzi na dashboardzie („Do zrobienia”) panel „Dziennik zdarzeń” z dzisiejszymi zdarzeniami: nowe przypisanie, odhaczenie lub zdjęcie pozycji, START/STOP, przejście źródła w błąd i powrót. Zdarzenia trzymają tylko to, co UI i tak pokazuje. Priority: must-have (issue #1)
-- [new] FR-020: Użytkownik widzi w „Czas pracy” tabelę dni miesiąca: wpisy, pasek na tle 8 h, sumę, odchylenie od normy dnia i przełącznik dnia wolnego; dziś jest wyróżniony, a dni wolne zakreskowane; święta zakreskowane z nazwą, bez przełącznika. Priority: must-have (issue #2)
+- [new] FR-020: Użytkownik widzi w „Czas pracy” tabelę dni miesiąca: wpisy, pasek na tle normy dnia (z ustawień, domyślnie 8 h), sumę, odchylenie od normy dnia i przełącznik dnia (roboczy, pół dnia wolnego, wolny); dziś jest wyróżniony, a dni wolne zakreskowane; święta zakreskowane z nazwą, bez przełącznika. Priority: must-have (issue #2)
 - [new] FR-021: Użytkownik widzi w „Czas pracy” panel „Przypomnienia” z progami przypomnień i informacją, czy są włączone; bez edycji, ustawienia zostają w pliku. Priority: must-have (issue #3)
 - [modified] FR-022: Użytkownik widzi w „Stanie źródeł” przy „Dane aplikacji” czas ostatniej kopii, liczbę zachowanych kopii i wersję schematu oraz może otworzyć folder kopii. Priority: must-have. Było: karta pokazywała tylko stan bazy. (issue #4)
 - [modified] FR-023: Użytkownik widzi w „Praca (GitLab)” flagę NOWE przy pozycjach, które pojawiły się od ostatniego sprawdzenia, oraz datę ukrycia przy ukrytych wierszach. Priority: must-have. Było: lista bez tych informacji (FR-001, FR-003). (issue #5)
@@ -202,13 +202,13 @@ Aktor: Użytkownik (jedyny). Wszystkie pozycje są must-have — użytkownik św
 
 ## Business Logic Changes
 
-Aplikacja pokazuje tylko to, co wymaga uwagi użytkownika (ukryte wraca przy zmianie statusu lub cudzym komentarzu, zamknięte w źródle odhacza się samo), i na bieżąco liczy, ile brakuje mu do normy 8 h na dzień roboczy w miesiącu.
+Aplikacja pokazuje tylko to, co wymaga uwagi użytkownika (ukryte wraca przy zmianie statusu lub cudzym komentarzu, zamknięte w źródle odhacza się samo), i na bieżąco liczy, ile brakuje mu do normy dziennej (domyślnie 8 h) na dzień roboczy w miesiącu.
 
 **Obecna reguła i zmiana.** The system currently (w planie PRD v2) proponuje uporządkowaną listę kandydatów na dziś, wymusza decyzję przy każdej pozycji (priorytet / jeśli starczy czasu / skrzynka / porzuć) i zaczepia użytkownika według stanu dnia. This change modifies it to: aplikacja nie rekomenduje kolejności i nie wymusza decyzji; decyduje o **widoczności** pozycji i **liczy normę czasu pracy**.
 
 **Widoczność.** Wejściami są przypisane do użytkownika zgłoszenia i MR-y z GitLaba (zawężone filtrem z ustawień: projekt, etykiety, milestone, stan), otwarte przypisane zgłoszenia GitHub z repozytoriów z listy oraz własne zadania. Ukryte zgłoszenie pozostaje ukryte, dopóki nie zmieni się jego status albo nie pojawi się komentarz kogoś innego niż użytkownik (boty się liczą); wtedy wraca, oznaczone jako zmienione. Nowe przypisanie zawsze daje powiadomienie, także spoza filtra; ponad 3 nowe naraz — jedno zbiorcze. W „Do zrobienia” (limit pozycji z ustawień, domyślnie 5) nieodhaczone przechodzą na następny dzień, a pozycja zamknięta w GitLabie/GitHubie odhacza się sama; odhaczenie własnego zadania to to samo co oznaczenie go jako zrobione.
 
-**Norma.** Dni robocze to poniedziałek–piątek minus polskie święta państwowe (kalendarz liczony lokalnie, wyłączany w ustawieniach) i dni oznaczone przez użytkownika jako wolne. Norma = 8 h × dni robocze. Raport pokazuje sumę dnia i miesiąca, odchylenie „do dziś” (przepracowane vs norma za dni robocze, które już minęły, w jedną lub drugą stronę) oraz ile średnio na dzień trzeba pracować w pozostałych dniach roboczych, żeby wyrobić normę miesiąca. Przypomnienia pilnują ewidencji: gdy licznik biegnie dłużej niż próg z ustawień, i gdy w dzień roboczy nie biegnie po ustalonej godzinie.
+**Norma.** Dni robocze to poniedziałek–piątek minus polskie święta państwowe (kalendarz liczony lokalnie, wyłączany w ustawieniach) i dni oznaczone przez użytkownika jako wolne (całe lub pół dnia). Norma = suma norm dni roboczych: norma dzienna z ustawień (domyślnie 8 h; jedna wartość bez historii, więc zmiana przelicza wszystkie miesiące), a pół dnia wolnego liczy połowę. Raport pokazuje sumę dnia i miesiąca, odchylenie „do dziś” (przepracowane vs norma za dni robocze, które już minęły, w jedną lub drugą stronę) oraz ile średnio na dzień trzeba pracować w pozostałych dniach roboczych, żeby wyrobić normę miesiąca. Przypomnienia pilnują ewidencji: gdy licznik biegnie dłużej niż próg z ustawień, i gdy w dzień roboczy nie biegnie po ustalonej godzinie.
 
 ## Access Control Changes
 
@@ -231,7 +231,13 @@ No access control changes — current model preserved.
 - Model dostępu bez zmian (`## Access Control Changes`).
 
 ### Rozważone i świadomie NIE wykluczone
-Reszta planu z PRD v2 — przerwy i pomodoro, bloker rozpraszaczy, szybki wpis i skrzynka, zamknięcie dnia, widok tygodnia, poranne „Ułóż plan dnia”, autostart. Nie są non-goals, ale żadne FR ich nie obejmuje, więc w tym MVP nie są budowane z braku wymagania, a nie z zakazu.
+Reszta planu z PRD v2 — przerwy i pomodoro, bloker rozpraszaczy, szybki wpis i skrzynka, poranne „Ułóż plan dnia”. Nie są non-goals, ale żadne FR ich nie obejmuje, więc w tym MVP nie są budowane z braku wymagania, a nie z zakazu.
+
+Widok tygodnia jest zbudowany jako panel „Bieżący tydzień” w „Czas pracy” (MS-18), bez nowego FR; norma tygodnia to reguła FR-014.
+
+Zamknięcie dnia jest zbudowane jako podsumowanie dnia po STOP (MS-19), bez nowego FR.
+
+Autostart z Windows jest dostarczany w M-3 jako MS-17 (roadmapa): domyślnie wyłączony, przełącznik `autostart.enabled` w `settings.json`, start do zasobnika bez okna; bez nowego FR.
 
 ## Open Questions
 

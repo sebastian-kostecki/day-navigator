@@ -201,17 +201,25 @@ impl TrayWorkItem {
 
 /// Runs a tray START/STOP through the shared functions. `AlreadyRunning` /
 /// `NotRunning` mean the counter changed elsewhere: refresh only, no toast.
+/// A successful STOP shows the end-of-day toast (today's time, month deviation).
 async fn run_tray_action(app: AppHandle, action: TimerAction) {
     let result = match action {
         TimerAction::Start => crate::work_time::commands::start_timer(&app).await,
         TimerAction::Stop => crate::work_time::commands::stop_timer(&app).await,
     };
-    if let Err(e) = result {
-        if let Some(n) = tray_view::failure_notice(action, &e) {
-            toast(&app, "work_time", &n.title, &n.body);
+    match result {
+        Ok(()) if action == TimerAction::Stop => {
+            // A success already refreshed the tray through `notify`.
+            let n = crate::day_summary::commands::stop_notice(&app).await;
+            toast(&app, "day_summary", &n.title, &n.body);
         }
-        // A success already refreshed the tray through `notify`.
-        refresh_tray(&app);
+        Ok(()) => {}
+        Err(e) => {
+            if let Some(n) = tray_view::failure_notice(action, &e) {
+                toast(&app, "work_time", &n.title, &n.body);
+            }
+            refresh_tray(&app);
+        }
     }
 }
 
@@ -361,13 +369,14 @@ pub(crate) fn toast(app: &AppHandle, area: &str, title: &str, body: &str) {
 }
 
 /// Settings first, then the app data store, which is reported even when
-/// `settings.json` is broken, then GitLab, GitHub and reminders.
+/// `settings.json` is broken, then GitLab, GitHub, reminders and autostart.
 fn probe_round(
     settings_path: &Option<PathBuf>,
     store: &StoreHandle,
     today: NaiveDate,
     gitlab: Option<SourceStatus>,
     github: Option<SourceStatus>,
+    autostart: Option<SourceStatus>,
 ) -> (Vec<SourceStatus>, Option<AppDataDetails>) {
     let mut sources = match settings_path {
         Some(p) => health::probe(p),
@@ -383,6 +392,8 @@ fn probe_round(
     if let Some(p) = settings_path {
         sources.push(health::reminders_status(p));
     }
+    // Absent until the start-up sync has finished.
+    sources.extend(autostart);
     (sources, app_data)
 }
 
@@ -416,6 +427,7 @@ fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut 
         today,
         health::gitlab_status(&app.state::<GitlabRefreshState>().snapshot()),
         health::github_status(&app.state::<GithubRefreshState>().snapshot()),
+        crate::autostart::startup::status(app),
     );
     // Today's work next to the probe, so a hanging read is caught by the
     // watchdog. Stored before `seq` is bumped below: a publish that sees the new

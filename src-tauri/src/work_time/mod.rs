@@ -11,15 +11,19 @@
 pub mod commands;
 pub mod error;
 pub mod holidays;
+pub mod month_text;
 pub mod norm;
 pub mod note;
 pub mod reminders;
 pub mod report;
 pub mod rules;
 pub mod today;
+pub mod week;
 
 #[cfg(test)]
 mod holidays_tests;
+#[cfg(test)]
+mod month_text_tests;
 #[cfg(test)]
 mod norm_tests;
 #[cfg(test)]
@@ -28,6 +32,8 @@ mod reminders_tests;
 mod tests;
 #[cfg(test)]
 mod today_tests;
+#[cfg(test)]
+mod week_tests;
 
 use chrono::{NaiveDate, NaiveDateTime, TimeZone};
 use rusqlite::Connection;

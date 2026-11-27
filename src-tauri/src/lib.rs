@@ -1,5 +1,7 @@
+pub mod autostart;
 pub mod backups_folder;
 pub mod cli;
+pub mod day_summary;
 pub mod events;
 pub mod github;
 pub mod github_refresh;
@@ -133,8 +135,11 @@ pub fn run() {
     log_targets.push(Target::new(TargetKind::Stdout));
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            runtime::show_main(app);
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // An autostart relaunch must not pop the window up.
+            if !autostart::started_by_autostart(args.iter().skip(1)) {
+                runtime::show_main(app);
+            }
         }))
         .plugin(
             tauri_plugin_window_state::Builder::default()
@@ -164,13 +169,18 @@ pub fn run() {
             let gitlab_rx = gitlab_refresh::manage(app);
             let github_rx = github_refresh::manage(app);
             let wake_rx = runtime::build_tray(app)?;
+            // Before `runtime::start`: the first health round reads its state.
+            autostart::startup::start(app.handle(), settings_path.clone());
             runtime::start(app.handle(), settings_path.clone(), wake_rx);
             work_reminders::start(app.handle(), settings_path.clone());
             // After `runtime::start`: the refresh threads wake `HealthState`.
             gitlab_refresh::start(app.handle(), settings_path.clone(), gitlab_rx);
             github_refresh::start(app.handle(), settings_path, github_rx);
             // The window starts hidden; show it once the saved size is restored.
-            runtime::show_main(app.handle());
+            // An autostart launch stays in the tray.
+            if !autostart::started_by_autostart(std::env::args_os().skip(1)) {
+                runtime::show_main(app.handle());
+            }
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -204,6 +214,7 @@ pub fn run() {
             edit_own_task,
             set_own_task_done,
             own_task_default_space,
+            day_summary::commands::day_summary,
             todo::commands::list_todo,
             todo::commands::add_todo_own_task,
             todo::commands::add_todo_gitlab_item,
@@ -218,6 +229,8 @@ pub fn run() {
             work_time::commands::update_work_entry,
             work_time::commands::remove_work_entry,
             work_time::commands::work_month_report,
+            work_time::commands::work_week_report,
+            work_time::commands::work_month_report_text,
             work_time::commands::set_day_off,
             work_reminders::reminder_settings
         ])

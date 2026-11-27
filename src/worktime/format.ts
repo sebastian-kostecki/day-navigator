@@ -53,3 +53,14 @@ export function formatDayLabel(day: string): string {
 export function formatEntryCount(n: number): string {
   return `${n} ${plural(n, "wpis", "wpisy", "wpisów")}`;
 }
+
+/** `przez 5 dni roboczych` plus `, w tym 1 × pół dnia` when some of them are half days off. */
+export function formatDaysAfterToday(workdays: number, halfDays: number): string {
+  const base = `przez ${formatWorkdays(workdays)}`;
+  return halfDays > 0 ? `${base}, w tym ${halfDays} × pół dnia` : base;
+}
+
+/** Days off as a number with a Polish decimal comma: whole days plus half a day per half day. */
+export function formatDaysOff(whole: number, half: number): string {
+  return (whole + half / 2).toLocaleString("pl-PL");
+}

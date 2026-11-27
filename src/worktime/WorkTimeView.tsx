@@ -1,18 +1,27 @@
 import { useState } from "react";
-import { Button, Field, Notice, Panel, formatHm, type Stat } from "../components";
+import { Button, Field, Notice, Panel, Segmented, formatHm, type Stat } from "../components";
 import { ErrorState } from "../components/ErrorState";
 import { workTimeErrorMessage } from "./api";
 import { DaysTable } from "./DaysTable";
 import { formatClock, formatMonth } from "./format";
+import { MonthCopyButton } from "./MonthCopyButton";
 import { MonthReport } from "./MonthReport";
 import { RemindersPanel } from "./RemindersPanel";
+import type { DayMark } from "./types";
 import { todayTotalMs } from "./total";
 import { EntriesPanel } from "./WorkTimeEntries";
+import { WeekSummary } from "./WeekSummary";
 import { useDayOffToggle } from "./useDayOffToggle";
 import { useMonthReport } from "./useMonthReport";
 import { useWorkEntries } from "./useWorkEntries";
 import { useWorkTimer, type TimerState } from "./useWorkTimer";
 import "./WorkTime.css";
+
+const DAY_MARK_OPTIONS = [
+  { value: "workday", label: "roboczy" },
+  { value: "halfDayOff", label: "pół dnia wolnego" },
+  { value: "dayOff", label: "wolny" },
+];
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -57,28 +66,35 @@ function todayStat(timer: TimerState, nowMs: number): Stat {
   };
 }
 
-function HowCounted() {
+function HowCounted({ dailyNormMs }: { dailyNormMs: number | null }) {
+  // The UI does not know the default: until the report loads it names the setting only.
+  const norm =
+    dailyNormMs === null ? "norma dzienna z settings.json („workTime”)" : formatHm(dailyNormMs);
   return (
     <Panel title="Jak liczę">
       <div className="wt-how body">
         <p>
-          Norma = 8 h × dni robocze: poniedziałek–piątek minus święta państwowe i dni oznaczone
-          ręcznie jako wolne (urlop). Kalendarz świąt można wyłączyć w settings.json („workTime”).
-          Za święto w sobotę pracodawca wyznacza inny dzień wolny — oznacz go ręcznie.
+          Norma = {norm} × dni robocze: poniedziałek–piątek minus święta państwowe i dni oznaczone
+          ręcznie jako wolne (urlop); dzień oznaczony jako pół dnia wolnego ma połowę normy dziennej
+          i liczy się jako dzień roboczy. Normę dzienną ustawia „dailyNormHours” w settings.json
+          („workTime”); jedna wartość działa wstecz, więc zmiana przelicza wszystkie miesiące, także
+          zamknięte. Kalendarz świąt można wyłączyć w tym samym bloku. Za święto w sobotę pracodawca
+          wyznacza inny dzień wolny — oznacz go ręcznie.
         </p>
         <p>
           Odchylenie w bieżącym miesiącu to przepracowany czas minus norma za dni robocze do dziś
-          włącznie: gdy dziś jest dniem roboczym, jego 8 h liczy się od rana. W zamkniętym miesiącu
-          to przepracowany czas minus cała norma.
+          włącznie: gdy dziś jest dniem roboczym, jego norma ({norm}) liczy się od rana. W
+          zamkniętym miesiącu to przepracowany czas minus cała norma.
         </p>
         <p>
-          W tabeli dni odchylenie dnia to przepracowany czas minus norma dnia (8 h w dzień roboczy,
-          0 h w dzień wolny, w święto i w weekend), a odchylenia dni do dziś sumują się do
-          odchylenia miesiąca.
+          W tabeli dni odchylenie dnia to przepracowany czas minus norma dnia ({norm} w dzień
+          roboczy, połowa w pół dnia wolnego, 0 h w dzień wolny, w święto i w weekend), a odchylenia
+          dni do dziś sumują się do odchylenia miesiąca.
         </p>
         <p>
           Średnio / dzień: czas brakujący do normy miesiąca podzielony na dni robocze po dziś,
-          zaokrąglony w górę do minuty. Wpis przez północ liczy się w każdym dniu po kawałku.
+          zaokrąglony w górę do minuty; to czas na pełny dzień roboczy, a pół dnia wolnego liczy się
+          jako połowa dnia. Wpis przez północ liczy się w każdym dniu po kawałku.
         </p>
       </div>
     </Panel>
@@ -87,7 +103,7 @@ function HowCounted() {
 
 export default function WorkTimeView() {
   const [day, setDay] = useState(localToday);
-  const { entries, add, update, remove, setDayOff, dayOffChecked, dayOffBusy, busyIds, retry } =
+  const { entries, add, update, remove, setDayMark, dayMark, dayMarkBusy, busyIds, retry } =
     useWorkEntries(day);
   const { report, retry: retryReport } = useMonthReport(day);
   const dayOffToggle = useDayOffToggle(report);
@@ -98,9 +114,9 @@ export default function WorkTimeView() {
   // A refusal belongs to the day it happened on.
   const [dayOffError, setDayOffError] = useState<{ day: string; message: string } | null>(null);
 
-  async function toggleDayOff(off: boolean) {
+  async function changeDayMark(mark: DayMark) {
     setDayOffError(null);
-    const err = await setDayOff(off);
+    const err = await setDayMark(mark);
     if (err) setDayOffError({ day, message: workTimeErrorMessage(err) });
   }
 
@@ -149,17 +165,17 @@ export default function WorkTimeView() {
 
   const dayOffControl =
     entries.state === "loaded" &&
-    (entries.data.dayKind === "workday" || entries.data.dayKind === "dayOff") ? (
+    (entries.data.dayKind === "workday" ||
+      entries.data.dayKind === "halfDayOff" ||
+      entries.data.dayKind === "dayOff") ? (
       <div className="wt-day-off">
-        <label className="wt-check">
-          <input
-            type="checkbox"
-            checked={dayOffChecked}
-            disabled={dayOffBusy}
-            onChange={(e) => void toggleDayOff(e.currentTarget.checked)}
-          />
-          Dzień wolny
-        </label>
+        <Segmented
+          label="Dzień"
+          options={DAY_MARK_OPTIONS}
+          value={dayMark}
+          disabled={dayMarkBusy}
+          onChange={(v) => void changeDayMark(v as DayMark)}
+        />
         {dayOffError?.day === day && (
           <Notice tone="error" compact>
             {dayOffError.message}
@@ -193,6 +209,8 @@ export default function WorkTimeView() {
             onClick={() => setDay(shiftMonth(day, 1))}
           />
         </div>
+        <span className="dn-spacer" />
+        <MonthCopyButton month={month} enabled={report.state === "loaded"} />
       </div>
       <MonthReport state={report} today={todayStat(timer, nowMs)} onRetry={retryReport} />
       <div className="dn-columns">
@@ -224,10 +242,11 @@ export default function WorkTimeView() {
               {dayOffControl}
             </div>
           </Panel>
+          <WeekSummary onPickDay={setDay} />
           <Panel title="Dni miesiąca" meta={formatMonth(month)}>
             {daysBody}
           </Panel>
-          <HowCounted />
+          <HowCounted dailyNormMs={report.state === "loaded" ? report.report.dailyNormMs : null} />
         </div>
         <div className="dn-col-side wt-stack">
           <EntriesPanel

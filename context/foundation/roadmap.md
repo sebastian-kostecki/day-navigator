@@ -1,15 +1,15 @@
 ---
 project: "Nawigator dnia"
-version: 6
+version: 7
 status: draft
 created: 2026-11-20
-updated: 2026-11-26
+updated: 2026-11-27
 prd_version: 2
 main_goal: quality
 top_blocker: decisions
 milestone_id: worktime-and-tray
 milestone_seq: 3
-milestone_status: open
+milestone_status: closed
 ---
 
 # Roadmap: Nawigator dnia
@@ -21,7 +21,7 @@ milestone_status: open
 
 ## Milestone
 
-**M-3: Work time and the tray** — Status: open
+**M-3: Work time and the tray** — Status: closed
 
 - **Intent:** The work-time counter and its norm report can be trusted and reached without opening the window: public holidays and a configurable norm count in the norm, the counter is controlled from the tray and the app starts with Windows, the month report can be copied out, entries can carry a note, and the day and week can be summed up. Outcome-scoped; no dates.
 - **Source materials:** GitHub issues #17, #18, #19, #23, #24, #25, #26, #27 (GitHub milestone "M-3: Czas pracy i zasobnik"); `context/foundation/prd.md` v2 for the existing work-time rules (FR-013, FR-014, FR-017, FR-018, FR-020, FR-021). The later GitHub milestones M-4–M-6 (#20, #28–#52) stay outside this milestone.
@@ -51,13 +51,13 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | ID   | Change ID               | Outcome (user can …)                                                          | Prerequisites | PRD refs              | Status   |
 | ---- | ----------------------- | ----------------------------------------------------------------------------- | ------------- | --------------------- | -------- |
 | S-01 | public-holidays-norm    | see Polish public holidays counted out of the month's norm                     | —             | MS-25, FR-014, FR-020 | done |
-| S-02 | configurable-daily-norm | set the daily norm and mark a half day off                                     | S-01          | MS-26, FR-014, FR-020 | ready    |
+| S-02 | configurable-daily-norm | set the daily norm and mark a half day off                                     | S-01          | MS-26, FR-014, FR-020 | done |
 | S-03 | tray-timer-control      | start and stop the counter from the tray and see today's time in its tooltip   | —             | MS-23, FR-013         | done |
-| S-04 | windows-autostart       | have the app start with Windows into the tray                                  | —             | MS-17, FR-018         | ready    |
-| S-05 | month-report-copy       | copy the month report to the clipboard and paste it into a spreadsheet         | —             | MS-24, FR-014, FR-020 | ready    |
+| S-04 | windows-autostart       | have the app start with Windows into the tray                                  | —             | MS-17, FR-018         | done |
+| S-05 | month-report-copy       | copy the month report to the clipboard and paste it into a spreadsheet         | —             | MS-24, FR-014, FR-020 | done |
 | S-06 | work-entry-note         | add a short note to a work-time entry                                          | —             | MS-27, FR-017         | done |
-| S-07 | end-of-day-summary      | see a summary of the day after STOP                                            | —             | MS-19, FR-013, FR-014 | ready    |
-| S-08 | week-summary            | see the week's sum against the week's norm in "Work time"                      | S-01          | MS-18, FR-014         | ready    |
+| S-07 | end-of-day-summary      | see a summary of the day after STOP                                            | —             | MS-19, FR-013, FR-014 | done |
+| S-08 | week-summary            | see the week's sum against the week's norm in "Work time"                      | S-01          | MS-18, FR-014         | done |
 
 ## Streams
 
@@ -115,7 +115,7 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
   - Can the norm change within a month (a change of contract), which needs a norm history rather than one setting? — Owner: user. Block: no (settled in `/10x-plan`).
   - Is a half day off really needed, or is a full day enough? — Owner: user. Block: no (settled in `/10x-plan`).
 - **Risk:** Extends the same norm rule as S-01; planned after it so the two do not change the rule at once.
-- **Status:** ready
+- **Status:** done
 
 ### S-03: START/STOP from the tray
 
@@ -143,7 +143,7 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
   - On or off by default? — Owner: user. Block: no (settled in `/10x-plan`).
   - The registry entry is a write outside the app's own folders; the AGENTS.md rule needs an exception. — Owner: user. Block: no (recorded in `/10x-plan`).
 - **Risk:** Reminders (FR-018) only fire while the app runs; shares start-up code with S-03, so the two are planned one after the other.
-- **Status:** ready
+- **Status:** done
 
 ### S-05: Month report to the clipboard
 
@@ -157,7 +157,7 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
   - Clipboard only, or also a file in a folder set in settings (a file elsewhere breaks the AGENTS.md write rule)? — Owner: user. Block: no (settled in `/10x-plan`).
   - Format: TSV, CSV or Markdown. — Owner: user. Block: no (settled in `/10x-plan`).
 - **Risk:** The text must come from the same Rust report the view shows, so the copied numbers never differ from the screen.
-- **Status:** ready
+- **Status:** done
 
 ### S-06: Note on a work-time entry
 
@@ -183,7 +183,7 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
 - **Unknowns:**
   - After STOP only, or also at a fixed hour; and what happens on STOP from the tray (S-03)? — Owner: user. Block: no (settled in `/10x-plan`).
 - **Risk:** Reads today's event log and the report that already exist; it must not add a second store of the day's state.
-- **Status:** ready
+- **Status:** done
 
 ### S-08: Week summary
 
@@ -196,7 +196,7 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
 - **Unknowns:**
   - A section in "Work time" or a separate view; a week that crosses months. — Owner: user. Block: no (settled in `/10x-plan`).
 - **Risk:** The week's norm must use the same rule as the month (holidays from S-01), computed in Rust, not summed again in the UI.
-- **Status:** ready
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -232,6 +232,7 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
 
 - **M-1: The narrowed day flow runs in the app** (`full-day-flow`) — closed 2026-11-23. The day flow from PRD v1 runs in the app: GitLab issues and MRs (filter, hiding, notifications), GitHub issues, own tasks, the "To do" list, and the work-time counter with its norm report and reminders. FR-001–FR-008 and FR-010–FR-018 are covered.
 - **M-2: Konsola mockup gaps closed and the codebase cleaned up** (`konsola-gaps-and-cleanup`) — closed 2026-11-24. The Konsola mockup gaps are now in the app: the event log, the days table, the reminders panel, the app-data details, the GitLab NEW flag, hidden date and filter bar, GitHub labels, and "+" to "To do". They sit on a cleaner base (shared UI tools and timer state, no vault layer), and the design-system artifact matches the app. Releases carry a changelog and real metadata (0.2.1, 0.3.0). FR-019–FR-026 and MS-09–MS-12 and MS-14–MS-16 are covered. MS-13 (installer signing) was parked.
+- **M-3: Work time and the tray** (`worktime-and-tray`) — closed 2026-11-27. The work-time counter and its norm report can be trusted and reached without opening the window: Polish public holidays count out of the norm, the daily norm is configurable with a half day off, the counter starts and stops from the tray (with today's time in the tooltip and a running icon), the app can start with Windows into the tray, the month report copies to the clipboard for a spreadsheet, work-time entries carry a short note, STOP shows an end-of-day summary, and "Work time" shows a week summary against the week's norm. MS-17, MS-18, MS-19 and MS-23–MS-27 are covered.
 
 ## Done
 
@@ -271,3 +272,8 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-01: user can see Polish public holidays (fixed dates and the Easter-based ones) counted out of the month's norm and shown in the days table like a day off, with the holiday's name; a setting turns the calendar off.** — Archived 2026-11-26 → `context/archive/2026-11-26-public-holidays-norm/`. Lesson: —.
 - **S-06: user can add, edit and see a short plain-text note on a work-time entry.** — Archived 2026-11-26 → `context/archive/2026-11-26-work-entry-note/`. Lesson: —.
 - **S-03: user can start and stop the work-time counter from the tray menu and see today's work time in the tray tooltip next to the source state.** — Archived 2026-11-26 → `context/archive/2026-11-26-tray-timer-control/`. Lesson: —.
+- **S-02: user can set the daily norm in settings (default 8 h) and mark a half day off in the days table, and the report counts both.** — Archived 2026-11-27 → `context/archive/2026-11-26-configurable-daily-norm/`. Lesson: —.
+- **S-08: user can see in "Work time" the current week's sum against the week's norm, day by day.** — Archived 2026-11-27 → `context/archive/2026-11-26-week-summary/`. Lesson: —.
+- **S-05: user can copy the month report (days, entries, sums, deviation, days off) to the clipboard as text that pastes into a spreadsheet.** — Archived 2026-11-27 → `context/archive/2026-11-26-month-report-copy/`. Lesson: —.
+- **S-07: user can see, after STOP, a summary of the day: time worked today, the month's deviation, what was ticked off and what carries over to tomorrow, with no decision forced.** — Archived 2026-11-27 → `context/archive/2026-11-26-end-of-day-summary/`. Lesson: —.
+- **S-04: user can have the app start with Windows into the tray, without showing the window, controlled by a switch in `settings.json`.** — Archived 2026-11-27 → `context/archive/2026-11-26-windows-autostart/`. Lesson: —.

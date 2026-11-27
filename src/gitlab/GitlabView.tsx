@@ -602,12 +602,12 @@ export function GitlabView() {
   const offline = state.state === "unavailable";
 
   let summary: string | null = null;
-  if (offline) {
-    summary = "źródło niedostępne";
-  } else if (items && state.state !== "notConfigured") {
+  if (items && state.state !== "notConfigured") {
     const shown = items.mergeRequests.length + items.issues.length;
     const hid = items.hiddenIssues.length;
     summary = `${shown} ${plural(shown, "widoczne", "widoczne", "widocznych")} · ${hid} ${plural(hid, "ukryte", "ukryte", "ukrytych")}`;
+  } else if (offline) {
+    summary = "źródło niedostępne";
   } else if (state.state === "error") {
     summary = "błąd źródła";
   }
@@ -694,7 +694,7 @@ export function GitlabView() {
       )}
       {actionError && <Notice tone="error">{actionError}</Notice>}
       <TodoPicksNotices todo={todo} />
-      {items && state.state !== "notConfigured" && !offline && (
+      {items && state.state !== "notConfigured" && (
         <Lists
           snapshot={{ ...snapshot, items }}
           stale={state.state !== "ok"}

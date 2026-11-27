@@ -129,7 +129,11 @@ function SourceError({
   return (
     <ErrorState
       title="Błąd GitHuba"
-      message={retryNote !== null ? `${state.message} ${retryNote}` : state.message}
+      message={
+        retryNote !== null
+          ? `${state.message}${/[.!?…]$/.test(state.message) ? "" : "."} ${retryNote}`
+          : state.message
+      }
       onRetry={onRetry}
       lastSuccess={lastSuccess}
     />

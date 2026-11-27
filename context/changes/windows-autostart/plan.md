@@ -392,15 +392,15 @@ No user was reachable during planning; each default follows `research.md` unless
 
 #### Automated
 
-- [ ] 2.1 Rust tests pass: `cargo test` (in `src-tauri/`)
-- [ ] 2.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
-- [ ] 2.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
-- [ ] 2.4 Dependency audit passes: `cargo audit` (in `src-tauri/`)
-- [ ] 2.5 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 2.6 Registry code lives only in `hkcu.rs`
-- [ ] 2.7 No test uses the real registry
-- [ ] 2.8 `winreg` is a normal dependency of the app with no new package
-- [ ] 2.9 No frontend, capability or config change
+- [x] 2.1 Rust tests pass: `cargo test` (in `src-tauri/`)
+- [x] 2.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
+- [x] 2.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
+- [x] 2.4 Dependency audit passes: `cargo audit` (in `src-tauri/`)
+- [x] 2.5 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 2.6 Registry code lives only in `hkcu.rs`
+- [x] 2.7 No test uses the real registry
+- [x] 2.8 `winreg` is a normal dependency of the app with no new package
+- [x] 2.9 No frontend, capability or config change
 
 #### Manual
 

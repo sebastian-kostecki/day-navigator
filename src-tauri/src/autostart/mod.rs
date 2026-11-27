@@ -10,6 +10,10 @@ use std::path::Path;
 use crate::health::{SourceId, SourceState, SourceStatus};
 use crate::settings::{AutostartSettings, AutostartSettingsInvalid};
 
+#[cfg(windows)]
+mod hkcu;
+pub mod startup;
+
 /// The argument the Run entry passes; an exact match marks an autostart launch.
 pub const AUTOSTART_ARG: &str = "--autostart";
 /// The key (under HKCU) that holds the one Run value.

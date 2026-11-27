@@ -361,13 +361,14 @@ pub(crate) fn toast(app: &AppHandle, area: &str, title: &str, body: &str) {
 }
 
 /// Settings first, then the app data store, which is reported even when
-/// `settings.json` is broken, then GitLab, GitHub and reminders.
+/// `settings.json` is broken, then GitLab, GitHub, reminders and autostart.
 fn probe_round(
     settings_path: &Option<PathBuf>,
     store: &StoreHandle,
     today: NaiveDate,
     gitlab: Option<SourceStatus>,
     github: Option<SourceStatus>,
+    autostart: Option<SourceStatus>,
 ) -> (Vec<SourceStatus>, Option<AppDataDetails>) {
     let mut sources = match settings_path {
         Some(p) => health::probe(p),
@@ -383,6 +384,8 @@ fn probe_round(
     if let Some(p) = settings_path {
         sources.push(health::reminders_status(p));
     }
+    // Absent until the start-up sync has finished.
+    sources.extend(autostart);
     (sources, app_data)
 }
 
@@ -416,6 +419,7 @@ fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut 
         today,
         health::gitlab_status(&app.state::<GitlabRefreshState>().snapshot()),
         health::github_status(&app.state::<GithubRefreshState>().snapshot()),
+        crate::autostart::startup::status(app),
     );
     // Today's work next to the probe, so a hanging read is caught by the
     // watchdog. Stored before `seq` is bumped below: a publish that sees the new

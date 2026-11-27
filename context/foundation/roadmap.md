@@ -56,7 +56,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | S-04 | windows-autostart       | have the app start with Windows into the tray                                  | —             | MS-17, FR-018         | ready    |
 | S-05 | month-report-copy       | copy the month report to the clipboard and paste it into a spreadsheet         | —             | MS-24, FR-014, FR-020 | done |
 | S-06 | work-entry-note         | add a short note to a work-time entry                                          | —             | MS-27, FR-017         | done |
-| S-07 | end-of-day-summary      | see a summary of the day after STOP                                            | —             | MS-19, FR-013, FR-014 | ready    |
+| S-07 | end-of-day-summary      | see a summary of the day after STOP                                            | —             | MS-19, FR-013, FR-014 | done |
 | S-08 | week-summary            | see the week's sum against the week's norm in "Work time"                      | S-01          | MS-18, FR-014         | done |
 
 ## Streams
@@ -183,7 +183,7 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
 - **Unknowns:**
   - After STOP only, or also at a fixed hour; and what happens on STOP from the tray (S-03)? — Owner: user. Block: no (settled in `/10x-plan`).
 - **Risk:** Reads today's event log and the report that already exist; it must not add a second store of the day's state.
-- **Status:** ready
+- **Status:** done
 
 ### S-08: Week summary
 
@@ -274,3 +274,4 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-02: user can set the daily norm in settings (default 8 h) and mark a half day off in the days table, and the report counts both.** — Archived 2026-11-27 → `context/archive/2026-11-26-configurable-daily-norm/`. Lesson: —.
 - **S-08: user can see in "Work time" the current week's sum against the week's norm, day by day.** — Archived 2026-11-27 → `context/archive/2026-11-26-week-summary/`. Lesson: —.
 - **S-05: user can copy the month report (days, entries, sums, deviation, days off) to the clipboard as text that pastes into a spreadsheet.** — Archived 2026-11-27 → `context/archive/2026-11-26-month-report-copy/`. Lesson: —.
+- **S-07: user can see, after STOP, a summary of the day: time worked today, the month's deviation, what was ticked off and what carries over to tomorrow, with no decision forced.** — Archived 2026-11-27 → `context/archive/2026-11-26-end-of-day-summary/`. Lesson: —.

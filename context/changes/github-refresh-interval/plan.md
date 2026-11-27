@@ -290,10 +290,10 @@ Same base `develop` 00e6a19. Edits in shared files stay small and appended; no r
 
 #### Automated
 
-- [ ] 1.1 cargo test passes with the new github_refresh_* tests, refresh_keys_are_independent and the unchanged GitLab refresh_minutes_* tests
-- [ ] 1.2 cargo fmt --check and cargo clippy --all-targets -- -D warnings pass
-- [ ] 1.3 npm run lint, npm run format:check and npm run build pass
-- [ ] 1.4 git diff --stat shows no change outside src-tauri/src/settings.rs
+- [x] 1.1 cargo test passes with the new github_refresh_* tests, refresh_keys_are_independent and the unchanged GitLab refresh_minutes_* tests
+- [x] 1.2 cargo fmt --check and cargo clippy --all-targets -- -D warnings pass
+- [x] 1.3 npm run lint, npm run format:check and npm run build pass
+- [x] 1.4 git diff --stat shows no change outside src-tauri/src/settings.rs
 
 ### Phase 2: GitHub round uses the setting; snapshot fields and TS mirror
 

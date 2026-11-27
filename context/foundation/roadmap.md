@@ -54,7 +54,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | S-02 | configurable-daily-norm | set the daily norm and mark a half day off                                     | S-01          | MS-26, FR-014, FR-020 | done |
 | S-03 | tray-timer-control      | start and stop the counter from the tray and see today's time in its tooltip   | —             | MS-23, FR-013         | done |
 | S-04 | windows-autostart       | have the app start with Windows into the tray                                  | —             | MS-17, FR-018         | ready    |
-| S-05 | month-report-copy       | copy the month report to the clipboard and paste it into a spreadsheet         | —             | MS-24, FR-014, FR-020 | ready    |
+| S-05 | month-report-copy       | copy the month report to the clipboard and paste it into a spreadsheet         | —             | MS-24, FR-014, FR-020 | done |
 | S-06 | work-entry-note         | add a short note to a work-time entry                                          | —             | MS-27, FR-017         | done |
 | S-07 | end-of-day-summary      | see a summary of the day after STOP                                            | —             | MS-19, FR-013, FR-014 | ready    |
 | S-08 | week-summary            | see the week's sum against the week's norm in "Work time"                      | S-01          | MS-18, FR-014         | done |
@@ -157,7 +157,7 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
   - Clipboard only, or also a file in a folder set in settings (a file elsewhere breaks the AGENTS.md write rule)? — Owner: user. Block: no (settled in `/10x-plan`).
   - Format: TSV, CSV or Markdown. — Owner: user. Block: no (settled in `/10x-plan`).
 - **Risk:** The text must come from the same Rust report the view shows, so the copied numbers never differ from the screen.
-- **Status:** ready
+- **Status:** done
 
 ### S-06: Note on a work-time entry
 
@@ -273,3 +273,4 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-03: user can start and stop the work-time counter from the tray menu and see today's work time in the tray tooltip next to the source state.** — Archived 2026-11-26 → `context/archive/2026-11-26-tray-timer-control/`. Lesson: —.
 - **S-02: user can set the daily norm in settings (default 8 h) and mark a half day off in the days table, and the report counts both.** — Archived 2026-11-27 → `context/archive/2026-11-26-configurable-daily-norm/`. Lesson: —.
 - **S-08: user can see in "Work time" the current week's sum against the week's norm, day by day.** — Archived 2026-11-27 → `context/archive/2026-11-26-week-summary/`. Lesson: —.
+- **S-05: user can copy the month report (days, entries, sums, deviation, days off) to the clipboard as text that pastes into a spreadsheet.** — Archived 2026-11-27 → `context/archive/2026-11-26-month-report-copy/`. Lesson: —.

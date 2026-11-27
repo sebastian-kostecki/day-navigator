@@ -1,10 +1,10 @@
 ---
 change_id: month-report-copy
 title: Copy the month work-time report to the clipboard as TSV
-status: impl_reviewed
+status: archived
 created: 2026-11-26
 updated: 2026-11-27
-archived_at: null
+archived_at: 2026-11-27T10:06:03Z
 ---
 
 ## Notes

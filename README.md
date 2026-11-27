@@ -107,6 +107,7 @@ The app reads it and never changes it. Every block is optional. The **Czas pracy
   },
   "github": { "repos": ["octo-org/alpha", "octo-org/beta"] },
   "todo": { "limit": 5 },
+  "autostart": { "enabled": true },
   "reminders": { "longRunningHours": 10, "notRunningAfter": "09:00" },
   "workTime": { "holidays": "pl" }
 }
@@ -119,10 +120,13 @@ The app reads it and never changes it. Every block is optional. The **Czas pracy
 | `gitlabFilter`  | `include` / `exclude` lists for projects, labels and milestones; `closedDays` 1–30.                |
 | `github`        | `owner/name` repositories to read issues from (up to 50).                                          |
 | `todo`          | "To do" list limit, 1–20 (default 5).                                                              |
+| `autostart`     | `enabled`: `true` starts the app with Windows into the tray, window hidden; off by default. Read at start: restart the app after a change. |
 | `reminders`     | `longRunningHours` 1–24 and `notRunningAfter` `"HH:MM"`; `false` turns a reminder off.             |
 | `workTime`      | `holidays`: `"pl"` (default) counts Polish public holidays out of the norm; `false` turns the calendar off. |
 
 An invalid block is reported in the **Źródła** view and does not affect the other blocks. The exception is `workTime`: an invalid block is reported in the **Czas pracy** view (month report and days table) and in the dashboard's month tiles, not in **Źródła**; START/STOP keeps working.
+
+With `autostart` on, the app keeps one entry named `com.sebas.day-navigator` in the current user's Run key, pointing at the copy of the app that last started with the key on, and removes it when the key is off. A start by Windows goes straight to the tray with the window hidden; a manual start shows the window. Disabling the app in Task Manager → Startup apps also works, and the app leaves that choice alone (the row still reads OK). Before uninstalling, set `enabled` to `false` and start the app once, or remove the entry in Task Manager. The result shows as "Autostart" in **Źródła**.
 
 ## Development
 

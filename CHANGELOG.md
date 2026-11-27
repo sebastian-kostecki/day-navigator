@@ -13,6 +13,9 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
 
 ### Added
 
+- The app can start with Windows into the tray (window hidden) with
+  `"autostart": { "enabled": true }` in `settings.json`. Off by default; the
+  state shows as "Autostart" in "Źródła".
 - "Czas pracy": Polish public holidays count out of the month's norm and show
   in the days table like a day off, with their name; a Saturday holiday shows
   a hint that another day off is owed. Turn the calendar off with

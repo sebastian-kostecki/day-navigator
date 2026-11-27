@@ -35,38 +35,58 @@ const DEFAULT_VIEW: GitlabViewState = { kind: "all", showHidden: false };
 export function useGitlabListViewSource(): GitlabListView {
   const [view, setView] = useState<GitlabViewState>(DEFAULT_VIEW);
   const [selection, setSelection] = useState<ViewSelection>(EMPTY_SELECTION);
-  // `latest` is what the next save sends, `changed` marks fields the user set before the load
-  // landed, `chain` queues the load and the saves so they run one at a time. Refs are touched
-  // only in the setters and the mount effect, never during render.
+  // `latest` is what the next save sends, `changed` marks fields the user set before a load
+  // landed, `loadedOk` says the stored value has been merged in, `chain` queues the loads and
+  // the saves so they run one at a time. Refs are touched only in the setters, the load helper
+  // and the mount effect, never during render.
   const latest = useRef<GitlabViewState>(DEFAULT_VIEW);
   const changed = useRef({ kind: false, showHidden: false });
+  const loadedOk = useRef(false);
   const chain = useRef<Promise<void>>(Promise.resolve());
+
+  // Reads the stored value and merges it under what the user already changed. Resolves true when
+  // merged, false when the load failed or `isCancelled` says a StrictMode run replaced this one.
+  const loadAndMerge = useCallback(async (isCancelled: () => boolean): Promise<boolean> => {
+    try {
+      const stored = await getGitlabViewState();
+      if (isCancelled()) return false;
+      const merged: GitlabViewState = {
+        kind: changed.current.kind ? latest.current.kind : stored.kind,
+        showHidden: changed.current.showHidden ? latest.current.showHidden : stored.showHidden,
+      };
+      latest.current = merged;
+      loadedOk.current = true;
+      setView(merged);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    const loaded = getGitlabViewState()
-      .then((stored) => {
-        if (cancelled) return;
-        const merged: GitlabViewState = {
-          kind: changed.current.kind ? latest.current.kind : stored.kind,
-          showHidden: changed.current.showHidden ? latest.current.showHidden : stored.showHidden,
-        };
-        latest.current = merged;
-        setView(merged);
-      })
-      .catch(() => {});
-    chain.current = loaded;
+    chain.current = loadAndMerge(() => cancelled).then(() => {});
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadAndMerge]);
 
-  const apply = useCallback((next: GitlabViewState, field: "kind" | "showHidden") => {
-    changed.current[field] = true;
-    latest.current = next;
-    setView(next);
-    chain.current = chain.current.then(() => setGitlabViewState(latest.current)).catch(() => {});
-  }, []);
+  const apply = useCallback(
+    (next: GitlabViewState, field: "kind" | "showHidden") => {
+      changed.current[field] = true;
+      latest.current = next;
+      setView(next);
+      chain.current = chain.current
+        .then(async () => {
+          // A failed mount load is retried first; without the stored value a save would
+          // overwrite the other stored field with a default.
+          if (!loadedOk.current && !(await loadAndMerge(() => false))) return;
+          await setGitlabViewState(latest.current);
+        })
+        .catch(() => {});
+    },
+    [loadAndMerge],
+  );
 
   const setKind = useCallback(
     (kind: KindFilter) => {

@@ -81,7 +81,10 @@ fn the_table_refuses_invalid_rows() {
             tx.execute(sql, [])?;
             Ok(())
         });
-        assert!(result.is_err(), "{sql}");
+        assert!(
+            matches!(&result, Err(StoreError::Sql { reason }) if reason.starts_with("ConstraintViolation")),
+            "{sql}"
+        );
     }
     assert_eq!(scalar(&store, "SELECT count(*) FROM gitlab_view_state"), 0);
 }

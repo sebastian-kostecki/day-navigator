@@ -54,7 +54,7 @@ Reviewed commits: `45b29f5` (phase 1), `e4aabdc` (phase 2), on `slice/gitlab-vie
   - Tradeoff: the plan's sequencing guarantee then has a documented exception, and a user can still lose one remembered value silently.
   - Confidence: HIGH — the only cost is the documented edge case.
   - Blind spot: None significant.
-- **Decision**: PENDING
+- **Decision**: APPLIED (Fix A: retry the load before saving)
 
 ### F2 — Invalid-row test accepts any error, not specifically a constraint refusal
 
@@ -64,7 +64,7 @@ Reviewed commits: `45b29f5` (phase 1), `e4aabdc` (phase 2), on `slice/gitlab-vie
 - **Location**: src-tauri/tests/gitlab_view_state.rs:84
 - **Detail**: The plan says each invalid insert must "fail with a constraint error", but the test only checks `result.is_err()`. A typo in the SQL or a missing table would also pass.
 - **Fix**: Assert `matches!(&result, Err(StoreError::Sql { reason }) if reason.starts_with("ConstraintViolation"))` (the `reason_of` format is `"{code:?}: {msg}"`).
-- **Decision**: PENDING
+- **Decision**: APPLIED
 
 ### F3 — Phase 2 Progress rows carry no commit sha; change.md status was not advanced
 
@@ -74,4 +74,4 @@ Reviewed commits: `45b29f5` (phase 1), `e4aabdc` (phase 2), on `slice/gitlab-vie
 - **Location**: context/changes/gitlab-view-memory/plan.md:328-333
 - **Detail**: The Progress convention is to append ` — <commit sha>` when a step lands. Rows 1.1 to 1.8 carry `45b29f5`, but rows 2.1 to 2.6 have no sha, although they landed in `e4aabdc`. `change.md` was still `plan_reviewed` at review time instead of `implementing` / `implemented`. This review sets it to `impl_reviewed`.
 - **Fix**: Append ` — e4aabdc` to Progress rows 2.1 to 2.6.
-- **Decision**: PENDING
+- **Decision**: APPLIED

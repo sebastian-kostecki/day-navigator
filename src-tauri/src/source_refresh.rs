@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::runtime::HealthState;
+use crate::runtime::{HealthState, now_ms};
 use crate::todo;
 
 /// What differs between sources in the shared mechanics: names and the log
@@ -201,6 +201,11 @@ impl SourceId {
     }
 }
 
+/// The `now_ms` instant of the next try after waiting `wait`.
+pub(crate) fn next_refresh_at_ms(wait: Duration) -> u64 {
+    now_ms().saturating_add(wait.as_millis() as u64)
+}
+
 /// Runs `round`, then waits for its returned interval or a wake. Queued wakes
 /// are drained, so a burst costs one round. Returns when the wake sender is
 /// gone.
@@ -219,6 +224,7 @@ pub(crate) fn run_loop(wake_rx: mpsc::Receiver<()>, mut round: impl FnMut() -> D
 mod tests {
     use super::*;
     use crate::github::GithubSnapshot;
+    use crate::gitlab::GitlabSnapshot;
     use std::cell::{Cell, RefCell};
 
     const TEST_ID: SourceId = SourceId {
@@ -304,5 +310,21 @@ mod tests {
         snap.begin_refresh();
         assert!(snap.refreshing);
         assert_eq!(snap.seq, 1);
+    }
+
+    #[test]
+    fn begin_refresh_marks_a_gitlab_snapshot_refreshing() {
+        let mut snap = GitlabSnapshot::starting();
+        snap.begin_refresh();
+        assert!(snap.refreshing);
+        assert_eq!(snap.seq, 1);
+    }
+
+    #[test]
+    fn next_refresh_at_ms_is_now_plus_the_wait() {
+        let before = now_ms() + 90_000;
+        let got = next_refresh_at_ms(Duration::from_secs(90));
+        let after = now_ms() + 90_000;
+        assert!((before..=after).contains(&got));
     }
 }

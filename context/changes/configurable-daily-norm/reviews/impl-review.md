@@ -64,7 +64,7 @@ Automated Progress rows `[x]` are truthful. Manual rows 1.5, 1.6, 2.5, 3.5–3.9
   - Tradeoff: buttons stay in the tab order while busy (they do nothing).
   - Confidence: MED — focus fixup on disabled elements is current Chromium behaviour, not verified in this WebView2.
   - Blind spot: not run in the app.
-- **Decision**: PENDING
+- **Decision**: DEFERRED to manual row 3.8
 
 ### F2 — SQL literal uses a `\n` escape instead of a line continuation
 
@@ -74,7 +74,7 @@ Automated Progress rows `[x]` are truthful. Manual rows 1.5, 1.6, 2.5, 3.5–3.9
 - **Location**: src-tauri/src/work_time/report.rs:276
 - **Detail**: The upsert string is one ~140-character line with an embedded `\n` followed by spaces (`"… VALUES (?1, ?2, ?3) \n             ON CONFLICT(day) …"`). Valid SQL, but the replaced code (and the rest of the module) splits SQL with a trailing `\` continuation; rustfmt cannot wrap it.
 - **Fix**: Write it as `"INSERT INTO days_off(day, created_at_ms, kind) VALUES (?1, ?2, ?3) \` + newline + `ON CONFLICT(day) DO UPDATE SET kind = excluded.kind"`.
-- **Decision**: PENDING
+- **Decision**: FIXED
 
 ### F3 — Copied ignore reason names the other crash test
 
@@ -84,7 +84,7 @@ Automated Progress rows `[x]` are truthful. Manual rows 1.5, 1.6, 2.5, 3.5–3.9
 - **Location**: src-tauri/tests/half_day_off_crash.rs:59
 - **Detail**: `#[ignore = "writer process for crash_keeps_days_off_consistent"]` was copied from `days_off_crash.rs`; the parent test in this file is `crash_keeps_half_and_whole_days_off_consistent`.
 - **Fix**: Change the reason to `"writer process for crash_keeps_half_and_whole_days_off_consistent"`.
-- **Decision**: PENDING
+- **Decision**: FIXED
 
 ### F4 — Phase 4 Progress rows have no commit sha
 
@@ -94,7 +94,7 @@ Automated Progress rows `[x]` are truthful. Manual rows 1.5, 1.6, 2.5, 3.5–3.9
 - **Location**: context/changes/configurable-daily-norm/plan.md:524-526
 - **Detail**: Rows 4.1–4.3 are `[x]` (truthful: the gates pass, the greps match, `roadmap.md` is untouched) but lack the ` — <sha>` suffix the Progress convention asks for; phases 1–3 have it. `change.md` was still `plan_reviewed` before this review (now `impl_reviewed`).
 - **Fix**: Append ` — 9413214` to rows 4.1, 4.2 and 4.3.
-- **Decision**: PENDING
+- **Decision**: FIXED
 
 ### F5 — "Wybrany dzień" control may be wider than the side panel
 
@@ -104,4 +104,4 @@ Automated Progress rows `[x]` are truthful. Manual rows 1.5, 1.6, 2.5, 3.5–3.9
 - **Location**: src/worktime/WorkTimeView.tsx:18-22
 - **Detail**: "roboczy" / "pół dnia wolnego" / "wolny" with `padding: 0 var(--space-3)` per button is about 270–280 px; `.dn-col-side` can shrink to 280 px minus panel padding, so at some widths the middle label wraps inside its button or the group overflows. Not verifiable without running the app; belongs to manual row 3.6.
 - **Fix**: If it wraps in the app, shorten the middle label to "pół dnia" (the group label "Dzień" already gives the context) and update the README sentence that quotes the labels.
-- **Decision**: PENDING
+- **Decision**: DEFERRED to manual row 3.6

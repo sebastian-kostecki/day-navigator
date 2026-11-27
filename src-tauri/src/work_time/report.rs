@@ -273,7 +273,8 @@ pub fn set_day_off(
         // The first mark keeps its `created_at_ms`; only the kind changes. A
         // CHECK violation still fails the write.
         tx.execute(
-            "INSERT INTO days_off(day, created_at_ms, kind) VALUES (?1, ?2, ?3) \n             ON CONFLICT(day) DO UPDATE SET kind = excluded.kind",
+            "INSERT INTO days_off(day, created_at_ms, kind) VALUES (?1, ?2, ?3) \
+             ON CONFLICT(day) DO UPDATE SET kind = excluded.kind",
             (&key, now, kind),
         )?;
         Ok(())

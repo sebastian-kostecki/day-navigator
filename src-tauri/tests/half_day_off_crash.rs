@@ -56,7 +56,7 @@ fn parse(day: &str) -> NaiveDate {
 
 /// Child side: runs only when the parent test re-launches this binary.
 #[test]
-#[ignore = "writer process for crash_keeps_days_off_consistent"]
+#[ignore = "writer process for crash_keeps_half_and_whole_days_off_consistent"]
 fn writer_process() {
     let Some(dir) = std::env::var_os(WRITER_DIR_ENV) else {
         return;

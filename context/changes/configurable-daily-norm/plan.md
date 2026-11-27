@@ -521,6 +521,6 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): jedna
 
 #### Automated
 
-- [x] 4.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą; w `src-tauri/` `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` przechodzą
-- [x] 4.2 `git grep -n "8 h" -- context/foundation/prd.md` znajduje tylko wzmianki „domyślnie 8 h”, a `git grep -n "dailyNormHours" -- README.md CHANGELOG.md` znajduje oba pliki
-- [x] 4.3 `git diff <commit fazy 3>.. --stat` nie pokazuje `context/foundation/roadmap.md`
+- [x] 4.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą; w `src-tauri/` `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` przechodzą — 9413214
+- [x] 4.2 `git grep -n "8 h" -- context/foundation/prd.md` znajduje tylko wzmianki „domyślnie 8 h”, a `git grep -n "dailyNormHours" -- README.md CHANGELOG.md` znajduje oba pliki — 9413214
+- [x] 4.3 `git diff <commit fazy 3>.. --stat` nie pokazuje `context/foundation/roadmap.md` — 9413214

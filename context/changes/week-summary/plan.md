@@ -447,12 +447,12 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Automated
 
-- [x] 3.1 Rust tests pass: `cargo test` (in `src-tauri/`)
-- [x] 3.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`)
-- [x] 3.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`)
-- [x] 3.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [x] 3.5 The command is registered and called once: `rg -n "work_week_report" src-tauri/src/lib.rs src-tauri/src/work_time/commands.rs src/worktime/api.ts` finds one line in each file
-- [x] 3.6 No capability or config change: `git diff --quiet HEAD -- src-tauri/capabilities src-tauri/tauri.conf.json`
+- [x] 3.1 Rust tests pass: `cargo test` (in `src-tauri/`) — 0871bc6
+- [x] 3.2 Formatting passes: `cargo fmt --check` (in `src-tauri/`) — 0871bc6
+- [x] 3.3 Clippy passes: `cargo clippy --all-targets -- -D warnings` (in `src-tauri/`) — 0871bc6
+- [x] 3.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — 0871bc6
+- [x] 3.5 The command is registered and called once: `rg -n "work_week_report" src-tauri/src/lib.rs src-tauri/src/work_time/commands.rs src/worktime/api.ts` finds one line in each file — 0871bc6
+- [x] 3.6 No capability or config change: `git diff --quiet HEAD -- src-tauri/capabilities src-tauri/tauri.conf.json` — 0871bc6
 
 ### Phase 4: "Bieżący tydzień" panel
 

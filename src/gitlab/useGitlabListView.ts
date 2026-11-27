@@ -1,7 +1,8 @@
 import { createContext, use, useCallback, useMemo, useState } from "react";
+import type { KindFilter } from "./types";
 import { EMPTY_SELECTION, type ViewDimension, type ViewSelection } from "./viewFilter";
 
-export type KindFilter = "all" | "issue" | "mergeRequest";
+export type { KindFilter };
 
 export type GitlabListView = {
   kind: KindFilter;

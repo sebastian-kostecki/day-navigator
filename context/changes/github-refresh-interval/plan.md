@@ -309,10 +309,10 @@ Same base `develop` 00e6a19. Edits in shared files stay small and appended; no r
 
 #### Automated
 
-- [x] 3.1 npm run lint, npm run format:check and npm run build pass
-- [x] 3.2 cargo fmt --check, cargo clippy --all-targets -- -D warnings and cargo test pass
-- [x] 3.3 exactly one retryText definition, in src/components/time.ts
-- [x] 3.4 git diff --stat shows changes only in time.ts, index.ts, GitlabView.tsx, GithubView.tsx and README.md
+- [x] 3.1 npm run lint, npm run format:check and npm run build pass — 7abae12
+- [x] 3.2 cargo fmt --check, cargo clippy --all-targets -- -D warnings and cargo test pass — 7abae12
+- [x] 3.3 exactly one retryText definition, in src/components/time.ts — 7abae12
+- [x] 3.4 git diff --stat shows changes only in time.ts, index.ts, GitlabView.tsx, GithubView.tsx and README.md — 7abae12
 
 #### Manual
 

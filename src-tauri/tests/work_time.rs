@@ -69,10 +69,24 @@ fn days_off_survive_dropping_and_reopening_the_store() {
         let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
         for day in ["2026-11-11", "2026-11-24", "2026-12-24"] {
             let day = NaiveDate::parse_from_str(day, "%Y-%m-%d").unwrap();
-            report::set_day_off(&mut store, day, true, now, &common::manual_only()).unwrap();
+            report::set_day_off(
+                &mut store,
+                day,
+                report::DayMark::DayOff,
+                now,
+                &common::manual_only(),
+            )
+            .unwrap();
         }
         let unmarked = NaiveDate::from_ymd_opt(2026, 11, 24).unwrap();
-        report::set_day_off(&mut store, unmarked, false, now, &common::manual_only()).unwrap();
+        report::set_day_off(
+            &mut store,
+            unmarked,
+            report::DayMark::Workday,
+            now,
+            &common::manual_only(),
+        )
+        .unwrap();
     }
 
     let store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
@@ -227,7 +241,14 @@ fn reminder_facts_report_a_day_off_and_a_weekend() {
     let (_tmp, dir) = test_store_dir();
     let now = t("2026-11-23T12:00");
     let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
-    report::set_day_off(&mut store, today(), true, now, &WorkTimeSettings::default()).unwrap();
+    report::set_day_off(
+        &mut store,
+        today(),
+        report::DayMark::DayOff,
+        now,
+        &WorkTimeSettings::default(),
+    )
+    .unwrap();
     let f = reminder_facts(&store, now, &Warsaw, &WorkTimeSettings::default()).unwrap();
     assert_eq!(f.day_kind, DayKind::DayOff);
 
@@ -286,7 +307,11 @@ fn a_public_holiday_is_a_holiday_for_status_entries_and_reminders() {
     assert_eq!(status.month_deviation_ms, -8 * 3_600_000 * 7);
 
     // Marking it off is refused in both directions and writes nothing.
-    for off in [true, false] {
+    for off in [
+        report::DayMark::DayOff,
+        report::DayMark::HalfDayOff,
+        report::DayMark::Workday,
+    ] {
         assert!(matches!(
             report::set_day_off(&mut store, holiday, off, now, &defaults),
             Err(WorkTimeError::Holiday)
@@ -303,7 +328,7 @@ fn a_public_holiday_is_a_holiday_for_status_entries_and_reminders() {
         holidays: HolidayCalendar::Off,
         ..WorkTimeSettings::default()
     };
-    report::set_day_off(&mut store, holiday, true, now, &off).unwrap();
+    report::set_day_off(&mut store, holiday, report::DayMark::DayOff, now, &off).unwrap();
     let shadowed = report::month_report(&store, holiday, now, &Warsaw, &defaults).unwrap();
     assert!(shadowed.days_off.is_empty());
     let shown = report::month_report(&store, holiday, now, &Warsaw, &off).unwrap();
@@ -585,4 +610,89 @@ fn status_month_deviation_uses_the_configured_norm() {
     // 7 workdays up to 11.11 (2-6, 9-10; the 11th is a holiday), nothing worked.
     let status = work_time::status(&store, now, &Warsaw, &seven_hours).unwrap();
     assert_eq!(status.month_deviation_ms, -7 * 3_600_000 * 7);
+}
+
+mod half_day_off {
+    use super::*;
+    use day_navigator_lib::store::StoreError;
+
+    /// `days_off.kind` was added by migration 12 (the first index past v11).
+    const BEFORE_KIND: usize = 11;
+
+    fn user_version(store: &Store) -> i64 {
+        store
+            .read::<_, StoreError>(|c| Ok(c.query_row("PRAGMA user_version", [], |r| r.get(0))?))
+            .unwrap()
+    }
+
+    #[test]
+    fn upgrade_from_v11_keeps_days_off_as_whole_days() {
+        let (_tmp, dir) = test_store_dir();
+        {
+            let mut old = Store::open(&dir, &schema::MIGRATIONS[..BEFORE_KIND], today()).unwrap();
+            assert_eq!(user_version(&old), BEFORE_KIND as i64);
+            old.write::<_, StoreError>(|tx| {
+                tx.execute_batch(
+                    "INSERT INTO days_off(day, created_at_ms) VALUES ('2026-11-12', 1000);
+                     INSERT INTO days_off(day, created_at_ms) VALUES ('2026-11-13', 2000);",
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        }
+        let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+        assert_eq!(user_version(&store), schema::MIGRATIONS.len() as i64);
+        let now = t("2026-11-23T12:00");
+        let month =
+            report::month_report(&store, today(), now, &Warsaw, &common::manual_only()).unwrap();
+        assert_eq!(month.days_off, vec!["2026-11-12", "2026-11-13"]);
+        assert!(month.half_days_off.is_empty());
+        for day in ["2026-11-12", "2026-11-13"] {
+            let row = month.days.iter().find(|r| r.day == day).unwrap();
+            assert_eq!(row.kind, DayKind::DayOff);
+            assert_eq!(row.norm_ms, 0);
+        }
+
+        // A half day survives closing and reopening the store.
+        report::set_day_off(
+            &mut store,
+            NaiveDate::from_ymd_opt(2026, 11, 16).unwrap(),
+            report::DayMark::HalfDayOff,
+            now,
+            &common::manual_only(),
+        )
+        .unwrap();
+        drop(store);
+        let store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+        let month =
+            report::month_report(&store, today(), now, &Warsaw, &common::manual_only()).unwrap();
+        assert_eq!(month.half_days_off, vec!["2026-11-16"]);
+        assert_eq!(month.days_off, vec!["2026-11-12", "2026-11-13"]);
+    }
+
+    #[test]
+    fn an_unknown_kind_is_refused_without_row_values() {
+        const SENTINEL: &str = "SENTINEL-kind-7c1e";
+        let (_tmp, dir) = test_store_dir();
+        let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+        let err = store
+            .write::<(), StoreError>(|tx| {
+                tx.execute(
+                    "INSERT INTO days_off(day, created_at_ms, kind) VALUES ('2026-11-12', 1, ?1)",
+                    [SENTINEL],
+                )?;
+                Ok(())
+            })
+            .unwrap_err();
+        let json = serde_json::to_value(&err).unwrap();
+        assert_eq!(json["kind"], "Sql");
+        assert!(!json.to_string().contains(SENTINEL));
+        assert!(!err.to_string().contains(SENTINEL));
+        let rows: i64 = store
+            .read::<_, StoreError>(|c| {
+                Ok(c.query_row("SELECT count(*) FROM days_off", [], |r| r.get(0))?)
+            })
+            .unwrap();
+        assert_eq!(rows, 0);
+    }
 }

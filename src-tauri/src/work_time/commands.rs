@@ -225,11 +225,16 @@ pub async fn work_month_report(app: AppHandle, day: String) -> Result<MonthRepor
 #[tauri::command]
 pub async fn set_day_off(app: AppHandle, day: String, off: bool) -> Result<(), WorkTimeError> {
     let day = report::parse_day(&day)?;
+    let mark = if off {
+        report::DayMark::DayOff
+    } else {
+        report::DayMark::Workday
+    };
     run_with_settings(
         &app,
         "set_day_off",
         Policy::Strict,
-        move |store, now, settings| report::set_day_off(store, day, off, now, settings),
+        move |store, now, settings| report::set_day_off(store, day, mark, now, settings),
     )
     .await?;
     notify(&app);

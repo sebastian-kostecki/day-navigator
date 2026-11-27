@@ -76,7 +76,7 @@ export interface DayEntries {
   dayEndMs: number;
 }
 
-export type DayKind = "workday" | "dayOff" | "holiday" | "weekend";
+export type DayKind = "workday" | "halfDayOff" | "dayOff" | "holiday" | "weekend";
 
 export type MonthPhase = "past" | "current" | "future";
 
@@ -108,6 +108,8 @@ interface MonthReportBase {
    * out: the holiday shadows them.
    */
   daysOff: string[];
+  /** Half days off, `YYYY-MM-DD`, sorted; holiday-shadowed rows left out too. */
+  halfDaysOff: string[];
   /** All days of the month, ascending. */
   days: DayReport[];
 }
@@ -122,6 +124,7 @@ export type MonthReport =
       normToDateMs: number;
       deviationMs: number;
       workdaysAfterToday: null;
+      halfDaysAfterToday: null;
       neededPerDayMs: null;
       remainingMs: null;
     })
@@ -130,6 +133,8 @@ export type MonthReport =
       normToDateMs: number;
       deviationMs: number;
       workdaysAfterToday: number;
+      /** How many of those days are half days off (norm below the full day). */
+      halfDaysAfterToday: number;
       /** `null` when no workday is left after today. */
       neededPerDayMs: number | null;
       remainingMs: number;
@@ -139,6 +144,7 @@ export type MonthReport =
       normToDateMs: null;
       deviationMs: null;
       workdaysAfterToday: null;
+      halfDaysAfterToday: null;
       neededPerDayMs: null;
       remainingMs: null;
     });

@@ -68,7 +68,7 @@ fn writer_process() {
         report::set_day_off(
             &mut store,
             day,
-            true,
+            report::DayMark::DayOff,
             1_767_225_600_000,
             &common::manual_only(),
         )

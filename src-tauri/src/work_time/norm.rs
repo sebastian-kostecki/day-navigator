@@ -1,7 +1,7 @@
 //! Pure calendar and norm rules: workdays of a month, month phase and the
 //! norm figures. No store, no clock, no time zone: dates and milliseconds only.
 
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 use chrono::{Datelike, Months, NaiveDate, Weekday};
 use serde::Serialize;
@@ -12,6 +12,16 @@ const MINUTE_MS: i64 = 60_000;
 
 /// The default daily norm (8 h per workday), used when `settings.json` sets none.
 pub const DEFAULT_DAILY_NORM_MS: i64 = 8 * 3_600_000;
+
+/// Kind of a day off: a whole day (norm 0) or half a day (half the daily norm).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DayOff {
+    Half,
+    Full,
+}
+
+/// Marked days off of a range, by day.
+pub type DaysOff = BTreeMap<NaiveDate, DayOff>;
 
 /// First day of the month of `any_day` and the first day of the next month.
 pub fn month_days(any_day: NaiveDate) -> (NaiveDate, NaiveDate) {
@@ -27,35 +37,44 @@ pub fn is_weekend(day: NaiveDate) -> bool {
     matches!(day.weekday(), Weekday::Sat | Weekday::Sun)
 }
 
-/// Monday to Friday days in `[first, next_first)` that are not in `days_off`
-/// and not a public holiday of `holidays`. A weekend is never a workday, even
-/// when it is listed in `days_off`.
+/// Monday to Friday days in `[first, next_first)` with a norm: not a whole day
+/// off and not a public holiday of `holidays`. A half day off is still a
+/// workday (half the norm). A weekend is never a workday, even when it is
+/// listed in `days_off`.
 pub fn workdays(
     first: NaiveDate,
     next_first: NaiveDate,
-    days_off: &BTreeSet<NaiveDate>,
+    days_off: &DaysOff,
     holidays: HolidayCalendar,
 ) -> Vec<NaiveDate> {
     first
         .iter_days()
         .take_while(|d| *d < next_first)
-        .filter(|d| !is_weekend(*d) && !days_off.contains(d) && holidays.holiday(*d).is_none())
+        .filter(|d| {
+            !is_weekend(*d)
+                && days_off.get(d) != Some(&DayOff::Full)
+                && holidays.holiday(*d).is_none()
+        })
         .collect()
 }
 
-/// Norm of one day: `daily_norm_ms` on a Monday-to-Friday day that is not in
-/// `days_off` and not a public holiday, otherwise 0. A weekend is 0 even when
-/// listed in `days_off`.
+/// Norm of one day: `daily_norm_ms` on a Monday-to-Friday day that is not marked
+/// and not a public holiday, half of it on a half day off, otherwise 0. A
+/// weekend is 0 even when listed in `days_off`. Exact in ms: a norm of whole
+/// minutes halves to a whole number of ms.
 pub fn day_norm_ms(
     day: NaiveDate,
-    days_off: &BTreeSet<NaiveDate>,
+    days_off: &DaysOff,
     holidays: HolidayCalendar,
     daily_norm_ms: i64,
 ) -> i64 {
-    if is_weekend(day) || days_off.contains(&day) || holidays.holiday(day).is_some() {
-        0
-    } else {
-        daily_norm_ms
+    if is_weekend(day) || holidays.holiday(day).is_some() {
+        return 0;
+    }
+    match days_off.get(&day) {
+        Some(DayOff::Full) => 0,
+        Some(DayOff::Half) => daily_norm_ms / 2,
+        None => daily_norm_ms,
     }
 }
 
@@ -65,7 +84,7 @@ pub fn day_norm_ms(
 pub fn day_norms(
     first: NaiveDate,
     end_exclusive: NaiveDate,
-    days_off: &BTreeSet<NaiveDate>,
+    days_off: &DaysOff,
     holidays: HolidayCalendar,
     daily_norm_ms: i64,
 ) -> Vec<(NaiveDate, i64)> {
@@ -123,6 +142,8 @@ pub struct NormFigures {
     pub deviation_ms: Option<i64>,
     pub workdays: u32,
     pub workdays_after_today: Option<u32>,
+    /// Days after today with a norm below the full-day norm (half days off).
+    pub half_days_after_today: Option<u32>,
     pub needed_per_day_ms: Option<i64>,
     pub remaining_ms: Option<i64>,
 }
@@ -146,6 +167,7 @@ pub fn figures(
         deviation_ms: None,
         workdays: count,
         workdays_after_today: None,
+        half_days_after_today: None,
         needed_per_day_ms: None,
         remaining_ms: None,
     };
@@ -167,6 +189,12 @@ pub fn figures(
             f.norm_to_date_ms = Some(norm_to_date);
             f.deviation_ms = Some(worked_ms - norm_to_date);
             f.workdays_after_today = Some(after);
+            f.half_days_after_today = Some(
+                day_norms
+                    .iter()
+                    .filter(|(d, n)| *d > today && *n < daily_norm_ms)
+                    .count() as u32,
+            );
             f.remaining_ms = Some(remaining);
             if after > 0 && norm_after > 0 {
                 // ceil(remaining * daily / norm_after), in i128 against overflow.

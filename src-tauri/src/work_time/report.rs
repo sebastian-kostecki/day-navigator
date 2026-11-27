@@ -4,8 +4,6 @@
 //! reads the days off and the month's entries in one `store.read`, so every
 //! figure comes from one snapshot.
 
-use std::collections::BTreeSet;
-
 use chrono::{Datelike, NaiveDate, TimeZone, Weekday};
 use rusqlite::Connection;
 use serde::Serialize;
@@ -13,7 +11,7 @@ use serde::Serialize;
 use super::error::WorkTimeError;
 use super::holidays::HolidayCalendar;
 use super::in_day;
-use super::norm::{self, MonthPhase, NormFigures};
+use super::norm::{self, DayOff, DaysOff, MonthPhase, NormFigures};
 use super::rules::{day_bounds, local_day, portion};
 use crate::settings::WorkTimeSettings;
 use crate::store::Store;
@@ -24,6 +22,7 @@ const DAY_FORMAT: &str = "%Y-%m-%d";
 #[serde(rename_all = "camelCase")]
 pub enum DayKind {
     Workday,
+    HalfDayOff,
     DayOff,
     Holiday,
     Weekend,
@@ -44,6 +43,9 @@ pub struct MonthReport {
     /// `YYYY-MM-DD`, sorted, this month only. Rows on a public holiday under
     /// the active calendar are left out: the holiday shadows them.
     pub days_off: Vec<String>,
+    /// Half days off, `YYYY-MM-DD`, sorted, this month only, with the same
+    /// holiday filter as `days_off`.
+    pub half_days_off: Vec<String>,
     /// Every local day of the month, ascending.
     pub days: Vec<DayReport>,
 }
@@ -70,43 +72,60 @@ fn days_off_between(
     conn: &Connection,
     first: NaiveDate,
     next_first: NaiveDate,
-) -> Result<BTreeSet<NaiveDate>, WorkTimeError> {
+) -> Result<DaysOff, WorkTimeError> {
     let mut stmt =
-        conn.prepare("SELECT day FROM days_off WHERE day >= ?1 AND day < ?2 ORDER BY day")?;
+        conn.prepare("SELECT day, kind FROM days_off WHERE day >= ?1 AND day < ?2 ORDER BY day")?;
     let rows = stmt.query_map(
         [
             first.format(DAY_FORMAT).to_string(),
             next_first.format(DAY_FORMAT).to_string(),
         ],
-        |r| r.get::<_, String>(0),
+        |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)),
     )?;
-    let mut out = BTreeSet::new();
-    for day in rows {
-        // The CHECK constraint only guards the shape; a bad date is not a day off.
-        if let Ok(d) = NaiveDate::parse_from_str(&day?, DAY_FORMAT) {
-            out.insert(d);
+    let mut out = DaysOff::new();
+    for row in rows {
+        let (day, kind) = row?;
+        // The CHECK constraints only guard the shape; a bad date or an unknown
+        // kind is not a day off.
+        if let (Ok(d), Some(kind)) = (
+            NaiveDate::parse_from_str(&day, DAY_FORMAT),
+            parse_kind(&kind),
+        ) {
+            out.insert(d, kind);
         }
     }
     Ok(out)
 }
 
-fn is_day_off(conn: &Connection, day: NaiveDate) -> Result<bool, WorkTimeError> {
-    let found = conn
-        .prepare("SELECT 1 FROM days_off WHERE day = ?1")?
-        .exists([day.format(DAY_FORMAT).to_string()])?;
-    Ok(found)
+fn parse_kind(kind: &str) -> Option<DayOff> {
+    match kind {
+        "full" => Some(DayOff::Full),
+        "half" => Some(DayOff::Half),
+        _ => None,
+    }
+}
+
+fn day_off(conn: &Connection, day: NaiveDate) -> Result<Option<DayOff>, WorkTimeError> {
+    let mut stmt = conn.prepare("SELECT kind FROM days_off WHERE day = ?1")?;
+    let mut rows = stmt.query([day.format(DAY_FORMAT).to_string()])?;
+    Ok(match rows.next()? {
+        Some(row) => parse_kind(&row.get::<_, String>(0)?),
+        None => None,
+    })
 }
 
 /// The one classification rule: a weekend is `Weekend` (a Saturday or Sunday
-/// holiday too), a weekday holiday is `Holiday` even when marked off, a marked
-/// day is `DayOff`, anything else is `Workday`.
-fn classify(day: NaiveDate, marked_off: bool, holidays: HolidayCalendar) -> DayKind {
+/// holiday too), a weekday holiday is `Holiday` even when marked, a whole day off is
+/// `DayOff`, a half day off is `HalfDayOff`, anything else is `Workday`.
+fn classify(day: NaiveDate, mark: Option<DayOff>, holidays: HolidayCalendar) -> DayKind {
     if norm::is_weekend(day) {
         DayKind::Weekend
     } else if holidays.holiday(day).is_some() {
         DayKind::Holiday
-    } else if marked_off {
+    } else if mark == Some(DayOff::Full) {
         DayKind::DayOff
+    } else if mark == Some(DayOff::Half) {
+        DayKind::HalfDayOff
     } else {
         DayKind::Workday
     }
@@ -117,7 +136,17 @@ pub(super) fn day_kind(
     day: NaiveDate,
     settings: &WorkTimeSettings,
 ) -> Result<DayKind, WorkTimeError> {
-    Ok(classify(day, is_day_off(conn, day)?, settings.holidays))
+    Ok(classify(day, day_off(conn, day)?, settings.holidays))
+}
+
+/// `YYYY-MM-DD` of the days marked `kind`, ascending, without the days a public
+/// holiday shadows.
+fn marked_days(days_off: &DaysOff, kind: DayOff, holidays: HolidayCalendar) -> Vec<String> {
+    days_off
+        .iter()
+        .filter(|(d, k)| **k == kind && holidays.holiday(**d).is_none())
+        .map(|(d, _)| d.format(DAY_FORMAT).to_string())
+        .collect()
 }
 
 /// The report of the month containing `day`, on an open connection.
@@ -160,7 +189,7 @@ pub(super) fn compute<Tz: TimeZone>(
         let holiday = holidays.holiday(d);
         days.push(DayReport {
             day: d.format(DAY_FORMAT).to_string(),
-            kind: classify(d, days_off.contains(&d), holidays),
+            kind: classify(d, days_off.get(&d).copied(), holidays),
             worked_ms: day_worked,
             norm_ms,
             deviation_ms: norm::day_deviation_ms(d, today, norm_ms, day_worked),
@@ -177,11 +206,8 @@ pub(super) fn compute<Tz: TimeZone>(
         worked_ms,
         figures: norm::figures(&day_norms, today, phase, worked_ms, daily_norm_ms),
         daily_norm_ms,
-        days_off: days_off
-            .iter()
-            .filter(|d| holidays.holiday(**d).is_none())
-            .map(|d| d.format(DAY_FORMAT).to_string())
-            .collect(),
+        days_off: marked_days(&days_off, DayOff::Full, holidays),
+        half_days_off: marked_days(&days_off, DayOff::Half, holidays),
         days,
     })
 }
@@ -209,13 +235,21 @@ pub fn parse_day(day: &str) -> Result<NaiveDate, WorkTimeError> {
         .ok_or(WorkTimeError::InvalidLocalTime)
 }
 
-/// Marks or unmarks a day off. Idempotent; a weekend is refused with
+/// The state a day is set to: a normal workday, half a day off or a whole day off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DayMark {
+    Workday,
+    HalfDayOff,
+    DayOff,
+}
+
+/// Sets the day-off state of a day. Idempotent; a weekend is refused with
 /// `NotAWorkday` and a weekday holiday with `Holiday`, both before any write
 /// and in both directions.
 pub fn set_day_off(
     store: &mut Store,
     day: NaiveDate,
-    off: bool,
+    mark: DayMark,
     now: i64,
     settings: &WorkTimeSettings,
 ) -> Result<(), WorkTimeError> {
@@ -227,22 +261,26 @@ pub fn set_day_off(
     }
     let key = day.format(DAY_FORMAT).to_string();
     store.write(|tx| {
-        if off {
-            // Only the duplicate is ignored; a CHECK violation still fails the write.
-            tx.execute(
-                "INSERT INTO days_off(day, created_at_ms) VALUES (?1, ?2) \
-                 ON CONFLICT(day) DO NOTHING",
-                (&key, now),
-            )?;
-        } else {
-            tx.execute("DELETE FROM days_off WHERE day = ?1", [&key])?;
-        }
+        let kind = match mark {
+            DayMark::Workday => {
+                tx.execute("DELETE FROM days_off WHERE day = ?1", [&key])?;
+                return Ok(());
+            }
+            DayMark::HalfDayOff => "half",
+            DayMark::DayOff => "full",
+        };
+        // The first mark keeps its `created_at_ms`; only the kind changes. A
+        // CHECK violation still fails the write.
+        tx.execute(
+            "INSERT INTO days_off(day, created_at_ms, kind) VALUES (?1, ?2, ?3) \n             ON CONFLICT(day) DO UPDATE SET kind = excluded.kind",
+            (&key, now, kind),
+        )?;
         Ok(())
     })
 }
 
 /// Whether `day` is a Monday-to-Friday day that is neither a holiday nor
-/// marked off.
+/// marked off, wholly or by half (a half day off is `false`).
 pub fn is_workday(
     store: &Store,
     day: NaiveDate,

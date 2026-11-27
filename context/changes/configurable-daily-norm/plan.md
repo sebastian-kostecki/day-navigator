@@ -477,10 +477,10 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): jedna
 
 #### Automated
 
-- [x] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy `settings::work_time` (zakres, pełne minuty, null/brak, izolacja bloków), testy normy 7.5 h na listopadzie 2026 i proptest z losową normą 60–600 min
-- [x] 1.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
-- [x] 1.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [x] 1.4 `git grep -nw "DAILY_NORM_MS" -- src-tauri` i `git grep -n "8 h" -- src/worktime` nic nie znajdują
+- [x] 1.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy `settings::work_time` (zakres, pełne minuty, null/brak, izolacja bloków), testy normy 7.5 h na listopadzie 2026 i proptest z losową normą 60–600 min — 3f24630
+- [x] 1.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag — 3f24630
+- [x] 1.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą — 3f24630
+- [x] 1.4 `git grep -nw "DAILY_NORM_MS" -- src-tauri` i `git grep -n "8 h" -- src/worktime` nic nie znajdują — 3f24630
 
 #### Manual
 
@@ -491,10 +491,10 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): jedna
 
 #### Automated
 
-- [ ] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy pół dnia w `norm_tests.rs` i `reminders_tests.rs`, upgrade v11→v12 i odmowa CHECK w `tests/work_time.rs`, `schema::validate(MIGRATIONS)`, istniejące testy upgrade'u (`tests/events.rs`, `tests/hidden_issues.rs`, `tests/new_assignments.rs`, `tests/todo.rs`) i nowy `tests/half_day_off_crash.rs`
-- [ ] 2.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
-- [ ] 2.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 2.4 `git diff <commit fazy 1>.. -- src-tauri/src/store/schema.rs` pokazuje tylko dopisaną migrację v12 (bez zmian w v1–v11)
+- [x] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy pół dnia w `norm_tests.rs` i `reminders_tests.rs`, upgrade v11→v12 i odmowa CHECK w `tests/work_time.rs`, `schema::validate(MIGRATIONS)`, istniejące testy upgrade'u (`tests/events.rs`, `tests/hidden_issues.rs`, `tests/new_assignments.rs`, `tests/todo.rs`) i nowy `tests/half_day_off_crash.rs`
+- [x] 2.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
+- [x] 2.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 2.4 `git diff <commit fazy 1>.. -- src-tauri/src/store/schema.rs` pokazuje tylko dopisaną migrację v12 (bez zmian w v1–v11)
 
 #### Manual
 

@@ -82,7 +82,7 @@ This plan was written non-interactively. Every choice beyond the user's decision
 - **No new `events.kind`.** Review requests log as `assigned`, shown as "Nowe przypisanie".
 - **No "recently closed" review MRs.** "Zamknięte" stays assigned-only.
 - **No reviewer-state filtering.** An MR the user already approved stays in "Do review" while it is open.
-- **No `glab api user` call** to learn the username. No `scope=reviews_for_me` fallback logic: an unsupported scope surfaces as the source error. That is a Manual check.
+- **No `glab api user` call** to learn the username. No `scope=reviews_for_me` fallback logic: an unsupported scope surfaces as the source error. That is a Manual check. Under the all-or-nothing fetch it would stop the whole GitLab source (assigned lists kept and dimmed under "Error"); the workaround is setting `gitlab.user`, which switches every call to its `*_username` form.
 - **No remembered collapse state** for the section. That would need a migration.
 - **No new Tauri command, no `lib.rs` change, no settings or `settings.rs` change, no change to `github_refresh.rs`, `src/github/` or `source_refresh.rs`.**
 - **No AGENTS.md edit (default chosen by agent).** The derived review marker is one more opaque `assignment_accounts` seeding-marker row, the same kind of record that exists today. S-01 edits the app-data list in this wave, and S-06 stays off it to avoid a conflict.
@@ -107,6 +107,7 @@ Domain rules live in Rust with unit tests: the dedupe, the baseline, the notice 
 | `src-tauri/src/cli/mod.rs` | S-01 (new `gh api` `CliCall` variants and guard) | Appends one variant and its arms in `tool()`, `args()` and `name()`; two `examples()` entries; consts; `VARIANT_COUNT` 10→11, `EXAMPLE_COUNT` 14→16, `ordinal()` arm `=> 10`, seen array plus `2`, `with_user` 4→5, one `ALLOWED_ENDPOINTS` entry, one prefix in `endpoint_allowed` | Textual and additive. Keep both sides, sum the counts and renumber `ordinal()` so each variant is unique. `cargo test` catches a wrong sum. |
 | `src-tauri/src/bin/fake_cli.rs` | S-01 (GitHub endpoints and scenarios) | New `Endpoint::ReviewMergeRequests` and its matcher arm, a body arm in `gitlab_assigned_body`, two new scenarios | Additive. Keep both. |
 | `src/todo/TodoView.tsx` | S-01 (possibly, near the GitHub picker items) | `gitlabItems` and `gitlabFilteredOut` expressions (two lines) | Keep both. |
+| `src/gitlab/GitlabView.tsx` | S-02 (moves the local `retryText` to `src/components/time.ts`; the `../components` import list swaps `formatClock` for `retryText`) | `ReviewBlock`, `reviewTag` on `TableRow`/`GitlabRow`, the `viewOptions` input, the header summary | Keep both. Leave the import list as S-02 leaves it (never re-add an unused `formatClock`); add only what `ReviewBlock` needs. `npm run build` catches an unused import. |
 | `context/foundation/prd.md` | (unknown) | Non-Goals line "Poza v1" and one note after the autostart note | Keep both notes. |
 | `src-tauri/src/gitlab_refresh.rs`, `gitlab/*`, `new_assignments/*`, `todo/*` | none expected | S-06 only | — |
 | `lib.rs`, `store/schema.rs`, `settings.rs`, `github_refresh.rs`, `src/github/`, AGENTS.md | S-01, S-02 | **untouched by S-06** | — |
@@ -119,12 +120,14 @@ S-06 keeps its edits to shared files small and local. It appends variants and ar
   - In the `GitlabItem` literals, add `review_requested: false`.
   - In the `AssignedItems` literals, add `review_requests: Vec::new()` (or `vec![]`).
   - The parser (`gitlab/mod.rs:346`) sets `review_requested: false`.
+  - `FilteredOut` has no `..Default::default()` in its literals: add `review_requests: 0` in the five test literals (`gitlab/mod.rs:1907`, `gitlab_refresh.rs:956`, `:1012`, `:1090`, `:1396`).
+  - `snapshot_serializes_for_the_webview` (`gitlab/mod.rs:2079`) pins the exact JSON: its `filteredOut` object gains `"reviewRequests":0` (the only intended assertion change in existing tests).
   - Do not reformat surrounding code.
 - **Order of calls.** The order is MRs, issues, reviews. The existing `gitlab-mrs-ok-issues-no-network` scenario keeps failing at issues, before the review call. Every existing `gitlab-assigned` test must stay green, because the review body is separate and the assigned lists are unchanged.
 - **Baseline ordering inside `record_round`.** The rule needs these facts from the same transaction: the main seeded flag, the review marker flag, the stored rows and the mark. Then:
   - Insert the main marker if `plan.seed`.
   - Insert the review marker when it is missing.
-  - Upsert, using the baseline `first_seen_ms` for the baseline keys.
+  - Upsert, using the baseline `first_seen_ms` for the baseline keys. Their `last_seen_ms` stays `now_ms`: the upsert today binds one value (`?4`) to both columns, so it gets a separate first-seen parameter. A `last_seen_ms` set to an old mark would let the forget rule drop the key after one absent round and re-notify it.
   - Compute `fresh` from the per-key `first_seen` actually written.
   - Remove the baseline keys from `new`.
 
@@ -241,7 +244,7 @@ The round fetches the review list as its third call. A Rust rule splits it into 
 **Contract**:
 
 - `fetch_assigned` runs `CliCall::GlabReviewMergeRequests(host, config.user)` after the issues and parses it with `parse_merge_requests`.
-- It builds `AssignedItems { merge_requests, issues, review_requests: split_review_requests(&mut merge_requests, reviews), hidden_issues: vec![] }`.
+- It first runs `let review_requests = split_review_requests(&mut merge_requests, reviews);` (`merge_requests` becomes `let mut`), then builds `AssignedItems { merge_requests, issues, review_requests, hidden_issues: Vec::new() }`. Calling the split inside the literal would borrow `merge_requests` after it moved.
 
 #### 3. Round, filter, kept list
 
@@ -372,7 +375,7 @@ Review items join the FR-004 input:
   1. Read `seeded` and `reviews_seeded` (the marker row for `review_marker_key(account)`), the rows and the mark.
   2. Run `plan_round`, then `review_baseline`.
   3. Insert the main marker when `plan.seed`, and insert the review marker whenever `reviews_seeded` is false (also on the seeding round).
-  4. Upsert every current key. Baseline keys are inserted with `baseline_first_seen(mark, now_ms)`; the conflict rule is unchanged.
+  4. Upsert every current key. Baseline keys are inserted with `first_seen_ms = baseline_first_seen(mark, now_ms)` and `last_seen_ms = now_ms` (separate parameters; every other key binds `now_ms` to both, as today); the conflict rule is unchanged. A unit or integration test asserts a baseline row's `last_seen_ms == now_ms`.
   5. Compute `seen` from the `first_seen` actually written.
   6. Return `new = plan.new` minus the baseline keys.
 - **Doc comment.** The module and function doc comments say this:
@@ -577,7 +580,7 @@ Show the review list as its own titled panel. Flag assigned MRs that also await 
 
 These are run by the user after integration on a built app with the work GitLab. Back up the database before the first dev run.
 
-1. **`reviews_for_me` on the real instance.** With no `gitlab.user`, the "Do review" section lists the user's open review MRs. The work GitLab supports `scope=reviews_for_me` and the GitLab state stays OK, with no "Error".
+1. **`reviews_for_me` on the real instance.** With no `gitlab.user`, the "Do review" section lists the user's open review MRs. The work GitLab supports `scope=reviews_for_me` and the GitLab state stays OK, with no "Error". This check must pass before the release PR to `main`; if the state turns "Error", set `gitlab.user` as the workaround and report it.
 2. **With `gitlab.user` set,** the section lists that user's review MRs (`reviewer_username`).
 3. **The section:**
    - It sits between the main list and "Zamknięte".
@@ -597,6 +600,8 @@ These are run by the user after integration on a built app with the work GitLab.
    - the source is calm "unavailable";
    - the last list, including "Do review", stays visible and dimmed;
    - after VPN returns, the list refreshes with no repeated notices.
+9. **The "Do zrobienia" picker** lists review MRs next to the assigned items, adds one, and its filter note counts review MRs the settings filter hid.
+10. **A new review MR's row** in "Do review" shows "Nowe" until the user leaves "Praca (GitLab)", like a new assigned item.
 
 ---
 
@@ -719,3 +724,5 @@ Rollback to an older build is safe. Old code never reads the marker row, and the
 - [ ] 5.10 First run after upgrade: no notice burst and no Nowe flags for already-open review MRs
 - [ ] 5.11 MR both assigned and to review shows once with a Do review flag and gives at most one notice
 - [ ] 5.12 Without VPN: calm unavailable, Do review stays visible and dimmed, no repeated notices after
+- [ ] 5.13 Do zrobienia picker lists and adds review MRs; its filter note counts them
+- [ ] 5.14 A new review MR row shows Nowe until the view is left

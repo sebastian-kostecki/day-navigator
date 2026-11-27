@@ -54,6 +54,7 @@ rusqlite = { version = "0.43", features = ["bundled"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation"] }
+winreg = "0.56"
 
 [features]
 # Exposes `CliRunner::with_programs` and the `fake-cli` bin to the integration

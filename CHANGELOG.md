@@ -17,6 +17,9 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
   also across a month or year boundary, day by day against the week's norm (the
   month's rule: holidays and days off count out, a half day off counts half), with the deviation up to today
   and what remains.
+- The app can start with Windows into the tray (window hidden) with
+  `"autostart": { "enabled": true }` in `settings.json`. Off by default; the
+  state shows as "Autostart" in "Źródła".
 - "Czas pracy": Polish public holidays count out of the month's norm and show
   in the days table like a day off, with their name; a Saturday holiday shows
   a hint that another day off is owed. Turn the calendar off with

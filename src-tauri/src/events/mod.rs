@@ -171,6 +171,7 @@ fn source_from_key(key: &str) -> Option<SourceId> {
         SourceId::Gitlab,
         SourceId::Github,
         SourceId::Reminders,
+        SourceId::Autostart,
     ]
     .into_iter()
     .find(|s| s.key() == key)

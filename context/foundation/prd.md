@@ -231,11 +231,13 @@ No access control changes — current model preserved.
 - Model dostępu bez zmian (`## Access Control Changes`).
 
 ### Rozważone i świadomie NIE wykluczone
-Reszta planu z PRD v2 — przerwy i pomodoro, bloker rozpraszaczy, szybki wpis i skrzynka, poranne „Ułóż plan dnia”, autostart. Nie są non-goals, ale żadne FR ich nie obejmuje, więc w tym MVP nie są budowane z braku wymagania, a nie z zakazu.
+Reszta planu z PRD v2 — przerwy i pomodoro, bloker rozpraszaczy, szybki wpis i skrzynka, poranne „Ułóż plan dnia”. Nie są non-goals, ale żadne FR ich nie obejmuje, więc w tym MVP nie są budowane z braku wymagania, a nie z zakazu.
 
 Widok tygodnia jest zbudowany jako panel „Bieżący tydzień” w „Czas pracy” (MS-18), bez nowego FR; norma tygodnia to reguła FR-014.
 
 Zamknięcie dnia jest zbudowane jako podsumowanie dnia po STOP (MS-19), bez nowego FR.
+
+Autostart z Windows jest dostarczany w M-3 jako MS-17 (roadmapa): domyślnie wyłączony, przełącznik `autostart.enabled` w `settings.json`, start do zasobnika bez okna; bez nowego FR.
 
 ## Open Questions
 

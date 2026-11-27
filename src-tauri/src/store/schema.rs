@@ -251,12 +251,37 @@ CREATE UNIQUE INDEX todo_items_live_github
     },
     // S-02 (configurable-daily-norm): kind of a day off. `full` = whole day (every
     // existing row), `half` = half of the daily norm; the primary key of `day`
-    // excludes both at once. Planned as v12; on a merge clash it takes the next
-    // free number.
+    // excludes both at once.
     Migration {
         version: 12,
         sql: "ALTER TABLE days_off ADD COLUMN kind TEXT NOT NULL DEFAULT 'full'
   CHECK (kind IN ('full', 'half'));",
+    },
+    // S-04 (windows-autostart): the event log's `source_id` CHECK learns the
+    // 'autostart' key. SQLite cannot alter a CHECK, so the table is rebuilt
+    // with the same columns; nothing else references `events`. Planned as v12,
+    // renumbered to v13 after S-02 when M-3 wave 2 was merged.
+    Migration {
+        version: 13,
+        sql: "CREATE TABLE events_new (
+  id           INTEGER PRIMARY KEY,
+  at           TEXT    NOT NULL,
+  kind         TEXT    NOT NULL CHECK (kind IN
+    ('assigned','ticked','removed','closedInSource',
+     'workStarted','workStopped','sourceError','sourceRecovered')),
+  item_source  TEXT    CHECK (item_source IN ('own','gitlab','github')),
+  item_kind    TEXT    CHECK (item_kind IN ('issue','mergeRequest')),
+  reference    TEXT,
+  title        TEXT    CHECK (title IS NULL OR length(title) <= 300),
+  source_id    TEXT    CHECK (source_id IN
+    ('settings','app-data','gitlab','github','reminders','autostart')),
+  source_label TEXT,
+  error_kind   TEXT
+);
+INSERT INTO events_new SELECT id, at, kind, item_source, item_kind, reference, title,
+  source_id, source_label, error_kind FROM events;
+DROP TABLE events;
+ALTER TABLE events_new RENAME TO events;",
     },
 ];
 

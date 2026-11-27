@@ -52,6 +52,11 @@ export function workMonthReport(day: string): Promise<MonthReport> {
   return invoke<MonthReport>("work_month_report", { day });
 }
 
+/** `day` is any `YYYY-MM-DD` within the month; TSV for the clipboard. */
+export function workMonthReportText(day: string): Promise<string> {
+  return invoke<string>("work_month_report_text", { day });
+}
+
 /** `day` is `YYYY-MM-DD`; a weekend is refused with `NotAWorkday`, a holiday with `Holiday`. */
 export function setDayOff(day: string, off: boolean): Promise<void> {
   return invoke<void>("set_day_off", { day, off });

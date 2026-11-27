@@ -4,6 +4,7 @@ import { ErrorState } from "../components/ErrorState";
 import { workTimeErrorMessage } from "./api";
 import { DaysTable } from "./DaysTable";
 import { formatClock, formatMonth } from "./format";
+import { MonthCopyButton } from "./MonthCopyButton";
 import { MonthReport } from "./MonthReport";
 import { RemindersPanel } from "./RemindersPanel";
 import { todayTotalMs } from "./total";
@@ -193,6 +194,8 @@ export default function WorkTimeView() {
             onClick={() => setDay(shiftMonth(day, 1))}
           />
         </div>
+        <span className="dn-spacer" />
+        <MonthCopyButton month={month} enabled={report.state === "loaded"} />
       </div>
       <MonthReport state={report} today={todayStat(timer, nowMs)} onRetry={retryReport} />
       <div className="dn-columns">

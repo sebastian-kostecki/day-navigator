@@ -24,6 +24,11 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
   logged in the event log like the header). The tray tooltip shows today's
   work time under the source state, and the tray icon has a "counter running"
   variant (a source error still shows the error icon).
+- "Czas pracy": a "Kopiuj miesiąc" button copies the shown month to the
+  clipboard as tab-separated text that pastes into a spreadsheet: a summary,
+  one row per day (kind, holiday name, sum, norm, deviation) and one row per
+  entry with its note. Numbers use a decimal comma, for pl-PL Excel and Google
+  Sheets.
 
 ## [0.10.1] - 2026-11-26
 

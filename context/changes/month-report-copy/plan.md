@@ -358,11 +358,11 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): TSV; 
 
 #### Automated
 
-- [ ] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 2.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą
-- [ ] 2.3 `git grep -n "invoke" -- src/worktime` znajduje `invoke` tylko w `src/worktime/api.ts`, `git grep -n "console\." -- src/worktime` nic nie znajduje, a `git grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(" -- src/worktime/WorkTime.css` nic nie znajduje
-- [ ] 2.4 `git diff --quiet d34904a -- package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/capabilities src-tauri/tauri.conf.json src/worktime/types.ts` kończy się kodem 0
-- [ ] 2.5 `git grep -n "Kopiuj miesiąc" -- README.md CHANGELOG.md` i `git grep -n "pl-PL" -- README.md CHANGELOG.md` znajdują nowe punkty w obu plikach
+- [x] 2.1 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 2.2 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` i `cargo test` w `src-tauri/` przechodzą
+- [x] 2.3 `git grep -n "invoke" -- src/worktime` znajduje `invoke` tylko w `src/worktime/api.ts`, `git grep -n "console\." -- src/worktime` nic nie znajduje, a `git grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(" -- src/worktime/WorkTime.css` nic nie znajduje
+- [x] 2.4 `git diff --quiet d34904a -- package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/capabilities src-tauri/tauri.conf.json src/worktime/types.ts` kończy się kodem 0
+- [x] 2.5 `git grep -n "Kopiuj miesiąc" -- README.md CHANGELOG.md` i `git grep -n "pl-PL" -- README.md CHANGELOG.md` znajdują nowe punkty w obu plikach
 
 #### Manual
 

@@ -1,7 +1,7 @@
 ---
 change_id: gitlab-view-memory
 title: Gitlab view memory
-status: preparing
+status: planned
 created: 2026-11-27
 updated: 2026-11-27
 archived_at: null

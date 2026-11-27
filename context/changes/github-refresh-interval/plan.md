@@ -99,7 +99,7 @@ One parser in `settings.rs` serves both blocks; a new public loader reads `githu
 - `cargo test` passes, including the new `github_refresh_*` tests, `refresh_keys_are_independent` and the unchanged GitLab `refresh_minutes_*` tests
 - `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass (the new loader has no production caller until Phase 2; `settings` is a `pub mod` in `lib.rs:16`, so the `pub fn` is not dead code and needs no `#[allow]`)
 - `npm run lint`, `npm run format:check` and `npm run build` pass
-- `git diff --stat` shows no change outside `src-tauri/src/settings.rs`
+- `git diff --stat` shows no change outside `src-tauri/src/settings.rs` (apart from this plan's Progress rows)
 
 **Implementation Note**: Commit on green, e.g. `feat(settings): read githubRefresh.minutes with the shared refresh parser`.
 
@@ -165,7 +165,7 @@ The GitHub snapshot gains the three round flags, the round reads the setting and
 - `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass
 - `npm run lint`, `npm run format:check` and `npm run build` pass (types.ts compiles; no consumer breaks)
 - `grep -n REFRESH_INTERVAL src-tauri/src/github_refresh.rs` finds nothing
-- `git diff --stat` shows changes only in `src-tauri/src/github/mod.rs`, `src-tauri/src/github_refresh.rs` and `src/github/types.ts`
+- `git diff --stat` shows changes only in `src-tauri/src/github/mod.rs`, `src-tauri/src/github_refresh.rs` and `src/github/types.ts` (apart from this plan's Progress rows)
 
 **Implementation Note**: One commit for the Rust type and its TS mirror, e.g. `feat(github): refresh on githubRefresh.minutes and expose the next try`.
 
@@ -197,9 +197,9 @@ The GitHub snapshot gains the three round flags, the round reads the setting and
 **Intent**: Show the interval and next try in GitHub's unavailable and error states, and report an invalid setting the way GitLab does.
 
 **Contract**:
-- In `GithubView`, compute `retry = retryText(snapshot.refreshMinutes, snapshot.nextRefreshAtMs, refreshing, nowMs)` (the existing `nowMs` and 30 s tick).
+- In `GithubView`, right after `nowMs`, compute `retryNote = retryText(snapshot.refreshMinutes, snapshot.nextRefreshAtMs, refreshing, nowMs)` (the existing `nowMs` and 30 s tick). Not `retry`: that name is already taken by `useGithub()`'s reload callback (`const { …, retry } = useGithub()`, used by the `loadError` state), and a second `retry` does not compile.
 - Calm "GitHub niedostępny" `SourceState`: children = the retry text only (default chosen by agent: GitHub's card has no lead-in text today; none is added).
-- `SourceError` gains a prop `retry: string | null`. Both `ErrorState` calls render the message followed by `" "` and `retry` when not `null` (inline, inside the existing `<p>`). `GithubView` passes `null` when `state.kind === "ThreadDown"` (default chosen by agent: no round ever comes, so "Odświeżam co 10 min." would be untrue); the `"ThreadDown"` literal gets a comment that it mirrors `GithubError::kind` in `src-tauri/src/github/mod.rs`, like `"LoggedOut"`.
+- `SourceError` gains a prop `retryNote: string | null`. Both `ErrorState` calls render the message followed by `" "` and `retryNote` when not `null` (inline, inside the existing `<p>`). `GithubView` passes `null` when `state.kind === "ThreadDown"` (default chosen by agent: no round ever comes, so "Odświeżam co 10 min." would be untrue); the `"ThreadDown"` literal gets a comment that it mirrors `GithubError::kind` in `src-tauri/src/github/mod.rs`, like `"LoggedOut"`.
 - After the error state and before `TodoPicksNotices`, when `snapshot.refreshSettingInvalid`: `<Notice tone="warn">Nieprawidłowe ustawienie <code>githubRefresh.minutes</code> (dozwolone 1–14) — odświeżam co 10 min</Notice>`, with the comment that "1–14" and "10 min" mirror `REFRESH_MINUTES_MAX` and `DEFAULT_REFRESH_MINUTES` in `src-tauri/src/settings.rs` (default chosen by agent: GitLab's wording with the key swapped). Shown whatever the source state, like GitLab's.
 - Import `retryText` from `../components`. No new CSS, no new resource (no CSP change).
 
@@ -218,7 +218,7 @@ The GitHub snapshot gains the three round flags, the round reads the setting and
 - `npm run lint`, `npm run format:check` and `npm run build` pass (no unused `formatClock` import)
 - `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test` pass
 - `grep -rn "function retryText" src` finds exactly one definition, in `src/components/time.ts`
-- `git diff --stat` shows changes only in `src/components/time.ts`, `src/components/index.ts`, `src/gitlab/GitlabView.tsx`, `src/github/GithubView.tsx` and `README.md`
+- `git diff --stat` shows changes only in `src/components/time.ts`, `src/components/index.ts`, `src/gitlab/GitlabView.tsx`, `src/github/GithubView.tsx` and `README.md` (apart from this plan's Progress rows)
 
 #### Manual Verification:
 

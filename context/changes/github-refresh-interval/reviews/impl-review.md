@@ -77,7 +77,7 @@ Manual rows 3.5-3.9 are unticked, as required (the user tests them after integra
 - **Detail**: The generic error variant renders `` `${state.message} ${retryNote}` ``. No `GithubError::message_pl` or `CliError::message_pl` text ends with a period (`src-tauri/src/github/mod.rs:100-133`, `src-tauri/src/cli/mod.rs:504-520`), so the user reads e.g. "Nie znaleziono programu gh Odświeżam co 10 min — następna próba za 9 min (14:05)." The `LoggedOut` variant is fine (its text ends with "odśwież."). The plan prescribed the plain `" "` join, so this is a plan flaw carried into code. The retry text itself is unchanged and matches GitLab's.
 - **Fix**: Join with a period: `` `${state.message}. ${retryNote}` `` (only the generic variant; leave `LoggedOut` as is). Check manual row 3.8 against the new text.
 - **Recommendation**: fix (one line, no GitLab file touched).
-- **Decision**: PENDING
+- **Decision**: FIXED in d5229a5 (period added unless the message already ends with terminal punctuation; LoggedOut variant untouched)
 
 ### F2 — Merge risk: S-01's GitHub hide/show path must keep the three round flags
 
@@ -92,7 +92,7 @@ Manual rows 3.5-3.9 are unticked, as required (the user tests them after integra
   - Confidence: MED — S-01's code was not read (other worktree, out of bounds for this run).
   - Blind spot: S-01's actual write path.
 - **Recommendation**: accept as is on this branch; fix at integration (the code it concerns does not exist here).
-- **Decision**: PENDING
+- **Decision**: ACCEPT (integration-time action: S-01 hide/show must clone-and-modify the snapshot, plus a GitHub twin of the GitLab carry-over test)
 
 ### F3 — The round wiring of the three fields has no test
 
@@ -103,7 +103,7 @@ Manual rows 3.5-3.9 are unticked, as required (the user tests them after integra
 - **Detail**: Deliberate break B5 (deleting `next.refresh_minutes = minutes;`) passes all tests; the same holds for the `refresh_setting_invalid` and `next_refresh_at_ms` lines. `refresh_round` needs an `AppHandle`, and the plan says so ("Integration Tests: None new"). GitLab's `refresh_round` has the same gap. Manual rows 3.6 and 3.7 cover it in the app.
 - **Fix**: None now; extracting a pure "apply round flags" helper would be churn for three assignments.
 - **Recommendation**: accept as is (planned, consistent with GitLab, covered by manual checks).
-- **Decision**: PENDING
+- **Decision**: ACCEPT (covered by manual rows 3.6/3.7)
 
 ### F4 — `refresh_interval` mapping duplicated in the two source modules
 
@@ -114,4 +114,4 @@ Manual rows 3.5-3.9 are unticked, as required (the user tests them after integra
 - **Detail**: A 10-line `(minutes, invalid)` mapping exists in both modules. The validation is not duplicated (one parser in `settings.rs`), and the copy keeps `gitlab_refresh.rs` untouched for S-06, as the plan records ("default chosen by agent").
 - **Fix**: After the wave, optionally move the mapping into `settings.rs` or `source_refresh.rs` taking the loader as an argument.
 - **Recommendation**: accept as is (recorded plan decision; avoids a conflict with S-06).
-- **Decision**: PENDING
+- **Decision**: ACCEPT (recorded plan decision)

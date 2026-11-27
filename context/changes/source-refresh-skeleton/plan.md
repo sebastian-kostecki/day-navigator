@@ -387,13 +387,13 @@ Phases, contracts and Manual rows are otherwise unchanged.
 
 #### Automated
 
-- [x] 1.1 All gates pass in the worktree — 70d1356
-- [x] 1.2 Existing test bodies are unchanged — 70d1356
-- [x] 1.3 Every skeleton log call carries a target — 70d1356
-- [x] 1.4 `lib.rs` differs from the merge base by exactly `+pub mod source_refresh;` — 70d1356
-- [x] 1.5 Nothing outside the scope changed — 70d1356
-- [x] 1.6 The new skeleton tests exist and pass — 70d1356
-- [x] 1.7 Committed: `refactor(source-refresh): add shared refresh skeleton and move GitHub onto it` — 70d1356
+- [x] 1.1 All gates pass in the worktree — 8564f5e
+- [x] 1.2 Existing test bodies are unchanged — 8564f5e
+- [x] 1.3 Every skeleton log call carries a target — 8564f5e
+- [x] 1.4 `lib.rs` differs from the merge base by exactly `+pub mod source_refresh;` — 8564f5e
+- [x] 1.5 Nothing outside the scope changed — 8564f5e
+- [x] 1.6 The new skeleton tests exist and pass — 8564f5e
+- [x] 1.7 Committed: `refactor(source-refresh): add shared refresh skeleton and move GitHub onto it` — 8564f5e
 
 ### Phase 2: GitLab on the skeleton
 

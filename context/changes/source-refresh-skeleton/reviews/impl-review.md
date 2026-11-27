@@ -74,7 +74,7 @@ Run non-interactively: triage was not offered; every finding stays `PENDING` for
 - **Location**: src-tauri/src/source_refresh.rs:126 (`start_thread`), :114 (`begin_round`), :92 (`publish`), :163 (`end_round`)
 - **Detail**: These paths need an `AppHandle`, and the crate does not enable tauri's `test` feature (`mock_app`), so the plan covers them with Manual rows 3.6-3.11, which are still unchecked. The review compared them line by line with the merge base and found them equivalent; the seq guard they rely on is unit-tested via `publish_with`. This was accepted in the plan ("Integration Tests: None added").
 - **Fix**: None now. The owner checks Manual rows 3.6-3.12 in the integrated build before archive.
-- **Decision**: PENDING
+- **Decision**: ACCEPTED (no change)
 
 ### F2 — `start` now resolves the managed state before spawning
 
@@ -84,7 +84,7 @@ Run non-interactively: triage was not offered; every finding stays `PENDING` for
 - **Location**: src-tauri/src/gitlab_refresh.rs:455, src-tauri/src/github_refresh.rs:117
 - **Detail**: Before, `app.state::<…RefreshState>()` was called only in the spawn-error branch. Now it is called on every start, because `start_thread` is a method of the cell. If `start` ever ran before `manage`, the app would panic at startup instead of in the refresh thread's first round. Today `lib.rs:170-171` manages both states before `lib.rs:178-179` starts them, so the observable behaviour is unchanged. This is the intended consequence of the planned API, not drift.
 - **Fix**: None needed. Keep `manage` before `start` in `lib.rs` (as the existing doc on `start` already requires for `HealthState`).
-- **Decision**: PENDING
+- **Decision**: ACCEPTED (no change)
 
 ### F3 — The source-only tail slot is not written down on `end_round`
 
@@ -94,7 +94,7 @@ Run non-interactively: triage was not offered; every finding stays `PENDING` for
 - **Location**: src-tauri/src/source_refresh.rs:163
 - **Detail**: GitLab runs its toasts between `notify_todo_changed` and `end_round`, so the elapsed debug line includes them. Nothing on `end_round` says it must be the last call of a round, or that source-only steps (S-03's GitHub notices) go before it. A later slice could call `end_round` before its toasts and silently change the elapsed figure and the health-wake timing.
 - **Fix**: Optionally add one doc sentence to `end_round`: "Call it last in a round, after any source-only step such as toasts; the elapsed time includes them."
-- **Decision**: PENDING
+- **Decision**: FIXED in the doc comment of `SourceId::end_round` (source_refresh.rs)
 
 ## Success criteria run
 

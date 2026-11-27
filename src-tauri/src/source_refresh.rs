@@ -159,7 +159,9 @@ impl SourceId {
     }
 
     /// The round tail: the state transition, the elapsed time and, when the
-    /// source status changed, a health round now.
+    /// source status changed, a health round now. Call it last in a round,
+    /// after any source-only step such as toasts; the elapsed time includes
+    /// them.
     pub(crate) fn end_round(
         &self,
         app: &AppHandle,

@@ -325,12 +325,12 @@ Parallel slices in this wave: F-01 `source-refresh-skeleton` and S-04 `gitlab-of
 
 #### Automated
 
-- [ ] 2.1 `npm run lint` passes
-- [ ] 2.2 `npm run format:check` passes
-- [ ] 2.3 `npm run build` passes with zero errors
-- [ ] 2.4 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test` pass in `src-tauri/`
-- [ ] 2.5 `git diff --stat $(git merge-base HEAD develop) -- src/gitlab/GitlabView.tsx` prints nothing
-- [ ] 2.6 `grep -c "the type and the hidden expansion are remembered in the app data store" AGENTS.md` prints `1`
+- [x] 2.1 `npm run lint` passes
+- [x] 2.2 `npm run format:check` passes
+- [x] 2.3 `npm run build` passes with zero errors
+- [x] 2.4 `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo test` pass in `src-tauri/`
+- [x] 2.5 `git diff --stat $(git merge-base HEAD develop) -- src/gitlab/GitlabView.tsx` prints nothing
+- [x] 2.6 `grep -c "the type and the hidden expansion are remembered in the app data store" AGENTS.md` prints `1`
 
 #### Manual
 

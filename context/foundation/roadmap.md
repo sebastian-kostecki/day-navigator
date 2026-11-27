@@ -3,7 +3,7 @@ project: "Nawigator dnia"
 version: 6
 status: draft
 created: 2026-11-20
-updated: 2026-11-26
+updated: 2026-11-27
 prd_version: 2
 main_goal: quality
 top_blocker: decisions
@@ -51,7 +51,7 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | ID   | Change ID               | Outcome (user can …)                                                          | Prerequisites | PRD refs              | Status   |
 | ---- | ----------------------- | ----------------------------------------------------------------------------- | ------------- | --------------------- | -------- |
 | S-01 | public-holidays-norm    | see Polish public holidays counted out of the month's norm                     | —             | MS-25, FR-014, FR-020 | done |
-| S-02 | configurable-daily-norm | set the daily norm and mark a half day off                                     | S-01          | MS-26, FR-014, FR-020 | ready    |
+| S-02 | configurable-daily-norm | set the daily norm and mark a half day off                                     | S-01          | MS-26, FR-014, FR-020 | done |
 | S-03 | tray-timer-control      | start and stop the counter from the tray and see today's time in its tooltip   | —             | MS-23, FR-013         | done |
 | S-04 | windows-autostart       | have the app start with Windows into the tray                                  | —             | MS-17, FR-018         | ready    |
 | S-05 | month-report-copy       | copy the month report to the clipboard and paste it into a spreadsheet         | —             | MS-24, FR-014, FR-020 | ready    |
@@ -115,7 +115,7 @@ No foundations in M-3: every layer the slices need is present (see `## Baseline`
   - Can the norm change within a month (a change of contract), which needs a norm history rather than one setting? — Owner: user. Block: no (settled in `/10x-plan`).
   - Is a half day off really needed, or is a full day enough? — Owner: user. Block: no (settled in `/10x-plan`).
 - **Risk:** Extends the same norm rule as S-01; planned after it so the two do not change the rule at once.
-- **Status:** ready
+- **Status:** done
 
 ### S-03: START/STOP from the tray
 
@@ -271,3 +271,4 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-01: user can see Polish public holidays (fixed dates and the Easter-based ones) counted out of the month's norm and shown in the days table like a day off, with the holiday's name; a setting turns the calendar off.** — Archived 2026-11-26 → `context/archive/2026-11-26-public-holidays-norm/`. Lesson: —.
 - **S-06: user can add, edit and see a short plain-text note on a work-time entry.** — Archived 2026-11-26 → `context/archive/2026-11-26-work-entry-note/`. Lesson: —.
 - **S-03: user can start and stop the work-time counter from the tray menu and see today's work time in the tray tooltip next to the source state.** — Archived 2026-11-26 → `context/archive/2026-11-26-tray-timer-control/`. Lesson: —.
+- **S-02: user can set the daily norm in settings (default 8 h) and mark a half day off in the days table, and the report counts both.** — Archived 2026-11-27 → `context/archive/2026-11-26-configurable-daily-norm/`. Lesson: —.

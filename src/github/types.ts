@@ -46,4 +46,10 @@ export type GithubSnapshot = {
   refreshing: boolean;
   /** Bumped on every stored change; snapshots are ordered by this. */
   seq: number;
+  /** Invalid `githubRefresh.minutes`: the default interval is in use. */
+  refreshSettingInvalid: boolean;
+  /** The interval (minutes) the last round used. */
+  refreshMinutes: number;
+  /** When the wait after the last round ends (UTC ms); `null` before the first round. */
+  nextRefreshAtMs: number | null;
 };

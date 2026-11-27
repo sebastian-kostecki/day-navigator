@@ -249,6 +249,15 @@ CREATE UNIQUE INDEX todo_items_live_github
         sql: "ALTER TABLE work_entries ADD COLUMN note TEXT NOT NULL DEFAULT ''
   CHECK (length(note) <= 200 AND instr(note, char(10)) = 0 AND instr(note, char(13)) = 0);",
     },
+    // S-02 (configurable-daily-norm): kind of a day off. `full` = whole day (every
+    // existing row), `half` = half of the daily norm; the primary key of `day`
+    // excludes both at once. Planned as v12; on a merge clash it takes the next
+    // free number.
+    Migration {
+        version: 12,
+        sql: "ALTER TABLE days_off ADD COLUMN kind TEXT NOT NULL DEFAULT 'full'
+  CHECK (kind IN ('full', 'half'));",
+    },
 ];
 
 /// Versions must start at 1 and rise by exactly 1.

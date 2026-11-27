@@ -24,6 +24,15 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
   logged in the event log like the header). The tray tooltip shows today's
   work time under the source state, and the tray icon has a "counter running"
   variant (a source error still shows the error icon).
+- "Czas pracy": the daily norm is set in `settings.json` with
+  `"workTime": { "dailyNormHours": 8 }` (1–10 hours in whole minutes, default 8).
+  There is one value and no history, so a change recalculates every month,
+  closed ones included. An invalid value is reported and the dashboard tiles
+  show "raport niedostępny".
+- "Czas pracy": half a day off, in the "Wolne" control of the days table
+  ("nie" / "½" / "tak") and in the "Dzień" control of the "Wybrany dzień"
+  panel. It counts half the daily norm, and the "Dni wolne" tile counts it as
+  0.5. Existing days off stay whole days.
 
 ## [0.10.1] - 2026-11-26
 

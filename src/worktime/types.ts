@@ -76,7 +76,10 @@ export interface DayEntries {
   dayEndMs: number;
 }
 
-export type DayKind = "workday" | "dayOff" | "holiday" | "weekend";
+export type DayKind = "workday" | "halfDayOff" | "dayOff" | "holiday" | "weekend";
+
+/** The state a day is set to; the three settable `DayKind`s. */
+export type DayMark = "workday" | "halfDayOff" | "dayOff";
 
 export type MonthPhase = "past" | "current" | "future";
 
@@ -100,12 +103,16 @@ interface MonthReportBase {
   asOfMs: number;
   workedMs: number;
   normMs: number;
+  /** The configured full-day norm (`workTime.dailyNormHours`, default eight hours). */
+  dailyNormMs: number;
   workdays: number;
   /**
    * `YYYY-MM-DD`, sorted, this month only. Rows on a public holiday are left
    * out: the holiday shadows them.
    */
   daysOff: string[];
+  /** Half days off, `YYYY-MM-DD`, sorted; holiday-shadowed rows left out too. */
+  halfDaysOff: string[];
   /** All days of the month, ascending. */
   days: DayReport[];
 }
@@ -120,6 +127,7 @@ export type MonthReport =
       normToDateMs: number;
       deviationMs: number;
       workdaysAfterToday: null;
+      halfDaysAfterToday: null;
       neededPerDayMs: null;
       remainingMs: null;
     })
@@ -128,6 +136,8 @@ export type MonthReport =
       normToDateMs: number;
       deviationMs: number;
       workdaysAfterToday: number;
+      /** How many of those days are half days off (norm below the full day). */
+      halfDaysAfterToday: number;
       /** `null` when no workday is left after today. */
       neededPerDayMs: number | null;
       remainingMs: number;
@@ -137,6 +147,7 @@ export type MonthReport =
       normToDateMs: null;
       deviationMs: null;
       workdaysAfterToday: null;
+      halfDaysAfterToday: null;
       neededPerDayMs: null;
       remainingMs: null;
     });

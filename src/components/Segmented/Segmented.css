@@ -28,3 +28,8 @@
 .dn-seg-btn:focus-visible {
   outline-offset: -2px;
 }
+
+.dn-seg-btn:disabled {
+  color: var(--ink-faint);
+  cursor: default;
+}

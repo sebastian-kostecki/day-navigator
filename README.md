@@ -52,7 +52,8 @@ the hours you spend on it.
   date and priority.
 - **Czas pracy (Work time):** a START/STOP counter that is always visible in the header and
   survives restarts and crashes. Also includes:
-  - day and month sums against an 8-hour workday norm, with Polish public holidays counted out;
+  - day and month sums against a daily norm (8 hours by default, set in `settings.json`), with
+    Polish public holidays counted out and a half day off counting half the norm;
   - a table of the month's days and days off;
   - reminders when the counter runs too long, or is not running after a set hour on a workday;
   - START/STOP from the tray menu; the tray tooltip shows today's work time and the tray icon
@@ -108,7 +109,7 @@ The app reads it and never changes it. Every block is optional. The **Czas pracy
   "github": { "repos": ["octo-org/alpha", "octo-org/beta"] },
   "todo": { "limit": 5 },
   "reminders": { "longRunningHours": 10, "notRunningAfter": "09:00" },
-  "workTime": { "holidays": "pl" }
+  "workTime": { "holidays": "pl", "dailyNormHours": 8 }
 }
 ```
 
@@ -120,9 +121,11 @@ The app reads it and never changes it. Every block is optional. The **Czas pracy
 | `github`        | `owner/name` repositories to read issues from (up to 50).                                          |
 | `todo`          | "To do" list limit, 1–20 (default 5).                                                              |
 | `reminders`     | `longRunningHours` 1–24 and `notRunningAfter` `"HH:MM"`; `false` turns a reminder off.             |
-| `workTime`      | `holidays`: `"pl"` (default) counts Polish public holidays out of the norm; `false` turns the calendar off. |
+| `workTime`      | `holidays`: `"pl"` (default) counts Polish public holidays out of the norm; `false` turns the calendar off. `dailyNormHours`: the daily norm as a number of hours, 1–10 in whole minutes (for example `7.5`; missing or `null` = 8). One value, no history: changing it recalculates every month, closed ones included. |
 
-An invalid block is reported in the **Źródła** view and does not affect the other blocks. The exception is `workTime`: an invalid block is reported in the **Czas pracy** view (month report and days table) and in the dashboard's month tiles, not in **Źródła**; START/STOP keeps working.
+An invalid block is reported in the **Źródła** view and does not affect the other blocks. The exception is `workTime`: an invalid block is reported in the **Czas pracy** view (month report and days table) and in the dashboard's month tiles, not in **Źródła**; START/STOP keeps working. With an invalid `dailyNormHours` the report error names it, the dashboard tiles show "raport niedostępny", and the status, entries and reminders fall back to 8 hours.
+
+A day can be a whole or a half day off: in the days table the "Wolne" control has three buttons ("nie" / "½" / "tak"), and the "Wybrany dzień" panel has "Dzień" with "roboczy" / "pół dnia wolnego" / "wolny". A half day off stays a workday with half the daily norm; it is refused on weekends and holidays, and the "counter not running" reminder stays silent that day. The "Dni wolne" tile counts a half day as 0.5, and "Średnio / dzień" is the time needed per full workday.
 
 ## Development
 

@@ -223,13 +223,17 @@ pub async fn work_month_report(app: AppHandle, day: String) -> Result<MonthRepor
 }
 
 #[tauri::command]
-pub async fn set_day_off(app: AppHandle, day: String, off: bool) -> Result<(), WorkTimeError> {
+pub async fn set_day_off(
+    app: AppHandle,
+    day: String,
+    mark: report::DayMark,
+) -> Result<(), WorkTimeError> {
     let day = report::parse_day(&day)?;
     run_with_settings(
         &app,
         "set_day_off",
         Policy::Strict,
-        move |store, now, settings| report::set_day_off(store, day, off, now, settings),
+        move |store, now, settings| report::set_day_off(store, day, mark, now, settings),
     )
     .await?;
     notify(&app);
@@ -267,6 +271,24 @@ mod tests {
             let s = work_time_settings(Some(&path), policy).unwrap();
             assert_eq!(s.holidays, HolidayCalendar::Off);
         }
+    }
+
+    #[test]
+    fn a_valid_norm_is_read_and_an_invalid_one_follows_the_policy() {
+        let (_dir, path) = file(r#"{"version":1,"workTime":{"dailyNormHours":7.5}}"#);
+        for policy in [Policy::Strict, Policy::Lenient] {
+            let s = work_time_settings(Some(&path), policy).unwrap();
+            assert_eq!(s.daily_norm_ms, 27_000_000);
+        }
+        let (_dir, bad) = file(r#"{"version":1,"workTime":{"dailyNormHours":11}}"#);
+        assert!(matches!(
+            work_time_settings(Some(&bad), Policy::Strict),
+            Err(WorkTimeError::SettingsInvalid)
+        ));
+        assert_eq!(
+            work_time_settings(Some(&bad), Policy::Lenient).unwrap(),
+            WorkTimeSettings::default()
+        );
     }
 
     #[test]

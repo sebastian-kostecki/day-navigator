@@ -1,10 +1,10 @@
 ---
 change_id: source-refresh-skeleton
 title: Shared source refresh skeleton for GitLab and GitHub
-status: impl_reviewed
+status: archived
 created: 2026-11-27
 updated: 2026-11-27
-archived_at: null
+archived_at: 2026-11-27T15:44:05Z
 ---
 
 ## Notes

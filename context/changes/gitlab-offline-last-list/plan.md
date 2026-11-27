@@ -136,13 +136,13 @@ None. No store schema change.
 
 #### Automated
 
-- [ ] 1.1 Lint passes: `npm run lint`
-- [ ] 1.2 Formatting passes: `npm run format:check`
-- [ ] 1.3 Type check and build pass: `npm run build`
-- [ ] 1.4 Rust formatting passes: `cargo fmt --check`
-- [ ] 1.5 Clippy passes: `cargo clippy --all-targets -- -D warnings`
-- [ ] 1.6 Rust tests pass: `cargo test`
-- [ ] 1.7 Only `src/gitlab/GitlabView.tsx` changes among code files
+- [x] 1.1 Lint passes: `npm run lint`
+- [x] 1.2 Formatting passes: `npm run format:check`
+- [x] 1.3 Type check and build pass: `npm run build`
+- [x] 1.4 Rust formatting passes: `cargo fmt --check`
+- [x] 1.5 Clippy passes: `cargo clippy --all-targets -- -D warnings`
+- [x] 1.6 Rust tests pass: `cargo test`
+- [x] 1.7 Only `src/gitlab/GitlabView.tsx` changes among code files: `git diff --stat develop...HEAD -- src src-tauri`
 
 #### Manual
 
@@ -151,4 +151,7 @@ None. No store schema change.
 - [ ] 1.10 Hidden rows on the dimmed offline list are readable
 - [ ] 1.11 Row actions and filter bar, "Zamknięte" panel, footnote work dimmed offline
 - [ ] 1.12 VPN back on: list returns to normal; error and ok states unchanged
-- [ ] 1.13 No CSP check needed (no new resource)
+- [ ] 1.13 Empty kept list offline: card, dimmed empty message under it, header `0 widoczne · 0 ukryte`
+- [ ] 1.14 NOWE flags still show on the dimmed offline list
+
+Note: no CSP check needed, no new resource or connection.

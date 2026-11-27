@@ -96,6 +96,77 @@ fn upgrade_from_v9_keeps_rows_and_reaches_latest() {
 }
 
 #[test]
+fn upgrade_to_the_autostart_source_keeps_rows_and_accepts_the_new_source() {
+    let (_tmp, dir) = test_store_dir();
+    // Found by content, never by number: a renumbering needs no change here.
+    let pos = schema::MIGRATIONS
+        .iter()
+        .position(|m| m.sql.contains("CREATE TABLE events_new"))
+        .expect("the events rebuild migration");
+    let autostart_error = || NewEvent::SourceError {
+        source: SourceId::Autostart,
+        label: "Wymyślony autostart".to_string(),
+        error_kind: "Busy".to_string(),
+    };
+    let rows_before = {
+        let mut old = Store::open(&dir, &schema::MIGRATIONS[..pos], day(23)).unwrap();
+        let events = [
+            ticked(),
+            NewEvent::SourceError {
+                source: SourceId::Reminders,
+                label: "Wymyślone przypomnienia".to_string(),
+                error_kind: "Busy".to_string(),
+            },
+        ];
+        record(&mut old, day(23), at(23, 8, 0), &events).unwrap();
+        assert_eq!(count(&old), 2);
+        // The old CHECK refuses the new source.
+        assert!(record(&mut old, day(23), at(23, 8, 1), &[autostart_error()]).is_err());
+        assert_eq!(count(&old), 2);
+        list_today(&old, day(23)).unwrap()
+    };
+    assert_eq!(rows_before.events.len(), 2);
+
+    let mut store = open(&dir);
+    assert_eq!(
+        scalar(&store, "PRAGMA user_version"),
+        schema::MIGRATIONS.len() as i64
+    );
+    assert_eq!(count(&store), 2);
+    let rows_after = list_today(&store, day(23)).unwrap();
+    assert_eq!(rows_after.events.len(), 2);
+    for (before, after) in rows_before.events.iter().zip(&rows_after.events) {
+        assert_eq!(before.id, after.id);
+        assert_eq!(before.at, after.at);
+        assert_eq!(before.event, after.event);
+    }
+
+    // The new source now records.
+    record(&mut store, day(23), at(23, 8, 2), &[autostart_error()]).unwrap();
+    assert_eq!(count(&store), 3);
+
+    // The other CHECKs still hold.
+    let bad_source = store.write::<_, StoreError>(|tx| {
+        tx.execute(
+            "INSERT INTO events (at, kind, source_id) \
+             VALUES ('2026-11-23T08:03:00', 'sourceError', 'bogus')",
+            [],
+        )?;
+        Ok(())
+    });
+    assert!(bad_source.is_err());
+    let bad_kind = store.write::<_, StoreError>(|tx| {
+        tx.execute(
+            "INSERT INTO events (at, kind) VALUES ('2026-11-23T08:03:00', 'bogus')",
+            [],
+        )?;
+        Ok(())
+    });
+    assert!(bad_kind.is_err());
+    assert_eq!(count(&store), 3);
+}
+
+#[test]
 fn record_then_list_returns_newest_first_with_fields() {
     let (_tmp, dir) = test_store_dir();
     let mut store = open(&dir);

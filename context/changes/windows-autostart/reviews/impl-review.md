@@ -52,7 +52,7 @@ Diff reviewed: `d34904a..HEAD` on `slice/windows-autostart` (p1 `b27f063`, p2 `f
 - **Location**: src-tauri/src/store/schema.rs:252 (test belongs in src-tauri/tests/events.rs)
 - **Detail**: The table rebuild (create `events_new`, copy, drop, rename) is the only migration in this slice, and it rewrites user data. In this repo every migration that changes data has an upgrade test that opens the store at the previous version, writes rows and reopens at latest: `upgrade_from_v9_keeps_rows_and_reaches_latest` (events v10), `note_migration` in `tests/work_time.rs` (v11), and the tests in `tests/new_assignments.rs` and `tests/todo.rs`. v12 is covered only on a fresh store (`every_source_id_round_trips`). Nothing checks that today's rows survive the copy with their `id`, `at` and fields, that the old CHECKs still reject bad values, or that the copy matches column for column after the integrator renumbers it to v13.
 - **Fix**: Add a test to `tests/events.rs`. Locate the migration by content (`MIGRATIONS.iter().position(|m| m.sql.contains("CREATE TABLE events_new"))`, never by number, so renumbering to v13 needs no test change). Open with `MIGRATIONS[..before]` and insert one item event (for example `ticked`, own, invented title) and one `sourceError` for `'reminders'`. Show that `'autostart'` is refused at that version. Reopen with the full list and assert: `user_version == MIGRATIONS.len()`, both rows are present with the same `id` and fields (also through `events::list_today`), an Autostart `sourceError` now records, and a bogus `source_id` / `kind` is still refused.
-- **Decision**: PENDING
+- **Decision**: FIXED (commit: see git log, `fix(windows-autostart): impl-review fixes`)
 
 ### F2 — The plan still says "no store migration"
 
@@ -62,7 +62,7 @@ Diff reviewed: `d34904a..HEAD` on `slice/windows-autostart` (p1 `b27f063`, p2 `f
 - **Location**: context/changes/windows-autostart/plan.md:64 and :328
 - **Detail**: "What We're NOT Doing" says "No new FR, no store migration", and "Migration Notes" says "No store change." The implementation added migration v12 in p1 (`b27f063`). It was needed, because the v10 `source_id` CHECK refuses `'autostart'`, which research and the plan review both missed. The deviation is recorded only in the p1 commit message. The plan is the source of truth for the integrator (who must renumber it) and for archive, so it should say so.
 - **Fix**: Add an addendum to the plan. Under "Migration Notes", add: "Migration v12 (to be renumbered on merge; S-02 also claims v12) rebuilds `events` so its `source_id` CHECK accepts `'autostart'`; same columns and CHECKs otherwise; found in p1." Change the NOT-doing bullet to "No new FR, no roadmap edit". Add the `store/schema.rs` file to Phase 1 §2 "Changes Required".
-- **Decision**: PENDING
+- **Decision**: FIXED (same commit)
 
 ### F3 — Before merge, check that no local database was migrated by this branch
 
@@ -72,7 +72,7 @@ Diff reviewed: `d34904a..HEAD` on `slice/windows-autostart` (p1 `b27f063`, p2 `f
 - **Location**: src-tauri/src/store/schema.rs:256
 - **Detail**: A debug or dev build of this branch uses the same bundle identifier, so it uses the same app data dir as the installed app. If any build of this branch ever opened the real `day-navigator.db`, that database is at `user_version = 12` with the events rebuild. After the integrator moves this migration to v13 and S-02 takes v12, such a database would skip S-02's v12 forever and then run v13. The schema would drift silently. This is not a code defect, and the risk applies to every slice that adds a migration in parallel.
 - **Fix**: At merge, confirm that the real database's `PRAGMA user_version` is ≤ 11 (wave 1 level). If it is not, restore a backup as AGENTS.md describes before running the merged build.
-- **Decision**: PENDING
+- **Decision**: NOTED, deferred to the integrator (check `PRAGMA user_version` <= 11 at merge)
 
 ### F4 — README "Privacy and safety" does not mention the registry write
 
@@ -82,7 +82,7 @@ Diff reviewed: `d34904a..HEAD` on `slice/windows-autostart` (p1 `b27f063`, p2 `f
 - **Location**: README.md:71-73
 - **Detail**: The "Local data" bullet lists where the app keeps data (config folder, app data folder). The new Run value is the app's only write outside its folders. It is documented in Configuration (README.md:129) but not where a reader checks what the app touches. The plan did not ask for this, so this is optional.
 - **Fix**: Append to the "Local data" bullet: "With `autostart` on, the app also keeps one entry in the current user's Windows Run key (see Configuration)."
-- **Decision**: PENDING
+- **Decision**: FIXED (same commit)
 
 ### F5 — A Run value of a non-string type is reported on every start and never repaired
 
@@ -92,7 +92,7 @@ Diff reviewed: `d34904a..HEAD` on `slice/windows-autostart` (p1 `b27f063`, p2 `f
 - **Location**: src-tauri/src/autostart/hkcu.rs:23-27
 - **Detail**: `get_value::<String, _>` fails with `InvalidData` when a value named `com.sebas.day-navigator` exists with a non-string type (for example REG_DWORD or REG_BINARY). That gives `Failed { Read, InvalidData }`, and A7 means nothing is written. The message promises "Aplikacja spróbuje ponownie przy następnym uruchomieniu", but every later start fails the same way until the user deletes the value by hand. This is very unlikely, because only this app writes that name. It is never silent, since the error is surfaced. It is consistent with A7.
 - **Fix**: None needed. If it matters, `FailedStep::Read` with `InvalidData` could use a phrase that tells the user to remove the entry in Task Manager instead of promising a retry.
-- **Decision**: PENDING
+- **Decision**: NOTED, no change needed (consistent with A7)
 
 ### F6 — Progress rows 2.8 and 2.9 have no commit SHA
 
@@ -102,4 +102,4 @@ Diff reviewed: `d34904a..HEAD` on `slice/windows-autostart` (p1 `b27f063`, p2 `f
 - **Location**: context/changes/windows-autostart/plan.md:402-403
 - **Detail**: Every other ticked Automated row ends with ` — <sha>`. 2.8 (`winreg` normal dependency) and 2.9 (no frontend/config change) do not. Both checks pass today (see the evidence above), so this is bookkeeping only.
 - **Fix**: Append ` — f6b4cbd` to rows 2.8 and 2.9.
-- **Decision**: PENDING
+- **Decision**: FIXED (same commit)

@@ -61,7 +61,7 @@ Verify with `cargo test` (pure rules with an in-memory fake) and in an installed
 - No NSIS uninstall hook; README tells the user how to clean up before uninstalling.
 - No re-sync while the app runs: the key is read once per start; an edit takes effect at the next start.
 - No test against the real registry, not even a scratch HKCU subkey.
-- No new FR, no store migration, no roadmap edit (the task forbids editing `context/foundation/roadmap.md`, so the skill's roadmap status sync is skipped).
+- No new FR, no roadmap edit (the task forbids editing `context/foundation/roadmap.md`, so the skill's roadmap status sync is skipped).
 
 ## Implementation Approach
 
@@ -99,7 +99,7 @@ The `autostart` block loader, the `Autostart` source id, and a `tauri`-free modu
 
 #### 2. Source id, toast phrase and event-log key
 
-**File**: `src-tauri/src/health/mod.rs`, `src-tauri/src/events/mod.rs`, `src-tauri/tests/events.rs`, `src/events/types.ts`
+**File**: `src-tauri/src/health/mod.rs`, `src-tauri/src/events/mod.rs`, `src-tauri/tests/events.rs`, `src/events/types.ts`, `src-tauri/src/store/schema.rs` (migration v12, found in p1: rebuilds `events` so its `source_id` CHECK accepts `'autostart'`)
 
 **Intent**: Give the new source a stable key and a fixed toast phrase for its failure kind, and make the event log read back the transitions the health round records for it.
 
@@ -325,7 +325,7 @@ One settings read and at most one registry read plus one write/remove per start,
 
 ## Migration Notes
 
-No store change. Existing users see a new "Autostart" row reading NIESKONFIGUROWANE until they add the key. A Run value left behind by an uninstall points to a missing exe; Windows skips it, and README tells how to remove it. "Release build" is the proxy for "installed": any release copy started with the key on (for example from `target/release`) writes its own path, and the next start of the installed app writes the installed path back (A3).
+Migration v12 (renumber on merge; S-02 also claims v12) rebuilds `events` so its `source_id` CHECK accepts `'autostart'`; same columns and CHECKs otherwise; found in p1. Existing users see a new "Autostart" row reading NIESKONFIGUROWANE until they add the key. A Run value left behind by an uninstall points to a missing exe; Windows skips it, and README tells how to remove it. "Release build" is the proxy for "installed": any release copy started with the key on (for example from `target/release`) writes its own path, and the next start of the installed app writes the installed path back (A3).
 
 ## Decisions
 
@@ -399,8 +399,8 @@ No user was reachable during planning; each default follows `research.md` unless
 - [x] 2.5 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — f6b4cbd
 - [x] 2.6 Registry code lives only in `hkcu.rs` — f6b4cbd
 - [x] 2.7 No test uses the real registry — f6b4cbd
-- [x] 2.8 `winreg` is a normal dependency of the app with no new package
-- [x] 2.9 No frontend, capability or config change
+- [x] 2.8 `winreg` is a normal dependency of the app with no new package — f6b4cbd
+- [x] 2.9 No frontend, capability or config change — f6b4cbd
 
 #### Manual
 

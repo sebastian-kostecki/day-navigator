@@ -71,7 +71,8 @@ the hours you spend on it.
   edits, closes, comments on or assigns anything.
 - **Local data.** Your data stays on your machine. Settings are in the app config folder.
   Your own tasks, the "To do" list and work time are kept in a local SQLite database in the
-  app data folder, with a daily backup (7 kept).
+  app data folder, with a daily backup (7 kept). With `autostart` on, the app also keeps one
+  entry in the current user's Windows Run key (see Configuration).
 - **No VPN.** When the work GitLab cannot be reached, the app shows a calm "unavailable"
   state with the time of the last successful refresh.
 

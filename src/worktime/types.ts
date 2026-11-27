@@ -78,6 +78,9 @@ export interface DayEntries {
 
 export type DayKind = "workday" | "halfDayOff" | "dayOff" | "holiday" | "weekend";
 
+/** The state a day is set to; the three settable `DayKind`s. */
+export type DayMark = "workday" | "halfDayOff" | "dayOff";
+
 export type MonthPhase = "past" | "current" | "future";
 
 export interface DayReport {

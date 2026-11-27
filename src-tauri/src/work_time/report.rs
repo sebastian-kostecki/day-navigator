@@ -6,7 +6,7 @@
 
 use chrono::{Datelike, NaiveDate, TimeZone, Weekday};
 use rusqlite::Connection;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use super::error::WorkTimeError;
 use super::holidays::HolidayCalendar;
@@ -236,7 +236,8 @@ pub fn parse_day(day: &str) -> Result<NaiveDate, WorkTimeError> {
 }
 
 /// The state a day is set to: a normal workday, half a day off or a whole day off.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum DayMark {
     Workday,
     HalfDayOff,

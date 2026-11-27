@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   DayEntries,
+  DayMark,
   EntryRow,
   MonthReport,
   ReminderSettingsError,
@@ -53,8 +54,8 @@ export function workMonthReport(day: string): Promise<MonthReport> {
 }
 
 /** `day` is `YYYY-MM-DD`; a weekend is refused with `NotAWorkday`, a holiday with `Holiday`. */
-export function setDayOff(day: string, off: boolean): Promise<void> {
-  return invoke<void>("set_day_off", { day, off });
+export function setDayOff(day: string, mark: DayMark): Promise<void> {
+  return invoke<void>("set_day_off", { day, mark });
 }
 
 /** Read-only: the reminder thresholds and whether `settings.json` set them. */

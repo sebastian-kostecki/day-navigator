@@ -1,9 +1,23 @@
-import { Button, DataTable, DataTableCell, DataTableRow, HoursBar, formatHm } from "../components";
+import {
+  Button,
+  DataTable,
+  DataTableCell,
+  DataTableRow,
+  HoursBar,
+  Segmented,
+  formatHm,
+} from "../components";
 import { formatDayLabel, formatEntryCount, formatSigned } from "./format";
-import type { DayReport, MonthReport } from "./types";
+import type { DayMark, DayReport, MonthReport } from "./types";
 import type { DayOffToggle } from "./useDayOffToggle";
 
 const HOUR_MS = 3_600_000;
+
+const DAY_MARK_OPTIONS = [
+  { value: "workday", label: "nie" },
+  { value: "halfDayOff", label: "½" },
+  { value: "dayOff", label: "tak" },
+];
 
 /** `DD.MM` of a `YYYY-MM-DD` day. */
 function dm(day: string): string {
@@ -84,6 +98,7 @@ function DayRow(props: {
               {row.dayOffOwed ? `${row.holiday} · należy się inny dzień wolny` : row.holiday}
             </span>
           )}
+          {row.kind === "halfDayOff" && <span className="wt-days-holiday">pół dnia wolnego</span>}
         </span>
       </DataTableCell>
       <DataTableCell tone={showSum ? textTone : "faint"} className="wt-days-num code">
@@ -104,17 +119,14 @@ function DayRow(props: {
         {deviationMs === null ? "—" : formatSigned(deviationMs)}
       </DataTableCell>
       <DataTableCell className="wt-days-switch">
-        {(row.kind === "workday" || row.kind === "dayOff") && (
-          <label className="wt-check">
-            <input
-              type="checkbox"
-              role="switch"
-              aria-label={`Dzień wolny ${dm(row.day)}`}
-              checked={dayOff.checked(row.day)}
-              disabled={dayOff.busy(row.day)}
-              onChange={(e) => void dayOff.toggle(row.day, e.currentTarget.checked)}
-            />
-          </label>
+        {(row.kind === "workday" || row.kind === "halfDayOff" || row.kind === "dayOff") && (
+          <Segmented
+            label={`Dzień wolny ${dm(row.day)}`}
+            options={DAY_MARK_OPTIONS}
+            value={dayOff.mark(row.day)}
+            disabled={dayOff.busy(row.day)}
+            onChange={(v) => void dayOff.set(row.day, v as DayMark)}
+          />
         )}
       </DataTableCell>
     </DataTableRow>

@@ -10,9 +10,18 @@ export type SegmentedProps = {
   label: string;
   /** sm = control height (default); md = matches the 40px fields. */
   size?: "sm" | "md";
+  /** A request is pending: every button is disabled. */
+  disabled?: boolean;
 };
 
-export function Segmented({ options, value, onChange, label, size = "sm" }: SegmentedProps) {
+export function Segmented({
+  options,
+  value,
+  onChange,
+  label,
+  size = "sm",
+  disabled,
+}: SegmentedProps) {
   return (
     <div role="group" aria-label={label} className={size === "md" ? "dn-seg dn-seg-md" : "dn-seg"}>
       {options.map((o) => {
@@ -23,6 +32,7 @@ export function Segmented({ options, value, onChange, label, size = "sm" }: Segm
             type="button"
             aria-pressed={on}
             className={on ? "dn-seg-btn is-on" : "dn-seg-btn"}
+            disabled={disabled}
             onClick={() => onChange?.(o.value)}
           >
             {o.label}

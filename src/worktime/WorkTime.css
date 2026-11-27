@@ -18,7 +18,7 @@
 }
 
 .wt-days {
-  --dn-table-cols: 84px 76px minmax(0, 1fr) 52px 60px 44px;
+  --dn-table-cols: 84px 76px minmax(0, 1fr) 52px 60px 124px;
 }
 
 .wt-days .dn-hours {
@@ -53,10 +53,6 @@
   justify-content: center;
 }
 
-.wt-days .wt-check {
-  min-height: 0;
-}
-
 .wt-stack {
   display: flex;
   flex-direction: column;
@@ -89,22 +85,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-}
-
-.wt-check {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-height: var(--size-field);
-  color: var(--ink-muted);
-  cursor: pointer;
-}
-
-.wt-check input {
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  accent-color: var(--accent);
 }
 
 .wt-how {

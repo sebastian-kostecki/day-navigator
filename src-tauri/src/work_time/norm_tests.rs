@@ -1282,3 +1282,23 @@ fn half_day_off_serializes_as_the_ui_expects() {
         serde_json::json!("halfDayOff")
     );
 }
+
+#[test]
+fn day_mark_deserializes_the_three_ui_states_and_refuses_others() {
+    for (text, expected) in [
+        ("\"workday\"", report::DayMark::Workday),
+        ("\"halfDayOff\"", report::DayMark::HalfDayOff),
+        ("\"dayOff\"", report::DayMark::DayOff),
+    ] {
+        assert_eq!(
+            serde_json::from_str::<report::DayMark>(text).unwrap(),
+            expected
+        );
+    }
+    for bad in ["\"holiday\"", "\"weekend\"", "true", "\"HalfDayOff\""] {
+        assert!(
+            serde_json::from_str::<report::DayMark>(bad).is_err(),
+            "{bad}"
+        );
+    }
+}

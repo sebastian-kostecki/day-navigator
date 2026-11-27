@@ -491,10 +491,10 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): jedna
 
 #### Automated
 
-- [x] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy pół dnia w `norm_tests.rs` i `reminders_tests.rs`, upgrade v11→v12 i odmowa CHECK w `tests/work_time.rs`, `schema::validate(MIGRATIONS)`, istniejące testy upgrade'u (`tests/events.rs`, `tests/hidden_issues.rs`, `tests/new_assignments.rs`, `tests/todo.rs`) i nowy `tests/half_day_off_crash.rs`
-- [x] 2.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
-- [x] 2.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [x] 2.4 `git diff <commit fazy 1>.. -- src-tauri/src/store/schema.rs` pokazuje tylko dopisaną migrację v12 (bez zmian w v1–v11)
+- [x] 2.1 `cargo test` w `src-tauri/` przechodzi, w tym nowe testy pół dnia w `norm_tests.rs` i `reminders_tests.rs`, upgrade v11→v12 i odmowa CHECK w `tests/work_time.rs`, `schema::validate(MIGRATIONS)`, istniejące testy upgrade'u (`tests/events.rs`, `tests/hidden_issues.rs`, `tests/new_assignments.rs`, `tests/todo.rs`) i nowy `tests/half_day_off_crash.rs` — 7e02106
+- [x] 2.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag — 7e02106
+- [x] 2.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą — 7e02106
+- [x] 2.4 `git diff <commit fazy 1>.. -- src-tauri/src/store/schema.rs` pokazuje tylko dopisaną migrację v12 (bez zmian w v1–v11) — 7e02106
 
 #### Manual
 
@@ -504,10 +504,10 @@ Plan powstał bez dostępu do użytkownika. Decyzje użytkownika (stałe): jedna
 
 #### Automated
 
-- [ ] 3.1 `cargo test` w `src-tauri/` przechodzi, w tym test deserializacji `DayMark`
-- [ ] 3.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
-- [ ] 3.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
-- [ ] 3.4 `git grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(" -- src/worktime/WorkTime.css src/components/Segmented/Segmented.css` nic nie znajduje, a `git grep -n "invoke" -- src/worktime` znajduje `invoke` tylko w `src/worktime/api.ts`
+- [x] 3.1 `cargo test` w `src-tauri/` przechodzi, w tym test deserializacji `DayMark`
+- [x] 3.2 `cargo fmt --check` i `cargo clippy --all-targets -- -D warnings` w `src-tauri/` bez uwag
+- [x] 3.3 `npm run lint`, `npm run format:check` i `npm run build` przechodzą
+- [x] 3.4 `git grep -nE "#[0-9a-fA-F]{3,8}|rgba?\(" -- src/worktime/WorkTime.css src/components/Segmented/Segmented.css` nic nie znajduje, a `git grep -n "invoke" -- src/worktime` znajduje `invoke` tylko w `src/worktime/api.ts`
 
 #### Manual
 

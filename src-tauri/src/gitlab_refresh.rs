@@ -11,7 +11,8 @@
 //! never publish a partition older than a command's. It is never held across a
 //! `glab` call or an `emit`. Lock order: gate, then `kept_config`, then
 //! `kept_full`, then `kept_filter`, then `kept_new`, then `shown_until`, then
-//! `last_mark`, then the snapshot lock. The store lock is taken inside the
+//! `last_mark`, then the snapshot lock (which now lives in the shared
+//! `SourceCell` of `source_refresh.rs`). The store lock is taken inside the
 //! gate, but never while a `kept_*`, `shown_until` or `last_mark` lock is held.
 //!
 //! NEW flags (S-02): a round records its seen set before the gate and brings
@@ -30,12 +31,12 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, RecvTimeoutError};
-use std::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::mpsc;
+use std::sync::{Mutex, RwLockWriteGuard};
 use std::time::{Duration, Instant};
 
 use chrono::{Local, TimeZone};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 use crate::cli::{CliRunner, GitlabConfig, GitlabHost};
 use crate::events::{self, EventError, NewEvent};
@@ -53,22 +54,39 @@ use crate::new_assignments::{
     ItemKey, NewAssignmentError, SessionSeen, items_for, keys_of, mark_fresh, mark_view_seen,
     notices_for, record_round,
 };
-use crate::runtime::{HealthState, now_ms, toast};
+use crate::runtime::{now_ms, toast};
 use crate::settings::{
     DEFAULT_REFRESH_MINUTES, load_gitlab_filter, load_gitlab_refresh_minutes, load_gitlab_settings,
 };
+use crate::source_refresh::{self, RefreshSnapshot, SourceCell, SourceId};
 use crate::store::{StoreError, StoreHandle};
 use crate::todo;
 
-const EVENT: &str = "gitlab-changed";
+const SOURCE: SourceId = SourceId {
+    event: "gitlab-changed",
+    thread: "gitlab-refresh",
+    prefix: "gitlab",
+    target: module_path!(),
+};
 /// Set after the first seen-set write failure of a session was logged as a
 /// warning; later failures log at debug level.
 static SEEN_SET_WARNED: AtomicBool = AtomicBool::new(false);
 
+impl RefreshSnapshot for GitlabSnapshot {
+    fn seq(&self) -> u64 {
+        self.seq
+    }
+
+    fn begin_refresh(&mut self) {
+        self.refreshing = true;
+        self.seq += 1;
+    }
+}
+
 /// Managed state of the GitLab list, shared by the refresh thread, the health
 /// round and the commands.
 pub struct GitlabRefreshState {
-    snapshot: RwLock<GitlabSnapshot>,
+    cell: SourceCell<GitlabSnapshot>,
     /// The host and user the kept items came from. Read by the commands under
     /// `hidden_gate`; written by the refresh thread under it.
     kept_config: Mutex<Option<GitlabConfig>>,
@@ -89,17 +107,13 @@ pub struct GitlabRefreshState {
     last_mark: Mutex<Option<(String, i64)>>,
     /// Serializes a round's commit-and-store step with the hidden-issue commands.
     hidden_gate: Mutex<()>,
-    /// Wakes the refresh thread for an immediate round.
-    wake: mpsc::Sender<()>,
-    /// `seq` of the last snapshot pushed to the webview.
-    published: Mutex<u64>,
 }
 
 impl GitlabRefreshState {
     fn new() -> (Self, mpsc::Receiver<()>) {
-        let (wake, rx) = mpsc::channel();
+        let (cell, rx) = SourceCell::new(GitlabSnapshot::starting(), SOURCE);
         let state = GitlabRefreshState {
-            snapshot: RwLock::new(GitlabSnapshot::starting()),
+            cell,
             kept_config: Mutex::new(None),
             kept_full: Mutex::new(None),
             kept_filter: Mutex::new(GitlabFilter::default()),
@@ -107,8 +121,6 @@ impl GitlabRefreshState {
             shown_until: Mutex::new(None),
             last_mark: Mutex::new(None),
             hidden_gate: Mutex::new(()),
-            wake,
-            published: Mutex::new(0),
         };
         (state, rx)
     }
@@ -116,13 +128,13 @@ impl GitlabRefreshState {
     /// The stored snapshot (`starting` before the first round): a clone under a
     /// short lock.
     pub fn snapshot(&self) -> GitlabSnapshot {
-        self.read().clone()
+        self.cell.snapshot()
     }
 
     /// Asks the refresh thread for a round. Bursts coalesce; fails only when the
     /// thread is gone.
     pub fn wake(&self) -> Result<(), mpsc::SendError<()>> {
-        self.wake.send(())
+        self.cell.wake()
     }
 
     /// One hidden-issue action on an issue of the kept full list, under
@@ -255,12 +267,8 @@ impl GitlabRefreshState {
         Ok(true)
     }
 
-    fn read(&self) -> RwLockReadGuard<'_, GitlabSnapshot> {
-        self.snapshot.read().unwrap_or_else(|p| p.into_inner())
-    }
-
     fn write(&self) -> RwLockWriteGuard<'_, GitlabSnapshot> {
-        self.snapshot.write().unwrap_or_else(|p| p.into_inner())
+        self.cell.write()
     }
 }
 
@@ -444,22 +452,14 @@ pub fn manage(app: &tauri::App) -> mpsc::Receiver<()> {
 /// dir cannot be resolved.
 pub fn start(app: &AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Receiver<()>) {
     let a = app.clone();
-    if let Err(e) = std::thread::Builder::new()
-        .name("gitlab-refresh".into())
-        .spawn(move || refresh_loop(a, settings_path, wake_rx))
-    {
-        log::error!("gitlab: cannot start refresh thread: {e}");
-        // Never leave the view on "Pobieram…" and the tray green: store an error
-        // the view and the health round both show.
-        let state = app.state::<GitlabRefreshState>();
-        let next = {
-            let prev = state.snapshot();
-            gitlab::next_snapshot(&prev, None, None, Err(GitlabError::ThreadDown), now_ms()).0
-        };
-        *state.write() = next;
-        publish(app, &state);
-        let _ = app.state::<HealthState>().wake.send(());
-    }
+    let state = app.state::<GitlabRefreshState>();
+    // Never leave the view on "Pobieram…" and the tray green: when the thread
+    // cannot start, store an error the view and the health round both show.
+    state.cell.start_thread(
+        app,
+        move || refresh_loop(a, settings_path, wake_rx),
+        |prev| gitlab::next_snapshot(prev, None, None, Err(GitlabError::ThreadDown), now_ms()).0,
+    );
 }
 
 fn refresh_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Receiver<()>) {
@@ -468,20 +468,15 @@ fn refresh_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::R
     let mut resume_after = None;
     // Session memory for new-assignment toasts while the store fails.
     let mut session_seen = SessionSeen::new();
-    loop {
-        let wait = refresh_round(
+    source_refresh::run_loop(wake_rx, || {
+        refresh_round(
             &app,
             &settings_path,
             &runner,
             &mut resume_after,
             &mut session_seen,
-        );
-        match wake_rx.recv_timeout(wait) {
-            Ok(()) => while wake_rx.try_recv().is_ok() {},
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => return,
-        }
-    }
+        )
+    });
 }
 
 /// Short, value-free name of a snapshot state for log lines.
@@ -548,12 +543,7 @@ fn refresh_round(
     let before_status = health::gitlab_status(&before);
 
     // Show "refreshing" first; the stored items and state stay as they were.
-    {
-        let mut guard = state.write();
-        guard.refreshing = true;
-        guard.seq += 1;
-    }
-    publish(app, &state);
+    state.cell.begin_round(app);
 
     let (config, fetched) = run_fetch(settings_path, runner);
 
@@ -708,31 +698,19 @@ fn refresh_round(
     // "To do" reconciles on the full list, never the filtered one.
     let todo_changed = reconcile_todo(app, &next, round_full.as_ref());
     // The wait starts when the snapshot is stored.
-    next.next_refresh_at_ms = Some(now_ms().saturating_add(wait.as_millis() as u64));
+    next.next_refresh_at_ms = Some(source_refresh::next_refresh_at_ms(wait));
     *state.write() = next;
     drop(gate);
     publish(app, &state);
-    if todo_changed && let Err(e) = app.emit(todo::CHANGED_EVENT, ()) {
-        log::warn!("todo: emit failed: {e}");
-    }
-    if todo_changed {
-        events::commands::notify(app);
-    }
+    SOURCE.notify_todo_changed(app, todo_changed);
     // After the gate and the publish: no lock is held while a toast shows.
     if let (true, Some(full), Some((_, outcome))) = (may_notify, &round_full, &seen) {
         toast_new_assignments(app, full, &outcome.toast_keys);
     }
 
-    if from != to {
-        log::info!("gitlab: {from} -> {to}");
-    }
-    log::debug!("gitlab: round {to} in {} ms", started.elapsed().as_millis());
-
-    if before_status != after_status {
-        // The GitLab source status changed: run a health round now instead of
-        // waiting up to 30 s for the tray to catch up.
-        let _ = app.state::<HealthState>().wake.send(());
-    }
+    // A changed GitLab source status runs a health round now instead of waiting
+    // up to 30 s for the tray to catch up.
+    SOURCE.end_round(app, &from, &to, started, before_status != after_status);
     wait
 }
 
@@ -855,38 +833,13 @@ fn reconcile_todo(app: &AppHandle, next: &GitlabSnapshot, full: Option<&Assigned
     let result = app.state::<StoreHandle>().with_store(now.date(), |s| {
         todo::reconcile_gitlab(s, account, items, now.date(), now)
     });
-    match result {
-        Ok(changed) => {
-            if changed > 0 {
-                log::debug!("todo: reconcile changed {changed} rows");
-            }
-            changed > 0
-        }
-        // An unopenable store is reported by the health round; a warning every
-        // GitLab round would only repeat it.
-        Err(e @ todo::TodoError::Store(_)) => {
-            log::debug!("todo: reconcile failed: {}", e.kind());
-            false
-        }
-        Err(e) => {
-            log::warn!("todo: reconcile failed: {}", e.kind());
-            false
-        }
-    }
+    SOURCE.log_reconcile(result)
 }
 
 /// Pushes the stored snapshot to the webview unless a newer one was already
-/// pushed. Re-reading under `published` keeps events ordered by `seq`.
+/// pushed.
 pub(crate) fn publish(app: &AppHandle, state: &GitlabRefreshState) {
-    let mut last = state.published.lock().unwrap_or_else(|p| p.into_inner());
-    let snap = state.snapshot();
-    if snap.seq <= *last {
-        return;
-    }
-    *last = snap.seq;
-    if let Err(e) = app.emit(EVENT, &snap) {
-        log::warn!("gitlab: emit failed: {e}");
-    }
+    state.cell.publish(app);
 }
 
 #[cfg(test)]

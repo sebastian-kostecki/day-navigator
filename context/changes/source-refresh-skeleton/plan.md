@@ -118,7 +118,7 @@ Each source module declares one `const SOURCE: SourceId = SourceId { event: …,
   - GitLab keeps `next_refresh_at_ms` → store → `drop(gate)` → publish → `notify_todo_changed` → toasts → `end_round`, in that order.
   - `begin_round` releases the write guard before it publishes.
   - `start_thread` logs the error first, then computes the stand-in from the current snapshot, stores it, publishes it and wakes health.
-- **The rule for test imports.** Test bodies may not change. If a refactor stops using a name in a module's parent scope that its tests need, re-add it with a `#[cfg(test)]` `use` in the parent, or as a `use` line inside the test module (the diff check ignores `use` lines). Do not add `#[allow(dead_code)]` or `#[allow(unused_imports)]` to the skeleton.
+- **The rule for test imports.** Test bodies may not change. If a refactor stops using a name in a module's parent scope that its tests need, re-add it only as a `use` line inside `mod tests` (the diff check ignores `use` lines). Never add a `#[cfg(test)]` item (a `use` or anything else) to the parent scope of `gitlab_refresh.rs`, `github_refresh.rs` or `source_refresh.rs`: the only `#[cfg(test)]` in each file is the one directly above `mod tests`. Today no test needs such a rescue: the only parent names the tests use are `HashSet` and `now_ms` in GitLab, and both stay used by non-test code. Do not add `#[allow(dead_code)]` or `#[allow(unused_imports)]` to the skeleton or to the source modules.
 
 ## Phase 1: Skeleton module and GitHub on it
 
@@ -142,9 +142,10 @@ Adds `source_refresh.rs` with every contract item except `next_refresh_at_ms`, p
 
 **Intent**: Give a unit test to the behaviour that had none before (research §6). These tests are new, so they do not touch any existing test body.
 
-**Contract**: Tests with invented data only:
+**Contract**: Tests with invented data only. A test that needs a `SourceId` uses invented values (for example `"test-changed"`, `"test-refresh"`, `"test"`), never the real event or thread names, so the identity-literal check in Phase 2 stays at one line per literal.
 - `run_loop` coalesces. Queue 3 wakes and use a round that returns 1 h and drops the sender on its 2nd call: exactly 2 rounds run and the call returns.
 - `run_loop` loops on timeout. A round that returns 1 ms and drops the sender on its 3rd call: exactly 3 rounds run.
+- Both `run_loop` tests count the round's calls and panic once the count exceeds a cap of 10 (for example `assert!(calls <= 10, "run_loop did not stop")` at the top of the round). A loop that ignores `Disconnected` or never drains then fails fast instead of hanging `cargo test`.
 - `publish_with` keeps the seq guard: a fake `RefreshSnapshot` with `seq` 0 emits nothing; after a bump it emits once with the new seq; a repeat with no bump or a lower seq emits nothing.
 - `begin_refresh` on `GithubSnapshot::starting()` sets `refreshing` and `seq == 1`. Phase 2 adds the same test for `GitlabSnapshot`.
 
@@ -157,7 +158,7 @@ Adds `source_refresh.rs` with every contract item except `next_refresh_at_ms`, p
 **Contract**:
 - `const SOURCE: SourceId` with `"github-changed"`, `"github-refresh"`, `"github"`, `module_path!()` replaces `EVENT`. `REFRESH_INTERVAL` stays.
 - `impl RefreshSnapshot for GithubSnapshot` lives in this file.
-- `GithubRefreshState { cell: SourceCell<GithubSnapshot>, kept_config: Mutex<Option<GithubConfig>> }`. The private `new() -> (Self, mpsc::Receiver<()>)`, `pub fn snapshot()`, `pub fn wake()` and private `write()` delegate to the cell. Remove `read()` if it is unused.
+- `GithubRefreshState { cell: SourceCell<GithubSnapshot>, kept_config: Mutex<Option<GithubConfig>> }`. The private `new() -> (Self, mpsc::Receiver<()>)`, `pub fn snapshot()`, `pub fn wake()` and private `write()` delegate to the cell. Remove `read()` (see the leftovers below).
 - `github_snapshot`, `refresh_github` (with the text `"Wątek odświeżania GitHuba nie działa"`) and `manage` are unchanged.
 - `start` calls `cell.start_thread`, whose stand-in closure is `github::next_snapshot(prev, None, None, Err(GithubError::ThreadDown), now_ms()).0`.
 - `refresh_loop` calls `source_refresh::run_loop(wake_rx, || refresh_round(…))`.
@@ -165,6 +166,7 @@ Adds `source_refresh.rs` with every contract item except `next_refresh_at_ms`, p
 - `reconcile_todo` keeps its store call and returns `SOURCE.log_reconcile(result)`.
 - `pub(crate) fn publish(app, state)` keeps its signature and delegates to `state.cell.publish(app)`.
 - `state_label`, `run_fetch` and `reconcile_input` are unchanged. Update the module doc to point at `source_refresh.rs`.
+- Leftovers clippy would flag (`-D warnings`), removed in this phase: the private `read()` (its only caller, `snapshot()`, now delegates to the cell) and the imports left unused, `RecvTimeoutError`, `RwLock`, `RwLockReadGuard`, `Emitter` and `HealthState`. Keep `mpsc` (for `mpsc::Receiver` / `mpsc::SendError` in signatures), `Mutex`, `RwLockWriteGuard`, `Duration`, `Instant`, `Manager` and `now_ms`.
 
 #### 4. Module declaration
 
@@ -179,9 +181,9 @@ Adds `source_refresh.rs` with every contract item except `next_refresh_at_ms`, p
 #### Automated Verification:
 
 - All gates pass in the worktree (`npm install` first only if `node_modules` is missing; revert `package-lock.json` if it changes): `npm run lint`, `npm run format:check`, `npm run build`, and in `src-tauri/` `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- Existing test bodies are unchanged (Git Bash, worktree root; prints `… tests unchanged` twice and no diff): `B=$(git merge-base HEAD develop); for f in gitlab_refresh github_refresh; do diff <(git show $B:src-tauri/src/$f.rs | sed -n '/^#\[cfg(test)\]/,$p' | grep -vE '^\s*use ') <(sed -n '/^#\[cfg(test)\]/,$p' src-tauri/src/$f.rs | grep -vE '^\s*use ') && echo "$f tests unchanged"; done`
-- Every skeleton log call carries a target (the two counts are equal): `sed '/^#\[cfg(test)\]/,$d' src-tauri/src/source_refresh.rs | grep -cE 'log::[a-z]+!\('` and `sed '/^#\[cfg(test)\]/,$d' src-tauri/src/source_refresh.rs | grep -c 'target:'`
-- `lib.rs` differs from the merge base by exactly `+pub mod source_refresh;`: `git diff $(git merge-base HEAD develop) -- src-tauri/src/lib.rs | grep -E '^[+-][^+-]'`
+- Existing test bodies are unchanged (Git Bash, worktree root; prints `gitlab_refresh tests unchanged` and `github_refresh tests unchanged` and no diff). The range starts at the column-0 `mod tests` line in both the base file and the new file, so nothing in the parent scope can enter it: `B=$(git merge-base HEAD develop); for f in gitlab_refresh github_refresh; do diff <(git show $B:src-tauri/src/$f.rs | sed -n '/^mod tests/,$p' | grep -vE '^\s*use ') <(sed -n '/^mod tests/,$p' src-tauri/src/$f.rs | grep -vE '^\s*use ') && echo "$f tests unchanged"; done`
+- Every skeleton log call carries a target (Git Bash, worktree root; the two counts are equal). The second count matches only log-call targets (`target: self.target` in `impl SourceId`, `target: self.id.target` in `impl SourceCell`), not the `target: &'static str` field of `SourceId`: `sed '/^mod tests/,$d' src-tauri/src/source_refresh.rs | grep -cE 'log::[a-z]+!\('` and `sed '/^mod tests/,$d' src-tauri/src/source_refresh.rs | grep -cE 'target: *(self\.)?(id\.)?target\b'`
+- `lib.rs` differs from the merge base by exactly `+pub mod source_refresh;` (Git Bash, worktree root): `B=$(git merge-base HEAD develop); git diff --numstat $B -- src-tauri/src/lib.rs` prints `1	0	src-tauri/src/lib.rs` (tab-separated), and `git diff -U0 $B -- src-tauri/src/lib.rs | grep -x '+pub mod source_refresh;'` prints that one line
 - Nothing outside the scope changed (empty output): `git diff --stat $(git merge-base HEAD develop) -- src/ src-tauri/src/store/ src-tauri/src/gitlab/ src-tauri/src/github/ src-tauri/src/runtime.rs src-tauri/src/hidden_issues/ src-tauri/src/todo/ src-tauri/tests/`
 - The new skeleton tests (`run_loop` coalescing, `run_loop` timeout, `publish_with` seq guard, GitHub `begin_refresh`) exist and pass in `cargo test`
 - Committed: `refactor(source-refresh): add shared refresh skeleton and move GitHub onto it`, message ending with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
@@ -223,6 +225,7 @@ Moves `gitlab_refresh.rs` onto the same cell and helpers and adds `next_refresh_
 - `pub(crate) fn publish(app, state)` keeps its signature (used by `hidden_issues/commands.rs:17, 47` and `mark_gitlab_seen`) and delegates.
 - `gitlab_snapshot`, `refresh_gitlab` (`"Wątek odświeżania GitLaba nie działa"`), `mark_gitlab_seen`, `manage` and all source functions are unchanged.
 - In the module doc, the lock-order paragraph keeps its order and says that the snapshot lock now lives in the cell.
+- Leftovers clippy would flag (`-D warnings`), removed in this phase: the private `read()` (`gitlab_refresh.rs:258`, used only by `snapshot()`, which now delegates to the cell) and the imports left unused, `RecvTimeoutError`, `RwLock`, `RwLockReadGuard`, `Emitter` and `HealthState`. Keep `mpsc` (for `mpsc::Receiver` / `mpsc::SendError` in signatures), `Mutex`, `RwLockWriteGuard`, `Duration`, `Instant`, `Manager`, `now_ms`, `toast` and `HashSet` (`now_ms` and `HashSet` are also the parent names the tests use).
 
 ### Success Criteria:
 
@@ -233,7 +236,7 @@ Moves `gitlab_refresh.rs` onto the same cell and helpers and adds `next_refresh_
 - Every skeleton log call carries a target (same two counts as in Phase 1, equal)
 - `lib.rs` still differs from the merge base by exactly `+pub mod source_refresh;` (same command as in Phase 1)
 - Nothing outside the scope changed (same `git diff --stat` command as in Phase 1, empty output)
-- Identity strings each appear exactly once in non-test code under `src-tauri/src/`: `"gitlab-changed"`, `"github-changed"`, `"gitlab-refresh"`, `"github-refresh"`, `"Wątek odświeżania GitLaba nie działa"`, `"Wątek odświeżania GitHuba nie działa"` (`grep -rn --include=*.rs '<string>' src-tauri/src`)
+- Identity strings each appear exactly once as a quoted literal in the three refresh files (Git Bash, worktree root; prints `1 "<literal>"` for all six): `for s in '"gitlab-changed"' '"github-changed"' '"gitlab-refresh"' '"github-refresh"' '"Wątek odświeżania GitLaba nie działa"' '"Wątek odświeżania GitHuba nie działa"'; do echo "$(grep -nF "$s" src-tauri/src/gitlab_refresh.rs src-tauri/src/github_refresh.rs src-tauri/src/source_refresh.rs | wc -l) $s"; done`. The expected lines are the two `SOURCE` consts (event and thread names) and the `refresh_gitlab` / `refresh_github` command errors. The `ThreadDown` messages in `gitlab/mod.rs:205` and `github/mod.rs:130` keep their own copy of the Polish texts, unchanged (the scope check above already shows `gitlab/` and `github/` untouched).
 - No copied mechanics remain: `grep -nE 'recv_timeout|thread::Builder|published' src-tauri/src/gitlab_refresh.rs src-tauri/src/github_refresh.rs` returns no line outside the test modules
 - Committed: `refactor(source-refresh): move GitLab refresh onto the shared skeleton`, message ending with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
 
@@ -263,7 +266,7 @@ Adds one `AGENTS.md` pointer, so later slices (S-01, S-02, S-03, S-06) build on 
 
 - All gates pass in the worktree: `npm run lint`, `npm run format:check`, `npm run build`, and in `src-tauri/` `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
 - Existing test bodies are unchanged (same command as in Phase 1; prints `… tests unchanged` twice)
-- `AGENTS.md` differs from the merge base by exactly one added line: `git diff $(git merge-base HEAD develop) -- AGENTS.md | grep -E '^[+-][^+-]'`
+- `AGENTS.md` differs from the merge base by exactly one added line (Git Bash, worktree root): `B=$(git merge-base HEAD develop); git diff --numstat $B -- AGENTS.md` prints `1	0	AGENTS.md` (tab-separated), and `git diff -U0 $B -- AGENTS.md | grep -E '^\+- .*src-tauri/src/source_refresh\.rs'` prints the new bullet
 - The whole change touches only `AGENTS.md`, `context/changes/source-refresh-skeleton/**`, `src-tauri/src/lib.rs`, `src-tauri/src/source_refresh.rs`, `src-tauri/src/gitlab_refresh.rs` and `src-tauri/src/github_refresh.rs`: `git diff --name-only $(git merge-base HEAD develop)`
 - Committed: `docs(source-refresh-skeleton): point AGENTS.md at the shared refresh skeleton`, message ending with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`
 
@@ -287,7 +290,7 @@ Adds one `AGENTS.md` pointer, so later slices (S-01, S-02, S-03, S-06) build on 
 
 - All existing tests, unchanged: 33 in `gitlab_refresh.rs`, 3 in `github_refresh.rs`, plus the rules tests in `gitlab/mod.rs` and `github/mod.rs` that cover `last_success_ms` and the carry-over of `next_refresh_at_ms`. A behaviour change in a moved path shows up as a failing test.
 - New tests in `source_refresh.rs`:
-  - `run_loop` coalescing and `run_loop` timeout;
+  - `run_loop` coalescing and `run_loop` timeout, each with a round-call cap of 10 that panics;
   - the `publish_with` seq guard;
   - `begin_refresh` for both snapshots;
   - the `next_refresh_at_ms` range.
@@ -310,6 +313,16 @@ None. The same locks, the same clones and the same number of emits; generic code
 ## Migration Notes
 
 None. No store schema change, no settings change and no TS contract change. A rollback is a revert of the phase commits.
+
+## Hand-off to later slices
+
+F-01 delivers less than the roadmap's F-01 outcome lists, on purpose (Defaults 1–3). Later slices read this, not the roadmap wording:
+
+- **GitHub interval and next try.** F-01 gives GitHub only a round that returns its `Duration` (still `REFRESH_INTERVAL`) and the shared `next_refresh_at_ms(wait)` helper. S-02 adds the `GithubSnapshot` fields (`refreshMinutes`, `nextRefreshAtMs`, `refreshSettingInvalid`), their carry-over in `github::next_snapshot`, the setting and the TS type itself.
+- **`lastSuccessMs`** stays in the tauri-free rules `next_snapshot` (`gitlab/mod.rs`, `github/mod.rs`); the skeleton does not set it.
+- **Wake after sleep and "Check now"** stay in `runtime.rs`, through each state's `wake()`; the skeleton only owns the wake channel and the coalescing loop.
+
+`change.md` Notes carry the same scope line. `context/foundation/roadmap.md` is not edited (the orchestrator owns it).
 
 ## Shared files / merge notes
 
@@ -338,6 +351,24 @@ The owner could not be asked. Each item is the safest option and is marked "defa
 10. `state_label` and `run_fetch` stay per source and are not shared. Default chosen by agent.
 11. GitHub moves first (Phase 1), so the skeleton API is proven on the simple round before GitLab's gated round. Default chosen by agent.
 12. Complexity MEDIUM with 0 questions: research and the fixed orchestrator decisions settle every solution choice, and the remaining choices are recorded here. Default chosen by agent.
+13. The `run_loop` tests cap the round at 10 calls and panic above it. Default chosen by agent (plan review F7).
+14. Skeleton tests use invented `SourceId` values, never the real event or thread names. Default chosen by agent (keeps the identity-literal check of plan review F1 at one line each).
+15. The test-body diff check and the log-target count start their range at `^mod tests`, and no `#[cfg(test)]` item is allowed in a parent scope. Default chosen by agent (plan review F4: both fixes, not one).
+16. The scope line for S-02 goes into `change.md` Notes now, during planning, not at archive time. Default chosen by agent (plan review F6; S-02's planner may read `change.md` before F-01 is archived).
+
+## Revision after plan review
+
+Revised after `reviews/plan-review.md` (verdict REVISE, 2026-11-27). Every new check command was run against the current tree, or against a temporary edit that was reverted:
+
+- F1: row 2.6 now counts quoted literals with `grep -nF` in `gitlab_refresh.rs`, `github_refresh.rs` and `source_refresh.rs` only, one line each, and states that `gitlab/mod.rs:205` / `github/mod.rs:130` keep their own copy. Row 2.6 title adjusted to match.
+- F2: rows 1.3/2.3 count only log-call targets (`target: *(self\.)?(id\.)?target\b`), so the `SourceId.target` field no longer counts.
+- F3: rows 1.4/2.4/3.3 use `git diff --numstat` (expect `1	0	src-tauri/src/lib.rs` / `1	0	AGENTS.md`) plus a `-U0` content grep.
+- F4: the test-import rule allows only `use` lines inside `mod tests` and forbids parent-scope `#[cfg(test)]` items; the diff check is anchored on `^mod tests`.
+- F5: Phase 1 §3 and Phase 2 §2 name the leftovers to remove and the names to keep.
+- F6: new "Hand-off to later slices" section, and the same line in `change.md`.
+- F7: the `run_loop` tests cap the round at 10 calls and panic above it.
+
+Phases, contracts and Manual rows are otherwise unchanged.
 
 ## References
 
@@ -373,7 +404,7 @@ The owner could not be asked. Each item is the safest option and is marked "defa
 - [ ] 2.3 Every skeleton log call carries a target
 - [ ] 2.4 `lib.rs` still differs from the merge base by exactly `+pub mod source_refresh;`
 - [ ] 2.5 Nothing outside the scope changed
-- [ ] 2.6 Identity strings each appear exactly once in non-test code
+- [ ] 2.6 Identity strings each appear exactly once in the refresh files
 - [ ] 2.7 No copied mechanics remain in the source modules
 - [ ] 2.8 Committed: `refactor(source-refresh): move GitLab refresh onto the shared skeleton`
 

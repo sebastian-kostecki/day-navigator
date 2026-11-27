@@ -27,7 +27,7 @@ A thin skeleton (`SourceId`, `RefreshSnapshot`, `SourceCell<S>`, `run_loop`, `ne
 | Log target | Skeleton logs pass the source's `module_path!()` | The log plugin prints the target, so moved log calls would otherwise change every line | Plan |
 | `state_label`, `run_fetch` | Stay per source | Tests call `state_label` by name; `run_fetch` is the source fetch S-06 extends | Plan |
 | Order of work | GitHub first, then GitLab | Proves the skeleton API on the plain round before the gated one | Plan |
-| Proof of unchanged tests | Diff of `#[cfg(test)]` modules against the merge base, ignoring `use` lines | Mechanical, repeatable in every phase | Plan |
+| Proof of unchanged tests | Diff of the `mod tests` modules (range anchored on `^mod tests`) against the merge base, ignoring `use` lines; no `#[cfg(test)]` item in a parent scope | Mechanical, repeatable in every phase | Plan |
 | AGENTS.md | One "Project Structure" bullet | Steers later slices onto the skeleton, away from S-05's lines | Plan |
 
 All Plan rows are "default chosen by agent" (non-interactive run).
@@ -78,6 +78,10 @@ Each source state becomes `{ cell: SourceCell<Snapshot>, <source-only fields> }`
 
 ## Success Criteria (Summary)
 
-- All gates are green after every phase, and the `#[cfg(test)]` modules of both refresh modules match `develop` apart from `use` lines.
+- All gates are green after every phase, and the `mod tests` modules of both refresh modules match `develop` apart from `use` lines.
+- Scope checks use `git diff --numstat` (`lib.rs` and `AGENTS.md`: one added line each), log-call targets are counted without the `SourceId.target` field, and each identity literal appears once in the three refresh files (`gitlab/mod.rs` and `github/mod.rs` keep their own `ThreadDown` texts).
+- The `run_loop` tests cap the round at 10 calls, so a broken loop fails instead of hanging.
+
+Revised after the plan review (F1–F7); see "Revision after plan review" and "Hand-off to later slices" in the plan.
 - The built app behaves and logs exactly as 0.11.0 for GitLab and GitHub (Manual rows, checked later by the user).
 - S-02 can give GitHub an interval and a next try by changing only `github_refresh.rs`, `github/mod.rs`, settings and the TS mirror.

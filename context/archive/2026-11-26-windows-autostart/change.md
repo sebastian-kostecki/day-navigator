@@ -1,10 +1,10 @@
 ---
 change_id: windows-autostart
 title: Windows autostart
-status: impl_reviewed
+status: archived
 created: 2026-11-26
-updated: 2026-11-26
-archived_at: null
+updated: 2026-11-27
+archived_at: 2026-11-27T10:06:05Z
 ---
 
 ## Notes

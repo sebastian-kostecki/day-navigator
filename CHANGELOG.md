@@ -24,6 +24,11 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
   logged in the event log like the header). The tray tooltip shows today's
   work time under the source state, and the tray icon has a "counter running"
   variant (a source error still shows the error icon).
+- After STOP in the header, a dismissible "Podsumowanie dnia" panel shows
+  today's work time, the month's deviation, what was ticked off in "Do
+  zrobienia" and what carries over to tomorrow (no question asked). After STOP
+  from the tray, a Windows notification shows today's work time and the
+  month's deviation.
 
 ## [0.10.1] - 2026-11-26
 

@@ -448,12 +448,12 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Automated
 
-- [x] 3.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [x] 3.2 Rust gates still pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (in `src-tauri/`)
-- [x] 3.3 One timer subscription (no timer-status read or `work-time-changed` listener in `src/day-summary` or `App.tsx`; `workTimerStatus()` called only in `useWorkTimer.ts`)
-- [x] 3.4 `invoke` stays in `src/day-summary/api.ts`
-- [x] 3.5 No literal colours in `src/day-summary`
-- [x] 3.6 No Rust, capability or config change: `git diff --quiet HEAD -- src-tauri`
+- [x] 3.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build` — 34be0c3
+- [x] 3.2 Rust gates still pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (in `src-tauri/`) — 34be0c3
+- [x] 3.3 One timer subscription (no timer-status read or `work-time-changed` listener in `src/day-summary` or `App.tsx`; `workTimerStatus()` called only in `useWorkTimer.ts`) — 34be0c3
+- [x] 3.4 `invoke` stays in `src/day-summary/api.ts` — 34be0c3
+- [x] 3.5 No literal colours in `src/day-summary` — 34be0c3
+- [x] 3.6 No Rust, capability or config change: `git diff --quiet HEAD -- src-tauri` — 34be0c3
 
 #### Manual
 
@@ -468,8 +468,8 @@ Agent defaults (no user was reachable; default chosen by agent, user may revise)
 
 #### Automated
 
-- [ ] 4.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 4.2 Rust gates still pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (in `src-tauri/`)
-- [ ] 4.3 Only docs change (`CHANGELOG.md`, `README.md`, `context/foundation/prd.md`, plan Progress)
-- [ ] 4.4 The PRD no longer lists "zamknięcie dnia" as unbuilt and names MS-19
-- [ ] 4.5 Across the slice, norm, report and schema are untouched (diff against the merge base with `develop`)
+- [x] 4.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 4.2 Rust gates still pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test` (in `src-tauri/`)
+- [x] 4.3 Only docs change (`CHANGELOG.md`, `README.md`, `context/foundation/prd.md`, plan Progress)
+- [x] 4.4 The PRD no longer lists "zamknięcie dnia" as unbuilt and names MS-19
+- [x] 4.5 Across the slice, norm, report and schema are untouched (diff against the merge base with `develop`)

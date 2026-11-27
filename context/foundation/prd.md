@@ -231,7 +231,9 @@ No access control changes — current model preserved.
 - Model dostępu bez zmian (`## Access Control Changes`).
 
 ### Rozważone i świadomie NIE wykluczone
-Reszta planu z PRD v2 — przerwy i pomodoro, bloker rozpraszaczy, szybki wpis i skrzynka, zamknięcie dnia, widok tygodnia, poranne „Ułóż plan dnia”, autostart. Nie są non-goals, ale żadne FR ich nie obejmuje, więc w tym MVP nie są budowane z braku wymagania, a nie z zakazu.
+Reszta planu z PRD v2 — przerwy i pomodoro, bloker rozpraszaczy, szybki wpis i skrzynka, widok tygodnia, poranne „Ułóż plan dnia”, autostart. Nie są non-goals, ale żadne FR ich nie obejmuje, więc w tym MVP nie są budowane z braku wymagania, a nie z zakazu.
+
+Zamknięcie dnia jest zbudowane jako podsumowanie dnia po STOP (MS-19), bez nowego FR.
 
 ## Open Questions
 

@@ -5,6 +5,7 @@ import { GitlabListViewProvider } from "./gitlab/GitlabListViewProvider";
 import { GitlabView } from "./gitlab/GitlabView";
 import { useGitlabSeenMark } from "./gitlab/useGitlabSeenMark";
 import { GithubView } from "./github/GithubView";
+import { useGithubSeenMark } from "./github/useGithubSeenMark";
 import { HealthPanel } from "./health/HealthPanel";
 import OwnTasksView from "./own-tasks/OwnTasksView";
 import TodoView from "./todo/TodoView";
@@ -35,6 +36,7 @@ function isEditable(target: EventTarget | null): boolean {
 function App() {
   const [view, setView] = useState<View>("todo");
   useGitlabSeenMark(view);
+  useGithubSeenMark(view);
   // Bumped by each header STOP; 0 means no summary.
   const [summaryRun, setSummaryRun] = useState(0);
 

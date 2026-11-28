@@ -325,6 +325,28 @@ ALTER TABLE events_new RENAME TO events;",
   PRIMARY KEY (source, scope, kind, item_id)
 );",
     },
+    // v16 (slice S-03 `github-new-and-notify`): seen GitHub issues for the NEW
+    // flag of the GitHub view, keyed by the lowercase `owner/name` repo key and
+    // issue number, a per-repo seeding marker and the view's one seen-until
+    // mark. Only keys and instants: no title, URL, reference, label or login.
+    Migration {
+        version: 16,
+        sql: "CREATE TABLE github_seen_repos (
+  repo         TEXT    PRIMARY KEY CHECK (length(repo) BETWEEN 1 AND 255 AND repo = lower(repo)),
+  seeded_at_ms INTEGER NOT NULL
+) WITHOUT ROWID;
+CREATE TABLE github_seen_issues (
+  repo          TEXT    NOT NULL REFERENCES github_seen_repos(repo),
+  issue_number  INTEGER NOT NULL CHECK (issue_number > 0),
+  first_seen_ms INTEGER NOT NULL,
+  last_seen_ms  INTEGER NOT NULL,
+  PRIMARY KEY (repo, issue_number)
+) WITHOUT ROWID;
+CREATE TABLE github_view_mark (
+  id            INTEGER PRIMARY KEY CHECK (id = 1),
+  seen_until_ms INTEGER NOT NULL
+);",
+    },
 ];
 
 /// Versions must start at 1 and rise by exactly 1.

@@ -1,6 +1,10 @@
 // Mirrors the serde output of `GithubSnapshot` in src-tauri/src/github/mod.rs.
 
+import type { StoreError } from "../components/storeError";
 import type { ChangeReason } from "../gitlab/types";
+
+/** Mirrors github_seen::GithubSeenError. */
+export type GithubSeenError = { kind: "Store"; detail: StoreError } | { kind: "Background" };
 
 export type GithubIssue = {
   /** `owner/name` as written in settings. */
@@ -65,4 +69,6 @@ export type GithubSnapshot = {
   refreshMinutes: number;
   /** When the wait after the last round ends (UTC ms); `null` before the first round. */
   nextRefreshAtMs: number | null;
+  /** References of visible issues new since the last visit to this view, in list order. */
+  newReferences: string[];
 };

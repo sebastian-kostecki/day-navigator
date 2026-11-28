@@ -89,6 +89,8 @@ type TableRow = {
   hidden?: boolean;
   /** The time the row shows; the last update when not given. */
   at?: string;
+  /** An assigned MR that also awaits the user's review. */
+  reviewTag?: boolean;
 };
 
 function RowButtons({
@@ -193,6 +195,7 @@ function GitlabRow({
           </span>
         )}
         {item.draft && <Flag tone="change">Draft</Flag>}
+        {row.reviewTag && <Flag tone="info">Do review</Flag>}
         {todoFound && <Flag tone="change">W Do zrobienia</Flag>}
       </DataTableCell>
       <DataTableCell tone="muted" truncate className="gitlab-col-project">
@@ -375,6 +378,51 @@ function ClosedBlock({
   );
 }
 
+function ReviewBlock({
+  items,
+  filteredOut,
+  filterActive,
+  selection,
+  clear,
+  now,
+  actions,
+}: {
+  items: GitlabItem[];
+  filteredOut: number;
+  filterActive: boolean;
+  selection: ViewSelection;
+  clear: () => void;
+  now: number;
+  actions: RowActions;
+}) {
+  const rows = items.filter((i) => matchesView(i, selection)).sort(byUpdated);
+  const viewEmpty = rows.length === 0 && items.length > 0 && isSelectionActive(selection);
+  return (
+    <Panel
+      title="Do review"
+      meta={rows.length}
+      footer={footerNote(filteredOut, items.length - rows.length)}
+    >
+      {viewEmpty ? (
+        <ViewEmpty onClear={clear} />
+      ) : rows.length === 0 ? (
+        <p className="dn-empty">
+          {filterActive && filteredOut > 0
+            ? "Brak merge requestów do review pasujących do filtra."
+            : "Brak merge requestów do review."}
+        </p>
+      ) : (
+        <GitlabTable
+          label="Do review z GitLaba"
+          rows={rows.map((item) => ({ item }))}
+          now={now}
+          actions={actions}
+        />
+      )}
+    </Panel>
+  );
+}
+
 /** The active view-filter values with a way to drop each one or all of them. */
 function ViewFilterRow({
   selection,
@@ -433,7 +481,13 @@ function Lists({
   const options = useMemo(
     () =>
       viewOptions(
-        [...items.mergeRequests, ...items.issues, ...items.hiddenIssues, ...(closed?.items ?? [])],
+        [
+          ...items.mergeRequests,
+          ...items.reviewRequests,
+          ...items.issues,
+          ...items.hiddenIssues,
+          ...(closed?.items ?? []),
+        ],
         selection,
       ),
     [items, closed, selection],
@@ -447,7 +501,7 @@ function Lists({
   const visible = ofKind.filter((i) => matchesView(i, selection));
   const hidden = hiddenOfKind.filter((i) => matchesView(i, selection));
   const rows: TableRow[] = [
-    ...visible.map((item) => ({ item })),
+    ...visible.map((item) => ({ item, reviewTag: item.reviewRequested })),
     ...hidden.map((item) => ({ item, hidden: true })),
   ];
   const beforeView = ofKind.length + hiddenOfKind.length;
@@ -529,6 +583,17 @@ function Lists({
           albo zgłoszenie wróci na listę po zniknięciu z niej.
         </p>
       </div>
+      {kind !== "issue" && (
+        <ReviewBlock
+          items={items.reviewRequests}
+          filteredOut={filteredOut.reviewRequests}
+          filterActive={filterActive}
+          selection={selection}
+          clear={clear}
+          now={now}
+          actions={actions}
+        />
+      )}
       {closed && (
         <ClosedBlock closed={closed} kind={kind} selection={selection} clear={clear} now={now} />
       )}
@@ -591,6 +656,7 @@ export function GitlabView() {
     const shown = items.mergeRequests.length + items.issues.length;
     const hid = items.hiddenIssues.length;
     summary = `${shown} ${plural(shown, "widoczne", "widoczne", "widocznych")} · ${hid} ${plural(hid, "ukryte", "ukryte", "ukrytych")}`;
+    if (items.reviewRequests.length > 0) summary += ` · ${items.reviewRequests.length} do review`;
   } else if (offline) {
     summary = "źródło niedostępne";
   } else if (state.state === "error") {

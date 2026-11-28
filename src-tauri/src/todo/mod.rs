@@ -564,7 +564,8 @@ pub fn remove(
 /// still present. Entries of another account are left alone: a missing item
 /// there says nothing about its state. Own entries are never touched.
 /// An issue the user hid (S-03) is still open and assigned, so it counts as
-/// present: hiding it never ticks its "To do" entry.
+/// present: hiding it never ticks its "To do" entry. A merge request awaiting
+/// the user's review counts as present too.
 /// Returns the number of entries changed (roll-over closings not counted).
 pub fn reconcile_gitlab(
     store: &mut Store,
@@ -578,6 +579,7 @@ pub fn reconcile_gitlab(
         let present: HashMap<(&'static str, &str), &GitlabItem> = items
             .merge_requests
             .iter()
+            .chain(items.review_requests.iter())
             .chain(items.issues.iter())
             .chain(items.hidden_issues.iter())
             .map(|i| ((kind_text(i.kind), i.reference.as_str()), i))

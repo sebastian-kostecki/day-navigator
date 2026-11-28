@@ -101,7 +101,7 @@ fn writer_process() {
     let mut n = newest.map_or(0, |t| ((t - BASE_MS) / STEP_MS) as u64);
     for _ in 0..MAX_WRITER_COMMITS {
         n += 1;
-        record_round(&mut store, ACCOUNT, &round_keys(n), now_of(n)).unwrap();
+        record_round(&mut store, ACCOUNT, &round_keys(n), &[], now_of(n)).unwrap();
         let mut out = std::io::stdout().lock();
         writeln!(out, "committed {n}").unwrap();
         out.flush().unwrap();

@@ -333,6 +333,7 @@ fn ops_leave_other_kinds_and_the_gitlab_issue_table_alone() {
         milestone: None,
         is_new: false,
         hidden_at_ms: None,
+        review_requested: false,
     };
     hidden_issues::hide(&mut store, &host, &issue, NOW - PRUNE_AFTER_MS - 5).unwrap();
     // A future merge-request row of the same source, old enough to be pruned

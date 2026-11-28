@@ -150,6 +150,58 @@ fn second_call_failure_is_unavailable_with_no_partial_result() {
 }
 
 #[test]
+fn review_requests_are_the_third_call_deduped_against_the_assigned_list() {
+    let got = fetch_assigned(&runner("gitlab-assigned"), &host()).expect("data");
+    assert_eq!(
+        refs(&got.review_requests),
+        ["acme/sprockets!5", "acme/gadgets!21"]
+    );
+    assert!(got.review_requests.iter().all(|r| r.review_requested));
+    assert!(
+        got.review_requests
+            .iter()
+            .all(|r| r.kind == ItemKind::MergeRequest)
+    );
+    // The assigned list is unchanged; the MR in both lists is flagged there.
+    assert_eq!(
+        refs(&got.merge_requests),
+        ["acme/widgets!12", "acme/widgets!34", "acme/gizmo!7"]
+    );
+    let flagged: Vec<&str> = got
+        .merge_requests
+        .iter()
+        .filter(|m| m.review_requested)
+        .map(|m| m.reference.as_str())
+        .collect();
+    assert_eq!(flagged, ["acme/widgets!34"]);
+    assert!(got.issues.iter().all(|i| !i.review_requested));
+}
+
+#[test]
+fn review_requests_are_empty_for_empty_arrays() {
+    let got = fetch_assigned(&runner("gitlab-empty"), &host()).expect("data");
+    assert!(got.review_requests.is_empty());
+}
+
+#[test]
+fn a_failing_review_call_fails_the_round_with_no_partial_result() {
+    assert_eq!(
+        fetch_assigned(&runner("gitlab-reviews-no-network"), &host()),
+        Err(GitlabError::Unavailable)
+    );
+    let unknown = fetch_assigned(&runner("unknown-error"), &host()).unwrap_err();
+    let bad_scope = fetch_assigned(&runner("gitlab-reviews-bad-scope"), &host()).unwrap_err();
+    assert!(
+        matches!(bad_scope, GitlabError::Failed { .. }),
+        "{bad_scope:?}"
+    );
+    assert_eq!(
+        std::mem::discriminant(&bad_scope),
+        std::mem::discriminant(&unknown)
+    );
+}
+
+#[test]
 fn missing_program_is_tool_missing() {
     let dir = tempfile::tempdir().unwrap();
     let r = CliRunner::with_programs(
@@ -174,6 +226,10 @@ fn with_a_user_both_endpoint_forms_are_served_and_parsed() {
     let without = fetch_assigned(&runner("gitlab-assigned"), &host()).expect("data");
     assert_eq!(with, without);
     assert_eq!(refs(&with.issues), ["acme/widgets#12", "acme/gizmo#5"]);
+    assert_eq!(
+        refs(&with.review_requests),
+        ["acme/sprockets!5", "acme/gadgets!21"]
+    );
 }
 
 #[test]
@@ -184,6 +240,8 @@ fn with_a_user_failures_never_show_the_user_or_host() {
         "glab-logged-out",
         "unknown-error",
         "gitlab-mrs-ok-issues-no-network",
+        "gitlab-reviews-no-network",
+        "gitlab-reviews-bad-scope",
     ];
     for scenario in cases {
         let err = fetch_assigned(&runner(scenario), &host_with_user()).unwrap_err();

@@ -50,6 +50,8 @@ enum Endpoint {
     ClosedMergeRequests,
     /// `issues?...state=closed...` (recently closed).
     ClosedIssues,
+    /// `merge_requests?scope=reviews_for_me...` or `...&reviewer_username=...`.
+    ReviewMergeRequests,
     /// `projects/<project_id>/issues/<iid>/notes?...`
     Notes {
         project_id: u64,
@@ -76,6 +78,11 @@ fn endpoint() -> Endpoint {
         }
         if arg.starts_with("issues?") && arg.contains("&state=closed&") {
             return Endpoint::ClosedIssues;
+        }
+        if arg.starts_with("merge_requests?")
+            && (arg.contains("scope=reviews_for_me") || arg.contains("&reviewer_username="))
+        {
+            return Endpoint::ReviewMergeRequests;
         }
         if arg.starts_with("merge_requests?") {
             return Endpoint::MergeRequests;
@@ -266,6 +273,42 @@ fn gitlab_assigned_body(endpoint: &Endpoint, paged: bool) -> Option<String> {
                 "web_url": "https://gitlab.example.invalid/acme/widgets/-/merge_requests/12",
                 "updated_at": "2026-03-02T10:00:00.000Z",
                 "references": { "full": "acme/widgets!12" }
+            }
+        ]),
+        Endpoint::ReviewMergeRequests => serde_json::json!([
+            {
+                "id": 6101,
+                "iid": 21,
+                "project_id": 104,
+                "title": "Review gadget cache",
+                "web_url": "https://gitlab.example.invalid/acme/gadgets/-/merge_requests/21",
+                "updated_at": "2026-03-03T08:00:00.000Z",
+                "labels": ["backend"],
+                "draft": false,
+                "references": { "full": "acme/gadgets!21" }
+            },
+            {
+                "id": 6102,
+                "iid": 5,
+                "project_id": 105,
+                "title": "Tune sprocket timeouts",
+                "web_url": "https://gitlab.example.invalid/acme/sprockets/-/merge_requests/5",
+                "updated_at": "2026-03-03T09:00:00.000Z",
+                "labels": [],
+                "milestone": { "id": 31, "iid": 2, "title": "Sprint 7" },
+                "draft": false,
+                "references": { "full": "acme/sprockets!5" }
+            },
+            {
+                "id": 6002,
+                "iid": 34,
+                "project_id": 102,
+                "title": "Add widget parser",
+                "web_url": "https://gitlab.example.invalid/acme/widgets/-/merge_requests/34",
+                "updated_at": "2026-03-02T10:00:00.000Z",
+                "labels": ["backend", "review"],
+                "draft": true,
+                "references": { "full": "acme/widgets!34" }
             }
         ]),
         Endpoint::Issues => {
@@ -728,6 +771,34 @@ fn main() {
                 eprint!("{GLAB_NO_NETWORK}");
                 1
             }
+        },
+        // The MRs and issues answer; the review call has no network.
+        "gitlab-reviews-no-network" => match endpoint() {
+            Endpoint::ReviewMergeRequests => {
+                eprint!("{GLAB_NO_NETWORK}");
+                1
+            }
+            other => match gitlab_assigned_body(&other, false) {
+                Some(body) => {
+                    println!("{body}");
+                    0
+                }
+                None => 98,
+            },
+        },
+        // The MRs and issues answer; the review call is refused with a 400.
+        "gitlab-reviews-bad-scope" => match endpoint() {
+            Endpoint::ReviewMergeRequests => {
+                eprintln!("glab: 400 Bad Request (HTTP 400)");
+                1
+            }
+            other => match gitlab_assigned_body(&other, false) {
+                Some(body) => {
+                    println!("{body}");
+                    0
+                }
+                None => 98,
+            },
         },
         // The open lists and the closed merge requests answer; the closed
         // issues call has no network.

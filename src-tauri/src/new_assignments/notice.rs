@@ -42,6 +42,9 @@ pub fn notices_for(new_items: &[&GitlabItem]) -> Vec<Notice> {
             .map(|item| Notice {
                 title: match item.kind {
                     ItemKind::Issue => format!("{APP_NAME} — nowe zgłoszenie"),
+                    ItemKind::MergeRequest if item.review_requested => {
+                        format!("{APP_NAME} — nowy MR do review")
+                    }
                     ItemKind::MergeRequest => format!("{APP_NAME} — nowy MR"),
                 },
                 body: line(item, usize::MAX, SEPARATE_TITLE_CHARS),

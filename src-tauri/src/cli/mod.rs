@@ -215,6 +215,11 @@ pub const ISSUES_USER_PREFIX: &str = "issues?scope=all&state=opened&assignee_use
 pub const MRS_USER_PREFIX: &str = "merge_requests?scope=all&state=opened&assignee_username=";
 pub const USER_SUFFIX: &str = "&with_labels_details=true&per_page=100";
 
+/// The open merge requests awaiting the user's review (GET, read-only).
+pub const REVIEW_MRS_ENDPOINT: &str =
+    "merge_requests?scope=reviews_for_me&state=opened&with_labels_details=true&per_page=100";
+pub const REVIEW_MRS_USER_PREFIX: &str = "merge_requests?scope=all&state=opened&reviewer_username=";
+
 fn assigned_args(
     fixed: &str,
     prefix: &str,
@@ -373,6 +378,8 @@ pub enum CliCall {
     /// GET of the assigned merge requests, any state, updated since a date
     /// (read-only; the parser keeps the closed and merged ones).
     GlabRecentlyClosedMergeRequests(GitlabHost, Option<GitlabUser>, UpdatedAfter),
+    /// GET of the open merge requests awaiting the user's review (read-only).
+    GlabReviewMergeRequests(GitlabHost, Option<GitlabUser>),
     /// GET of one issue's notes, newest first (read-only).
     GlabIssueNotes(GitlabHost, IssueRef),
     /// `gh issue list` of one repository: open issues assigned to the account
@@ -410,6 +417,11 @@ impl CliCall {
             Some(user.clone()),
         ));
         all.push(CliCall::GlabAssignedMergeRequests(
+            host.clone(),
+            Some(user.clone()),
+        ));
+        all.push(CliCall::GlabReviewMergeRequests(host.clone(), None));
+        all.push(CliCall::GlabReviewMergeRequests(
             host.clone(),
             Some(user.clone()),
         ));
@@ -457,6 +469,7 @@ impl CliCall {
             | CliCall::GlabAssignedMergeRequests(..)
             | CliCall::GlabRecentlyClosedIssues(..)
             | CliCall::GlabRecentlyClosedMergeRequests(..)
+            | CliCall::GlabReviewMergeRequests(..)
             | CliCall::GlabIssueNotes(..) => Tool::Glab,
             CliCall::GhVersion
             | CliCall::GhAuthStatus
@@ -493,6 +506,9 @@ impl CliCall {
                 user,
                 after,
             ),
+            CliCall::GlabReviewMergeRequests(host, user) => {
+                assigned_args(REVIEW_MRS_ENDPOINT, REVIEW_MRS_USER_PREFIX, host, user)
+            }
             CliCall::GlabIssueNotes(host, issue) => issue_notes_args(host, issue),
             CliCall::GhAssignedIssues(repo) => gh_assigned_issues_args(repo),
             CliCall::GhUser => vec!["api".to_string(), "user".to_string()],
@@ -511,6 +527,7 @@ impl CliCall {
             CliCall::GlabAssignedMergeRequests(..) => "glab:assigned-mrs",
             CliCall::GlabRecentlyClosedIssues(..) => "glab:closed-issues",
             CliCall::GlabRecentlyClosedMergeRequests(..) => "glab:closed-mrs",
+            CliCall::GlabReviewMergeRequests(..) => "glab:review-mrs",
             CliCall::GlabIssueNotes(..) => "glab:issue-notes",
             CliCall::GhAssignedIssues(..) => "gh:assigned-issues",
             CliCall::GhUser => "gh:user",
@@ -580,9 +597,9 @@ impl CliError {
 mod tests {
     use super::*;
 
-    const VARIANT_COUNT: usize = 12;
+    const VARIANT_COUNT: usize = 13;
 
-    const EXAMPLE_COUNT: usize = 16;
+    const EXAMPLE_COUNT: usize = 18;
 
     fn example_host() -> GitlabHost {
         GitlabHost::parse("gitlab.example.invalid").unwrap()
@@ -608,6 +625,7 @@ mod tests {
             CliCall::GlabRecentlyClosedMergeRequests(..) => 9,
             CliCall::GhUser => 10,
             CliCall::GhIssueComments(..) => 11,
+            CliCall::GlabReviewMergeRequests(..) => 12,
         }
     }
 
@@ -621,7 +639,7 @@ mod tests {
             assert!(o < VARIANT_COUNT, "ordinal out of range for {c:?}");
             seen[o] += 1;
         }
-        assert_eq!(seen, [1, 1, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1]);
+        assert_eq!(seen, [1, 1, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2]);
         let with_user = examples
             .iter()
             .filter(|c| {
@@ -631,10 +649,11 @@ mod tests {
                         | CliCall::GlabAssignedMergeRequests(_, Some(_))
                         | CliCall::GlabRecentlyClosedIssues(_, Some(_), _)
                         | CliCall::GlabRecentlyClosedMergeRequests(_, Some(_), _)
+                        | CliCall::GlabReviewMergeRequests(_, Some(_))
                 )
             })
             .count();
-        assert_eq!(with_user, 4);
+        assert_eq!(with_user, 5);
         for c in CliCall::ALL {
             assert!(
                 !matches!(
@@ -643,6 +662,7 @@ mod tests {
                         | CliCall::GlabAssignedMergeRequests(..)
                         | CliCall::GlabRecentlyClosedIssues(..)
                         | CliCall::GlabRecentlyClosedMergeRequests(..)
+                        | CliCall::GlabReviewMergeRequests(..)
                         | CliCall::GlabIssueNotes(..)
                         | CliCall::GhAssignedIssues(..)
                         | CliCall::GhIssueComments(..)
@@ -664,7 +684,11 @@ mod tests {
         "--data",
     ];
     const BAD_CHARS: &str = "&|<>^%\"`;$";
-    const ALLOWED_ENDPOINTS: &[&str] = &[ASSIGNED_ISSUES_ENDPOINT, ASSIGNED_MRS_ENDPOINT];
+    const ALLOWED_ENDPOINTS: &[&str] = &[
+        ASSIGNED_ISSUES_ENDPOINT,
+        ASSIGNED_MRS_ENDPOINT,
+        REVIEW_MRS_ENDPOINT,
+    ];
 
     /// The login allow-list, written out here on purpose: the guard must not
     /// trust `GitlabUser::parse`, so a looser validator fails this test.
@@ -740,12 +764,14 @@ mod tests {
                 .chars()
                 .any(|c| c.is_whitespace() || c.is_control() || "#%:/+".contains(c));
         shape_ok
-            && [ISSUES_USER_PREFIX, MRS_USER_PREFIX].iter().any(|prefix| {
-                endpoint
-                    .strip_prefix(prefix)
-                    .and_then(|rest| rest.strip_suffix(USER_SUFFIX))
-                    .is_some_and(guard_login_ok)
-            })
+            && [ISSUES_USER_PREFIX, MRS_USER_PREFIX, REVIEW_MRS_USER_PREFIX]
+                .iter()
+                .any(|prefix| {
+                    endpoint
+                        .strip_prefix(prefix)
+                        .and_then(|rest| rest.strip_suffix(USER_SUFFIX))
+                        .is_some_and(guard_login_ok)
+                })
     }
 
     /// The repo allow-list, written out here on purpose: the guard must not
@@ -874,6 +900,8 @@ mod tests {
         assert!(check_read_only(&["api", &good, "--paginate", "--hostname", host]).is_ok());
         let good_mr = format!("{MRS_USER_PREFIX}invented.user{USER_SUFFIX}");
         assert!(check_read_only(&["api", &good_mr, "--paginate", "--hostname", host]).is_ok());
+        let good_review = format!("{REVIEW_MRS_USER_PREFIX}invented.user{USER_SUFFIX}");
+        assert!(check_read_only(&["api", &good_review, "--paginate", "--hostname", host]).is_ok());
 
         let mut bad_endpoints = vec![
             // other endpoint with the same shape
@@ -884,6 +912,8 @@ mod tests {
             format!("{ISSUES_USER_PREFIX}invented.user&state=closed{USER_SUFFIX}"),
             // empty user
             format!("{ISSUES_USER_PREFIX}{USER_SUFFIX}"),
+            // review form with an extra parameter
+            format!("{REVIEW_MRS_USER_PREFIX}invented.user&state=closed{USER_SUFFIX}"),
         ];
         for bad_user in [
             "a&b", "a/b", "a b", "-a", ".a", "a?b", "a=b", "a%20b", "a#b", ":id", "a:b", "a+b",
@@ -891,6 +921,7 @@ mod tests {
         ] {
             bad_endpoints.push(format!("{ISSUES_USER_PREFIX}{bad_user}{USER_SUFFIX}"));
             bad_endpoints.push(format!("{MRS_USER_PREFIX}{bad_user}{USER_SUFFIX}"));
+            bad_endpoints.push(format!("{REVIEW_MRS_USER_PREFIX}{bad_user}{USER_SUFFIX}"));
         }
         for ep in &bad_endpoints {
             assert!(

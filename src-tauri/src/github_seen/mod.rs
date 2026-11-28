@@ -50,6 +50,20 @@ pub fn round_input(results: &[RepoResult]) -> Vec<RepoRound> {
         .collect()
 }
 
+/// The references of the visible issues that are fresh, in list order. Only
+/// visible issues count (a hidden one is never flagged) and only repos that
+/// loaded (a repo with an error has no list).
+pub fn visible_new(repos: &[crate::github::RepoView], fresh: &HashSet<SeenKey>) -> Vec<String> {
+    let fresh_refs: HashSet<String> = fresh.iter().map(SeenKey::reference).collect();
+    repos
+        .iter()
+        .filter(|repo| repo.error.is_none())
+        .flat_map(|repo| repo.issues.iter())
+        .map(|issue| issue.reference.clone())
+        .filter(|reference| fresh_refs.contains(reference))
+        .collect()
+}
+
 fn damaged() -> GithubSeenError {
     GithubSeenError::Store(StoreError::Damaged {
         reason: "github seen record is unreadable".into(),
@@ -209,6 +223,40 @@ mod tests {
             changed: None,
             hidden_at_ms: None,
         }
+    }
+
+    #[test]
+    fn visible_new_lists_fresh_visible_issues_of_loaded_repos_in_list_order() {
+        use crate::github::{RepoErrorView, RepoView};
+        let repos = vec![
+            RepoView {
+                repo: "Octo-Test/Alpha".to_string(),
+                issues: vec![issue("Octo-Test/Alpha", 2), issue("Octo-Test/Alpha", 1)],
+                hidden: vec![issue("Octo-Test/Alpha", 3)],
+                error: None,
+            },
+            RepoView {
+                repo: "octo-test/beta".to_string(),
+                issues: vec![],
+                hidden: vec![],
+                error: Some(RepoErrorView {
+                    kind: "Failed".to_string(),
+                    message: "invented".to_string(),
+                }),
+            },
+        ];
+        let fresh: HashSet<SeenKey> = [
+            SeenKey::new("octo-test/alpha", 1),
+            SeenKey::new("octo-test/alpha", 2),
+            SeenKey::new("octo-test/alpha", 3),
+            SeenKey::new("octo-test/beta", 1),
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(
+            visible_new(&repos, &fresh),
+            ["octo-test/alpha#2", "octo-test/alpha#1"]
+        );
     }
 
     #[test]

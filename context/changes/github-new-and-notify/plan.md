@@ -561,10 +561,10 @@ One extra `Store::write` per GitHub round (at most 50 repos × 500 issues, the e
 
 #### Automated
 
-- [ ] 3.1 Snapshot tests pass: `cargo test --lib github::tests`
-- [ ] 3.2 Helper test passes: `cargo test --lib github_seen`
-- [ ] 3.3 Full Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [ ] 3.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 3.1 Snapshot tests pass: `cargo test --lib github::tests`
+- [x] 3.2 Helper test passes: `cargo test --lib github_seen`
+- [x] 3.3 Full Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 3.4 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 
 ### Phase 4: Refresh state, round wiring and `mark_github_seen`
 

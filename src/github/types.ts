@@ -65,4 +65,6 @@ export type GithubSnapshot = {
   refreshMinutes: number;
   /** When the wait after the last round ends (UTC ms); `null` before the first round. */
   nextRefreshAtMs: number | null;
+  /** References of visible issues new since the last visit to this view, in list order. */
+  newReferences: string[];
 };

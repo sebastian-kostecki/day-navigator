@@ -66,6 +66,11 @@ export function ChipListField({
     }
   }
 
+  /** Adds text not confirmed with Enter, so a following save includes it. */
+  function onBlur() {
+    if (draft.trim() && add([draft]) === 0) setDraft("");
+  }
+
   function onPaste(event: ClipboardEvent<HTMLInputElement>) {
     const text = event.clipboardData.getData("text");
     if (!/[\r\n,]/.test(text)) return;
@@ -131,6 +136,7 @@ export function ChipListField({
         onChange={(event) => setDraft(event.target.value)}
         onKeyDown={onKeyDown}
         onPaste={onPaste}
+        onBlur={onBlur}
       />
       <span role="status" className="dn-chiplist-note">
         {skipped > 0 ? `Limit pozycji: ${max}. Pominięto: ${skipped}.` : ""}

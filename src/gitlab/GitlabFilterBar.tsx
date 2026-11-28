@@ -1,6 +1,5 @@
-import { useState } from "react";
-import { Button, Chip, Notice, plural } from "../components";
-import { openSettingsErrorMessage, openSettingsFile } from "./api";
+import { Button, Chip, plural } from "../components";
+import { useSettingsDialog } from "../settings/useSettingsDialog";
 import type { FilterRule, GitlabFilterValues } from "./types";
 
 function ruleHasValues(rule: FilterRule): boolean {
@@ -37,16 +36,11 @@ function FilterDimension({ label, rule }: { label: string; rule: FilterRule }) {
   );
 }
 
-/** The active `gitlabFilter` values above the list, with a way to open settings.json. */
+/** The active `gitlabFilter` values above the list, with a way to change them. */
 export function GitlabFilterBar({ filter }: { filter: GitlabFilterValues }) {
-  const [openError, setOpenError] = useState<string | null>(null);
+  const { openAt } = useSettingsDialog();
 
   if (!hasFilterValues(filter)) return null;
-
-  const openSettings = () => {
-    setOpenError(null);
-    openSettingsFile().catch((e: unknown) => setOpenError(openSettingsErrorMessage(e)));
-  };
 
   return (
     <div className="gitlab-filter" role="region" aria-label="Aktywny filtr">
@@ -61,17 +55,10 @@ export function GitlabFilterBar({ filter }: { filter: GitlabFilterValues }) {
           </span>
         )}
         <span className="dn-spacer" />
-        <Button
-          variant="quiet"
-          size="sm"
-          icon="external"
-          title="Otwórz settings.json w domyślnym edytorze"
-          onClick={openSettings}
-        >
+        <Button variant="quiet" size="sm" icon="settings" onClick={() => openAt("gitlab")}>
           Ustawienia
         </Button>
       </div>
-      {openError && <Notice tone="error">{openError}</Notice>}
     </div>
   );
 }

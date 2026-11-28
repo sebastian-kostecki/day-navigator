@@ -1,7 +1,6 @@
-import { useState } from "react";
-import { Button, Notice, Panel, StatusPill } from "../components";
+import { Button, Panel, StatusPill } from "../components";
 import { ErrorState } from "../components/ErrorState";
-import { openSettingsErrorMessage, openSettingsFile } from "../gitlab/api";
+import { useSettingsDialog } from "../settings/useSettingsDialog";
 import { formatClock, formatHm } from "./format";
 import { useReminderSettings } from "./useReminderSettings";
 
@@ -37,12 +36,7 @@ function ReminderRow({
 
 export function RemindersPanel() {
   const { state, retry } = useReminderSettings();
-  const [openError, setOpenError] = useState<string | null>(null);
-
-  const openSettings = () => {
-    setOpenError(null);
-    openSettingsFile().catch((e: unknown) => setOpenError(openSettingsErrorMessage(e)));
-  };
+  const { openAt } = useSettingsDialog();
 
   let body: React.ReactNode;
   if (state.state === "loading") {
@@ -84,22 +78,9 @@ export function RemindersPanel() {
     <Panel
       title="Przypomnienia"
       footer={
-        <>
-          <Button
-            variant="quiet"
-            size="sm"
-            icon="external"
-            title="Otwórz settings.json w domyślnym edytorze"
-            onClick={openSettings}
-          >
-            Ustawienia
-          </Button>
-          {openError && (
-            <Notice tone="error" compact>
-              {openError}
-            </Notice>
-          )}
-        </>
+        <Button variant="quiet" size="sm" icon="settings" onClick={() => openAt("reminders")}>
+          Ustawienia
+        </Button>
       }
     >
       {body}

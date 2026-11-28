@@ -668,9 +668,9 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Automated
 
-- [x] 4.1 `npm run build` (tsc strict plus Vite) shows zero errors
-- [x] 4.2 `npm run lint` and `npm run format:check` pass
-- [x] 4.3 `src/components/Dialog/Dialog.css` and `src/components/ChipListField/ChipListField.css` have no literal colours: `rg "#[0-9a-fA-F]{3,8}|rgba?\(" src/components/Dialog src/components/ChipListField` finds nothing
+- [x] 4.1 `npm run build` (tsc strict plus Vite) shows zero errors — da7f143
+- [x] 4.2 `npm run lint` and `npm run format:check` pass — da7f143
+- [x] 4.3 `src/components/Dialog/Dialog.css` and `src/components/ChipListField/ChipListField.css` have no literal colours: `rg "#[0-9a-fA-F]{3,8}|rgba?\(" src/components/Dialog src/components/ChipListField` finds nothing — da7f143
 
 #### Manual
 
@@ -682,9 +682,9 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Automated
 
-- [ ] 5.1 `npm run build` shows zero errors
-- [ ] 5.2 `npm run lint` and `npm run format:check` pass
-- [ ] 5.3 `cargo test` passes, as a regression check
+- [x] 5.1 `npm run build` shows zero errors
+- [x] 5.2 `npm run lint` and `npm run format:check` pass
+- [x] 5.3 `cargo test` passes, as a regression check
 
 #### Manual
 

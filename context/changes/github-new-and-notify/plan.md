@@ -590,12 +590,12 @@ One extra `Store::write` per GitHub round (at most 50 repos × 500 issues, the e
 
 #### Manual
 
-- [ ] 5.3 In a debug build (`npm run tauri build -- --debug --no-bundle`, own data dir backed up first), the first visit to "GitHub" shows no `Nowe` flag
-- [ ] 5.4 After leaving the GitHub view and assigning yourself a new issue in a configured test repo, the next round shows `Nowe` on that issue only; leaving the view and returning clears it
-- [ ] 5.5 Hiding the window (close button) while on the GitHub view also clears the flag on the next visit
-- [ ] 5.6 A NEW issue moved under "Pokaż ukryte" shows no flag there; unhiding it during the same visit shows `Nowe` again
-- [ ] 5.7 No Windows notification appears for a new GitHub issue, and the DevTools console shows no CSP violation and no "IPC custom protocol failed"
-- [ ] 5.8 The work-time counter in the header keeps running unchanged while switching between GitLab and GitHub
+- [x] 5.3 In a debug build (`npm run tauri build -- --debug --no-bundle`, own data dir backed up first), the first visit to "GitHub" shows no `Nowe` flag — manual 2026-11-28
+- [x] 5.4 After leaving the GitHub view and assigning yourself a new issue in a configured test repo, the next round shows `Nowe` on that issue only; leaving the view and returning clears it — manual 2026-11-28
+- [x] 5.5 Hiding the window (close button) while on the GitHub view also clears the flag on the next visit — manual 2026-11-28
+- [x] 5.6 A NEW issue moved under "Pokaż ukryte" shows no flag there; unhiding it during the same visit shows `Nowe` again — manual 2026-11-28
+- [x] 5.7 No Windows notification appears for a new GitHub issue, and the DevTools console shows no CSP violation and no "IPC custom protocol failed" — manual 2026-11-28
+- [x] 5.8 The work-time counter in the header keeps running unchanged while switching between GitLab and GitHub — manual 2026-11-28
 
 ### Phase 6: AGENTS.md app-data list
 

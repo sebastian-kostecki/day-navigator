@@ -11,8 +11,32 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-11-28
+
 ### Added
 
+- "Projekty (GitHub)": "Ukryj do zmiany" hides an issue until it changes.
+  "Pokaż ukryte (n)" shows the hidden rows dimmed with the hide date. A hidden
+  issue comes back marked "Zmienione" when it leaves the open list and returns,
+  or when someone other than you comments; labels, edits and reactions do not
+  bring it back. Two new read-only `gh` calls read your login and the issue's
+  comments. (#31)
+- "Projekty (GitHub)": a "Nowe" flag on issues that appeared since your last
+  visit to the view. It clears when you leave the view or hide the window; the
+  first visit shows none. GitHub gives no Windows notifications. (#30)
+- `"githubRefresh": { "minutes": 10 }` in `settings.json` sets GitHub's refresh
+  interval (1–14, default 10). The "GitHub niedostępny" card and GitHub's error
+  states show the interval and the next try (HH:MM). An invalid value shows a
+  notice in "Projekty (GitHub)" and uses 10. (#29)
+- "Praca (GitLab)": a "Do review" section lists the merge requests where you are
+  a reviewer, under the same settings filter, with "+" to "Do zrobienia". A new
+  review request gives a Windows notice like a new assignment, whatever the
+  filter says. (#35)
+- "Praca (GitLab)": merge requests can be hidden too, assigned ones and those in
+  "Do review". A hidden merge request comes back marked "Zmienione" after a
+  comment by someone else, or after it leaves the open lists and returns;
+  approvals, pushes and pipelines do not bring it back. A new read-only
+  `glab api` call reads the merge request's comments. (#33)
 - An "Ustawienia" dialog, opened by the gear button in the header, shows and
   changes the app's settings in seven sections. Each section is saved on its own
   into `settings.json` and takes effect without a restart. Unknown top-level keys
@@ -29,6 +53,17 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
   dialog at their section; "Otwórz settings.json" is in the dialog footer.
 - Autostart saved from the dialog applies at once in release builds. A hand edit
   of `autostart` still needs a restart.
+- "Praca (GitLab)" remembers the type choice ("Wszystko" / "Zgłoszenia" /
+  "MR-y") and "Pokaż ukryte" between runs. The filter values still reset; they
+  are never stored. (#34)
+- GitLab and GitHub refresh through one shared mechanism, with no visible
+  change. (#28)
+
+### Fixed
+
+- "Praca (GitLab)": without VPN, the calm "GitLab niedostępny" card now has the
+  session's last list under it, dimmed, and the view header shows that list's
+  counts instead of only "źródło niedostępne". (#32)
 
 ## [0.11.0] - 2026-11-27
 

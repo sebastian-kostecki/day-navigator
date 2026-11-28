@@ -235,7 +235,11 @@ export default function TodoView() {
   // "ZMIENIONE" and "DZIŚ" come from data this view already holds: the stored
   // GitLab snapshot's change marks and the own tasks' due dates.
   const changedGitlab = new Set<string>();
-  for (const i of snapshot?.items?.issues ?? []) {
+  for (const i of [
+    ...(snapshot?.items?.mergeRequests ?? []),
+    ...(snapshot?.items?.reviewRequests ?? []),
+    ...(snapshot?.items?.issues ?? []),
+  ]) {
     if (i.changed !== null) changedGitlab.add(gitlabKey(i.kind, i.reference));
   }
   const changedGithub = new Set<string>();
@@ -424,7 +428,10 @@ export default function TodoView() {
               ]
             : []
         }
-        gitlabHidden={snapshot?.items?.hiddenIssues.length ?? 0}
+        gitlabHidden={
+          (snapshot?.items?.hiddenIssues.length ?? 0) +
+          (snapshot?.items?.hiddenMergeRequests.length ?? 0)
+        }
         gitlabOk={gitlabState === "ok"}
         gitlabFilteredOut={
           snapshot?.filterActive

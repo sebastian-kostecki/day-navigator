@@ -241,6 +241,8 @@ Autostart z Windows jest dostarczany w M-3 jako MS-17 (roadmapa): domyślnie wy�
 
 MR-y, w których użytkownik jest reviewerem, są dostarczane w M-4 jako MS-35 (roadmapa): sekcja „Do review” w „Praca (GitLab)” pod filtrem FR-002, „+” do „Do zrobienia”, powiadomienia mechanizmem i progiem FR-004; bez nowego FR.
 
+Ukrywanie MR-ów (przypisanych i z „Do review”) jest dostarczane w M-4 jako MS-33 (roadmapa): ukryty MR wraca jako „Zmienione” po komentarzu kogoś innego albo po powrocie na listę (zmiana stanu), regułą FR-003; zatwierdzenia, commity i pipeline'y go nie przywracają; bez nowego FR.
+
 ## Open Questions
 
 1. **`gh` w Windows** — narzędzie dostępu do GitHuba jest tylko w WSL; jak aplikacja na Windows ma sięgać do GitHuba (instalacja w Windows czy wywołanie przez WSL)? Owner: użytkownik. Przed planem FR-005. Blokuje: FR-005.

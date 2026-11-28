@@ -66,6 +66,7 @@ fn all_items(items: &AssignedItems) -> impl Iterator<Item = &GitlabItem> {
         .chain(&items.issues)
         .chain(&items.hidden_issues)
         .chain(&items.review_requests)
+        .chain(&items.hidden_merge_requests)
 }
 
 fn valid_id(item: &GitlabItem) -> bool {
@@ -123,7 +124,7 @@ pub fn items_for<'a>(items: &'a AssignedItems, keys: &[ItemKey]) -> Vec<&'a Gitl
 }
 
 /// Sets `is_new` on merge requests, review requests and visible issues from
-/// `fresh`; hidden issues are never new.
+/// `fresh`; hidden issues and hidden merge requests are never new.
 pub fn mark_fresh(items: &mut AssignedItems, fresh: &HashSet<ItemKey>) {
     for item in items
         .merge_requests
@@ -133,7 +134,11 @@ pub fn mark_fresh(items: &mut AssignedItems, fresh: &HashSet<ItemKey>) {
     {
         item.is_new = fresh.contains(&ItemKey::new(item.kind, item.id));
     }
-    for item in &mut items.hidden_issues {
+    for item in items
+        .hidden_issues
+        .iter_mut()
+        .chain(&mut items.hidden_merge_requests)
+    {
         item.is_new = false;
     }
 }

@@ -293,6 +293,7 @@ fn closed_args(
 }
 
 /// One issue, by the numbers GitLab sent (project id and in-project number).
+/// Also a merge request's project id and iid (the MR notes call).
 /// Built only from parsed JSON numbers, so it can only render as digits in a
 /// path. Debug is opaque so ids never reach a log.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -363,6 +364,23 @@ fn issue_notes_args(host: &GitlabHost, issue: &IssueRef) -> Vec<String> {
     ]
 }
 
+/// The same shape for one merge request's notes: `projects/<id>/merge_requests/<iid>`
+/// + the shared suffix.
+pub const MR_NOTES_MIDDLE: &str = "/merge_requests/";
+
+fn mr_notes_args(host: &GitlabHost, mr: &IssueRef) -> Vec<String> {
+    vec![
+        "api".to_string(),
+        format!(
+            "{ISSUE_NOTES_PREFIX}{}{MR_NOTES_MIDDLE}{}{ISSUE_NOTES_SUFFIX}",
+            mr.project_id, mr.iid
+        ),
+        "--paginate".to_string(),
+        "--hostname".to_string(),
+        host.as_str().to_string(),
+    ]
+}
+
 /// Closed list of allowed calls. Adding one is a reviewed change in this file;
 /// the tests below guard that every argument list is read-only.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -390,6 +408,8 @@ pub enum CliCall {
     /// `gh issue view <N> -R <repo> --json comments`: one issue's comments
     /// (read-only).
     GhIssueComments(GithubRepo, GithubIssueNumber),
+    /// GET of one merge request's notes, newest first (read-only).
+    GlabMergeRequestNotes(GitlabHost, IssueRef),
 }
 
 impl CliCall {
@@ -445,10 +465,17 @@ impl CliCall {
             after,
         ));
         all.push(CliCall::GlabIssueNotes(
-            host,
+            host.clone(),
             IssueRef {
                 project_id: 77,
                 iid: 12,
+            },
+        ));
+        all.push(CliCall::GlabMergeRequestNotes(
+            host,
+            IssueRef {
+                project_id: 77,
+                iid: 34,
             },
         ));
         all.push(CliCall::GhAssignedIssues(
@@ -470,7 +497,8 @@ impl CliCall {
             | CliCall::GlabRecentlyClosedIssues(..)
             | CliCall::GlabRecentlyClosedMergeRequests(..)
             | CliCall::GlabReviewMergeRequests(..)
-            | CliCall::GlabIssueNotes(..) => Tool::Glab,
+            | CliCall::GlabIssueNotes(..)
+            | CliCall::GlabMergeRequestNotes(..) => Tool::Glab,
             CliCall::GhVersion
             | CliCall::GhAuthStatus
             | CliCall::GhAssignedIssues(..)
@@ -510,6 +538,7 @@ impl CliCall {
                 assigned_args(REVIEW_MRS_ENDPOINT, REVIEW_MRS_USER_PREFIX, host, user)
             }
             CliCall::GlabIssueNotes(host, issue) => issue_notes_args(host, issue),
+            CliCall::GlabMergeRequestNotes(host, mr) => mr_notes_args(host, mr),
             CliCall::GhAssignedIssues(repo) => gh_assigned_issues_args(repo),
             CliCall::GhUser => vec!["api".to_string(), "user".to_string()],
             CliCall::GhIssueComments(repo, number) => gh_issue_comments_args(repo, number),
@@ -529,6 +558,7 @@ impl CliCall {
             CliCall::GlabRecentlyClosedMergeRequests(..) => "glab:closed-mrs",
             CliCall::GlabReviewMergeRequests(..) => "glab:review-mrs",
             CliCall::GlabIssueNotes(..) => "glab:issue-notes",
+            CliCall::GlabMergeRequestNotes(..) => "glab:mr-notes",
             CliCall::GhAssignedIssues(..) => "gh:assigned-issues",
             CliCall::GhUser => "gh:user",
             CliCall::GhIssueComments(..) => "gh:issue-comments",
@@ -597,9 +627,9 @@ impl CliError {
 mod tests {
     use super::*;
 
-    const VARIANT_COUNT: usize = 13;
+    const VARIANT_COUNT: usize = 14;
 
-    const EXAMPLE_COUNT: usize = 18;
+    const EXAMPLE_COUNT: usize = 19;
 
     fn example_host() -> GitlabHost {
         GitlabHost::parse("gitlab.example.invalid").unwrap()
@@ -626,6 +656,7 @@ mod tests {
             CliCall::GhUser => 10,
             CliCall::GhIssueComments(..) => 11,
             CliCall::GlabReviewMergeRequests(..) => 12,
+            CliCall::GlabMergeRequestNotes(..) => 13,
         }
     }
 
@@ -639,7 +670,7 @@ mod tests {
             assert!(o < VARIANT_COUNT, "ordinal out of range for {c:?}");
             seen[o] += 1;
         }
-        assert_eq!(seen, [1, 1, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2]);
+        assert_eq!(seen, [1, 1, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 1]);
         let with_user = examples
             .iter()
             .filter(|c| {
@@ -666,6 +697,7 @@ mod tests {
                         | CliCall::GlabIssueNotes(..)
                         | CliCall::GhAssignedIssues(..)
                         | CliCall::GhIssueComments(..)
+                        | CliCall::GlabMergeRequestNotes(..)
                 ),
                 "ALL must stay parameterless"
             );
@@ -706,14 +738,20 @@ mod tests {
         (1..=20).contains(&s.len()) && !s.starts_with('0') && s.bytes().all(|b| b.is_ascii_digit())
     }
 
-    /// Exactly `projects/<D>/issues/<D>/notes?sort=desc&order_by=created_at&per_page=100`.
+    /// Exactly `projects/<D>/issues/<D>/notes?sort=desc&order_by=created_at&per_page=100`
+    /// or the same with `merge_requests/<D>` in place of `issues/<D>`.
     fn notes_endpoint_allowed(endpoint: &str) -> bool {
         const SUFFIX: &str = "/notes?sort=desc&order_by=created_at&per_page=100";
         endpoint
             .strip_prefix("projects/")
             .and_then(|rest| rest.strip_suffix(SUFFIX))
-            .and_then(|ids| ids.split_once("/issues/"))
-            .is_some_and(|(project, iid)| guard_number_ok(project) && guard_number_ok(iid))
+            .is_some_and(|ids| {
+                ["/issues/", "/merge_requests/"].iter().any(|middle| {
+                    ids.split_once(middle).is_some_and(|(project, iid)| {
+                        guard_number_ok(project) && guard_number_ok(iid)
+                    })
+                })
+            })
     }
 
     /// `YYYY-MM-DD`, written out here on purpose (the guard must not trust
@@ -1090,7 +1128,6 @@ mod tests {
             format!("projects/77/issues/012{NOTES_SUFFIX}"),
             format!("projects/{}/issues/12{NOTES_SUFFIX}", "1".repeat(21)),
             // other resources
-            format!("projects/77/merge_requests/12{NOTES_SUFFIX}"),
             "projects/77/issues/12/discussions?per_page=100".to_string(),
             format!("groups/77/issues/12{NOTES_SUFFIX}"),
             format!("/projects/77/issues/12{NOTES_SUFFIX}"),
@@ -1160,8 +1197,170 @@ mod tests {
                 format!("projects/{project_id}/issues/{iid}/{junk}{NOTES_SUFFIX}"),
                 format!("projects/{project_id}{junk}/issues/{iid}{NOTES_SUFFIX}"),
                 format!("projects/{project_id}/issues/{iid}{junk}{NOTES_SUFFIX}"),
-                format!("projects/{project_id}/merge_requests/{iid}{NOTES_SUFFIX}"),
                 format!("projects/{project_id}/issues/{iid}/notes?{junk}"),
+            ];
+            for ep in &cases {
+                proptest::prop_assert!(!guard_accepts_endpoint(ep), "{:?}", ep);
+            }
+        }
+    }
+
+    const MR_NOTES_SUFFIX: &str = "/notes?sort=desc&order_by=created_at&per_page=100";
+
+    fn mr_notes_passes_the_guard(project_id: u64, iid: u64) -> bool {
+        let call = CliCall::GlabMergeRequestNotes(example_host(), IssueRef { project_id, iid });
+        let args = call.args();
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        check_read_only(&args).is_ok()
+    }
+
+    #[test]
+    fn mr_notes_call_has_exact_arguments_name_and_tool() {
+        let call = CliCall::GlabMergeRequestNotes(
+            example_host(),
+            IssueRef {
+                project_id: 77,
+                iid: 34,
+            },
+        );
+        assert_eq!(
+            call.args(),
+            [
+                "api",
+                "projects/77/merge_requests/34/notes?sort=desc&order_by=created_at&per_page=100",
+                "--paginate",
+                "--hostname",
+                "gitlab.example.invalid"
+            ]
+        );
+        assert_eq!(call.name(), "glab:mr-notes");
+        assert_eq!(call.tool(), Tool::Glab);
+        assert!(!format!("{call:?}").contains("77"));
+        assert!(!format!("{call:?}").contains("example.invalid"));
+    }
+
+    #[test]
+    fn guard_accepts_the_mr_notes_shape_and_rejects_near_misses() {
+        let ok = format!("projects/77/merge_requests/34{MR_NOTES_SUFFIX}");
+        assert!(guard_accepts_endpoint(&ok));
+        let bad = [
+            format!("projects/77/merge_requests/0{MR_NOTES_SUFFIX}"),
+            format!("projects/77/merge_requests/034{MR_NOTES_SUFFIX}"),
+            format!("projects/077/merge_requests/34{MR_NOTES_SUFFIX}"),
+            format!("projects//merge_requests/34{MR_NOTES_SUFFIX}"),
+            format!("projects/77/merge_request/34{MR_NOTES_SUFFIX}"),
+            format!("projects/77/merge_requests/34/extra{MR_NOTES_SUFFIX}"),
+            "projects/77/merge_requests/34/notes/5?sort=desc&order_by=created_at&per_page=100"
+                .to_string(),
+            format!("projects/77/merge_requests/34/issues/2{MR_NOTES_SUFFIX}"),
+            format!("projects/77/issues/1/merge_requests/34{MR_NOTES_SUFFIX}"),
+            "projects/77/merge_requests/34/notes?sort=asc&order_by=created_at&per_page=100"
+                .to_string(),
+            "projects/77/merge_requests/34/notes?sort=desc&order_by=created_at".to_string(),
+            format!("projects/77/merge_requests/34{MR_NOTES_SUFFIX}&x=1"),
+        ];
+        for ep in &bad {
+            assert!(!guard_accepts_endpoint(ep), "{ep:?}");
+        }
+        for flag in WRITE_FLAGS {
+            assert!(
+                check_read_only(&[
+                    "api",
+                    &ok,
+                    "--paginate",
+                    "--hostname",
+                    "gitlab.example.invalid",
+                    flag
+                ])
+                .is_err(),
+                "{flag}"
+            );
+        }
+    }
+
+    proptest::proptest! {
+        /// Every merge request `IssueRef` the code can build passes the guard.
+        #[test]
+        fn every_mr_ref_passes_the_guard(project_id in 1u64.., iid in 1u64..) {
+            proptest::prop_assert!(mr_notes_passes_the_guard(project_id, iid));
+        }
+    }
+
+    #[test]
+    fn guard_rejects_more_mr_notes_near_misses() {
+        let ok = format!("projects/77/merge_requests/34{MR_NOTES_SUFFIX}");
+        let bad = [
+            // placeholders and non-numbers
+            format!("projects/:id/merge_requests/34{MR_NOTES_SUFFIX}"),
+            format!("projects/77/merge_requests/:iid{MR_NOTES_SUFFIX}"),
+            format!("projects/a/merge_requests/34{MR_NOTES_SUFFIX}"),
+            format!("projects/77/merge_requests/a{MR_NOTES_SUFFIX}"),
+            format!("projects/77/merge_requests/{MR_NOTES_SUFFIX}"),
+            format!("projects/-1/merge_requests/34{MR_NOTES_SUFFIX}"),
+            format!("projects/77/merge_requests/-1{MR_NOTES_SUFFIX}"),
+            // 21-digit ids
+            format!(
+                "projects/{}/merge_requests/34{MR_NOTES_SUFFIX}",
+                "1".repeat(21)
+            ),
+            format!(
+                "projects/77/merge_requests/{}{MR_NOTES_SUFFIX}",
+                "1".repeat(21)
+            ),
+            // other resources
+            "projects/77/merge_requests/34/discussions?per_page=100".to_string(),
+            "projects/77/merge_requests/34/approvals".to_string(),
+            "projects/77/merge_requests/34/changes".to_string(),
+            format!("groups/77/merge_requests/34{MR_NOTES_SUFFIX}"),
+            format!("/projects/77/merge_requests/34{MR_NOTES_SUFFIX}"),
+            format!("projects/77/merge_requests/34/{MR_NOTES_SUFFIX}"),
+            // other queries
+            "projects/77/merge_requests/34/notes".to_string(),
+            "projects/77/merge_requests/34/notes?sort=desc&order_by=updated_at&per_page=100"
+                .to_string(),
+            "projects/77/merge_requests/34/notes?sort=desc&order_by=created_at&per_page=50"
+                .to_string(),
+            format!("projects/77/merge_requests/34{MR_NOTES_SUFFIX} "),
+        ];
+        for ep in &bad {
+            assert!(!guard_accepts_endpoint(ep), "{ep:?}");
+        }
+        // No `--paginate`: not the notes call.
+        assert!(check_read_only(&["api", &ok, "--hostname", "gitlab.example.invalid"]).is_err());
+    }
+
+    /// Every character, in either id position, passes the guard only when it
+    /// is an ASCII digit (and not a leading zero).
+    #[test]
+    fn mr_notes_guard_accepts_only_digits_in_the_ids() {
+        for c in (0u8..=127).map(char::from).chain(['ä', 'ł', '\u{2028}']) {
+            let in_project = format!("projects/1{c}2/merge_requests/3{MR_NOTES_SUFFIX}");
+            let in_iid = format!("projects/1/merge_requests/2{c}3{MR_NOTES_SUFFIX}");
+            let alone = format!("projects/{c}/merge_requests/{c}{MR_NOTES_SUFFIX}");
+            let digit = c.is_ascii_digit();
+            assert_eq!(guard_accepts_endpoint(&in_project), digit, "{c:?}");
+            assert_eq!(guard_accepts_endpoint(&in_iid), digit, "{c:?}");
+            assert_eq!(
+                guard_accepts_endpoint(&alone),
+                c.is_ascii_digit() && c != '0',
+                "{c:?}"
+            );
+        }
+    }
+
+    proptest::proptest! {
+        /// A near miss built from real numbers never passes.
+        #[test]
+        fn near_misses_of_a_valid_mr_notes_endpoint_fail(
+            project_id in 1u64..,
+            iid in 1u64..,
+            junk in "[a-z:/?&=.-]{1,5}",
+        ) {
+            let cases = [
+                format!("projects/{project_id}/merge_requests/{iid}/{junk}{MR_NOTES_SUFFIX}"),
+                format!("projects/{project_id}{junk}/merge_requests/{iid}{MR_NOTES_SUFFIX}"),
+                format!("projects/{project_id}/merge_requests/{iid}{junk}{MR_NOTES_SUFFIX}"),
+                format!("projects/{project_id}/merge_requests/{iid}/notes?{junk}"),
             ];
             for ep in &cases {
                 proptest::prop_assert!(!guard_accepts_endpoint(ep), "{:?}", ep);

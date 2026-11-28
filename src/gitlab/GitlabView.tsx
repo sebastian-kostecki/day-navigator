@@ -28,8 +28,8 @@ import { TodoPicksNotices } from "../todo/TodoPicksNotices";
 import { useTodoPicks, type TodoPicks } from "../todo/useTodoPicks";
 import { openGitlabItem } from "./api";
 import { GitlabFilterBar } from "./GitlabFilterBar";
-import type { ChangeReason, ClosedSection, GitlabItem, GitlabSnapshot } from "./types";
-import { useGitlab } from "./useGitlab";
+import type { ChangeReason, ClosedSection, GitlabItem, GitlabSnapshot, ItemKind } from "./types";
+import { busyKey, useGitlab } from "./useGitlab";
 import { useGitlabListView, type KindFilter } from "./useGitlabListView";
 import {
   isSelectionActive,
@@ -78,10 +78,11 @@ function matchesKind(item: GitlabItem, kind: KindFilter): boolean {
 type RowActions = {
   /** The "Do zrobienia" list, for the per-row "+" button. */
   todo: TodoPicks;
-  busy: ReadonlySet<number>;
-  hide: (id: number) => void;
-  unhide: (id: number) => void;
-  dismiss: (id: number) => void;
+  /** Keys from `busyKey(kind, id)`. */
+  busy: ReadonlySet<string>;
+  hide: (kind: ItemKind, id: number) => void;
+  unhide: (kind: ItemKind, id: number) => void;
+  dismiss: (kind: ItemKind, id: number) => void;
 };
 
 type TableRow = {
@@ -102,7 +103,7 @@ function RowButtons({
   hidden: boolean;
   actions: RowActions;
 }) {
-  const working = actions.busy.has(item.id);
+  const working = actions.busy.has(busyKey(item.kind, item.id));
   return (
     <>
       {item.changed && (
@@ -114,7 +115,7 @@ function RowButtons({
           disabled={working}
           aria-label={`OK, zauważone: ${item.title}`}
           title="OK, zauważone"
-          onClick={() => actions.dismiss(item.id)}
+          onClick={() => actions.dismiss(item.kind, item.id)}
         />
       )}
       {hidden ? (
@@ -126,7 +127,7 @@ function RowButtons({
           disabled={working}
           aria-label={`Pokaż: ${item.title}`}
           title="Pokaż na liście"
-          onClick={() => actions.unhide(item.id)}
+          onClick={() => actions.unhide(item.kind, item.id)}
         />
       ) : (
         <Button
@@ -137,7 +138,7 @@ function RowButtons({
           disabled={working}
           aria-label={`Ukryj: ${item.title}`}
           title="Ukryj do zmiany"
-          onClick={() => actions.hide(item.id)}
+          onClick={() => actions.hide(item.kind, item.id)}
         />
       )}
     </>
@@ -151,7 +152,7 @@ function GitlabRow({
 }: {
   row: TableRow;
   now: number;
-  /** Hide/dismiss buttons only on issue rows; every row gets the "Do zrobienia" button. */
+  /** Hide, unhide and dismiss buttons when given; the "Do zrobienia" button is on every row. */
   actions?: RowActions;
 }) {
   const { item, hidden = false } = row;
@@ -231,9 +232,7 @@ function GitlabRow({
         {formatChange(at, now)}
       </DataTableCell>
       <DataTableCell className="gitlab-col-actions">
-        {actions && item.kind === "issue" && (
-          <RowButtons item={item} hidden={hidden} actions={actions} />
-        )}
+        {actions && <RowButtons item={item} hidden={hidden} actions={actions} />}
         {actions && (todoFound || !hidden) && (
           <TodoAddButton
             label={item.title}
@@ -386,6 +385,7 @@ function ReviewBlock({
   clear,
   now,
   actions,
+  hiddenReviewCount,
 }: {
   items: GitlabItem[];
   filteredOut: number;
@@ -394,6 +394,8 @@ function ReviewBlock({
   clear: () => void;
   now: number;
   actions: RowActions;
+  /** Hidden merge requests that await the user's review, assigned or not (shown in the main table after "Pokaż ukryte"); they make an empty panel explicit. */
+  hiddenReviewCount: number;
 }) {
   const rows = items.filter((i) => matchesView(i, selection)).sort(byUpdated);
   const viewEmpty = rows.length === 0 && items.length > 0 && isSelectionActive(selection);
@@ -410,6 +412,8 @@ function ReviewBlock({
           {filterActive && filteredOut > 0
             ? "Brak merge requestów do review pasujących do filtra."
             : "Brak merge requestów do review."}
+          {hiddenReviewCount > 0 &&
+            ` Ukryte do review: ${hiddenReviewCount} (widoczne po „Pokaż ukryte”).`}
         </p>
       ) : (
         <GitlabTable
@@ -486,6 +490,7 @@ function Lists({
           ...items.reviewRequests,
           ...items.issues,
           ...items.hiddenIssues,
+          ...items.hiddenMergeRequests,
           ...(closed?.items ?? []),
         ],
         selection,
@@ -497,20 +502,23 @@ function Lists({
   const ofKind = [...items.mergeRequests, ...items.issues]
     .filter((i) => matchesKind(i, kind))
     .sort(byUpdated);
-  const hiddenOfKind = showHidden ? items.hiddenIssues.filter((i) => matchesKind(i, kind)) : [];
+  const hiddenOfKind = showHidden
+    ? [...items.hiddenIssues, ...items.hiddenMergeRequests].filter((i) => matchesKind(i, kind))
+    : [];
   const visible = ofKind.filter((i) => matchesView(i, selection));
   const hidden = hiddenOfKind.filter((i) => matchesView(i, selection));
   const rows: TableRow[] = [
     ...visible.map((item) => ({ item, reviewTag: item.reviewRequested })),
-    ...hidden.map((item) => ({ item, hidden: true })),
+    ...hidden.map((item) => ({ item, hidden: true, reviewTag: item.reviewRequested })),
   ];
   const beforeView = ofKind.length + hiddenOfKind.length;
   const outByView = beforeView - rows.length;
   const outByFilter =
     (kind !== "issue" ? filteredOut.mergeRequests : 0) +
     (kind !== "mergeRequest" ? filteredOut.issues : 0) +
+    (showHidden && kind !== "issue" ? filteredOut.hiddenMergeRequests : 0) +
     (showHidden && kind !== "mergeRequest" ? filteredOut.hiddenIssues : 0);
-  const hiddenCount = items.hiddenIssues.length;
+  const hiddenCount = items.hiddenIssues.length + items.hiddenMergeRequests.length;
 
   const adorned = options.labels.map((o) => ({
     value: o.value,
@@ -581,6 +589,11 @@ function Lists({
             ? "ktoś inny doda komentarz"
             : "pojawi się nowy komentarz"}{" "}
           albo zgłoszenie wróci na listę po zniknięciu z niej.
+          {items.hiddenMergeRequests.length + filteredOut.hiddenMergeRequests > 0 &&
+            // Mirrors plan_round and the MR fingerprint in src-tauri/src/hidden_issues/rules.rs.
+            ` Ukryty merge request wraca, gdy ${
+              snapshot.ownCommentsKnown ? "ktoś inny doda komentarz" : "pojawi się nowy komentarz"
+            } albo wróci na listę po zniknięciu z niej (np. po zamknięciu i ponownym otwarciu).`}
         </p>
       </div>
       {kind !== "issue" && (
@@ -592,6 +605,7 @@ function Lists({
           clear={clear}
           now={now}
           actions={actions}
+          hiddenReviewCount={items.hiddenMergeRequests.filter((i) => i.reviewRequested).length}
         />
       )}
       {closed && (
@@ -644,7 +658,12 @@ export function GitlabView() {
   const nowMs = Math.max(now, lastSuccessMs ?? 0);
   const actions: RowActions = { todo, busy, hide, unhide, dismiss };
   // Filtered-out hidden issues are still checked for comments, so they count.
-  const hasHidden = (items?.hiddenIssues.length ?? 0) + snapshot.filteredOut.hiddenIssues > 0;
+  const hasHidden =
+    (items?.hiddenIssues.length ?? 0) +
+      (items?.hiddenMergeRequests.length ?? 0) +
+      snapshot.filteredOut.hiddenIssues +
+      snapshot.filteredOut.hiddenMergeRequests >
+    0;
   const lastSuccess =
     lastSuccessMs != null
       ? `ostatnie udane odświeżenie: ${formatAgo(lastSuccessMs, nowMs)}`
@@ -654,7 +673,7 @@ export function GitlabView() {
   let summary: string | null = null;
   if (items && state.state !== "notConfigured") {
     const shown = items.mergeRequests.length + items.issues.length;
-    const hid = items.hiddenIssues.length;
+    const hid = items.hiddenIssues.length + items.hiddenMergeRequests.length;
     summary = `${shown} ${plural(shown, "widoczne", "widoczne", "widocznych")} · ${hid} ${plural(hid, "ukryte", "ukryte", "ukrytych")}`;
     if (items.reviewRequests.length > 0) summary += ` · ${items.reviewRequests.length} do review`;
   } else if (offline) {
@@ -728,7 +747,7 @@ export function GitlabView() {
       )}
       {snapshot.hiddenError && (
         <Notice tone="warn">
-          Lista pokazuje wszystkie zgłoszenia, bo nie udało się odczytać ukrytych.{" "}
+          Lista pokazuje wszystkie pozycje, bo nie udało się odczytać ukrytych.{" "}
           {snapshot.hiddenError}
         </Notice>
       )}
@@ -740,7 +759,7 @@ export function GitlabView() {
       {hasHidden && !ownCommentsKnown && (
         <Notice tone="warn">
           Ustaw <code>&quot;user&quot;</code> w bloku <code>&quot;gitlab&quot;</code> w
-          settings.json, aby Twoje własne komentarze nie przywracały ukrytych zgłoszeń.
+          settings.json, aby Twoje własne komentarze nie przywracały ukrytych pozycji.
         </Notice>
       )}
       {actionError && <Notice tone="error">{actionError}</Notice>}

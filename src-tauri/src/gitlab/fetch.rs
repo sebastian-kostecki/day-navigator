@@ -43,6 +43,7 @@ pub fn fetch_assigned(
         issues,
         review_requests,
         hidden_issues: Vec::new(),
+        hidden_merge_requests: Vec::new(),
     })
 }
 
@@ -122,6 +123,17 @@ pub fn fetch_issue_notes(
     issue: IssueRef,
 ) -> Result<Vec<IssueNote>, GitlabError> {
     let out = runner.run(&CliCall::GlabIssueNotes(host.clone(), issue))?;
+    parse_notes(&out)
+}
+
+/// One merge request's notes, newest first, read in full across pages. Read-only;
+/// the same parser as an issue's notes (a merge request has the same note fields).
+pub fn fetch_merge_request_notes(
+    runner: &CliRunner,
+    host: &GitlabHost,
+    mr: IssueRef,
+) -> Result<Vec<IssueNote>, GitlabError> {
+    let out = runner.run(&CliCall::GlabMergeRequestNotes(host.clone(), mr))?;
     parse_notes(&out)
 }
 

@@ -648,7 +648,7 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Manual
 
-- [ ] 2.9 On a backed-up real `settings.json`, calling `window.__TAURI_INTERNALS__.invoke('save_settings_section', {...})` for `todo` from DevTools (there is no `withGlobalTauri`) changes only the `todo` block. A diff of the file shows no reordering beyond whitespace normalisation.
+- [x] 2.9 On a backed-up real `settings.json`, calling `window.__TAURI_INTERNALS__.invoke('save_settings_section', {...})` for `todo` from DevTools (there is no `withGlobalTauri`) changes only the `todo` block. A diff of the file shows no reordering beyond whitespace normalisation.
 
 ### Phase 3: Save side effects
 
@@ -661,8 +661,8 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Manual
 
-- [ ] 3.5 In a built release-mode app (`npm run tauri build -- --no-bundle`), saving Autostart on or off adds or removes the Run value without a restart, and "Źródła" shows the new autostart state
-- [ ] 3.6 With `daySummary: false`, a tray STOP shows no toast but the tray updates. With `sourceProblems: false`, GitLab or GitHub going down changes the tray and panel with no toast, while a broken `settings.json` still toasts
+- [x] 3.5 In a built release-mode app (`npm run tauri build -- --no-bundle`), saving Autostart on or off adds or removes the Run value without a restart, and "Źródła" shows the new autostart state
+- [x] 3.6 With `daySummary: false`, a tray STOP shows no toast but the tray updates. With `sourceProblems: false`, GitLab or GitHub going down changes the tray and panel with no toast, while a broken `settings.json` still toasts
 
 ### Phase 4: Dialog groundwork
 
@@ -674,9 +674,9 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Manual
 
-- [ ] 4.4 In `npm run tauri dev`, the gear button opens the dialog over the sticky header from every view. Esc and "Zamknij" close it, focus returns to the gear, and pressing 1–6 while it is open does not switch views
-- [ ] 4.5 `ChipListField`, tried in the placeholder body: Enter adds, multi-line paste adds several, × and Backspace remove, duplicates are ignored, and it works with keyboard only
-- [ ] 4.6 In a built app (`npm run tauri build -- --debug --no-bundle`), the DevTools console shows no CSP violation and no "IPC custom protocol failed"
+- [x] 4.4 In `npm run tauri dev`, the gear button opens the dialog over the sticky header from every view. Esc and "Zamknij" close it, focus returns to the gear, and pressing 1–6 while it is open does not switch views
+- [x] 4.5 `ChipListField`, tried in the placeholder body: Enter adds, multi-line paste adds several, × and Backspace remove, duplicates are ignored, and it works with keyboard only
+- [x] 4.6 In a built app (`npm run tauri build -- --debug --no-bundle`), the DevTools console shows no CSP violation and no "IPC custom protocol failed"
 
 ### Phase 5: The seven sections
 
@@ -688,14 +688,14 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Manual
 
-- [ ] 5.4 Every section shows the current values from a filled `settings.json` and the defaults from an empty one, and saving each section changes only its blocks in the file
-- [ ] 5.5 Each save shows up without a restart: the GitLab list after the woken round, the GitHub list, the "To do" limit, the norm in the month report, the Przypomnienia panel and the autostart status
-- [ ] 5.6 A bad value in each section (for example limit 25, norm 7.33, host with a space, repo `bad`, a project chip `/x`) shows its Polish message on the right field or chip, and the file is unchanged
-- [ ] 5.7 Editing the same block in an editor while the dialog is open, then pressing Save, shows the conflict and writes nothing. "Wczytaj ponownie" shows the new value
-- [ ] 5.8 A typo block on disk shows the invalid state, and Save asks before replacing it
-- [ ] 5.9 With `settings.json` deleted, the notice shows and Save creates the file. With it made malformed, the whole dialog shows the error and nothing can be saved
-- [ ] 5.10 The dirty tab marker and the close confirmation work. The Przypomnienia and filter-bar entry points open the right section
-- [ ] 5.11 In a built app (`npm run tauri build -- --debug --no-bundle`), the DevTools console shows no CSP violation
+- [x] 5.4 Every section shows the current values from a filled `settings.json` and the defaults from an empty one, and saving each section changes only its blocks in the file
+- [x] 5.5 Each save shows up without a restart: the GitLab list after the woken round, the GitHub list, the "To do" limit, the norm in the month report, the Przypomnienia panel and the autostart status
+- [x] 5.6 A bad value in each section (for example limit 25, norm 7.33, host with a space, repo `bad`, a project chip `/x`) shows its Polish message on the right field or chip, and the file is unchanged
+- [x] 5.7 Editing the same block in an editor while the dialog is open, then pressing Save, shows the conflict and writes nothing. "Wczytaj ponownie" shows the new value
+- [x] 5.8 A typo block on disk shows the invalid state, and Save asks before replacing it
+- [x] 5.9 With `settings.json` deleted, the notice shows and Save creates the file. With it made malformed, the whole dialog shows the error and nothing can be saved
+- [x] 5.10 The dirty tab marker and the close confirmation work. The Przypomnienia and filter-bar entry points open the right section
+- [x] 5.11 In a built app (`npm run tauri build -- --debug --no-bundle`), the DevTools console shows no CSP violation
 
 ### Phase 6: Docs and policy
 
@@ -707,5 +707,5 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Manual
 
-- [ ] 6.4 README, AGENTS.md, roadmap and PRD read consistently with the shipped behaviour
-- [ ] 6.5 The design-system artifact shows `Dialog`, `ChipListField`, the gear icon and `--scrim`
+- [x] 6.4 README, AGENTS.md, roadmap and PRD read consistently with the shipped behaviour
+- [x] 6.5 The design-system artifact shows `Dialog`, `ChipListField`, the gear icon and `--scrim`

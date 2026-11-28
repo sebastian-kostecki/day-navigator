@@ -1,10 +1,10 @@
 ---
 change_id: github-new-and-notify
 title: NEW flag for GitHub items since the last visit to the GitHub view
-status: impl_reviewed
+status: archived
 created: 2026-11-28
 updated: 2026-11-28
-archived_at: null
+archived_at: 2026-11-28T10:29:37Z
 ---
 
 ## Notes

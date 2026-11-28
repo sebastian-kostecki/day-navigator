@@ -11,6 +11,25 @@ refuses to publish a version without one (`scripts/release-notes.sh`).
 
 ## [Unreleased]
 
+### Added
+
+- An "Ustawienia" dialog, opened by the gear button in the header, shows and
+  changes the app's settings in seven sections. Each section is saved on its own
+  into `settings.json` and takes effect without a restart. Unknown top-level keys
+  and the order of the top-level keys are kept; formatting is normalised. A
+  malformed file is never overwritten, a block changed on disk is not
+  overwritten, and an invalid block is replaced only after you confirm it.
+- A `notices` block (`newAssignments`, `sourceProblems`, `daySummary`, all on by
+  default) turns off the Windows notices for new GitLab assignments and review
+  requests, for GitLab or GitHub problems, and for the day summary.
+
+### Changed
+
+- The "Ustawienia" buttons in "Czas pracy" and in the GitLab filter bar open the
+  dialog at their section; "Otwórz settings.json" is in the dialog footer.
+- Autostart saved from the dialog applies at once in release builds. A hand edit
+  of `autostart` still needs a restart.
+
 ## [0.11.0] - 2026-11-27
 
 ### Added

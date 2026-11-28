@@ -243,6 +243,8 @@ MR-y, w których użytkownik jest reviewerem, są dostarczane w M-4 jako MS-35 (
 
 Ukrywanie MR-ów (przypisanych i z „Do review”) jest dostarczane w M-4 jako MS-33 (roadmapa): ukryty MR wraca jako „Zmienione” po komentarzu kogoś innego albo po powrocie na listę (zmiana stanu), regułą FR-003; zatwierdzenia, commity i pipeline'y go nie przywracają; bez nowego FR.
 
+Ustawienia można zmieniać w aplikacji (okno „Ustawienia”, zapis do `settings.json`; panel „Przypomnienia” z FR-021 sam nadal niczego nie edytuje), a powiadomienia o nowych przypisaniach, problemach GitLaba i GitHuba oraz podsumowanie dnia po STOP z zasobnika można wyłączyć (change `settings-button`, 2026-11-28); bez nowego FR.
+
 ## Open Questions
 
 1. **`gh` w Windows** — narzędzie dostępu do GitHuba jest tylko w WSL; jak aplikacja na Windows ma sięgać do GitHuba (instalacja w Windows czy wywołanie przez WSL)? Owner: użytkownik. Przed planem FR-005. Blokuje: FR-005.

@@ -57,9 +57,10 @@ use crate::new_assignments::{
     ItemKey, NewAssignmentError, SessionSeen, items_for, keys_of, mark_fresh, mark_view_seen,
     notices_for, record_round, review_only_keys,
 };
-use crate::runtime::{now_ms, toast};
+use crate::runtime::{notice_settings, now_ms, toast};
 use crate::settings::{
-    DEFAULT_REFRESH_MINUTES, load_gitlab_filter, load_gitlab_refresh_minutes, load_gitlab_settings,
+    DEFAULT_REFRESH_MINUTES, Toast, load_gitlab_filter, load_gitlab_refresh_minutes,
+    load_gitlab_settings,
 };
 use crate::source_refresh::{self, RefreshSnapshot, SourceCell, SourceId};
 use crate::store::{StoreError, StoreHandle};
@@ -868,13 +869,18 @@ fn record_seen(
     SeenOutcome { toast_keys, fresh }
 }
 
-/// Shows a toast for every new item. Runs after the publish, outside every lock.
+/// Shows a toast for every new item, unless `notices` turns them off. Runs after
+/// the publish, outside every lock.
 fn toast_new_assignments(app: &AppHandle, full: &AssignedItems, new_keys: &[ItemKey]) {
     if new_keys.is_empty() {
         return;
     }
     let items = items_for(full, new_keys);
     log::info!("gitlab: {} new assignments", items.len());
+    let path = crate::settings_file::settings_path(app);
+    if !notice_settings(path.as_deref()).allows(Toast::NewAssignments) {
+        return;
+    }
     for notice in notices_for(&items) {
         toast(app, "gitlab", &notice.title, &notice.body);
     }

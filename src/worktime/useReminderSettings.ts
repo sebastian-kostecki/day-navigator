@@ -1,4 +1,7 @@
+import { listen } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { SETTINGS_CHANGED } from "../settings/api";
+import type { SettingsChanged } from "../settings/types";
 import { reminderSettings, reminderSettingsErrorMessage } from "./api";
 import type { ReminderThresholds } from "./types";
 
@@ -9,7 +12,8 @@ export type ReminderSettingsState =
 
 /**
  * The reminder thresholds, read when the view mounts, when the window is focused
- * or becomes visible (so an edited settings.json shows up) and on retry.
+ * or becomes visible (so an edited settings.json shows up), when the reminders
+ * section is saved in the app and on retry.
  */
 export function useReminderSettings() {
   const [state, setState] = useState<ReminderSettingsState>({ state: "loading" });
@@ -38,6 +42,8 @@ export function useReminderSettings() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    let unlisten: (() => void) | undefined;
     const onVisible = () => {
       if (document.visibilityState === "visible") void refresh();
     };
@@ -45,7 +51,23 @@ export function useReminderSettings() {
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("focus", onFocus);
     void refresh();
+    listen<SettingsChanged>(SETTINGS_CHANGED, (event) => {
+      if (!cancelled && event.payload.section === "reminders") void refresh();
+    })
+      .then((fn) => {
+        if (cancelled) {
+          fn();
+          return;
+        }
+        unlisten = fn;
+        // A save made before the listener was in place is read here.
+        void refresh();
+      })
+      // Focus and visibility still reread the thresholds.
+      .catch(() => {});
     return () => {
+      cancelled = true;
+      unlisten?.();
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onFocus);
     };

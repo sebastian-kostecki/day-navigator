@@ -4,9 +4,10 @@
 use std::fs;
 use std::path::Path;
 
-use serde::Deserialize;
+use serde_json::Value;
 
 use super::SUPPORTED_VERSION;
+use super::field_error::{FieldError, checked, object_with_keys, present};
 use crate::work_time::holidays::HolidayCalendar;
 use crate::work_time::norm::DEFAULT_DAILY_NORM_MS;
 
@@ -35,15 +36,6 @@ impl Default for WorkTimeSettings {
 /// serde errors can quote the value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorkTimeSettingsInvalid;
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct RawWorkTime {
-    #[serde(default)]
-    holidays: Option<serde_json::Value>,
-    #[serde(default)]
-    daily_norm_hours: Option<serde_json::Value>,
-}
 
 /// Reads only the top-level `workTime` block, on its own. Shape:
 ///
@@ -82,29 +74,37 @@ fn parse_work_time_settings(text: &str) -> Result<WorkTimeSettings, WorkTimeSett
     let Some(block) = value.get("workTime") else {
         return Ok(WorkTimeSettings::default());
     };
-    if block.is_null() {
-        return Ok(WorkTimeSettings::default());
-    }
-    if !block.is_object() {
-        return Err(INVALID);
-    }
-    let raw: RawWorkTime = serde_json::from_value(block.clone()).map_err(|_| INVALID)?;
+    validate_work_time(block).map_err(|_| INVALID)
+}
+
+/// Checks a `workTime` block, reporting every bad field.
+pub(super) fn validate_work_time(block: &Value) -> Result<WorkTimeSettings, Vec<FieldError>> {
     let mut settings = WorkTimeSettings::default();
-    match raw.holidays {
-        None | Some(serde_json::Value::Null) => {}
-        Some(serde_json::Value::Bool(false)) => settings.holidays = HolidayCalendar::Off,
-        Some(serde_json::Value::String(s)) if s == "pl" => settings.holidays = HolidayCalendar::Pl,
-        Some(_) => return Err(INVALID),
+    if block.is_null() {
+        return Ok(settings);
     }
-    match raw.daily_norm_hours {
-        None | Some(serde_json::Value::Null) => {}
-        Some(serde_json::Value::Number(n)) => {
-            settings.daily_norm_ms =
-                norm_ms_from_hours(n.as_f64().ok_or(INVALID)?).ok_or(INVALID)?;
+    let keys = ["holidays", "dailyNormHours"];
+    let map = object_with_keys(block, "workTime", &keys).map_err(|e| vec![e])?;
+    let mut errors = Vec::new();
+    match present(map, "holidays") {
+        None => {}
+        Some(Value::Bool(false)) => settings.holidays = HolidayCalendar::Off,
+        Some(Value::String(s)) if s == "pl" => settings.holidays = HolidayCalendar::Pl,
+        Some(_) => errors.push(FieldError::new(
+            "workTime.holidays",
+            "Dozwolone wartości to \"pl\" albo false.",
+        )),
+    }
+    if let Some(value) = present(map, "dailyNormHours") {
+        match value.as_f64().and_then(norm_ms_from_hours) {
+            Some(ms) => settings.daily_norm_ms = ms,
+            None => errors.push(FieldError::new(
+                "workTime.dailyNormHours",
+                "Podaj liczbę godzin od 1 do 10, w pełnych minutach.",
+            )),
         }
-        Some(_) => return Err(INVALID),
     }
-    Ok(settings)
+    checked(settings, errors)
 }
 
 /// Hours as whole minutes in range, as ms; `None` otherwise.

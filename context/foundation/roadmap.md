@@ -214,10 +214,11 @@ Slices below assume these are present and do NOT re-scaffold them.
 - **Other work-time automation** — Why parked: PRD Non-Goals; no idle detection, activity tracking or automatic stop.
 - **Deleting tasks (FR-009)** — Why parked: PRD Non-Goals ("Poza v1"). Reviewer MRs moved into M-4 (S-06) on 2026-11-27.
 - **Remembering the GitLab view filter values** — Why parked: decided 2026-11-27 (MS-34); the values are work data (project, label and milestone names), so the filter stays in memory only.
-- **Editing settings in the app** — Why parked: the app reads `settings.json` and never writes it; panels stay read-only.
 - **Signed installer (MS-13, issue #13)** — Why parked: decided by the user on 2026-11-24. For one user on one machine, a signature does not remove the SmartScreen warning right away, because reputation builds with downloads. Azure Artifact Signing is not open to individuals in Poland, and an OV certificate costs a yearly fee. Free OSS signing (SignPath Foundation) asks for proof of reputation the project does not have yet. Research: `context/archive/2026-11-24-installer-signing/research.md`. Comes back if the app is ever shared with others and has users to show.
 - **Breaks and pomodoro, distraction blocker, morning "plan the day"** — Why parked: PRD "considered, deliberately NOT excluded"; no FR and no issue covers them.
 - **GitHub milestones M-5 and M-6** — Why parked: outside M-4; each opens as the next milestone of this file after M-4 closes (lists and daily comfort, code tidy-up and distribution).
+
+"Editing settings in the app" was parked here; it was lifted on 2026-11-28 by change `settings-button`.
 
 ## Milestone History
 

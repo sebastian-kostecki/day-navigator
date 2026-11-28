@@ -1,0 +1,79 @@
+/* Layout only: the tabs, fields, chips, notices and buttons come from src/components. */
+
+/* A fixed height, so "Zapisz" stays put while fields and chips are added. */
+.dn-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  height: min(560px, calc(100vh - 220px));
+}
+
+.dn-settings > * {
+  flex: none;
+}
+
+.dn-settings > .dn-settings-panel {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.dn-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: 100%;
+}
+
+/* The display above would otherwise show a hidden section. */
+.dn-settings-section[hidden] {
+  display: none;
+}
+
+.dn-settings-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  /* Room for the focus outline. */
+  padding: var(--space-1);
+}
+
+.dn-settings-fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.dn-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.dn-settings-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.dn-settings-switch-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dn-settings-hint {
+  margin: 0;
+}
+
+.dn-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}

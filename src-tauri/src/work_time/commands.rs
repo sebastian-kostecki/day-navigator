@@ -106,7 +106,7 @@ async fn execute<T: Send + 'static>(
     result
 }
 
-fn notify(app: &AppHandle) {
+pub(crate) fn notify(app: &AppHandle) {
     if let Err(e) = app.emit(EVENT, ()) {
         log::warn!("work_time: emit failed: {e}");
     }

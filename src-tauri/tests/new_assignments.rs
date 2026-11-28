@@ -4,8 +4,12 @@ mod common;
 
 use chrono::NaiveDate;
 use common::test_store_dir;
-use day_navigator_lib::gitlab::ItemKind;
-use day_navigator_lib::new_assignments::{FORGET_AFTER_MS, ItemKey, mark_view_seen, record_round};
+use day_navigator_lib::events::{EventView, NewEvent, list_today, record};
+use day_navigator_lib::gitlab::{AssignedItems, GitlabItem, ItemKind};
+use day_navigator_lib::new_assignments::{
+    FORGET_AFTER_MS, ItemKey, items_for, keys_of as keys_of_items, mark_view_seen, record_round,
+    review_marker_key, review_only_keys,
+};
 use day_navigator_lib::store::{Store, StoreError, StoreHandle, schema};
 use rusqlite::OptionalExtension;
 
@@ -75,7 +79,7 @@ fn new_migration_applies_over_the_previous_latest_version() {
         .unwrap();
     assert_eq!(entries, 1);
     assert!(
-        record_round(&mut store, ACCOUNT_A, &[issue(1)], NOW)
+        record_round(&mut store, ACCOUNT_A, &[issue(1)], &[], NOW)
             .unwrap()
             .new
             .is_empty()
@@ -87,12 +91,13 @@ fn seed_then_new_then_reopen_has_no_repeat() {
     let (_tmp, dir) = test_store_dir();
     {
         let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
-        let seeded = record_round(&mut store, ACCOUNT_A, &[issue(1), mr(1)], NOW).unwrap();
+        let seeded = record_round(&mut store, ACCOUNT_A, &[issue(1), mr(1)], &[], NOW).unwrap();
         assert!(seeded.new.is_empty());
         let next = record_round(
             &mut store,
             ACCOUNT_A,
             &[issue(1), mr(1), issue(2)],
+            &[],
             NOW + 1_000,
         )
         .unwrap();
@@ -101,7 +106,7 @@ fn seed_then_new_then_reopen_has_no_repeat() {
     let handle = StoreHandle::new(Some(dir));
     let again = handle
         .with_store(today(), |s| {
-            record_round(s, ACCOUNT_A, &[issue(1), mr(1), issue(2)], NOW + 2_000)
+            record_round(s, ACCOUNT_A, &[issue(1), mr(1), issue(2)], &[], NOW + 2_000)
         })
         .unwrap();
     assert!(again.new.is_empty());
@@ -111,13 +116,14 @@ fn seed_then_new_then_reopen_has_no_repeat() {
 fn accounts_are_isolated_including_pruning() {
     let (_tmp, dir) = test_store_dir();
     let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
-    record_round(&mut store, ACCOUNT_A, &[issue(1)], NOW).unwrap();
-    record_round(&mut store, ACCOUNT_B, &[issue(1), issue(2)], NOW).unwrap();
+    record_round(&mut store, ACCOUNT_A, &[issue(1)], &[], NOW).unwrap();
+    record_round(&mut store, ACCOUNT_B, &[issue(1), issue(2)], &[], NOW).unwrap();
 
     let b_new = record_round(
         &mut store,
         ACCOUNT_B,
         &[issue(1), issue(2), issue(3)],
+        &[],
         NOW + 1,
     )
     .unwrap();
@@ -125,12 +131,12 @@ fn accounts_are_isolated_including_pruning() {
 
     // A's round 31 days later with an empty list prunes only A's rows.
     let later = NOW + 31 * DAY;
-    record_round(&mut store, ACCOUNT_A, &[], later).unwrap();
+    record_round(&mut store, ACCOUNT_A, &[], &[], later).unwrap();
     assert_eq!(count(&store, ACCOUNT_A), 0);
     assert_eq!(count(&store, ACCOUNT_B), 3);
 
     // A's marker survives the pruning: its next item notifies.
-    let a_new = record_round(&mut store, ACCOUNT_A, &[issue(9)], later + 1).unwrap();
+    let a_new = record_round(&mut store, ACCOUNT_A, &[issue(9)], &[], later + 1).unwrap();
     assert_eq!(a_new.new, vec![issue(9)]);
 }
 
@@ -138,9 +144,9 @@ fn accounts_are_isolated_including_pruning() {
 fn a_present_item_after_a_long_gap_gives_no_repeat() {
     let (_tmp, dir) = test_store_dir();
     let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
-    record_round(&mut store, ACCOUNT_A, &[issue(1)], NOW).unwrap();
+    record_round(&mut store, ACCOUNT_A, &[issue(1)], &[], NOW).unwrap();
     let after_gap = NOW + 31 * DAY;
-    let again = record_round(&mut store, ACCOUNT_A, &[issue(1)], after_gap).unwrap();
+    let again = record_round(&mut store, ACCOUNT_A, &[issue(1)], &[], after_gap).unwrap();
     assert!(again.new.is_empty());
     assert_eq!(count(&store, ACCOUNT_A), 1);
 }
@@ -149,23 +155,32 @@ fn a_present_item_after_a_long_gap_gives_no_repeat() {
 fn an_absent_item_is_forgotten_after_thirty_days_and_notifies_on_return() {
     let (_tmp, dir) = test_store_dir();
     let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
-    record_round(&mut store, ACCOUNT_A, &[issue(1), issue(2)], NOW).unwrap();
+    record_round(&mut store, ACCOUNT_A, &[issue(1), issue(2)], &[], NOW).unwrap();
     // Just short of 30 days: kept, so its return would be silent.
     record_round(
         &mut store,
         ACCOUNT_A,
         &[issue(2)],
+        &[],
         NOW + FORGET_AFTER_MS - 1,
     )
     .unwrap();
     assert_eq!(count(&store, ACCOUNT_A), 2);
     // Exactly 30 days since issue 1 was last seen: forgotten.
-    record_round(&mut store, ACCOUNT_A, &[issue(2)], NOW + FORGET_AFTER_MS).unwrap();
+    record_round(
+        &mut store,
+        ACCOUNT_A,
+        &[issue(2)],
+        &[],
+        NOW + FORGET_AFTER_MS,
+    )
+    .unwrap();
     assert_eq!(count(&store, ACCOUNT_A), 1);
     let back = record_round(
         &mut store,
         ACCOUNT_A,
         &[issue(1), issue(2)],
+        &[],
         NOW + FORGET_AFTER_MS + 1,
     )
     .unwrap();
@@ -176,12 +191,19 @@ fn an_absent_item_is_forgotten_after_thirty_days_and_notifies_on_return() {
 fn a_forgotten_key_is_fresh_again_on_return() {
     let (_tmp, dir) = test_store_dir();
     let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
-    record_round(&mut store, ACCOUNT_A, &[issue(1), issue(2)], NOW).unwrap();
+    record_round(&mut store, ACCOUNT_A, &[issue(1), issue(2)], &[], NOW).unwrap();
     mark_view_seen(&mut store, ACCOUNT_A, NOW + 10).unwrap();
     // Issue 1 stays absent until it is forgotten.
-    record_round(&mut store, ACCOUNT_A, &[issue(2)], NOW + FORGET_AFTER_MS).unwrap();
+    record_round(
+        &mut store,
+        ACCOUNT_A,
+        &[issue(2)],
+        &[],
+        NOW + FORGET_AFTER_MS,
+    )
+    .unwrap();
     let back_ms = NOW + FORGET_AFTER_MS + 1;
-    let back = record_round(&mut store, ACCOUNT_A, &[issue(1), issue(2)], back_ms).unwrap();
+    let back = record_round(&mut store, ACCOUNT_A, &[issue(1), issue(2)], &[], back_ms).unwrap();
     assert_eq!(back.new, vec![issue(1)]);
     assert!(back.fresh.contains(&(issue(1), back_ms)));
 }
@@ -231,7 +253,7 @@ fn view_marks_migration_keeps_seen_assignment_rows() {
     assert_eq!(mark_of(&store, ACCOUNT_A), None);
     // No mark yet after the upgrade: nothing is fresh, and the old rows seed
     // nothing new either.
-    let round = record_round(&mut store, ACCOUNT_A, &[issue(1), mr(2)], 2_000).unwrap();
+    let round = record_round(&mut store, ACCOUNT_A, &[issue(1), mr(2)], &[], 2_000).unwrap();
     assert!(round.new.is_empty());
     assert!(round.fresh.is_empty());
 }
@@ -240,7 +262,7 @@ fn view_marks_migration_keeps_seen_assignment_rows() {
 fn seeding_round_gives_empty_fresh() {
     let (_tmp, dir) = test_store_dir();
     let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
-    let seeded = record_round(&mut store, ACCOUNT_A, &[issue(1), mr(1)], NOW).unwrap();
+    let seeded = record_round(&mut store, ACCOUNT_A, &[issue(1), mr(1)], &[], NOW).unwrap();
     assert!(seeded.new.is_empty());
     assert!(seeded.fresh.is_empty());
 }
@@ -252,7 +274,7 @@ fn seeding_round_after_an_earlier_mark_gives_empty_fresh() {
     let (_tmp, dir) = test_store_dir();
     let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
     mark_view_seen(&mut store, ACCOUNT_A, NOW - 1_000).unwrap();
-    let seeded = record_round(&mut store, ACCOUNT_A, &[issue(1), mr(1)], NOW).unwrap();
+    let seeded = record_round(&mut store, ACCOUNT_A, &[issue(1), mr(1)], &[], NOW).unwrap();
     assert!(seeded.new.is_empty());
     assert!(seeded.fresh.is_empty());
 }
@@ -261,8 +283,8 @@ fn seeding_round_after_an_earlier_mark_gives_empty_fresh() {
 fn fresh_holds_keys_first_seen_after_the_mark() {
     let (_tmp, dir) = test_store_dir();
     let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
-    record_round(&mut store, ACCOUNT_A, &[issue(1)], NOW).unwrap();
-    record_round(&mut store, ACCOUNT_A, &[issue(1), issue(2)], NOW + 10).unwrap();
+    record_round(&mut store, ACCOUNT_A, &[issue(1)], &[], NOW).unwrap();
+    record_round(&mut store, ACCOUNT_A, &[issue(1), issue(2)], &[], NOW + 10).unwrap();
     mark_view_seen(&mut store, ACCOUNT_A, NOW + 10).unwrap();
 
     // Issue 2 was first seen exactly at the mark: not fresh. MR 3 arrives later.
@@ -270,6 +292,7 @@ fn fresh_holds_keys_first_seen_after_the_mark() {
         &mut store,
         ACCOUNT_A,
         &[issue(1), issue(2), mr(3)],
+        &[],
         NOW + 20,
     )
     .unwrap();
@@ -281,6 +304,7 @@ fn fresh_holds_keys_first_seen_after_the_mark() {
         &mut store,
         ACCOUNT_A,
         &[issue(1), issue(2), mr(3)],
+        &[],
         NOW + 30,
     )
     .unwrap();
@@ -304,12 +328,12 @@ fn mark_view_seen_never_moves_the_mark_back() {
 fn a_mark_of_one_account_does_not_touch_another() {
     let (_tmp, dir) = test_store_dir();
     let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
-    record_round(&mut store, ACCOUNT_A, &[issue(1)], NOW).unwrap();
-    record_round(&mut store, ACCOUNT_B, &[issue(1)], NOW).unwrap();
+    record_round(&mut store, ACCOUNT_A, &[issue(1)], &[], NOW).unwrap();
+    record_round(&mut store, ACCOUNT_B, &[issue(1)], &[], NOW).unwrap();
     mark_view_seen(&mut store, ACCOUNT_A, NOW + 100).unwrap();
 
-    let a = record_round(&mut store, ACCOUNT_A, &[issue(1), issue(2)], NOW + 200).unwrap();
-    let b = record_round(&mut store, ACCOUNT_B, &[issue(1), issue(2)], NOW + 200).unwrap();
+    let a = record_round(&mut store, ACCOUNT_A, &[issue(1), issue(2)], &[], NOW + 200).unwrap();
+    let b = record_round(&mut store, ACCOUNT_B, &[issue(1), issue(2)], &[], NOW + 200).unwrap();
     assert_eq!(a.fresh, vec![(issue(2), NOW + 200)]);
     assert!(b.fresh.is_empty(), "B has no mark");
     assert_eq!(mark_of(&store, ACCOUNT_B), None);
@@ -350,7 +374,7 @@ mod round {
         let keys = keys_of(&list);
         assert!(keys.len() > 1);
 
-        let first = record_round(&mut store, ACCOUNT_A, &keys, NOW).unwrap();
+        let first = record_round(&mut store, ACCOUNT_A, &keys, &[], NOW).unwrap();
         assert!(first.new.is_empty(), "the first round seeds silently");
 
         let gone = keys[0];
@@ -370,7 +394,208 @@ mod round {
             .unwrap();
 
         let again = fetch_assigned(&runner, &config).expect("data");
-        let next = record_round(&mut store, ACCOUNT_A, &keys_of(&again), NOW + 1_000).unwrap();
+        let next = record_round(&mut store, ACCOUNT_A, &keys_of(&again), &[], NOW + 1_000).unwrap();
         assert_eq!(next.new, vec![gone]);
+    }
+}
+
+fn marker_exists(store: &Store, key: &str) -> bool {
+    store
+        .read::<_, StoreError>(|c| {
+            Ok(c.query_row(
+                "SELECT EXISTS(SELECT 1 FROM assignment_accounts WHERE account = ?1)",
+                [key],
+                |r| r.get(0),
+            )?)
+        })
+        .unwrap()
+}
+
+fn seen_row(store: &Store, account: &str, id: i64) -> Option<(i64, i64)> {
+    store
+        .read::<_, StoreError>(|c| {
+            Ok(c.query_row(
+                "SELECT first_seen_ms, last_seen_ms FROM seen_assignments \
+                 WHERE account = ?1 AND kind = 'mergeRequest' AND item_id = ?2",
+                rusqlite::params![account, id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()
+            .unwrap())
+        })
+        .unwrap()
+}
+
+/// An account seeded before this slice: the main marker, no review marker.
+fn seed_pre_release(store: &mut Store, account: &str) {
+    record_round(store, account, &[issue(1)], &[], NOW).unwrap();
+    store
+        .write::<_, StoreError>(|tx| {
+            tx.execute(
+                "DELETE FROM assignment_accounts WHERE account = ?1",
+                [review_marker_key(account)],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+}
+
+#[test]
+fn first_review_round_after_release_is_silent_and_seeds_the_review_marker() {
+    let (_tmp, dir) = test_store_dir();
+    let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+    seed_pre_release(&mut store, ACCOUNT_A);
+    let review_marker = review_marker_key(ACCOUNT_A);
+    assert!(!marker_exists(&store, &review_marker));
+    mark_view_seen(&mut store, ACCOUNT_A, NOW + 5_000).unwrap();
+
+    let at = NOW + 10_000;
+    let round = record_round(&mut store, ACCOUNT_A, &[issue(1), mr(7)], &[mr(7)], at).unwrap();
+    assert!(round.new.is_empty());
+    assert!(round.fresh.is_empty());
+    assert!(marker_exists(&store, &review_marker));
+    // Baseline row: first_seen is min(mark, now), last_seen is now.
+    assert_eq!(seen_row(&store, ACCOUNT_A, 7), Some((NOW + 5_000, at)));
+    // The marker row is never a seen_assignments account.
+    assert_eq!(count(&store, &review_marker), 0);
+
+    mark_view_seen(&mut store, ACCOUNT_A, at).unwrap();
+    let next = at + 1_000;
+    let round = record_round(
+        &mut store,
+        ACCOUNT_A,
+        &[issue(1), mr(7), mr(8)],
+        &[mr(7), mr(8)],
+        next,
+    )
+    .unwrap();
+    assert_eq!(round.new, vec![mr(8)]);
+    assert_eq!(round.fresh, vec![(mr(8), next)]);
+}
+
+#[test]
+fn a_brand_new_account_seeds_both_markers_silently() {
+    let (_tmp, dir) = test_store_dir();
+    let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+    let round = record_round(&mut store, ACCOUNT_A, &[mr(1), mr(2)], &[mr(2)], NOW).unwrap();
+    assert!(round.new.is_empty());
+    assert!(round.fresh.is_empty());
+    assert!(marker_exists(&store, ACCOUNT_A));
+    assert!(marker_exists(&store, &review_marker_key(ACCOUNT_A)));
+    assert_eq!(seen_row(&store, ACCOUNT_A, 2), Some((NOW, NOW)));
+}
+
+#[test]
+fn a_key_moving_between_assigned_and_review_lists_never_notifies_again() {
+    let (_tmp, dir) = test_store_dir();
+    let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+    record_round(&mut store, ACCOUNT_A, &[mr(1)], &[], NOW).unwrap();
+    // Assigned, then review-only.
+    let a = record_round(&mut store, ACCOUNT_A, &[mr(1)], &[mr(1)], NOW + 10).unwrap();
+    assert!(a.new.is_empty());
+    // Review-only, then assigned again.
+    let b = record_round(&mut store, ACCOUNT_A, &[mr(1)], &[], NOW + 20).unwrap();
+    assert!(b.new.is_empty());
+    // A key in current and in review_only gives one row.
+    assert_eq!(count(&store, ACCOUNT_A), 1);
+}
+
+#[test]
+fn review_baseline_keeps_last_seen_current_so_an_old_mark_does_not_forget_it() {
+    let (_tmp, dir) = test_store_dir();
+    let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+    seed_pre_release(&mut store, ACCOUNT_A);
+    // A mark far in the past: first_seen is the mark, last_seen is now.
+    mark_view_seen(&mut store, ACCOUNT_A, 1_000).unwrap();
+    let at = NOW + 40 * DAY;
+    record_round(&mut store, ACCOUNT_A, &[issue(1), mr(3)], &[mr(3)], at).unwrap();
+    assert_eq!(seen_row(&store, ACCOUNT_A, 3), Some((1_000, at)));
+    // One absent round shortly after does not forget it.
+    record_round(&mut store, ACCOUNT_A, &[issue(1)], &[], at + 1_000).unwrap();
+    assert!(seen_row(&store, ACCOUNT_A, 3).is_some());
+}
+
+fn review_mr(id: u64) -> GitlabItem {
+    GitlabItem {
+        kind: ItemKind::MergeRequest,
+        id,
+        project_id: 1,
+        iid: id,
+        reference: format!("acme/web!{id}"),
+        title: format!("Wymyślony przegląd {id}"),
+        web_url: Some(format!(
+            "https://gitlab.example.invalid/acme/web/-/merge_requests/{id}"
+        )),
+        updated_at: "2026-11-23T08:00:00+00:00".to_string(),
+        labels: Vec::new(),
+        draft: false,
+        changed: None,
+        milestone: None,
+        is_new: false,
+        hidden_at_ms: None,
+        review_requested: true,
+    }
+}
+
+fn review_list(ids: &[u64]) -> AssignedItems {
+    AssignedItems {
+        review_requests: ids.iter().map(|id| review_mr(*id)).collect(),
+        ..AssignedItems::default()
+    }
+}
+
+/// Mirrors `record_seen` in the refresh: the round's new keys become `Assigned`
+/// events, stored in one write.
+fn record_assigned_events(store: &mut Store, items: &AssignedItems, new: &[ItemKey]) -> usize {
+    let events: Vec<NewEvent> = items_for(items, new)
+        .into_iter()
+        .map(|i| NewEvent::Assigned {
+            item_kind: i.kind,
+            reference: i.reference.clone(),
+            title: i.title.clone(),
+        })
+        .collect();
+    let now = today().and_hms_opt(9, 0, 0).unwrap();
+    record(store, today(), now, &events).unwrap()
+}
+
+#[test]
+fn a_new_review_only_key_gives_exactly_one_assigned_event() {
+    let (_tmp, dir) = test_store_dir();
+    let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+    seed_pre_release(&mut store, ACCOUNT_A);
+
+    // The first review round after the release is the silent baseline.
+    let first = review_list(&[7]);
+    let round = record_round(
+        &mut store,
+        ACCOUNT_A,
+        &keys_of_items(&first),
+        &review_only_keys(&first),
+        NOW + 1_000,
+    )
+    .unwrap();
+    assert!(round.new.is_empty());
+    assert_eq!(record_assigned_events(&mut store, &first, &round.new), 0);
+    assert!(list_today(&store, today()).unwrap().events.is_empty());
+
+    // A second review-only MR is new: one key, one event.
+    let second = review_list(&[7, 8]);
+    let round = record_round(
+        &mut store,
+        ACCOUNT_A,
+        &keys_of_items(&second),
+        &review_only_keys(&second),
+        NOW + 2_000,
+    )
+    .unwrap();
+    assert_eq!(round.new, vec![mr(8)]);
+    assert_eq!(record_assigned_events(&mut store, &second, &round.new), 1);
+
+    let log = list_today(&store, today()).unwrap();
+    assert_eq!(log.events.len(), 1);
+    match &log.events[0].event {
+        EventView::Assigned { reference, .. } => assert_eq!(reference, "acme/web!8"),
+        other => panic!("expected an assigned event, got {other:?}"),
     }
 }

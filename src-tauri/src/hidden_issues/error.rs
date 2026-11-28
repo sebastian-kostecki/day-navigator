@@ -16,7 +16,7 @@ pub enum HiddenIssueError {
     NotFound,
     #[error("the issue is not in the current list")]
     NotInList,
-    #[error("there is no GitLab list to act on yet")]
+    #[error("there is no list to act on yet")]
     ListUnavailable,
 }
 
@@ -81,7 +81,7 @@ impl HiddenIssueError {
             HiddenIssueError::Store(StoreError::Sql { .. }) => "Dane aplikacji: błąd bazy danych.",
             HiddenIssueError::NotFound => "Zgłoszenie nie jest już ukryte — odśwież listę.",
             HiddenIssueError::NotInList => "Zgłoszenia nie ma na liście — odśwież listę.",
-            HiddenIssueError::ListUnavailable => "Lista GitLaba nie jest jeszcze dostępna.",
+            HiddenIssueError::ListUnavailable => "Lista nie jest jeszcze dostępna.",
         }
         .to_string()
     }

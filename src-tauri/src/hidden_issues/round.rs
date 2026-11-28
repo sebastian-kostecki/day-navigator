@@ -13,10 +13,10 @@ use std::collections::HashMap;
 use chrono::Local;
 
 use super::{
-    CommentVerdict, HiddenIssueError, HiddenRecord, apply_round, comment_verdict, list,
+    Comment, CommentVerdict, HiddenIssueError, HiddenRecord, apply_round, comment_verdict, list,
     needs_comment_check, partition, plan_round, status_changed,
 };
-use crate::cli::{CliRunner, GitlabConfig, GitlabHost, IssueRef};
+use crate::cli::{CliRunner, GitlabConfig, GitlabHost, GitlabUser, IssueRef};
 use crate::gitlab::fetch::fetch_issue_notes;
 use crate::gitlab::{AssignedItems, GitlabError, GitlabItem};
 use crate::store::StoreHandle;
@@ -115,7 +115,14 @@ pub fn check_round(
                     iid: item.iid,
                 };
                 match fetch_issue_notes(runner, &config.host, issue) {
-                    Ok(notes) => Ok(comment_verdict(&notes, baseline, config.user.as_ref())),
+                    Ok(notes) => {
+                        let comments: Vec<Comment> = notes.iter().map(Comment::from).collect();
+                        Ok(comment_verdict(
+                            &comments,
+                            baseline,
+                            config.user.as_ref().map(GitlabUser::as_str),
+                        ))
+                    }
                     Err(e) => {
                         if stops_round(&e) {
                             stopped_at = Some(rec.issue_id);

@@ -36,11 +36,14 @@ fn find_gitlab_item(
     reference: &str,
 ) -> Option<GitlabItem> {
     let items = items?;
-    let pool = match kind {
-        ItemKind::MergeRequest => &items.merge_requests,
-        ItemKind::Issue => &items.issues,
+    // A merge request awaiting the user's review (S-06) is pickable too.
+    let pools: [&[GitlabItem]; 2] = match kind {
+        ItemKind::MergeRequest => [&items.merge_requests, &items.review_requests],
+        ItemKind::Issue => [&items.issues, &[]],
     };
-    pool.iter()
+    pools
+        .into_iter()
+        .flatten()
         .find(|i| i.kind == kind && i.reference == reference)
         .cloned()
 }
@@ -212,6 +215,7 @@ mod tests {
             milestone: None,
             is_new: false,
             hidden_at_ms: None,
+            review_requested: false,
         }
     }
 
@@ -221,12 +225,26 @@ mod tests {
             merge_requests: vec![item(ItemKind::MergeRequest, "g/p!1")],
             issues: vec![item(ItemKind::Issue, "g/p#1")],
             hidden_issues: vec![],
+            review_requests: Vec::new(),
         };
         assert!(find_gitlab_item(Some(&items), ItemKind::MergeRequest, "g/p!1").is_some());
         assert!(find_gitlab_item(Some(&items), ItemKind::Issue, "g/p#1").is_some());
         assert!(find_gitlab_item(Some(&items), ItemKind::Issue, "g/p!1").is_none());
         assert!(find_gitlab_item(Some(&items), ItemKind::Issue, "g/p#2").is_none());
         assert!(find_gitlab_item(None, ItemKind::Issue, "g/p#1").is_none());
+    }
+
+    #[test]
+    fn lookup_finds_a_review_only_merge_request() {
+        let items = AssignedItems {
+            merge_requests: vec![item(ItemKind::MergeRequest, "g/p!1")],
+            issues: vec![],
+            hidden_issues: vec![],
+            review_requests: vec![item(ItemKind::MergeRequest, "g/p!2")],
+        };
+        assert!(find_gitlab_item(Some(&items), ItemKind::MergeRequest, "g/p!2").is_some());
+        assert!(find_gitlab_item(Some(&items), ItemKind::MergeRequest, "g/p!3").is_none());
+        assert!(find_gitlab_item(Some(&items), ItemKind::Issue, "g/p!2").is_none());
     }
 
     #[test]
@@ -240,11 +258,14 @@ mod tests {
             web_url: None,
             updated_at: "2026-01-01T00:00:00Z".to_string(),
             labels: vec![],
+            changed: None,
+            hidden_at_ms: None,
         };
         let snapshot = GithubSnapshot {
             repos: vec![RepoView {
                 repo: "Octo-Test/Alpha".to_string(),
                 issues: vec![issue],
+                hidden: vec![],
                 error: None,
             }],
             ..GithubSnapshot::starting()

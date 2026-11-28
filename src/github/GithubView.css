@@ -59,3 +59,14 @@
 .github-scope > p {
   margin: 0;
 }
+
+.github-hidden-at {
+  flex: none;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.github-flag {
+  display: inline-flex;
+  flex: none;
+}

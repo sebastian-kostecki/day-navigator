@@ -3,7 +3,7 @@ project: "Nawigator dnia"
 version: 8
 status: draft
 created: 2026-11-20
-updated: 2026-11-27
+updated: 2026-11-28
 prd_version: 2
 main_goal: quality
 top_blocker: decisions
@@ -51,12 +51,12 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | ID   | Change ID                  | Outcome (user can …)                                                              | Prerequisites | PRD refs                      | Status   |
 | ---- | -------------------------- | --------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
 | F-01 | source-refresh-skeleton    | (foundation) GitLab and GitHub refresh on one shared skeleton, behaviour unchanged | —             | MS-28, FR-015                 | done     |
-| S-01 | github-hide-resurface      | hide a GitHub issue and see it come back marked "Changed"                         | F-01          | MS-31, FR-003, FR-005         | proposed |
-| S-02 | github-refresh-interval    | set GitHub's refresh interval and see when the next try happens                    | F-01          | MS-29, FR-005, FR-024         | proposed |
+| S-01 | github-hide-resurface      | hide a GitHub issue and see it come back marked "Changed"                         | F-01          | MS-31, FR-003, FR-005         | done |
+| S-02 | github-refresh-interval    | set GitHub's refresh interval and see when the next try happens                    | F-01          | MS-29, FR-005, FR-024         | done |
 | S-03 | github-new-and-notify      | see a NEW flag on GitHub items that appeared since their last visit              | F-01          | MS-30, FR-005, FR-023         | proposed |
 | S-04 | gitlab-offline-last-list   | see the last GitLab list, dimmed, under the unavailable card without VPN           | —             | MS-32, FR-015                 | done     |
 | S-05 | gitlab-view-memory         | find "Work (GitLab)" with the same type and "Hidden" section after a restart       | —             | MS-34, FR-001, FR-003         | done     |
-| S-06 | gitlab-review-requests     | see merge requests waiting for their review in a "Do review" section               | F-01          | MS-35, FR-001, FR-002, FR-004 | proposed |
+| S-06 | gitlab-review-requests     | see merge requests waiting for their review in a "Do review" section               | F-01          | MS-35, FR-001, FR-002, FR-004 | done |
 | S-07 | gitlab-hide-merge-requests | hide a GitLab merge request and see it come back marked "Changed"                 | S-01, S-06    | MS-33, FR-003                 | proposed |
 
 ## Streams
@@ -112,7 +112,7 @@ Slices below assume these are present and do NOT re-scaffold them.
   - Resolved 2026-11-27: the GitHub login comes from a new read-only `gh api user` call (a new `CliCall` covered by the guard test), not from a setting. — Owner: user. Block: no.
   - Can the rules in `hidden_issues/rules.rs` be shared without a copy, and can the new storage hold GitLab merge requests too, so S-07 needs no migration? — Owner: team. Block: no (settled in `/10x-plan`).
 - **Risk:** A migration and a new `gh` call; it runs in a wave with no other migration, and the shared hiding rules it settles are what S-07 builds on.
-- **Status:** proposed
+- **Status:** done
 
 ### S-02: GitHub refresh interval and next try
 
@@ -124,7 +124,7 @@ Slices below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** Small once F-01 exposes the interval and `nextRefreshAtMs` for every source; shares the GitHub view with S-01 and S-03.
-- **Status:** proposed
+- **Status:** done
 
 ### S-03: GitHub NEW flag
 
@@ -173,7 +173,7 @@ Slices below assume these are present and do NOT re-scaffold them.
 - **Blockers:** —
 - **Unknowns:** —
 - **Risk:** A new `glab api` call and a second source of merge requests in the refresh round; review requests reuse today's seen-assignment keys so they add no migration, and an MR both assigned and to review must not notify twice.
-- **Status:** proposed
+- **Status:** done
 
 ### S-07: Hide a GitLab merge request
 
@@ -271,3 +271,6 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **F-01: (foundation) GitLab and GitHub refresh through one shared skeleton (thread with a `ThreadDown` stand-in, interval, wake after sleep, "Check now", snapshot publication, `lastSuccessMs` and `nextRefreshAtMs`), with the fetch and rules left in each source's module, and no change in behaviour, commands or existing test bodies.** — Archived 2026-11-27 → `context/archive/2026-11-27-source-refresh-skeleton/`. Lesson: —.
 - **S-04: user can see, without VPN, the calm "GitLab unavailable" card with the last success and next try, and under it the session's last list, dimmed as in GitHub; the view header shows that list's counts instead of only "source unavailable".** — Archived 2026-11-27 → `context/archive/2026-11-27-gitlab-offline-last-list/`. Lesson: —.
 - **S-05: user can close and reopen the app and find "Work (GitLab)" with the same type choice (issues/MRs) and the same "Hidden" section expansion; the view filter still resets.** — Archived 2026-11-27 → `context/archive/2026-11-27-gitlab-view-memory/`. Lesson: —.
+- **S-01: user can hide and show a GitHub issue in its row, see a "Hidden (n)" section with the hide date, and see a hidden issue come back marked "Changed" when its state changes or someone other than them comments.** — Archived 2026-11-28 → `context/archive/2026-11-27-github-hide-resurface/`. Lesson: —.
+- **S-02: user can set GitHub's refresh interval in `settings.json` (`githubRefresh.minutes`, same range and default as GitLab) and see "every N min — next try in M min (HH:MM)" in GitHub's unavailable and error states.** — Archived 2026-11-28 → `context/archive/2026-11-27-github-refresh-interval/`. Lesson: —.
+- **S-06: user can see the GitLab merge requests where they are a reviewer in a "Do review" section of "Work (GitLab)", under the same settings filter, add them to "To do" with "+", and get a Windows notice of a new review request by the FR-004 mechanism and threshold, whatever the filter says.** — Archived 2026-11-28 → `context/archive/2026-11-27-gitlab-review-requests/`. Lesson: —.

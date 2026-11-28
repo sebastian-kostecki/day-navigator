@@ -64,6 +64,7 @@ fn gl(n: u32) -> GitlabItem {
         updated_at: "2026-11-20T10:00:00+01:00".into(),
         labels: vec![],
         draft: false,
+        review_requested: false,
     }
 }
 

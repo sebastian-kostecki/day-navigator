@@ -56,6 +56,7 @@ fn item(n: u32) -> GitlabItem {
         updated_at: "2026-11-20T10:00:00+01:00".into(),
         labels: vec![],
         draft: false,
+        review_requested: false,
     }
 }
 
@@ -154,6 +155,7 @@ fn reconcile_flow_against_a_real_store() {
         merge_requests: vec![still],
         issues: vec![],
         hidden_issues: vec![],
+        review_requests: Vec::new(),
     };
     let n = todo::reconcile_gitlab(&mut store, ACC, &list, day(d1), at(d1, 10)).unwrap();
     assert_eq!(n, 2);
@@ -192,6 +194,7 @@ fn an_item_filtered_out_of_the_view_stays_unticked_when_reconciled_on_the_full_l
         merge_requests: vec![],
         issues: vec![shown_item, hidden_by_filter],
         hidden_issues: vec![],
+        review_requests: Vec::new(),
     };
     let mut filter = GitlabFilter::default();
     filter.projects.include = vec!["invented/shown".into()];
@@ -240,6 +243,8 @@ fn gh(repo: &str, n: u64) -> GithubIssue {
         web_url: Some(format!("https://github.com/{repo}/issues/{n}")),
         updated_at: "2026-11-20T10:00:00Z".into(),
         labels: vec![],
+        changed: None,
+        hidden_at_ms: None,
     }
 }
 

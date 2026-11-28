@@ -669,7 +669,7 @@ None: MR records are new rows in `hidden_items` (v15). A database written by thi
 
 #### Manual
 
-- [ ] 1.4 MR notes response shape checked once against the real GitLab, nothing saved
+- [x] 1.4 MR notes response shape checked once against the real GitLab, nothing saved — manual 2026-11-28
 
 ### Phase 2: Snapshot model and list enumerations
 
@@ -724,12 +724,12 @@ None: MR records are new rows in `hidden_items` (v15). A database written by thi
 
 #### Manual
 
-- [ ] 7.5 Hiding an assigned MR removes it; the toggle shows it dimmed with ukryte DD.MM; Pokaż na liście brings it back
-- [ ] 7.6 Hiding a review-only MR moves it from Do review to the hidden rows with the Do review tag; with every review MR hidden, Do review shows the hidden count
-- [ ] 7.7 An MR both assigned and awaiting review is hidden from both places and counted once
-- [ ] 7.8 A comment by another account resurfaces a hidden MR with Zmienione (nowy komentarz); OK, zauważone clears it
-- [ ] 7.9 Own comment, approval, commit, pipeline, label change and draft toggle leave a hidden MR hidden
-- [ ] 7.10 Close and reopen brings a hidden MR back with wróciło na listę
-- [ ] 7.11 A hidden MR in Do zrobienia keeps its entry; a returned one shows zmienione
-- [ ] 7.12 GitLab issue hiding works as before
-- [ ] 7.13 Built app shows no CSP violation and the log holds no host, reference, title, login or note text
+- [x] 7.5 Hiding an assigned MR removes it; the toggle shows it dimmed with ukryte DD.MM; Pokaż na liście brings it back — manual 2026-11-28
+- [x] 7.6 Hiding a review-only MR moves it from Do review to the hidden rows with the Do review tag; with every review MR hidden, Do review shows the hidden count — manual 2026-11-28
+- [x] 7.7 An MR both assigned and awaiting review is hidden from both places and counted once — manual 2026-11-28
+- [x] 7.8 A comment by another account resurfaces a hidden MR with Zmienione (nowy komentarz); OK, zauważone clears it — manual 2026-11-28
+- [x] 7.9 Own comment, approval, commit, pipeline, label change and draft toggle leave a hidden MR hidden — manual 2026-11-28
+- [x] 7.10 Close and reopen brings a hidden MR back with wróciło na listę — manual 2026-11-28
+- [x] 7.11 A hidden MR in Do zrobienia keeps its entry; a returned one shows zmienione — manual 2026-11-28
+- [x] 7.12 GitLab issue hiding works as before — manual 2026-11-28
+- [x] 7.13 Built app shows no CSP violation and the log holds no host, reference, title, login or note text — manual 2026-11-28

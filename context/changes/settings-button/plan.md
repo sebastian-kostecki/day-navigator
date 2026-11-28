@@ -627,24 +627,24 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Automated
 
-- [x] 1.1 Every existing loader test in `settings.rs`, `settings/autostart.rs` and `settings/work_time.rs` passes unchanged: `cargo test settings`
-- [x] 1.2 New tests show that each validator reports the right field path (and list index) for every invalid field, and that several bad fields in one block are all reported
-- [x] 1.3 New tests show that no field-error message contains the offending value (marker strings)
-- [x] 1.4 New tests cover the `notices` loader: defaults when absent or `null`, all on when invalid, and `false` respected per field
-- [x] 1.5 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean
+- [x] 1.1 Every existing loader test in `settings.rs`, `settings/autostart.rs` and `settings/work_time.rs` passes unchanged: `cargo test settings` — 4b9fe8a
+- [x] 1.2 New tests show that each validator reports the right field path (and list index) for every invalid field, and that several bad fields in one block are all reported — 4b9fe8a
+- [x] 1.3 New tests show that no field-error message contains the offending value (marker strings) — 4b9fe8a
+- [x] 1.4 New tests cover the `notices` loader: defaults when absent or `null`, all on when invalid, and `false` respected per field — 4b9fe8a
+- [x] 1.5 `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` are clean — 4b9fe8a
 
 ### Phase 2: Settings writer and read/save commands
 
 #### Automated
 
-- [ ] 2.1 Writer tests with invented data show that unknown top-level keys, key order (also after removing a block in the middle), a BOM and CRLF are preserved, and that no temp file is left behind on failure
-- [ ] 2.2 Writer tests show that a new file is created only when the config dir exists, a missing config dir gives `ConfigDirMissing` with nothing created, and a malformed or wrong-version file is never overwritten
-- [ ] 2.3 Save tests show that a fingerprint mismatch gives `Conflict` and field errors give `Invalid`, both with the file bytes unchanged
-- [ ] 2.4 Save tests show that an invalid block on disk gives `InvalidOnDisk` without `replaceInvalid` and is replaced with it, and that an empty host or empty repos removes the block
-- [ ] 2.5 A round-trip test: for every section, `settings_view` → `save_settings_section` with the unchanged form gives a file that every existing loader reads to the same settings
-- [ ] 2.6 Serialization tests: errors serialize as `{kind, detail}`, and no error or log text contains a host, repo or filter value
-- [ ] 2.7 `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo audit` pass
-- [ ] 2.8 `npm run build`, `npm run lint` and `npm run format:check` pass
+- [x] 2.1 Writer tests with invented data show that unknown top-level keys, key order (also after removing a block in the middle), a BOM and CRLF are preserved, and that no temp file is left behind on failure
+- [x] 2.2 Writer tests show that a new file is created only when the config dir exists, a missing config dir gives `ConfigDirMissing` with nothing created, and a malformed or wrong-version file is never overwritten
+- [x] 2.3 Save tests show that a fingerprint mismatch gives `Conflict` and field errors give `Invalid`, both with the file bytes unchanged
+- [x] 2.4 Save tests show that an invalid block on disk gives `InvalidOnDisk` without `replaceInvalid` and is replaced with it, and that an empty host or empty repos removes the block
+- [x] 2.5 A round-trip test: for every section, `settings_view` → `save_settings_section` with the unchanged form gives a file that every existing loader reads to the same settings
+- [x] 2.6 Serialization tests: errors serialize as `{kind, detail}`, and no error or log text contains a host, repo or filter value
+- [x] 2.7 `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo audit` pass
+- [x] 2.8 `npm run build`, `npm run lint` and `npm run format:check` pass
 
 #### Manual
 

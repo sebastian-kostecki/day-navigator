@@ -1,4 +1,4 @@
-//! Read-only loader for the hand-written `settings.json`. Nothing here imports `tauri`.
+//! Read-only loader for the hand-written `settings.json`. Only `commands` imports `tauri`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -15,8 +15,13 @@ use crate::gitlab::filter::{DimensionRule, GitlabFilter};
 use crate::todo::{DEFAULT_TODO_LIMIT, TodoError};
 
 mod autostart;
+pub mod commands;
+mod document;
 mod field_error;
 mod notices;
+#[cfg(test)]
+mod save_tests;
+mod sections;
 #[cfg(test)]
 mod validator_tests;
 mod work_time;

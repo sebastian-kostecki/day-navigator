@@ -689,11 +689,11 @@ Rollback to an older build is safe. Old code never reads the marker row, and the
 
 #### Automated
 
-- [x] 3.1 Baseline rule and notice unit tests pass
-- [x] 3.2 Store-backed baseline and one-key tests pass
-- [x] 3.3 Crash harness still green with the new signature
-- [x] 3.4 cargo fmt --check and cargo clippy --all-targets -- -D warnings are clean
-- [x] 3.5 Full suite green: cargo test
+- [x] 3.1 Baseline rule and notice unit tests pass — 8fc0730
+- [x] 3.2 Store-backed baseline and one-key tests pass — 8fc0730
+- [x] 3.3 Crash harness still green with the new signature — 8fc0730
+- [x] 3.4 cargo fmt --check and cargo clippy --all-targets -- -D warnings are clean — 8fc0730
+- [x] 3.5 Full suite green: cargo test — 8fc0730
 
 ### Phase 4: "Do zrobienia": pick from "Do review" and reconcile safely
 

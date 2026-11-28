@@ -394,7 +394,7 @@ function ReviewBlock({
   clear: () => void;
   now: number;
   actions: RowActions;
-  /** Hidden review-only merge requests (the ones that would be in this panel); they make an empty panel explicit. */
+  /** Hidden merge requests that await the user's review, assigned or not (shown in the main table after "Pokaż ukryte"); they make an empty panel explicit. */
   hiddenReviewCount: number;
 }) {
   const rows = items.filter((i) => matchesView(i, selection)).sort(byUpdated);

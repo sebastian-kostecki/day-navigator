@@ -107,8 +107,9 @@ fn place(item: &GitlabItem, records: &[HiddenItemRecord]) -> Placed {
 
 /// Splits both merge request lists by the same records, matched by global id.
 /// Marked records stay visible with their reason. Order is kept in all three
-/// lists and every other field is kept, except that a hidden assigned merge
-/// request loses `review_requested` (see the match arm).
+/// lists and every other field, `review_requested` included, is kept: a hidden
+/// MR that awaits the user's review shows the "Do review" tag in the main
+/// table whether it is assigned or review-only.
 pub fn partition_merge_requests(
     merge_requests: &[GitlabItem],
     review_requests: &[GitlabItem],
@@ -125,13 +126,7 @@ pub fn partition_merge_requests(
     for item in merge_requests {
         match place(item, records) {
             Placed::Visible(i) => visible_assigned.push(i),
-            // A hidden assigned merge request would sit in the main table, never
-            // in "Do review": only hidden review-only ones keep the review flag,
-            // so the UI counts the hidden "Do review" members by it.
-            Placed::Hidden(i) => hidden_assigned.push(GitlabItem {
-                review_requested: false,
-                ..i
-            }),
+            Placed::Hidden(i) => hidden_assigned.push(i),
         }
     }
     let mut visible_review = Vec::new();

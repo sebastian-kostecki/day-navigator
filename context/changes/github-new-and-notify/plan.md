@@ -262,6 +262,10 @@ Unit test in `#[cfg(test)] mod tests` of `mod.rs`:
 
 ---
 
+**Deviation:** the reopen test (`the_seen_set_survives_a_reopen`) opens the store with `Store::open` instead of `StoreHandle::with_store`; it exercises the same store file and needs no handle layer. Unit tests live inline in `github_seen/mod.rs` (`mod tests`), not in a separate file.
+
+---
+
 ## Phase 3: Snapshot contract `newReferences`
 
 ### Overview
@@ -546,12 +550,12 @@ One extra `Store::write` per GitHub round (at most 50 repos × 500 issues, the e
 
 #### Automated
 
-- [ ] 2.1 Store operation unit test passes: `cargo test --lib github_seen`
-- [ ] 2.2 Integration tests pass: `cargo test --test github_seen`
-- [ ] 2.3 Crash test passes: `cargo test --test github_seen_crash`
-- [ ] 2.4 Full Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [ ] 2.5 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 2.6 Seeding-race test passes: `cargo test --test github_seen a_repo_seeded_without_a_mark_is_never_fresh_under_an_older_mark`
+- [x] 2.1 Store operation unit test passes: `cargo test --lib github_seen`
+- [x] 2.2 Integration tests pass: `cargo test --test github_seen`
+- [x] 2.3 Crash test passes: `cargo test --test github_seen_crash`
+- [x] 2.4 Full Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 2.5 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 2.6 Seeding-race test passes: `cargo test --test github_seen a_repo_seeded_without_a_mark_is_never_fresh_under_an_older_mark`
 
 ### Phase 3: Snapshot contract `newReferences`
 

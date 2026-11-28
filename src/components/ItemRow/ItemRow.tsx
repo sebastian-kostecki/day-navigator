@@ -11,6 +11,10 @@ type RowBase = {
   refId?: string;
   flag?: ReactNode;
   flagTone?: FlagProps["tone"];
+  /** Further flags or notes, right after `flag`. */
+  extra?: ReactNode;
+  /** Hidden look: the whole row is dimmed. */
+  dimmed?: boolean;
   /** Label names, shown comma-separated; nothing is rendered when absent or empty. */
   labels?: string[];
   /** Right-aligned mono meta: due date, "2 godz.". */
@@ -45,10 +49,11 @@ type WithoutCheckbox = RowBase & {
 export type ItemRowProps = WithCheckbox | WithoutCheckbox;
 
 export function ItemRow(props: ItemRowProps) {
-  const { title, source, refId, flag, flagTone, labels, meta, selected, children } = props;
+  const { title, source, refId, flag, flagTone, extra, dimmed, labels, meta, selected, children } =
+    props;
   const joinedLabels = labels && labels.length > 0 ? labels.join(", ") : null;
   const done = props.done === true || props.checked === true;
-  const classes = ["dn-row", selected && "is-selected", done && "is-done"]
+  const classes = ["dn-row", selected && "is-selected", done && "is-done", dimmed && "is-dimmed"]
     .filter(Boolean)
     .join(" ");
   return (
@@ -74,6 +79,7 @@ export function ItemRow(props: ItemRowProps) {
         <span className="dn-row-title">{title}</span>
       )}
       {flag ? <Flag tone={flagTone}>{flag}</Flag> : null}
+      {extra}
       {joinedLabels ? (
         <span className="dn-row-labels code" title={joinedLabels}>
           <span className="dn-sr-only">Etykiety: </span>

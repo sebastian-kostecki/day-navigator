@@ -52,7 +52,7 @@ use crate::hidden_issues::{
 };
 use crate::new_assignments::{
     ItemKey, NewAssignmentError, SessionSeen, items_for, keys_of, mark_fresh, mark_view_seen,
-    notices_for, record_round,
+    notices_for, record_round, review_only_keys,
 };
 use crate::runtime::{now_ms, toast};
 use crate::settings::{
@@ -762,6 +762,7 @@ fn record_seen(
     now_ms: i64,
 ) -> SeenOutcome {
     let current = keys_of(full);
+    let review_only = review_only_keys(full);
     // Day and event time both come from the round's instant, so they agree.
     let now_local = Local
         .timestamp_millis_opt(now_ms)
@@ -770,7 +771,7 @@ fn record_seen(
     let today = now_local.date();
     let mut events_stored = false;
     let recorded = app.state::<StoreHandle>().with_store(today, |s| {
-        let round = record_round(s, account, &current, now_ms)?;
+        let round = record_round(s, account, &current, &review_only, now_ms)?;
         // The event log must never change the round's outcome: its failure is
         // logged by kind only and the toasts and NEW flags stay as they are.
         if !round.new.is_empty() {

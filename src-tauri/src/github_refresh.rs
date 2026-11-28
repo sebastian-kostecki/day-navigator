@@ -10,9 +10,10 @@
 //! wake.
 //!
 //! Lock order: `hidden_gate`, then `kept_config`, then `kept_full`, then
-//! `kept_new`, then `shown_until`, then `last_mark`, then the snapshot lock (in
-//! `SourceCell`). The store lock is taken inside the gate but never while a
-//! `kept_*`, `shown_until` or `last_mark` lock is held. The comment checks
+//! `kept_new`, then `shown_until`, then `shown_unloaded`, then `last_mark`, then
+//! the snapshot lock (in `SourceCell`). The store lock is taken inside the gate
+//! but never while a `kept_*`, `shown_until`, `shown_unloaded` or `last_mark`
+//! lock is held. The comment checks
 //! (processes) run before the gate; the commit, the snapshot store and the kept
 //! list change under it; publication happens after the gate is released.
 //!

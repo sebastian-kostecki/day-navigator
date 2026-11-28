@@ -2,8 +2,9 @@
 //! that touches processes; blocking like the runner, so callers keep it off the
 //! main thread.
 
+use super::comments::{GithubComment, GithubLogin, parse_comments, parse_login};
 use super::{GithubError, GithubIssue, parse_issues};
-use crate::cli::{CliCall, CliRunner, GH_ISSUE_LIMIT, GithubConfig, GithubRepo};
+use crate::cli::{CliCall, CliRunner, GH_ISSUE_LIMIT, GithubConfig, GithubIssueNumber, GithubRepo};
 
 /// The outcome of one repository in a round.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,4 +45,20 @@ pub fn fetch_assigned(
         });
     }
     Ok(results)
+}
+
+/// The login of the logged-in `gh` account (`gh api user`).
+pub fn fetch_login(runner: &CliRunner) -> Result<GithubLogin, GithubError> {
+    let stdout = runner.run(&CliCall::GhUser)?;
+    parse_login(&stdout)
+}
+
+/// The comments of one issue (`gh issue view --json comments`).
+pub fn fetch_issue_comments(
+    runner: &CliRunner,
+    repo: &GithubRepo,
+    number: GithubIssueNumber,
+) -> Result<Vec<GithubComment>, GithubError> {
+    let stdout = runner.run(&CliCall::GhIssueComments(repo.clone(), number))?;
+    parse_comments(&stdout)
 }

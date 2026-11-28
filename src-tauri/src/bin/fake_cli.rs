@@ -30,6 +30,11 @@ const GH_TITLE_MARKER: &str = "LEAK-MARKER-GH-TITLE-5a8e";
 /// Marker in a label name of the same issue (`gh-issues`, `octo-test/alpha#3`);
 /// tests assert it reaches the issue's labels and nothing else.
 const GH_LABEL_MARKER: &str = "LEAK-MARKER-GH-LABEL-3d9f";
+/// Marker in every comment body of the `gh-hidden-*` scenarios; tests assert it
+/// never shows up in an error, a `Debug` output or a log.
+const GH_COMMENT_MARKER: &str = "LEAK-MARKER-GH-COMMENT-8d3a";
+/// The invented login `gh api user` returns in the `gh-hidden-*` scenarios.
+const GH_LOGIN_MARKER: &str = "LEAK-MARKER-GH-LOGIN-6b1c";
 
 /// The one issue that has notes in the notes scenarios: project and in-project
 /// number of "Widget crashes on start". Any other issue gets an empty array.
@@ -525,6 +530,127 @@ fn gh_issues_scenario() -> i32 {
     }
 }
 
+fn gh_comment_value(login: Option<&str>, created: &str) -> serde_json::Value {
+    let author = match login {
+        Some(login) => serde_json::json!({ "login": login }),
+        None => serde_json::Value::Null,
+    };
+    serde_json::json!({
+        "id": "IC_invented",
+        "author": author,
+        "authorAssociation": "NONE",
+        "body": format!("Invented comment {GH_COMMENT_MARKER}"),
+        "createdAt": created,
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/octo-test/alpha/issues/3#issuecomment-1",
+        "viewerDidAuthor": false
+    })
+}
+
+/// The `gh-hidden-*` scenarios. `gh issue list` is routed like `gh-issues`
+/// (alpha has #3 and #11, beta has #5), `gh api user` returns an invented
+/// login, and `gh issue view <N> --json comments` returns the comments the
+/// scenario names for every issue. All comments are dated after the issues'
+/// `updatedAt`, except in `gh-hidden-old`. Invented data only.
+fn gh_hidden_scenario(scenario: &str) -> i32 {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let first = args.first().map(String::as_str);
+    let second = args.get(1).map(String::as_str);
+    match (first, second) {
+        (Some("api"), Some("user")) => {
+            if scenario == "gh-hidden-user-fails" {
+                eprintln!("something unexpected happened");
+                return 2;
+            }
+            println!(
+                "{}",
+                serde_json::json!({ "login": GH_LOGIN_MARKER, "id": 1, "type": "User" })
+            );
+            0
+        }
+        (Some("issue"), Some("list")) => match gh_repo_arg().as_deref() {
+            Some("octo-test/alpha") => {
+                let mut issues = Vec::new();
+                if scenario != "gh-hidden-closed" {
+                    issues.push(gh_issue_value(
+                        "octo-test/alpha",
+                        3,
+                        "Gizmo jitters",
+                        "2026-02-20T08:00:00Z",
+                        &["bug"],
+                    ));
+                }
+                issues.push(gh_issue_value(
+                    "octo-test/alpha",
+                    11,
+                    "Widget crashes on start",
+                    "2026-03-03T08:00:00Z",
+                    &["bug", "needs-triage"],
+                ));
+                println!("{}", serde_json::Value::Array(issues));
+                0
+            }
+            Some("octo-test/beta") => {
+                if scenario == "gh-hidden-beta-fails" {
+                    eprintln!("something unexpected happened");
+                    return 2;
+                }
+                let issues = vec![gh_issue_value(
+                    "octo-test/beta",
+                    5,
+                    "Sprocket squeaks",
+                    "2026-02-25T08:00:00Z",
+                    &[],
+                )];
+                println!("{}", serde_json::Value::Array(issues));
+                0
+            }
+            _ => 98,
+        },
+        (Some("issue"), Some("view"))
+            if args.len() == 7
+                && args[2].parse::<u64>().is_ok()
+                && args[3] == "-R"
+                && args[5] == "--json"
+                && args[6] == "comments" =>
+        {
+            let later = "2026-03-10T09:00:00Z";
+            let comments: Vec<serde_json::Value> = match scenario {
+                "gh-hidden-other" => vec![gh_comment_value(Some("octo-other-4e7a"), later)],
+                "gh-hidden-own" => vec![gh_comment_value(
+                    Some(&GH_LOGIN_MARKER.to_ascii_lowercase()),
+                    later,
+                )],
+                "gh-hidden-ghost" => vec![
+                    gh_comment_value(None, later),
+                    gh_comment_value(Some(""), later),
+                ],
+                "gh-hidden-old" => vec![gh_comment_value(
+                    Some("octo-other-4e7a"),
+                    "2026-01-05T09:00:00Z",
+                )],
+                "gh-hidden-bad-json" => {
+                    println!(
+                        "{{\"comments\":[{{\"author\":{{\"login\":\"x\"}},\"body\":\"{GH_COMMENT_MARKER}\",\"createdAt\":\"2026-03"
+                    );
+                    return 0;
+                }
+                "gh-hidden-view-unavailable" => {
+                    eprint!("{GH_NO_NETWORK}");
+                    return 1;
+                }
+                _ => Vec::new(),
+            };
+            println!("{}", serde_json::json!({ "comments": comments }));
+            0
+        }
+        _ => 98,
+    }
+}
+
 /// Starts a copy of this program that sleeps a few seconds while holding the
 /// inherited stdout open (stderr is not shared), like a helper process that
 /// outlives the CLI.
@@ -557,6 +683,7 @@ fn main() {
     record_call();
     let code = match scenario.as_str() {
         "gh-issues" => gh_issues_scenario(),
+        name if name.starts_with("gh-hidden-") => gh_hidden_scenario(name),
         "data" => {
             println!("{}", echo_argv());
             0

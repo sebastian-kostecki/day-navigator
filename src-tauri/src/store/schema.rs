@@ -295,6 +295,36 @@ ALTER TABLE events_new RENAME TO events;",
   show_hidden INTEGER NOT NULL CHECK (show_hidden IN (0, 1))
 );",
     },
+    // v15 (slice S-01 `github-hide-resurface`): hide records for GitHub issues
+    // now and GitLab merge requests later (S-07), keyed by source, scope (the
+    // lowercase `owner/name` repo key, later the GitLab host), kind and item id
+    // (GitHub issue number, later the GitLab global MR id). A row holds ids, a
+    // status fingerprint (JSON list of scoped labels, `[]` for GitHub), the
+    // baseline `updated_at` and instants: no title, URL, reference, comment text
+    // or login. `project_id`/`iid` are set for `gitlab` rows only. GitLab issues
+    // stay in `hidden_issues`.
+    Migration {
+        version: 15,
+        sql: "CREATE TABLE hidden_items (
+  source              TEXT    NOT NULL CHECK (source IN ('gitlab','github')),
+  scope               TEXT    NOT NULL CHECK (length(scope) BETWEEN 1 AND 255),
+  kind                TEXT    NOT NULL CHECK (kind IN ('issue','mergeRequest')),
+  item_id             INTEGER NOT NULL CHECK (item_id > 0),
+  project_id          INTEGER,
+  iid                 INTEGER,
+  status_fingerprint  TEXT    NOT NULL,
+  baseline_updated_at TEXT    NOT NULL,
+  settle_after_ms     INTEGER,
+  hidden_at_ms        INTEGER NOT NULL,
+  absent_since_ms     INTEGER,
+  changed_reason      TEXT CHECK (changed_reason IN ('status','comment','returned')),
+  changed_at_ms       INTEGER,
+  CHECK ((changed_reason IS NULL) = (changed_at_ms IS NULL)),
+  CHECK ((project_id IS NULL) = (iid IS NULL)),
+  CHECK ((source = 'gitlab') = (project_id IS NOT NULL)),
+  PRIMARY KEY (source, scope, kind, item_id)
+);",
+    },
 ];
 
 /// Versions must start at 1 and rise by exactly 1.

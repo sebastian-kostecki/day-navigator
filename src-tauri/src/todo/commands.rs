@@ -240,11 +240,14 @@ mod tests {
             web_url: None,
             updated_at: "2026-01-01T00:00:00Z".to_string(),
             labels: vec![],
+            changed: None,
+            hidden_at_ms: None,
         };
         let snapshot = GithubSnapshot {
             repos: vec![RepoView {
                 repo: "Octo-Test/Alpha".to_string(),
                 issues: vec![issue],
+                hidden: vec![],
                 error: None,
             }],
             ..GithubSnapshot::starting()

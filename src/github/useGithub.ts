@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { getGithubSnapshot, refreshGithub } from "./api";
+import {
+  dismissGithubChange,
+  getGithubSnapshot,
+  githubHiddenErrorMessage,
+  hideGithubIssue,
+  isGithubHiddenStale,
+  refreshGithub,
+  unhideGithubIssue,
+} from "./api";
 import type { GithubSnapshot } from "./types";
 
 function errorText(e: unknown): string {
@@ -13,6 +21,9 @@ export function useGithub({ refreshOnMount = true }: { refreshOnMount?: boolean 
   const [snapshot, setSnapshot] = useState<GithubSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  // References with an action in flight.
+  const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   // Bumped by `retry` to re-run the subscribe-and-load effect.
   const [attempt, setAttempt] = useState(0);
 
@@ -74,5 +85,42 @@ export function useGithub({ refreshOnMount = true }: { refreshOnMount?: boolean 
     }
   }, []);
 
-  return { snapshot, loadError, refresh, refreshError, retry };
+  // No optimistic update: the new snapshot arrives as `github-changed`.
+  const act = useCallback(
+    async (reference: string, run: (reference: string) => Promise<void>) => {
+      setActionError(null);
+      setBusy((b) => new Set(b).add(reference));
+      try {
+        await run(reference);
+      } catch (e) {
+        setActionError(githubHiddenErrorMessage(e));
+        // The row was stale: fetch a fresh list.
+        if (isGithubHiddenStale(e)) void refresh();
+      } finally {
+        setBusy((b) => {
+          const next = new Set(b);
+          next.delete(reference);
+          return next;
+        });
+      }
+    },
+    [refresh],
+  );
+
+  const hide = useCallback((reference: string) => act(reference, hideGithubIssue), [act]);
+  const unhide = useCallback((reference: string) => act(reference, unhideGithubIssue), [act]);
+  const dismiss = useCallback((reference: string) => act(reference, dismissGithubChange), [act]);
+
+  return {
+    snapshot,
+    loadError,
+    refresh,
+    refreshError,
+    retry,
+    actionError,
+    busy,
+    hide,
+    unhide,
+    dismiss,
+  };
 }

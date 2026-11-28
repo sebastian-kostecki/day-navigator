@@ -5,6 +5,7 @@
 //! error value, log line or message carries a repository name, a URL, a title,
 //! a `serde_json` error or any other response content.
 
+pub mod comments;
 pub mod fetch;
 
 use std::cmp::Reverse;
@@ -13,6 +14,7 @@ use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 
 use crate::cli::{CliError, GithubConfig, GithubRepo, Tool};
+use crate::hidden_issues::ChangeReason;
 use fetch::RepoResult;
 
 /// One open issue assigned to the `gh` account.
@@ -32,6 +34,10 @@ pub struct GithubIssue {
     pub updated_at: String,
     /// Label names in the order GitHub sent them; empty when there are none.
     pub labels: Vec<String>,
+    /// Why a hidden issue came back; set only on a marked, visible issue.
+    pub changed: Option<ChangeReason>,
+    /// When the issue was hidden (UTC epoch ms); set only on a hidden issue.
+    pub hidden_at_ms: Option<i64>,
 }
 
 /// Why a repo or a round produced no list. No variant carries a value from the
@@ -187,6 +193,8 @@ pub fn parse_issues(repo: &GithubRepo, stdout: &str) -> Result<Vec<GithubIssue>,
             web_url: checked_url(&r.url, repo),
             updated_at: r.updated_at,
             labels: r.labels.into_iter().map(|l| l.name).collect(),
+            changed: None,
+            hidden_at_ms: None,
         };
         keyed.push((stamp, issue));
     }
@@ -225,7 +233,11 @@ pub struct RepoErrorView {
 pub struct RepoView {
     /// `owner/name` as written in settings.
     pub repo: String,
+    /// The visible issues (a marked one carries `changed`).
     pub issues: Vec<GithubIssue>,
+    /// The repo's hidden issues in list order; empty in a fetched,
+    /// unpartitioned view.
+    pub hidden: Vec<GithubIssue>,
     pub error: Option<RepoErrorView>,
 }
 
@@ -239,6 +251,11 @@ pub struct GithubSnapshot {
     pub checked_at_ms: Option<u64>,
     pub refreshing: bool,
     pub seq: u64,
+    /// Hidden issues whose comment check failed this round.
+    pub hidden_check_failed: u32,
+    /// Fixed Polish text when the hide records could not be read or written;
+    /// the repos then show every issue.
+    pub hidden_error: Option<String>,
 }
 
 impl GithubSnapshot {
@@ -251,11 +268,13 @@ impl GithubSnapshot {
             checked_at_ms: None,
             refreshing: false,
             seq: 0,
+            hidden_check_failed: 0,
+            hidden_error: None,
         }
     }
 }
 
-fn repo_view(result: RepoResult) -> RepoView {
+pub fn repo_view(result: RepoResult) -> RepoView {
     let (issues, error) = match result.outcome {
         Ok(issues) => (issues, None),
         Err(e) => (
@@ -269,6 +288,7 @@ fn repo_view(result: RepoResult) -> RepoView {
     RepoView {
         repo: result.repo.as_str().to_string(),
         issues,
+        hidden: Vec::new(),
         error,
     }
 }
@@ -295,6 +315,8 @@ pub fn next_snapshot(
         checked_at_ms: Some(now_ms),
         refreshing: false,
         seq: prev.seq + 1,
+        hidden_check_failed: 0,
+        hidden_error: None,
     };
     let error = match outcome {
         Ok(results) => {
@@ -323,6 +345,8 @@ pub fn next_snapshot(
     if keeps {
         next.repos = prev.repos.clone();
         next.last_success_ms = prev.last_success_ms;
+        next.hidden_check_failed = prev.hidden_check_failed;
+        next.hidden_error = prev.hidden_error.clone();
         (next, kept.cloned())
     } else {
         (next, None)
@@ -532,6 +556,8 @@ mod tests {
             web_url: None,
             updated_at: "2026-03-03T08:00:00Z".to_string(),
             labels: vec![],
+            changed: None,
+            hidden_at_ms: None,
         }
     }
 
@@ -560,6 +586,40 @@ mod tests {
         );
         assert_eq!(kept, Some(cfg.clone()));
         (snap, cfg)
+    }
+
+    #[test]
+    fn hidden_fields_reset_on_success_and_carry_over_when_the_list_is_kept() {
+        let (mut prev, cfg) = prev_with_list();
+        assert_eq!(
+            (prev.hidden_check_failed, prev.hidden_error.clone()),
+            (0, None)
+        );
+        prev.hidden_check_failed = 2;
+        prev.hidden_error = Some("fixed text".to_string());
+        let (kept, _) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            Some(&cfg),
+            Err(GithubError::Unavailable),
+            300,
+        );
+        assert_eq!(kept.hidden_check_failed, 2);
+        assert_eq!(kept.hidden_error.as_deref(), Some("fixed text"));
+        let (fresh, _) = next_snapshot(&prev, Some(&cfg), Some(&cfg), Ok(good_round()), 400);
+        assert_eq!((fresh.hidden_check_failed, fresh.hidden_error), (0, None));
+        assert!(fresh.repos.iter().all(|r| r.hidden.is_empty()));
+        let (dropped, _) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            None,
+            Err(GithubError::NotConfigured),
+            500,
+        );
+        assert_eq!(
+            (dropped.hidden_check_failed, dropped.hidden_error),
+            (0, None)
+        );
     }
 
     #[test]

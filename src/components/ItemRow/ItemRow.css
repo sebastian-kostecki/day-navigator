@@ -75,3 +75,7 @@ label.dn-row-title {
   display: flex;
   gap: var(--space-1);
 }
+
+.dn-row.is-dimmed {
+  opacity: 0.6;
+}

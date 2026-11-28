@@ -181,7 +181,9 @@ export function useSettings() {
         const fieldErrors = section.fieldErrors.filter(
           (e) => JSON.stringify(before[e.field]) === JSON.stringify(after[e.field]),
         );
-        return patch(sections, id, { form, fieldErrors, saved: false, confirmReplace: false });
+        // The sync outcome describes the saved switch, not an edited one.
+        const stale = { saved: false, status: null, confirmReplace: false };
+        return patch(sections, id, { form, fieldErrors, ...stale });
       });
     },
     [update],

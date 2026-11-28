@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Button, Dialog, ErrorState, Notice, Tabs, formatClock } from "../components";
-import { openSettingsErrorMessage, openSettingsFile } from "../gitlab/api";
+import { openSettingsErrorMessage, openSettingsFile } from "./api";
 import { sectionErrors } from "./fieldErrors";
 import { AutostartSection } from "./sections/AutostartSection";
 import { GithubSection } from "./sections/GithubSection";
@@ -10,7 +10,7 @@ import { RemindersSection } from "./sections/RemindersSection";
 import { SectionShell } from "./sections/SectionShell";
 import { TodoSection } from "./sections/TodoSection";
 import { WorkTimeSection } from "./sections/WorkTimeSection";
-import type { SectionId } from "./types";
+import type { SectionForms, SectionId } from "./types";
 import { SECTION_IDS, isDirty, useSettings } from "./useSettings";
 import { useSettingsDialog } from "./useSettingsDialog";
 import "./SettingsDialog.css";
@@ -37,12 +37,15 @@ function SettingsScreen({ active }: { active: SectionId }) {
 
   const dirty = data.state === "data" ? SECTION_IDS.filter((id) => isDirty(data.sections[id])) : [];
   const confirmingClose = closeRequested && dirty.length > 0;
+  // A save or reload in flight: closing now could not discard it, and would hide its outcome.
+  const busy = data.state === "data" && SECTION_IDS.some((id) => data.sections[id].pending);
 
   useEffect(() => {
     if (closeRequested && dirty.length === 0) close();
   }, [closeRequested, dirty.length, close]);
 
   const requestClose = () => {
+    if (busy) return;
     // Text still in a list input is added on blur, so it counts as an edit.
     if (document.activeElement instanceof HTMLInputElement) document.activeElement.blur();
     setCloseRequested(true);
@@ -69,14 +72,24 @@ function SettingsScreen({ active }: { active: SectionId }) {
     );
   } else {
     const { sections } = data;
-    const busy = SECTION_IDS.some((id) => sections[id].pending);
+    // Going on with the form withdraws a pending "close?", so it cannot close under the user.
+    const change = <K extends SectionId>(id: K, form: SectionForms[K]) => {
+      setCloseRequested(false);
+      edit(id, form);
+    };
     const shell = <K extends SectionId>(id: K) => ({
       id,
       section: sections[id],
       hidden: id !== active,
       busy,
-      onSave: (replaceInvalid: boolean) => void save(id, replaceInvalid),
-      onReload: () => void reload(id),
+      onSave: (replaceInvalid: boolean) => {
+        setCloseRequested(false);
+        void save(id, replaceInvalid);
+      },
+      onReload: () => {
+        setCloseRequested(false);
+        void reload(id);
+      },
       onCancelReplace: () => cancelReplace(id),
     });
     const errors = (id: SectionId) => sectionErrors(sections[id].fieldErrors);
@@ -109,49 +122,49 @@ function SettingsScreen({ active }: { active: SectionId }) {
           <SectionShell {...shell("gitlab")}>
             <GitlabSection
               form={sections.gitlab.form}
-              onChange={(form) => edit("gitlab", form)}
+              onChange={(form) => change("gitlab", form)}
               errors={errors("gitlab")}
             />
           </SectionShell>
           <SectionShell {...shell("github")}>
             <GithubSection
               form={sections.github.form}
-              onChange={(form) => edit("github", form)}
+              onChange={(form) => change("github", form)}
               errors={errors("github")}
             />
           </SectionShell>
           <SectionShell {...shell("todo")}>
             <TodoSection
               form={sections.todo.form}
-              onChange={(form) => edit("todo", form)}
+              onChange={(form) => change("todo", form)}
               errors={errors("todo")}
             />
           </SectionShell>
           <SectionShell {...shell("workTime")}>
             <WorkTimeSection
               form={sections.workTime.form}
-              onChange={(form) => edit("workTime", form)}
+              onChange={(form) => change("workTime", form)}
               errors={errors("workTime")}
             />
           </SectionShell>
           <SectionShell {...shell("reminders")}>
             <RemindersSection
               form={sections.reminders.form}
-              onChange={(form) => edit("reminders", form)}
+              onChange={(form) => change("reminders", form)}
               errors={errors("reminders")}
             />
           </SectionShell>
           <SectionShell {...shell("notices")}>
             <NoticesSection
               form={sections.notices.form}
-              onChange={(form) => edit("notices", form)}
+              onChange={(form) => change("notices", form)}
               errors={errors("notices")}
             />
           </SectionShell>
           <SectionShell {...shell("autostart")}>
             <AutostartSection
               form={sections.autostart.form}
-              onChange={(form) => edit("autostart", form)}
+              onChange={(form) => change("autostart", form)}
               errors={errors("autostart")}
               status={sections.autostart.status}
             />
@@ -190,7 +203,7 @@ function SettingsScreen({ active }: { active: SectionId }) {
       >
         Otwórz settings.json
       </Button>
-      <Button key="close" onClick={requestClose}>
+      <Button key="close" disabled={busy} onClick={requestClose}>
         Zamknij
       </Button>
     </>

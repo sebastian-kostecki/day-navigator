@@ -111,6 +111,9 @@ The gear button in the header opens the **Ustawienia** dialog. The "Ustawienia" 
 - The order of the top-level keys, unknown top-level keys, a BOM and CRLF line endings are kept.
   Whitespace and the key order inside saved blocks are normalised. Keep a copy
   first if you want your exact formatting back.
+- The whole file is written again, so a repeated key keeps only its last value, and a very large or
+  very precise number in an unknown block may be rounded. A `settings.json` that is a symbolic link
+  is replaced by a regular file; the link target is not changed.
 - Text is written as typed (list entries trimmed); the dialog shows it normalised, for example
   filter entries in lower case. Values shown as defaults are written too: saving **GitLab** adds
   `"gitlabRefresh": { "minutes": 10 }`. An empty GitLab host or an empty repository list removes

@@ -1,5 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { SaveRequest, SaveResult, SaveSettingsError, SettingsView } from "./types";
+import type {
+  OpenSettingsError,
+  SaveRequest,
+  SaveResult,
+  SaveSettingsError,
+  SettingsView,
+} from "./types";
 
 /** Emitted after a successful save, with a `SettingsChanged` payload. */
 export const SETTINGS_CHANGED = "settings-changed";
@@ -34,6 +40,29 @@ export function settingsErrorMessage(e: unknown): string {
         return "Popraw zaznaczone pola.";
       case "Io":
         return "Nie udało się odczytać lub zapisać settings.json.";
+      default:
+        return `Nieoczekiwany błąd (${(err as { kind: string }).kind})`;
+    }
+  }
+  return `Nieoczekiwany błąd: ${String(e)}`;
+}
+
+/** Opens `settings.json` from the app config folder in the default program. */
+export function openSettingsFile(): Promise<void> {
+  return invoke<void>("open_settings_file");
+}
+
+/** Polish message for anything thrown by `openSettingsFile`. */
+export function openSettingsErrorMessage(e: unknown): string {
+  if (typeof e === "object" && e !== null && "kind" in e) {
+    const err = e as OpenSettingsError;
+    switch (err.kind) {
+      case "ConfigDirUnresolved":
+        return "Nie można ustalić folderu ustawień aplikacji.";
+      case "Missing":
+        return "Brak pliku settings.json w folderze ustawień aplikacji.";
+      case "OpenFailed":
+        return "Nie udało się otworzyć settings.json.";
       default:
         return `Nieoczekiwany błąd (${(err as { kind: string }).kind})`;
     }

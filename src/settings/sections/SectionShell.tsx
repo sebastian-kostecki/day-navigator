@@ -76,7 +76,8 @@ export function SectionShell<K extends SectionId>({
       </div>
       {confirmReplace && (
         <Notice tone="warn" compact role="alert">
-          Zastąpić nieprawidłowy blok?
+          Zastąpić nieprawidłowy blok? Obecna zawartość w pliku przepadnie:{" "}
+          {invalidBlocks.join(", ")}.
         </Notice>
       )}
       <div className="dn-settings-actions">

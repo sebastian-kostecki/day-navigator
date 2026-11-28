@@ -619,6 +619,16 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 - No-modal precedent: `context/archive/2026-11-26-end-of-day-summary/plan.md:45`
 - Temp-file + `sync_all` reference: `src-tauri/src/store/backup.rs:125-155`
 
+## Addendum: implementation review (2026-11-28)
+
+Where the shipped behaviour differs from, or adds to, the phase text above. See `reviews/impl-review.md`.
+
+- Phase 5, "replaces the whole view from each `SaveResult`": the saved section and every clean one take the new view; another section with an unsaved draft keeps it, with the fingerprints it was made on.
+- Phase 4, `ChipListField`: leaving the add input also adds the typed text, so a following save includes it.
+- Close confirmation: going on with the form (edit, save, reload) withdraws it, and the dialog cannot be closed while a save or reload is in flight.
+- The replace question also says that the invalid blocks' current content in the file will be lost, and names them.
+- `openSettingsFile` and `OpenSettingsError` moved from `src/gitlab/` to `src/settings/`.
+
 ## Progress
 
 > Convention: `- [ ]` pending, `- [x]` done. Append ` — <commit sha>` when a step lands. Do not rename step titles. See `references/progress-format.md`.

@@ -131,10 +131,6 @@ export type HiddenIssueError =
   | { kind: "NotInList" }
   | { kind: "ListUnavailable" };
 
-/** Mirrors `settings_file::OpenSettingsError`. */
-export type OpenSettingsError =
-  { kind: "ConfigDirUnresolved" } | { kind: "Missing" } | { kind: "OpenFailed" };
-
 /** Mirrors gitlab_view_state::ViewKind. */
 export type KindFilter = "all" | "issue" | "mergeRequest";
 

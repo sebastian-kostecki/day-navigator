@@ -31,6 +31,10 @@ impl Default for NoticeSettings {
 
 /// The Windows notices other than the source-health one, which
 /// `health::filter_transitions` gates per source.
+///
+/// `Stall`, `TrayFailure` and `Reminder` only record the rule: their call
+/// sites call `toast` directly and never ask, so no test here would notice a
+/// gate added at one of them.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Toast {
     /// New GitLab assignments and review requests.

@@ -122,3 +122,7 @@ export type SaveSettingsError =
   | { kind: "InvalidOnDisk"; detail: { blocks: string[] } }
   | { kind: "Invalid"; detail: { fields: FieldError[] } }
   | { kind: "Io" };
+
+/** Mirrors `settings_file::OpenSettingsError`. */
+export type OpenSettingsError =
+  { kind: "ConfigDirUnresolved" } | { kind: "Missing" } | { kind: "OpenFailed" };

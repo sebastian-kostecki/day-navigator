@@ -209,6 +209,7 @@ pub fn run() {
             backups_folder::open_backups_folder,
             github_refresh::github_snapshot,
             github_refresh::refresh_github,
+            github_refresh::mark_github_seen,
             hidden_issues::commands::hide_gitlab_issue,
             hidden_issues::commands::unhide_gitlab_issue,
             hidden_issues::commands::dismiss_gitlab_change,

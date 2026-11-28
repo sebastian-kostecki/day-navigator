@@ -570,11 +570,11 @@ One extra `Store::write` per GitHub round (at most 50 repos × 500 issues, the e
 
 #### Automated
 
-- [ ] 4.1 Refresh-state tests pass: `cargo test --lib github_refresh`
-- [ ] 4.2 Full Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [ ] 4.3 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 4.4 No new CLI call: `git diff --stat develop -- src-tauri/src/cli src-tauri/src/bin src-tauri/src/hidden_issues src-tauri/src/new_assignments` is empty
-- [ ] 4.5 Saved-mark test passes: `cargo test --lib github_refresh a_key_first_seen_after_the_saved_mark_stays_new`
+- [x] 4.1 Refresh-state tests pass: `cargo test --lib github_refresh`
+- [x] 4.2 Full Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 4.3 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 4.4 No new CLI call: `git diff --stat develop -- src-tauri/src/cli src-tauri/src/bin src-tauri/src/hidden_issues src-tauri/src/new_assignments` is empty
+- [x] 4.5 Saved-mark test passes: `cargo test --lib github_refresh a_key_first_seen_after_the_saved_mark_stays_new`
 
 ### Phase 5: UI — `Nowe` flag and end-of-visit hook
 

@@ -8,7 +8,7 @@ use std::io;
 use std::path::Path;
 
 use crate::health::{SourceId, SourceState, SourceStatus};
-use crate::settings::{AutostartSettings, AutostartSettingsInvalid};
+use crate::settings::{AutostartSettings, AutostartSettingsInvalid, load_autostart_settings};
 
 #[cfg(windows)]
 mod hkcu;
@@ -159,6 +159,17 @@ pub fn run(
     if enabled { Outcome::On } else { Outcome::Off }
 }
 
+/// [`run`] on the `autostart` block of the settings file at `path`: what start-up
+/// and an `autostart` save both do.
+pub fn sync_from_file(
+    path: &Path,
+    apply: bool,
+    entry: &dyn RunEntry,
+    exe: Option<&Path>,
+) -> Outcome {
+    run(load_autostart_settings(path), apply, entry, exe)
+}
+
 fn step_phrase(step: FailedStep) -> &'static str {
     match step {
         FailedStep::Read => "odczytać wpisu autostartu w rejestrze Windows",
@@ -204,6 +215,9 @@ pub fn status(outcome: &Outcome) -> SourceStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::settings::commands::{
+        AutostartForm, SaveRequest, SectionInput, SettingsWriteLock, read_view, save_section,
+    };
     use std::cell::{Cell, RefCell};
     use std::ffi::OsString;
     use std::path::PathBuf;
@@ -428,6 +442,49 @@ mod tests {
                 kind: io::ErrorKind::Other
             }
         );
+    }
+
+    /// Saves the `autostart` section the way the dialog does.
+    fn save_autostart(path: &Path, enabled: bool) {
+        let view = read_view(path).unwrap();
+        let request = SaveRequest {
+            section: SectionInput::Autostart(AutostartForm { enabled }),
+            fingerprints: view.sections.autostart.fingerprints,
+            replace_invalid: false,
+        };
+        save_section(path, &SettingsWriteLock::default(), &request).unwrap();
+    }
+
+    #[test]
+    fn a_saved_section_is_synced_to_the_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let f = Fake::default();
+
+        save_autostart(&path, true);
+        assert_eq!(sync_from_file(&path, true, &f, Some(&exe())), Outcome::On);
+        assert_eq!(f.value.borrow().as_deref(), Some(EXPECTED));
+
+        save_autostart(&path, false);
+        assert_eq!(sync_from_file(&path, true, &f, Some(&exe())), Outcome::Off);
+        assert_eq!(f.value.borrow().as_deref(), None);
+    }
+
+    #[test]
+    fn a_debug_build_leaves_the_entry_unchanged_after_a_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let f = Fake::with("keep");
+
+        save_autostart(&path, true);
+        let outcome = sync_from_file(&path, false, &f, Some(&exe()));
+        assert_eq!(outcome, Outcome::DevOnly);
+
+        save_autostart(&path, false);
+        assert_eq!(sync_from_file(&path, false, &f, Some(&exe())), Outcome::Off);
+
+        assert_eq!(f.calls(), 0);
+        assert_eq!(f.value.borrow().as_deref(), Some("keep"));
     }
 
     #[test]

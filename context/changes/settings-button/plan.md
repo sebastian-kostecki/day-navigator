@@ -637,14 +637,14 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Automated
 
-- [x] 2.1 Writer tests with invented data show that unknown top-level keys, key order (also after removing a block in the middle), a BOM and CRLF are preserved, and that no temp file is left behind on failure
-- [x] 2.2 Writer tests show that a new file is created only when the config dir exists, a missing config dir gives `ConfigDirMissing` with nothing created, and a malformed or wrong-version file is never overwritten
-- [x] 2.3 Save tests show that a fingerprint mismatch gives `Conflict` and field errors give `Invalid`, both with the file bytes unchanged
-- [x] 2.4 Save tests show that an invalid block on disk gives `InvalidOnDisk` without `replaceInvalid` and is replaced with it, and that an empty host or empty repos removes the block
-- [x] 2.5 A round-trip test: for every section, `settings_view` → `save_settings_section` with the unchanged form gives a file that every existing loader reads to the same settings
-- [x] 2.6 Serialization tests: errors serialize as `{kind, detail}`, and no error or log text contains a host, repo or filter value
-- [x] 2.7 `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo audit` pass
-- [x] 2.8 `npm run build`, `npm run lint` and `npm run format:check` pass
+- [x] 2.1 Writer tests with invented data show that unknown top-level keys, key order (also after removing a block in the middle), a BOM and CRLF are preserved, and that no temp file is left behind on failure — f740c43
+- [x] 2.2 Writer tests show that a new file is created only when the config dir exists, a missing config dir gives `ConfigDirMissing` with nothing created, and a malformed or wrong-version file is never overwritten — f740c43
+- [x] 2.3 Save tests show that a fingerprint mismatch gives `Conflict` and field errors give `Invalid`, both with the file bytes unchanged — f740c43
+- [x] 2.4 Save tests show that an invalid block on disk gives `InvalidOnDisk` without `replaceInvalid` and is replaced with it, and that an empty host or empty repos removes the block — f740c43
+- [x] 2.5 A round-trip test: for every section, `settings_view` → `save_settings_section` with the unchanged form gives a file that every existing loader reads to the same settings — f740c43
+- [x] 2.6 Serialization tests: errors serialize as `{kind, detail}`, and no error or log text contains a host, repo or filter value — f740c43
+- [x] 2.7 `cargo test`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings` and `cargo audit` pass — f740c43
+- [x] 2.8 `npm run build`, `npm run lint` and `npm run format:check` pass — f740c43
 
 #### Manual
 
@@ -654,10 +654,10 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Automated
 
-- [ ] 3.1 An autostart test: the save path's sync against the in-memory `RunEntry` fake writes the entry when on, removes it when off, and leaves it unchanged in a debug build (`DevOnly`)
-- [ ] 3.2 Notice-gate tests: each kind off skips only its toast. With `sourceProblems` off, `Gitlab` and `Github` transitions are dropped while `Settings`, `AppData`, `Reminders` and `Autostart` transitions still toast (one case per `SourceId`). Absent or invalid `notices` keeps all on. The stall, tray-failure and reminder toasts are never gated
-- [ ] 3.3 `cargo test`, `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass
-- [ ] 3.4 `npm run build`, `npm run lint` and `npm run format:check` pass
+- [x] 3.1 An autostart test: the save path's sync against the in-memory `RunEntry` fake writes the entry when on, removes it when off, and leaves it unchanged in a debug build (`DevOnly`)
+- [x] 3.2 Notice-gate tests: each kind off skips only its toast. With `sourceProblems` off, `Gitlab` and `Github` transitions are dropped while `Settings`, `AppData`, `Reminders` and `Autostart` transitions still toast (one case per `SourceId`). Absent or invalid `notices` keeps all on. The stall, tray-failure and reminder toasts are never gated
+- [x] 3.3 `cargo test`, `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass
+- [x] 3.4 `npm run build`, `npm run lint` and `npm run format:check` pass
 
 #### Manual
 

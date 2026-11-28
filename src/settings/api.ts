@@ -1,6 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { SaveRequest, SaveResult, SaveSettingsError, SettingsView } from "./types";
 
+/** Emitted after a successful save, with a `SettingsChanged` payload. */
+export const SETTINGS_CHANGED = "settings-changed";
+
 /** A failure rejects with `SettingsViewError`. */
 export function settingsView(): Promise<SettingsView> {
   return invoke<SettingsView>("settings_view");

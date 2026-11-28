@@ -29,6 +29,35 @@ impl Default for NoticeSettings {
     }
 }
 
+/// The Windows notices other than the source-health one, which
+/// `health::filter_transitions` gates per source.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Toast {
+    /// New GitLab assignments and review requests.
+    NewAssignments,
+    /// The end-of-day summary after a tray STOP.
+    DaySummary,
+    /// The health check stopped running.
+    Stall,
+    /// A tray START or STOP failed.
+    TrayFailure,
+    /// A work reminder; the `reminders` block turns those off.
+    Reminder,
+}
+
+impl NoticeSettings {
+    /// Whether the `notices` block lets this toast show. It never holds back
+    /// the stall, tray-failure and reminder toasts, so their call sites do not
+    /// ask.
+    pub fn allows(self, toast: Toast) -> bool {
+        match toast {
+            Toast::NewAssignments => self.new_assignments,
+            Toast::DaySummary => self.day_summary,
+            Toast::Stall | Toast::TrayFailure | Toast::Reminder => true,
+        }
+    }
+}
+
 /// Reads only the top-level `notices` block, on its own. Shape:
 ///
 /// ```json
@@ -185,6 +214,54 @@ mod tests {
         let p = dir.path().join("settings.json");
         fs::write(&p, [0xFF, 0xFE, 0x00]).unwrap();
         assert_eq!(load_notice_settings(&p), all_on());
+    }
+
+    const TOASTS: [Toast; 5] = [
+        Toast::NewAssignments,
+        Toast::DaySummary,
+        Toast::Stall,
+        Toast::TrayFailure,
+        Toast::Reminder,
+    ];
+
+    fn held_back(settings: NoticeSettings) -> Vec<Toast> {
+        TOASTS
+            .into_iter()
+            .filter(|toast| !settings.allows(*toast))
+            .collect()
+    }
+
+    #[test]
+    fn each_kind_off_holds_back_only_its_toast() {
+        assert_eq!(held_back(all_on()), []);
+        let off = |field: &str| load(&format!(r#"{{"version":1,"notices":{{"{field}":false}}}}"#));
+        assert_eq!(held_back(off("newAssignments")), [Toast::NewAssignments]);
+        assert_eq!(held_back(off("daySummary")), [Toast::DaySummary]);
+        // Gated by source, not here.
+        assert_eq!(held_back(off("sourceProblems")), []);
+    }
+
+    #[test]
+    fn stall_tray_failure_and_reminder_toasts_are_never_held_back() {
+        let all_off = NoticeSettings {
+            new_assignments: false,
+            source_problems: false,
+            day_summary: false,
+        };
+        assert_eq!(
+            held_back(all_off),
+            [Toast::NewAssignments, Toast::DaySummary]
+        );
+    }
+
+    #[test]
+    fn an_absent_or_invalid_block_holds_back_nothing() {
+        for text in [
+            r#"{"version":1}"#,
+            r#"{"version":1,"notices":{"newAssignments":false,"daySummary":"no"}}"#,
+        ] {
+            assert_eq!(held_back(load(text)), [], "{text}");
+        }
     }
 
     #[test]

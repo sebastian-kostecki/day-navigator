@@ -57,6 +57,9 @@ export type NoticesForm = {
 
 export type AutostartForm = { enabled: boolean };
 
+/** Payload of the `settings-changed` event. */
+export type SettingsChanged = { section: SectionId };
+
 /** The form of each section. */
 export type SectionForms = {
   gitlab: GitlabForm;

@@ -10,7 +10,7 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use super::FieldError;
 use super::document::{Document, ReadError, fingerprint};
@@ -19,9 +19,21 @@ pub use super::sections::{
     AutostartForm, DimensionForm, FilterForm, GithubForm, GitlabForm, NoticesForm, RemindersForm,
     SectionInput, SectionView, SectionViews, TodoForm, WorkTimeForm,
 };
+use crate::github_refresh::GithubRefreshState;
+use crate::gitlab_refresh::GitlabRefreshState;
 use crate::health::SourceStatus;
+use crate::runtime::HealthState;
 use crate::settings_file::settings_path;
-use crate::{BackgroundFailed, blocking};
+use crate::{BackgroundFailed, autostart, blocking, todo, work_time};
+
+/// Emitted after a successful save. The payload names the section only.
+pub const CHANGED_EVENT: &str = "settings-changed";
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SettingsChanged {
+    section: &'static str,
+}
 
 /// Held across a whole save, so two saves never interleave their
 /// read-modify-write.
@@ -236,7 +248,47 @@ pub async fn settings_view(app: AppHandle) -> Result<SettingsView, SettingsViewE
     result
 }
 
-/// Saves one section and returns the fresh view.
+/// Makes a saved section take effect without a restart. Runs after the write,
+/// outside the write lock. A failure here is logged and never fails the save.
+/// Returns the autostart sync's outcome for an `autostart` save.
+fn apply_saved(app: &AppHandle, path: &Path, section: &SectionInput) -> Option<SourceStatus> {
+    let status = matches!(section, SectionInput::Autostart(_))
+        .then(|| autostart::startup::sync_now(app, path));
+
+    let changed = SettingsChanged {
+        section: section.name(),
+    };
+    if let Err(e) = app.emit(CHANGED_EVENT, changed) {
+        log::warn!("settings: emit failed: {e}");
+    }
+
+    match section {
+        SectionInput::Gitlab(_) => {
+            if app.state::<GitlabRefreshState>().wake().is_err() {
+                log::warn!("settings: waking GitLab failed (ThreadDown)");
+            }
+        }
+        SectionInput::Github(_) => {
+            if app.state::<GithubRefreshState>().wake().is_err() {
+                log::warn!("settings: waking GitHub failed (ThreadDown)");
+            }
+        }
+        SectionInput::Todo(_) => {
+            if let Err(e) = app.emit(todo::CHANGED_EVENT, ()) {
+                log::warn!("todo: emit failed: {e}");
+            }
+        }
+        SectionInput::WorkTime(_) => work_time::commands::notify(app),
+        SectionInput::Reminders(_) | SectionInput::Notices(_) | SectionInput::Autostart(_) => {}
+    }
+
+    if app.state::<HealthState>().wake.send(()).is_err() {
+        log::warn!("settings: waking the health round failed (ThreadDown)");
+    }
+    status
+}
+
+/// Saves one section, applies it and returns the fresh view.
 #[tauri::command]
 pub async fn save_settings_section(
     app: AppHandle,
@@ -245,7 +297,9 @@ pub async fn save_settings_section(
     let section = request.section.name();
     let result = blocking(move || {
         let path = settings_path(&app).ok_or(SaveSettingsError::ConfigDirUnresolved)?;
-        save_section(&path, &app.state::<SettingsWriteLock>(), &request)
+        let mut saved = save_section(&path, &app.state::<SettingsWriteLock>(), &request)?;
+        saved.autostart = apply_saved(&app, &path, &request.section);
+        Ok::<_, SaveSettingsError>(saved)
     })
     .await;
     match &result {

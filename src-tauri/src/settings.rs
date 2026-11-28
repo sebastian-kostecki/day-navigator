@@ -28,7 +28,7 @@ mod work_time;
 pub use autostart::{AutostartSettings, AutostartSettingsInvalid, load_autostart_settings};
 pub use field_error::FieldError;
 use field_error::{checked, object_with_keys, present};
-pub use notices::{NoticeSettings, load_notice_settings, validate_notices};
+pub use notices::{NoticeSettings, Toast, load_notice_settings, validate_notices};
 pub use work_time::{WorkTimeSettings, WorkTimeSettingsInvalid, load_work_time_settings};
 const SUPPORTED_VERSION: u64 = 1;
 

@@ -53,11 +53,11 @@ One developer on one Windows 11 machine uses the app every day for their work Gi
 | F-01 | source-refresh-skeleton    | (foundation) GitLab and GitHub refresh on one shared skeleton, behaviour unchanged | —             | MS-28, FR-015                 | done     |
 | S-01 | github-hide-resurface      | hide a GitHub issue and see it come back marked "Changed"                         | F-01          | MS-31, FR-003, FR-005         | done |
 | S-02 | github-refresh-interval    | set GitHub's refresh interval and see when the next try happens                    | F-01          | MS-29, FR-005, FR-024         | done |
-| S-03 | github-new-and-notify      | see a NEW flag on GitHub items that appeared since their last visit              | F-01          | MS-30, FR-005, FR-023         | proposed |
+| S-03 | github-new-and-notify      | see a NEW flag on GitHub items that appeared since their last visit              | F-01          | MS-30, FR-005, FR-023         | done |
 | S-04 | gitlab-offline-last-list   | see the last GitLab list, dimmed, under the unavailable card without VPN           | —             | MS-32, FR-015                 | done     |
 | S-05 | gitlab-view-memory         | find "Work (GitLab)" with the same type and "Hidden" section after a restart       | —             | MS-34, FR-001, FR-003         | done     |
 | S-06 | gitlab-review-requests     | see merge requests waiting for their review in a "Do review" section               | F-01          | MS-35, FR-001, FR-002, FR-004 | done |
-| S-07 | gitlab-hide-merge-requests | hide a GitLab merge request and see it come back marked "Changed"                 | S-01, S-06    | MS-33, FR-003                 | proposed |
+| S-07 | gitlab-hide-merge-requests | hide a GitLab merge request and see it come back marked "Changed"                 | S-01, S-06    | MS-33, FR-003                 | done |
 
 ## Streams
 
@@ -137,7 +137,7 @@ Slices below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - Resolved 2026-11-27: NEW flag only, no GitHub notices. — Owner: user. Block: no.
 - **Risk:** A migration (GitHub seen keys and a GitHub view mark); it runs in a later wave than S-01 so the two migrations do not collide.
-- **Status:** proposed
+- **Status:** done
 
 ### S-04: Last GitLab list without VPN
 
@@ -186,7 +186,7 @@ Slices below assume these are present and do NOT re-scaffold them.
 - **Unknowns:**
   - Resolved 2026-11-27: only a state change or a comment by someone else brings a merge request back (the FR-003 rule); no approvals, commits or pipelines. — Owner: user. Block: no.
 - **Risk:** Builds on the hiding rules S-01 generalises and on S-06's review section; a migration unless S-01's storage already holds merge requests.
-- **Status:** proposed
+- **Status:** done
 
 ## Backlog Handoff
 
@@ -275,3 +275,5 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-01: user can hide and show a GitHub issue in its row, see a "Hidden (n)" section with the hide date, and see a hidden issue come back marked "Changed" when its state changes or someone other than them comments.** — Archived 2026-11-28 → `context/archive/2026-11-27-github-hide-resurface/`. Lesson: —.
 - **S-02: user can set GitHub's refresh interval in `settings.json` (`githubRefresh.minutes`, same range and default as GitLab) and see "every N min — next try in M min (HH:MM)" in GitHub's unavailable and error states.** — Archived 2026-11-28 → `context/archive/2026-11-27-github-refresh-interval/`. Lesson: —.
 - **S-06: user can see the GitLab merge requests where they are a reviewer in a "Do review" section of "Work (GitLab)", under the same settings filter, add them to "To do" with "+", and get a Windows notice of a new review request by the FR-004 mechanism and threshold, whatever the filter says.** — Archived 2026-11-28 → `context/archive/2026-11-27-gitlab-review-requests/`. Lesson: —.
+- **S-03: user can see a "Nowe" flag on GitHub items that appeared since their last visit to the GitHub view; the flag clears on leaving the view or hiding the window, and GitHub gives no Windows notice.** — Archived 2026-11-28 → `context/archive/2026-11-28-github-new-and-notify/`. Lesson: —.
+- **S-07: user can hide a GitLab merge request (assigned or in "Do review") and see it come back marked "Changed" when its state changes or someone other than them comments.** — Archived 2026-11-28 → `context/archive/2026-11-28-gitlab-hide-merge-requests/`. Lesson: —.

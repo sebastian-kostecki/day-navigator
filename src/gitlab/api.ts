@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { storeErrorMessage } from "../components/storeError";
-import type { GitlabSnapshot, GitlabViewState, HiddenIssueError } from "./types";
+import type { GitlabSnapshot, GitlabViewState, HiddenIssueError, ItemKind } from "./types";
 
 export function getGitlabSnapshot(): Promise<GitlabSnapshot> {
   return invoke<GitlabSnapshot>("gitlab_snapshot");
@@ -37,6 +37,21 @@ export function dismissGitlabChange(id: number): Promise<void> {
   return invoke<void>("dismiss_gitlab_change", { id });
 }
 
+/** Hides a merge request (assigned or awaiting review); the new snapshot arrives as a `gitlab-changed` event. */
+export function hideGitlabMergeRequest(id: number): Promise<void> {
+  return invoke<void>("hide_gitlab_merge_request", { id });
+}
+
+/** Shows a hidden merge request again, unmarked. */
+export function unhideGitlabMergeRequest(id: number): Promise<void> {
+  return invoke<void>("unhide_gitlab_merge_request", { id });
+}
+
+/** Dismisses the "changed" mark of a returned merge request. */
+export function dismissGitlabMergeRequestChange(id: number): Promise<void> {
+  return invoke<void>("dismiss_gitlab_merge_request_change", { id });
+}
+
 function asHiddenIssueError(e: unknown): HiddenIssueError | null {
   if (typeof e === "object" && e !== null && "kind" in e) {
     return e as HiddenIssueError;
@@ -50,17 +65,21 @@ export function isHiddenIssueStale(e: unknown): boolean {
   return kind === "NotFound" || kind === "NotInList";
 }
 
-/** Polish message for anything thrown by a hide, unhide or dismiss call. */
-export function hiddenIssueErrorMessage(e: unknown): string {
+/** Polish message for anything thrown by a hide, unhide or dismiss call. `kind` picks the words for the row's item kind. */
+export function hiddenIssueErrorMessage(e: unknown, kind: ItemKind = "issue"): string {
   const err = asHiddenIssueError(e);
   if (!err) return `Nieoczekiwany błąd: ${String(e)}`;
   switch (err.kind) {
     case "Store":
       return storeErrorMessage(err.detail);
     case "NotFound":
-      return "Zgłoszenie nie jest już ukryte — odśwież listę.";
+      return kind === "mergeRequest"
+        ? "Merge request nie jest już ukryty — odśwież listę."
+        : "Zgłoszenie nie jest już ukryte — odśwież listę.";
     case "NotInList":
-      return "Zgłoszenia nie ma na liście — odśwież listę.";
+      return kind === "mergeRequest"
+        ? "Merge requesta nie ma na liście — odśwież listę."
+        : "Zgłoszenia nie ma na liście — odśwież listę.";
     case "ListUnavailable":
       return "Lista GitLaba nie jest jeszcze dostępna.";
     default:

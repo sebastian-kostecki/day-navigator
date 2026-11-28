@@ -226,6 +226,7 @@ mod tests {
             issues: vec![item(ItemKind::Issue, "g/p#1")],
             hidden_issues: vec![],
             review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         assert!(find_gitlab_item(Some(&items), ItemKind::MergeRequest, "g/p!1").is_some());
         assert!(find_gitlab_item(Some(&items), ItemKind::Issue, "g/p#1").is_some());
@@ -241,6 +242,7 @@ mod tests {
             issues: vec![],
             hidden_issues: vec![],
             review_requests: vec![item(ItemKind::MergeRequest, "g/p!2")],
+            hidden_merge_requests: Vec::new(),
         };
         assert!(find_gitlab_item(Some(&items), ItemKind::MergeRequest, "g/p!2").is_some());
         assert!(find_gitlab_item(Some(&items), ItemKind::MergeRequest, "g/p!3").is_none());

@@ -13,7 +13,7 @@ use chrono::{DateTime, FixedOffset};
 use super::items::HiddenItemRecord;
 use crate::github::GithubIssue;
 use crate::gitlab::notes::IssueNote;
-use crate::gitlab::{ChangeReason, GitlabItem};
+use crate::gitlab::{ChangeReason, GitlabItem, ItemKind};
 
 /// One settling comment check after a new baseline: 60 s GitLab touch throttle
 /// plus a skew margin.
@@ -86,8 +86,13 @@ impl HideItem for GitlabItem {
     fn updated_at(&self) -> &str {
         &self.updated_at
     }
+    /// Scoped labels bring an issue back; labels never bring a merge request
+    /// back (S-07).
     fn status_fingerprint(&self) -> Vec<String> {
-        scoped_labels(self.label_names())
+        match self.kind {
+            ItemKind::Issue => scoped_labels(self.label_names()),
+            ItemKind::MergeRequest => Vec::new(),
+        }
     }
 }
 

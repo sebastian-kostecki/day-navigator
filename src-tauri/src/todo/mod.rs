@@ -563,9 +563,9 @@ pub fn remove(
 /// missing from `items`, and refreshes the stored title and URL of the ones
 /// still present. Entries of another account are left alone: a missing item
 /// there says nothing about its state. Own entries are never touched.
-/// An issue the user hid (S-03) is still open and assigned, so it counts as
-/// present: hiding it never ticks its "To do" entry. A merge request awaiting
-/// the user's review counts as present too.
+/// An issue or merge request the user hid (S-03, S-07) is still open and
+/// assigned, so it counts as present: hiding it never ticks its "To do" entry.
+/// A merge request awaiting the user's review counts as present too.
 /// Returns the number of entries changed (roll-over closings not counted).
 pub fn reconcile_gitlab(
     store: &mut Store,
@@ -582,6 +582,7 @@ pub fn reconcile_gitlab(
             .chain(items.review_requests.iter())
             .chain(items.issues.iter())
             .chain(items.hidden_issues.iter())
+            .chain(items.hidden_merge_requests.iter())
             .map(|i| ((kind_text(i.kind), i.reference.as_str()), i))
             .collect();
 

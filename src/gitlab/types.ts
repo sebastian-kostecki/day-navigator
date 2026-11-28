@@ -33,9 +33,12 @@ export type GitlabItem = {
   milestone: string | null;
   /** First seen after the view's seen-until mark; set on MRs and visible issues. */
   isNew: boolean;
-  /** When the user hid the issue (UTC ms); only on hidden issues. */
+  /** When the user hid the issue or merge request (UTC ms); only on hidden issues and merge requests. */
   hiddenAtMs: number | null;
-  /** On every "Do review" item and on an assigned MR that also awaits review. */
+  /**
+   * On every "Do review" item and on an assigned MR that also awaits review,
+   * hidden or not (a hidden one shows the "Do review" tag in the main table).
+   */
   reviewRequested: boolean;
 };
 
@@ -45,8 +48,10 @@ export type AssignedItems = {
   issues: GitlabItem[];
   /** Issues the user has hidden. */
   hiddenIssues: GitlabItem[];
-  /** Open MRs awaiting the user's review, not assigned to them. */
+  /** Visible open MRs awaiting the user's review, not assigned to them. */
   reviewRequests: GitlabItem[];
+  /** Merge requests the user has hidden, assigned or awaiting review. */
+  hiddenMergeRequests: GitlabItem[];
 };
 
 /** `GitlabState` is tagged by `state` and nested under the snapshot's `state`. */
@@ -64,6 +69,7 @@ export type FilteredOut = {
   issues: number;
   hiddenIssues: number;
   reviewRequests: number;
+  hiddenMergeRequests: number;
 };
 
 /** A recently closed item. Mirrors `gitlab::ClosedItem` (the item is flattened). */
@@ -101,7 +107,7 @@ export type GitlabSnapshot = {
   refreshing: boolean;
   /** Bumped on every stored change; snapshots are ordered by this. */
   seq: number;
-  /** Hidden issues whose comment check failed in the last round. */
+  /** Hidden issues and merge requests whose comment check failed in the last round. */
   hiddenCheckFailed: number;
   /** True when `gitlab.user` is set, so the user's own comments are ignored. */
   ownCommentsKnown: boolean;

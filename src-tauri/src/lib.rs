@@ -5,6 +5,7 @@ pub mod day_summary;
 pub mod events;
 pub mod github;
 pub mod github_refresh;
+pub mod github_seen;
 pub mod gitlab;
 pub mod gitlab_refresh;
 pub mod gitlab_view_state;
@@ -212,9 +213,13 @@ pub fn run() {
             backups_folder::open_backups_folder,
             github_refresh::github_snapshot,
             github_refresh::refresh_github,
+            github_refresh::mark_github_seen,
             hidden_issues::commands::hide_gitlab_issue,
             hidden_issues::commands::unhide_gitlab_issue,
             hidden_issues::commands::dismiss_gitlab_change,
+            hidden_issues::commands::hide_gitlab_merge_request,
+            hidden_issues::commands::unhide_gitlab_merge_request,
+            hidden_issues::commands::dismiss_gitlab_merge_request_change,
             hidden_issues::commands::hide_github_issue,
             hidden_issues::commands::unhide_github_issue,
             hidden_issues::commands::dismiss_github_change,

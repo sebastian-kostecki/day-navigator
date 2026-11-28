@@ -6,11 +6,12 @@ mod common;
 use chrono::NaiveDate;
 use common::test_store_dir;
 use day_navigator_lib::cli::GitlabHost;
-use day_navigator_lib::gitlab::{ChangeReason, GitlabItem, ItemKind};
+use day_navigator_lib::gitlab::{ChangeReason, GitlabItem, GitlabLabel, ItemKind};
 use day_navigator_lib::hidden_issues::items::{
     HiddenItemKey, HiddenKind, HiddenSource, NewHiddenItem, apply_items_round, dismiss_item,
     hide_item, list_items, unhide_item,
 };
+use day_navigator_lib::hidden_issues::merge_requests;
 use day_navigator_lib::hidden_issues::{self, HiddenIssueError, PRUNE_AFTER_MS, SETTLE_MS};
 use day_navigator_lib::hidden_issues::{Transition, rules::HiddenRecord};
 use day_navigator_lib::store::{Store, StoreError, schema};
@@ -442,4 +443,83 @@ fn v14_database_upgrades_to_the_hidden_items_table_and_keeps_its_data() {
     );
     assert_eq!(scalar(&store, "SELECT count(*) FROM days_off"), 1);
     assert!(rows(&store).is_empty());
+}
+
+// ------------------------------------------------ merge requests (S-07)
+
+fn mr_item(id: u64, labels: &[&str], updated: &str) -> GitlabItem {
+    GitlabItem {
+        kind: ItemKind::MergeRequest,
+        id,
+        project_id: 7,
+        iid: id + 100,
+        reference: format!("acme/widgets!{id}"),
+        title: format!("Invented merge request {id}"),
+        web_url: None,
+        updated_at: updated.into(),
+        labels: labels
+            .iter()
+            .map(|s| GitlabLabel {
+                name: s.to_string(),
+                color: None,
+                text_color: None,
+            })
+            .collect(),
+        draft: false,
+        changed: None,
+        milestone: None,
+        is_new: false,
+        hidden_at_ms: None,
+        review_requested: false,
+    }
+}
+
+#[test]
+fn merge_request_rows_are_per_host_and_leave_issue_rows_alone() {
+    let (_tmp, dir) = test_store_dir();
+    let mut store = open(&dir);
+    let host = GitlabHost::parse("gitlab.example.invalid").unwrap();
+    let other = GitlabHost::parse("other.example.invalid").unwrap();
+    let m = mr_item(50, &["a::b"], T0);
+    merge_requests_hide(&mut store, &host, &m);
+    merge_requests_hide(&mut store, &other, &mr_item(51, &[], T0));
+    hide_item(&mut store, &new_item(ALPHA, 9), NOW).unwrap();
+    hidden_issues::hide(
+        &mut store,
+        &host,
+        &GitlabItem {
+            kind: ItemKind::Issue,
+            ..mr_item(60, &["a::b"], T0)
+        },
+        NOW,
+    )
+    .unwrap();
+
+    let recs = merge_requests::list_mr_records(&store, &host).unwrap();
+    assert_eq!(recs.len(), 1);
+    assert_eq!(recs[0].item_id, 50);
+    assert_eq!(recs[0].project_id, Some(7));
+    assert_eq!(recs[0].iid, Some(150));
+    assert!(recs[0].status_fingerprint.is_empty());
+
+    let both = merge_requests::list_gitlab(&store, &host).unwrap();
+    assert_eq!(both.issues.len(), 1);
+    assert_eq!(both.merge_requests.len(), 1);
+    assert_eq!(scalar(&store, "SELECT count(*) FROM hidden_issues"), 1);
+
+    assert!(matches!(
+        dismiss_item(&mut store, &merge_requests::mr_key(&host, 50)),
+        Err(HiddenIssueError::NotFound)
+    ));
+    unhide_item(&mut store, &merge_requests::mr_key(&host, 50)).unwrap();
+    assert!(
+        merge_requests::list_mr_records(&store, &host)
+            .unwrap()
+            .is_empty()
+    );
+    assert_eq!(scalar(&store, "SELECT count(*) FROM hidden_issues"), 1);
+}
+
+fn merge_requests_hide(store: &mut Store, host: &GitlabHost, item: &GitlabItem) {
+    hide_item(store, &merge_requests::new_hidden_mr(host, item), NOW).unwrap();
 }

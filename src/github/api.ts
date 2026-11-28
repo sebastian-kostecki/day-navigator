@@ -13,6 +13,11 @@ export function refreshGithub(): Promise<void> {
   return invoke<void>("refresh_github");
 }
 
+/** Ends a visit to the GitHub view: the "new" flags go out and the seen mark moves. A failure rejects with `GithubSeenError`; Rust has already logged it. */
+export function markGithubSeen(): Promise<void> {
+  return invoke<void>("mark_github_seen");
+}
+
 /** Opens an issue in the default browser. */
 export function openGithubIssue(url: string): Promise<void> {
   return openUrl(url);

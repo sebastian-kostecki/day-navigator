@@ -265,6 +265,10 @@ pub struct GithubSnapshot {
     /// When the wait after the last round ends (UTC ms); `None` before the first
     /// round.
     pub next_refresh_at_ms: Option<u64>,
+    /// References of visible issues that are new since the last visit to the
+    /// GitHub view, in list order; never a hidden issue. Set by the refresh
+    /// state on every path that shapes the list.
+    pub new_references: Vec<String>,
 }
 
 impl GithubSnapshot {
@@ -282,6 +286,7 @@ impl GithubSnapshot {
             refresh_setting_invalid: false,
             refresh_minutes: DEFAULT_REFRESH_MINUTES,
             next_refresh_at_ms: None,
+            new_references: Vec::new(),
         }
     }
 }
@@ -333,6 +338,7 @@ pub fn next_snapshot(
         refresh_setting_invalid: prev.refresh_setting_invalid,
         refresh_minutes: prev.refresh_minutes,
         next_refresh_at_ms: prev.next_refresh_at_ms,
+        new_references: Vec::new(),
     };
     let error = match outcome {
         Ok(results) => {
@@ -363,6 +369,10 @@ pub fn next_snapshot(
         next.last_success_ms = prev.last_success_ms;
         next.hidden_check_failed = prev.hidden_check_failed;
         next.hidden_error = prev.hidden_error.clone();
+        // Only the pure function's contract: `refresh_round` overwrites the
+        // field with `settle_new` on every path, so this copy never reaches
+        // the stored snapshot.
+        next.new_references = prev.new_references.clone();
         (next, kept.cloned())
     } else {
         (next, None)
@@ -648,6 +658,37 @@ mod tests {
         assert_eq!(s.refresh_minutes, DEFAULT_REFRESH_MINUTES);
         assert_eq!(s.next_refresh_at_ms, None);
         assert!(!s.refresh_setting_invalid);
+        assert!(s.new_references.is_empty());
+    }
+
+    #[test]
+    fn new_references_reset_on_success_and_carry_over_when_the_list_is_kept() {
+        let (mut prev, cfg) = prev_with_list();
+        prev.new_references = vec!["octo-test/alpha#1".into()];
+        let (ok, _) = next_snapshot(&prev, Some(&cfg), Some(&cfg), Ok(good_round()), 300);
+        assert!(ok.new_references.is_empty());
+        let (kept, _) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            Some(&cfg),
+            Err(GithubError::Unavailable),
+            300,
+        );
+        assert_eq!(kept.new_references, ["octo-test/alpha#1"]);
+        let (dropped, _) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            None,
+            Err(GithubError::NotConfigured),
+            300,
+        );
+        assert!(dropped.new_references.is_empty());
+    }
+
+    #[test]
+    fn snapshot_serializes_new_references_in_camel_case() {
+        let v = serde_json::to_value(GithubSnapshot::starting()).unwrap();
+        assert_eq!(v["newReferences"], serde_json::json!([]));
     }
 
     #[test]

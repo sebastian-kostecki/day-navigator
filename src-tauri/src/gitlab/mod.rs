@@ -94,8 +94,8 @@ pub struct GitlabItem {
     /// First seen after the view's seen-until mark (S-02). Set by the round,
     /// only on merge requests and visible issues; the parser gives `false`.
     pub is_new: bool,
-    /// When the user hid the issue, UTC ms (S-02). Only on `hidden_issues`
-    /// items; the parser gives `None`.
+    /// When the user hid the issue or merge request, UTC ms (S-02). Only on
+    /// `hidden_issues` and `hidden_merge_requests` items; the parser gives `None`.
     pub hidden_at_ms: Option<i64>,
     /// True on every "Do review" item and on an assigned merge request that
     /// also awaits the user's review (S-06); the parser gives `false`.
@@ -144,8 +144,12 @@ pub struct AssignedItems {
     /// fills it when it partitions `issues`.
     pub hidden_issues: Vec<GitlabItem>,
     /// Open merge requests awaiting the user's review and not assigned to
-    /// them (S-06). Empty in a list built before the review call; never hidden.
+    /// them (S-06). Empty in a list built before the review call; the visible
+    /// ones after the round partitions them (S-07).
     pub review_requests: Vec<GitlabItem>,
+    /// Merge requests the user has hidden, assigned or awaiting review (S-07).
+    /// Empty in a fetched list; the round fills it when it partitions both MR lists.
+    pub hidden_merge_requests: Vec<GitlabItem>,
 }
 
 /// Why a round produced no list. No variant carries a value from the outside.
@@ -479,6 +483,7 @@ pub struct FilteredOut {
     pub issues: u32,
     pub hidden_issues: u32,
     pub review_requests: u32,
+    pub hidden_merge_requests: u32,
 }
 
 /// A recently closed item with the instant it was closed or merged (RFC 3339),
@@ -1559,6 +1564,7 @@ mod tests {
             issues: vec![item(reference)],
             hidden_issues: vec![],
             review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         }
     }
 
@@ -2017,6 +2023,7 @@ mod tests {
             issues: 2,
             hidden_issues: 3,
             review_requests: 0,
+            hidden_merge_requests: 0,
         };
         let prev = GitlabSnapshot {
             items: Some(items("g/p#1")),
@@ -2185,7 +2192,7 @@ mod tests {
         let mut s = GitlabSnapshot::starting();
         assert_eq!(
             serde_json::to_string(&s).unwrap(),
-            r#"{"state":{"state":"starting"},"items":null,"lastSuccessMs":null,"checkedAtMs":null,"refreshing":false,"seq":0,"hiddenCheckFailed":0,"ownCommentsKnown":false,"hiddenError":null,"refreshSettingInvalid":false,"filterActive":false,"filter":{"projects":{"include":[],"exclude":[]},"labels":{"include":[],"exclude":[]},"milestones":{"include":[],"exclude":[]},"closedDays":null},"refreshMinutes":10,"nextRefreshAtMs":null,"filterInvalid":false,"filteredOut":{"mergeRequests":0,"issues":0,"hiddenIssues":0,"reviewRequests":0},"closed":null}"#
+            r#"{"state":{"state":"starting"},"items":null,"lastSuccessMs":null,"checkedAtMs":null,"refreshing":false,"seq":0,"hiddenCheckFailed":0,"ownCommentsKnown":false,"hiddenError":null,"refreshSettingInvalid":false,"filterActive":false,"filter":{"projects":{"include":[],"exclude":[]},"labels":{"include":[],"exclude":[]},"milestones":{"include":[],"exclude":[]},"closedDays":null},"refreshMinutes":10,"nextRefreshAtMs":null,"filterInvalid":false,"filteredOut":{"mergeRequests":0,"issues":0,"hiddenIssues":0,"reviewRequests":0,"hiddenMergeRequests":0},"closed":null}"#
         );
         s.closed = Some(ClosedSection {
             days: 7,

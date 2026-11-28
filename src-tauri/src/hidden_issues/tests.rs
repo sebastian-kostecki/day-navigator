@@ -635,3 +635,135 @@ fn github_record_resurfaces_on_a_verdict_and_returns() {
         }]
     ));
 }
+
+// ------------------------------------------------------- merge requests (S-07)
+
+fn mr(id: u64, labels: &[&str], updated: &str) -> GitlabItem {
+    GitlabItem {
+        kind: ItemKind::MergeRequest,
+        ..issue(id, labels, updated)
+    }
+}
+
+fn mr_record(id: u64, reason: Option<ChangeReason>) -> items::HiddenItemRecord {
+    items::HiddenItemRecord {
+        source: items::HiddenSource::Gitlab,
+        scope: host().as_str().to_string(),
+        kind: items::HiddenKind::MergeRequest,
+        item_id: id,
+        project_id: Some(7),
+        iid: Some(id + 100),
+        status_fingerprint: Vec::new(),
+        baseline_updated_at: T0.into(),
+        settle_after_ms: None,
+        hidden_at_ms: NOW - 1_000,
+        absent_since_ms: None,
+        changed_reason: reason,
+        changed_at_ms: reason.map(|_| NOW),
+    }
+}
+
+#[test]
+fn issue_fingerprint_keeps_scoped_labels_and_merge_request_is_empty() {
+    let labels = ["a::b", "workflow::doing"];
+    let i = issue(1, &labels, T0);
+    let m = mr(2, &labels, T0);
+    assert_eq!(
+        i.status_fingerprint(),
+        vec!["a::b".to_string(), "workflow::doing".to_string()]
+    );
+    assert!(m.status_fingerprint().is_empty());
+}
+
+#[test]
+fn merge_request_label_change_is_not_a_status_change() {
+    let m = mr(2, &["a::b"], T0);
+    let rec = items::HiddenItemRecord {
+        status_fingerprint: Vec::new(),
+        ..mr_record(2, None)
+    };
+    let relabelled = mr(2, &["a::c", "x::y"], T0);
+    assert!(!status_changed(&rec, &relabelled));
+    assert!(!status_changed(&rec, &m));
+}
+
+#[test]
+fn a_hidden_merge_request_keeps_the_review_flag_assigned_or_not() {
+    let assigned = vec![GitlabItem {
+        review_requested: true,
+        ..mr(10, &[], T0)
+    }];
+    let review = vec![GitlabItem {
+        review_requested: true,
+        ..mr(20, &[], T0)
+    }];
+    let records = vec![mr_record(10, None), mr_record(20, None)];
+    let p = merge_requests::partition_merge_requests(&assigned, &review, &records);
+    assert_eq!(p.hidden.iter().map(|i| i.id).collect::<Vec<_>>(), [10, 20]);
+    // Both show the "Do review" tag in the hidden rows of the main table.
+    assert!(p.hidden[0].review_requested, "assigned and awaiting review");
+    assert!(p.hidden[1].review_requested, "review-only");
+}
+
+#[test]
+fn partition_splits_both_lists_and_keeps_order() {
+    let assigned = vec![mr(10, &[], T0), mr(11, &[], T0), mr(12, &[], T0)];
+    let review = vec![
+        GitlabItem {
+            review_requested: true,
+            ..mr(20, &[], T0)
+        },
+        GitlabItem {
+            review_requested: true,
+            ..mr(21, &[], T0)
+        },
+    ];
+    let records = vec![
+        mr_record(11, None),
+        mr_record(21, None),
+        mr_record(12, Some(ChangeReason::Comment)),
+    ];
+    let p = merge_requests::partition_merge_requests(&assigned, &review, &records);
+    let ids = |v: &[GitlabItem]| v.iter().map(|i| i.id).collect::<Vec<_>>();
+    assert_eq!(ids(&p.merge_requests), vec![10, 12]);
+    assert_eq!(ids(&p.review_requests), vec![20]);
+    assert_eq!(ids(&p.hidden), vec![11, 21]);
+    assert_eq!(p.merge_requests[1].changed, Some(ChangeReason::Comment));
+    assert_eq!(p.merge_requests[1].hidden_at_ms, None);
+    assert_eq!(p.hidden[0].hidden_at_ms, Some(NOW - 1_000));
+    assert!(p.hidden[1].review_requested, "review flag is kept");
+    assert!(p.review_requests[0].review_requested);
+}
+
+#[test]
+fn partition_ignores_records_of_other_ids() {
+    let assigned = vec![mr(30, &[], T0)];
+    let records = vec![mr_record(31, None)];
+    let p = merge_requests::partition_merge_requests(&assigned, &[], &records);
+    assert_eq!(p.merge_requests.len(), 1);
+    assert!(p.hidden.is_empty());
+    assert_eq!(p.merge_requests[0].hidden_at_ms, None);
+}
+
+#[test]
+fn new_hidden_mr_has_empty_fingerprint_and_both_refs() {
+    let m = GitlabItem {
+        project_id: 77,
+        iid: 34,
+        ..mr(40, &["a::b"], T0)
+    };
+    let n = merge_requests::new_hidden_mr(&host(), &m);
+    assert_eq!(n.kind, items::HiddenKind::MergeRequest);
+    assert_eq!(n.project_id, Some(77));
+    assert_eq!(n.iid, Some(34));
+    assert!(n.status_fingerprint.is_empty());
+    assert_eq!(n.baseline_updated_at, T0);
+}
+
+#[test]
+fn mr_calls_allowed_skips_after_an_issue_stop_but_never_twice() {
+    assert!(mr_calls_allowed(false, false));
+    assert!(mr_calls_allowed(false, true));
+    assert!(!mr_calls_allowed(true, false));
+    assert!(mr_calls_allowed(true, true));
+}

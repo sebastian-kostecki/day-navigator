@@ -1,0 +1,47 @@
+.dn-dialog {
+  box-sizing: border-box;
+  width: min(760px, calc(100vw - 2 * var(--space-5)));
+  max-height: calc(100vh - 2 * var(--space-5));
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* Only when open: an unconditional display would show a closed dialog. */
+.dn-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.dn-dialog::backdrop {
+  background: var(--scrim);
+}
+
+.dn-dialog-head {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.dn-dialog-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.dn-dialog-body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4);
+}
+
+.dn-dialog-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--line);
+}

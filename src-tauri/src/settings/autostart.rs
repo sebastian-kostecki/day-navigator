@@ -4,9 +4,10 @@
 use std::fs;
 use std::path::Path;
 
-use serde::Deserialize;
+use serde_json::Value;
 
 use super::SUPPORTED_VERSION;
+use super::field_error::{FieldError, NOT_TRUE_OR_FALSE, object_with_keys, present};
 
 /// Autostart settings. Off unless the block says `"enabled": true`.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -18,13 +19,6 @@ pub struct AutostartSettings {
 /// serde errors can quote the value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AutostartSettingsInvalid;
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct RawAutostart {
-    #[serde(default)]
-    enabled: Option<serde_json::Value>,
-}
 
 /// Reads only the top-level `autostart` block, on its own. Shape:
 ///
@@ -62,17 +56,22 @@ fn parse_autostart_settings(text: &str) -> Result<AutostartSettings, AutostartSe
     let Some(block) = value.get("autostart") else {
         return Ok(AutostartSettings::default());
     };
+    validate_autostart(block).map_err(|_| INVALID)
+}
+
+/// Checks an `autostart` block.
+pub(super) fn validate_autostart(block: &Value) -> Result<AutostartSettings, Vec<FieldError>> {
     if block.is_null() {
         return Ok(AutostartSettings::default());
     }
-    if !block.is_object() {
-        return Err(INVALID);
-    }
-    let raw: RawAutostart = serde_json::from_value(block.clone()).map_err(|_| INVALID)?;
-    let enabled = match raw.enabled {
-        None | Some(serde_json::Value::Null) | Some(serde_json::Value::Bool(false)) => false,
-        Some(serde_json::Value::Bool(true)) => true,
-        Some(_) => return Err(INVALID),
+    let map = object_with_keys(block, "autostart", &["enabled"]).map_err(|e| vec![e])?;
+    let enabled = match present(map, "enabled") {
+        None => false,
+        Some(Value::Bool(on)) => *on,
+        Some(_) => {
+            let error = FieldError::new("autostart.enabled", NOT_TRUE_OR_FALSE);
+            return Err(vec![error]);
+        }
     };
     Ok(AutostartSettings { enabled })
 }

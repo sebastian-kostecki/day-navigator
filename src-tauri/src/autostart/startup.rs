@@ -1,15 +1,14 @@
-//! Runs the autostart sync once per start on its own thread and keeps the
-//! result for the health round. No test module and no `unwrap`/`expect`: a
+//! Runs the autostart sync, once per start on its own thread and again after a
+//! settings save, and keeps the result for the health round. No test module and no `unwrap`/`expect`: a
 //! release build aborts on panic.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use tauri::{AppHandle, Manager};
 
-use super::{FailedStep, Outcome, run, status as outcome_status};
+use super::{FailedStep, Outcome, status as outcome_status, sync_from_file};
 use crate::health::SourceStatus;
-use crate::settings::load_autostart_settings;
 
 #[cfg(windows)]
 use super::hkcu::HkcuRun;
@@ -31,12 +30,16 @@ impl super::RunEntry for HkcuRun {
     }
 }
 
-/// The status of the last sync; `None` until it has finished.
-pub struct AutostartState(Mutex<Option<SourceStatus>>);
+pub struct AutostartState {
+    /// The status of the last sync; `None` until it has finished.
+    status: Mutex<Option<SourceStatus>>,
+    /// Held across a whole sync, so two syncs never race on the Run entry.
+    sync: Mutex<()>,
+}
 
 fn store(app: &AppHandle, outcome: &Outcome) {
     if let Some(state) = app.try_state::<AutostartState>() {
-        *state.0.lock().unwrap_or_else(|p| p.into_inner()) = Some(outcome_status(outcome));
+        *state.status.lock().unwrap_or_else(|p| p.into_inner()) = Some(outcome_status(outcome));
     }
 }
 
@@ -52,10 +55,31 @@ fn log_outcome(outcome: &Outcome) {
     }
 }
 
+/// Syncs the Run entry with the settings file at `path`, keeps the result for
+/// the health round and wakes it. A sync already running is waited for, and
+/// this one then reads the file again. Blocks: never call it on the main thread.
+pub fn sync_now(app: &AppHandle, path: &Path) -> SourceStatus {
+    let state = app.try_state::<AutostartState>();
+    // The lock guards no data, so a poisoned one is still good.
+    let guard = state
+        .as_ref()
+        .map(|s| s.sync.lock().unwrap_or_else(|p| p.into_inner()));
+    let exe = std::env::current_exe().ok();
+    let outcome = sync_from_file(path, !cfg!(debug_assertions), &HkcuRun, exe.as_deref());
+    log_outcome(&outcome);
+    store(app, &outcome);
+    drop(guard);
+    crate::runtime::refresh_tray(app);
+    outcome_status(&outcome)
+}
+
 /// Manages the state, then syncs the Run entry on an `autostart-sync` thread.
 /// Without a settings path nothing more happens: "Ustawienia" reports that.
 pub fn start(app: &AppHandle, settings_path: Option<PathBuf>) {
-    app.manage(AutostartState(Mutex::new(None)));
+    app.manage(AutostartState {
+        status: Mutex::new(None),
+        sync: Mutex::new(()),
+    });
     let Some(path) = settings_path else {
         return;
     };
@@ -63,16 +87,7 @@ pub fn start(app: &AppHandle, settings_path: Option<PathBuf>) {
     let spawned = std::thread::Builder::new()
         .name("autostart-sync".into())
         .spawn(move || {
-            let exe = std::env::current_exe().ok();
-            let outcome = run(
-                load_autostart_settings(&path),
-                !cfg!(debug_assertions),
-                &HkcuRun,
-                exe.as_deref(),
-            );
-            log_outcome(&outcome);
-            store(&handle, &outcome);
-            crate::runtime::refresh_tray(&handle);
+            sync_now(&handle, &path);
         });
     if let Err(e) = spawned {
         let outcome = Outcome::Failed {
@@ -87,5 +102,9 @@ pub fn start(app: &AppHandle, settings_path: Option<PathBuf>) {
 /// The "Autostart" source; absent until the sync has finished.
 pub fn status(app: &AppHandle) -> Option<SourceStatus> {
     let state = app.try_state::<AutostartState>()?;
-    state.0.lock().unwrap_or_else(|p| p.into_inner()).clone()
+    state
+        .status
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone()
 }

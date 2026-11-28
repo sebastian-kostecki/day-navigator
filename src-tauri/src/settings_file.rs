@@ -1,6 +1,7 @@
 //! Opens `settings.json` from the app config dir in the default program. The
-//! path is fixed (no argument from the UI) and a missing file is an error: the
-//! app never creates it here.
+//! path is fixed (no argument from the UI) and a missing file is an error:
+//! opening never creates it. The app writes the file only on a save from the
+//! settings dialog (`settings::commands`).
 //!
 //! Privacy: the path and system error text never reach a log or an error value.
 

@@ -12,7 +12,7 @@
 //! menu callback runs on the main thread and only reads the shown action and
 //! spawns, so it never touches the store or those locks.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -29,6 +29,8 @@ use crate::events::{self, EventError};
 use crate::github_refresh::GithubRefreshState;
 use crate::gitlab_refresh::GitlabRefreshState;
 use crate::health::{self, AppDataDetails, HealthSnapshot, Overall, SourceStatus};
+use crate::settings::{NoticeSettings, Toast, load_notice_settings};
+use crate::settings_file;
 use crate::store::{StoreError, StoreHandle};
 use crate::tray_view::{self, TimerAction, TrayIconKind, WorkLine};
 use crate::work_time::WorkTimeError;
@@ -210,8 +212,11 @@ async fn run_tray_action(app: AppHandle, action: TimerAction) {
     match result {
         Ok(()) if action == TimerAction::Stop => {
             // A success already refreshed the tray through `notify`.
-            let n = crate::day_summary::commands::stop_notice(&app).await;
-            toast(&app, "day_summary", &n.title, &n.body);
+            let path = settings_file::settings_path(&app);
+            if notice_settings(path.as_deref()).allows(Toast::DaySummary) {
+                let n = crate::day_summary::commands::stop_notice(&app).await;
+                toast(&app, "day_summary", &n.title, &n.body);
+            }
         }
         Ok(()) => {}
         Err(e) => {
@@ -358,6 +363,12 @@ fn publish(app: &AppHandle, state: &HealthState) {
     emit_snapshot(app, &snap);
 }
 
+/// The `notices` block as it is now, read just before a toast it can turn off.
+/// All on without a settings path.
+pub(crate) fn notice_settings(settings_path: Option<&Path>) -> NoticeSettings {
+    settings_path.map(load_notice_settings).unwrap_or_default()
+}
+
 /// Sends a toast unless notices are gated off. `area` prefixes the log line.
 pub(crate) fn toast(app: &AppHandle, area: &str, title: &str, body: &str) {
     if !health::notices_allowed() {
@@ -468,8 +479,13 @@ fn check_round(app: &AppHandle, settings_path: &Option<PathBuf>, baseline: &mut 
 
     // Tray and panel first: the reliable channel never lags the toast.
     publish(app, &state);
-    if let Some(notice) = health::notice_for(&transitions) {
-        toast(app, "health", &notice.title, &notice.body);
+    // Only the toast is filtered: the events and log lines below get them all.
+    if !transitions.is_empty() {
+        let notices = notice_settings(settings_path.as_deref());
+        let shown = health::filter_transitions(&transitions, notices);
+        if let Some(notice) = health::notice_for(&shown) {
+            toast(app, "health", &notice.title, &notice.body);
+        }
     }
     if !transitions.is_empty() {
         let now = Local::now().naive_local();

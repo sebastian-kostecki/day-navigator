@@ -37,7 +37,8 @@ const MAIN_HIDDEN_EVENT: &str = "main-hidden";
 /// command error type maps it to its own variant.
 pub struct BackgroundFailed(pub String);
 
-/// Runs blocking work off the main thread (used by the work-time commands).
+/// Runs blocking work off the main thread (used by the work-time and settings
+/// commands).
 pub(crate) async fn blocking<T, E>(
     work: impl FnOnce() -> Result<T, E> + Send + 'static,
 ) -> Result<T, E>
@@ -167,6 +168,7 @@ pub fn run() {
             // its own thread, so `quick_check`, backup and migrations never
             // delay the main thread.
             app.manage(store::StoreHandle::new(data_dir));
+            app.manage(settings::commands::SettingsWriteLock::default());
             // Managed before the health thread starts: its first round reads it.
             let gitlab_rx = gitlab_refresh::manage(app);
             let github_rx = github_refresh::manage(app);
@@ -205,6 +207,8 @@ pub fn run() {
             gitlab_refresh::refresh_gitlab,
             gitlab_refresh::mark_gitlab_seen,
             settings_file::open_settings_file,
+            settings::commands::settings_view,
+            settings::commands::save_settings_section,
             backups_folder::open_backups_folder,
             github_refresh::github_snapshot,
             github_refresh::refresh_github,

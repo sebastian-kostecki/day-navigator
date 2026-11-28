@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { AppHeader } from "./components";
+import { AppHeader, Button } from "./components";
 import { DaySummaryPanel } from "./day-summary/DaySummaryPanel";
 import { GitlabListViewProvider } from "./gitlab/GitlabListViewProvider";
 import { GitlabView } from "./gitlab/GitlabView";
@@ -7,6 +7,8 @@ import { useGitlabSeenMark } from "./gitlab/useGitlabSeenMark";
 import { GithubView } from "./github/GithubView";
 import { HealthPanel } from "./health/HealthPanel";
 import OwnTasksView from "./own-tasks/OwnTasksView";
+import { SettingsDialog } from "./settings/SettingsDialog";
+import { useSettingsDialog } from "./settings/useSettingsDialog";
 import TodoView from "./todo/TodoView";
 import WorkTimeView from "./worktime/WorkTimeView";
 import { WorkTimerHeader } from "./worktime/WorkTimerHeader";
@@ -35,12 +37,15 @@ function isEditable(target: EventTarget | null): boolean {
 function App() {
   const [view, setView] = useState<View>("todo");
   useGitlabSeenMark(view);
+  const { open: settingsOpen, openAt: openSettings } = useSettingsDialog();
   // Bumped by each header STOP; 0 means no summary.
   const [summaryRun, setSummaryRun] = useState(0);
 
-  // Digits 1–6 switch views; never with a modifier, on auto-repeat or while typing.
+  // Digits 1–6 switch views; never with a modifier, on auto-repeat, while typing
+  // or under the settings dialog.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (settingsOpen !== null) return;
       if (event.ctrlKey || event.altKey || event.metaKey || event.repeat) return;
       if (event.defaultPrevented || isEditable(event.target)) return;
       if (!/^[1-9]$/.test(event.key)) return;
@@ -58,7 +63,7 @@ function App() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [settingsOpen]);
 
   return (
     <WorkTimerProvider>
@@ -72,6 +77,7 @@ function App() {
         onSelect={(id) => setView(id as View)}
       >
         <WorkTimerHeader onStopped={() => setSummaryRun((n) => n + 1)} />
+        <Button iconOnly icon="settings" aria-label="Ustawienia" onClick={() => openSettings()} />
       </AppHeader>
       {summaryRun > 0 && <DaySummaryPanel key={summaryRun} onClose={() => setSummaryRun(0)} />}
       <GitlabListViewProvider>
@@ -82,6 +88,7 @@ function App() {
         {view === "work-time" && <WorkTimeView />}
         {view === "health" && <HealthPanel />}
       </GitlabListViewProvider>
+      <SettingsDialog />
     </WorkTimerProvider>
   );
 }

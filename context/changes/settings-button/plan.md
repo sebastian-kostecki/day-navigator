@@ -682,9 +682,9 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Automated
 
-- [x] 5.1 `npm run build` shows zero errors
-- [x] 5.2 `npm run lint` and `npm run format:check` pass
-- [x] 5.3 `cargo test` passes, as a regression check
+- [x] 5.1 `npm run build` shows zero errors — dcb7cd7
+- [x] 5.2 `npm run lint` and `npm run format:check` pass — dcb7cd7
+- [x] 5.3 `cargo test` passes, as a regression check — dcb7cd7
 
 #### Manual
 
@@ -701,9 +701,9 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Automated
 
-- [ ] 6.1 `npm run format:check` passes (Prettier covers `src/` only; Markdown is checked by eye)
-- [ ] 6.2 `rg -n "never changes it|never writes it|Read-only loader" README.md AGENTS.md context/foundation/roadmap.md src-tauri/src/settings.rs src-tauri/src/settings_file.rs` finds nothing
-- [ ] 6.3 `cargo test` passes
+- [x] 6.1 `npm run format:check` passes (Prettier covers `src/` only; Markdown is checked by eye)
+- [x] 6.2 `rg -n "never changes it|never writes it|Read-only loader" README.md AGENTS.md context/foundation/roadmap.md src-tauri/src/settings.rs src-tauri/src/settings_file.rs` finds nothing
+- [x] 6.3 `cargo test` passes
 
 #### Manual
 

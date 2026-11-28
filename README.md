@@ -99,9 +99,27 @@ Choose **More info → Run anyway**. Every release is built by CI from this repo
 
 ## Configuration
 
-Settings are a hand-written JSON file at `%APPDATA%\com.sebas.day-navigator\settings.json`.
-The app reads it and never changes it. Every block is optional. The **Czas pracy** view's
-"Ustawienia" button opens the file.
+Settings are a JSON file at `%APPDATA%\com.sebas.day-navigator\settings.json`. Every block is
+optional. Change them in the app or edit the file by hand.
+
+The gear button in the header opens the **Ustawienia** dialog. The "Ustawienia" buttons in
+**Czas pracy** (Przypomnienia panel) and in the GitLab filter bar open it at their section, and
+"Otwórz settings.json" in the dialog footer opens the file. The dialog edits the file like this:
+
+- Each section has its own "Zapisz" and writes only its own blocks, in one step (a temporary
+  `settings.json.tmp` in the same folder, then a rename).
+- The order of the top-level keys, unknown top-level keys, a BOM and CRLF line endings are kept.
+  Whitespace and the key order inside saved blocks are normalised. Keep a copy
+  first if you want your exact formatting back.
+- Text is written as typed (list entries trimmed); the dialog shows it normalised, for example
+  filter entries in lower case. Values shown as defaults are written too: saving **GitLab** adds
+  `"gitlabRefresh": { "minutes": 10 }`. An empty GitLab host or an empty repository list removes
+  that block.
+- A missing file is created on save; a missing config folder is not.
+- A file that is not valid JSON, or has the wrong `version`, is never overwritten: fix it by hand.
+- If a block changed on disk after the dialog loaded it, the save is refused and nothing is
+  written. An invalid block is replaced only after you confirm it.
+- A save takes effect without a restart.
 
 ```json
 {
@@ -118,7 +136,8 @@ The app reads it and never changes it. Every block is optional. The **Czas pracy
   "todo": { "limit": 5 },
   "autostart": { "enabled": true },
   "reminders": { "longRunningHours": 10, "notRunningAfter": "09:00" },
-  "workTime": { "holidays": "pl", "dailyNormHours": 8 }
+  "workTime": { "holidays": "pl", "dailyNormHours": 8 },
+  "notices": { "newAssignments": true, "sourceProblems": true, "daySummary": true }
 }
 ```
 
@@ -130,15 +149,16 @@ The app reads it and never changes it. Every block is optional. The **Czas pracy
 | `github`        | `owner/name` repositories to read issues from (up to 50).                                          |
 | `githubRefresh` | GitHub background refresh interval in minutes, 1–14 (default 10). An invalid value shows a notice in **Projekty (GitHub)** and uses 10. |
 | `todo`          | "To do" list limit, 1–20 (default 5).                                                              |
-| `autostart`     | `enabled`: `true` starts the app with Windows into the tray, window hidden; off by default. Read at start: restart the app after a change. |
+| `autostart`     | `enabled`: `true` starts the app with Windows into the tray, window hidden; off by default. A save in the dialog applies at once (release builds); after a hand edit, restart the app. |
 | `reminders`     | `longRunningHours` 1–24 and `notRunningAfter` `"HH:MM"`; `false` turns a reminder off.             |
 | `workTime`      | `holidays`: `"pl"` (default) counts Polish public holidays out of the norm; `false` turns the calendar off. `dailyNormHours`: the daily norm as a number of hours, 1–10 in whole minutes (for example `7.5`; missing or `null` = 8). One value, no history: changing it recalculates every month, closed ones included. |
+| `notices`       | Windows notices, each `true` by default: `newAssignments` (new GitLab assignments and review requests), `sourceProblems` (GitLab or GitHub failing and coming back), `daySummary` (the day summary after a tray STOP). |
 
-An invalid block is reported in the **Źródła** view and does not affect the other blocks. The exception is `workTime`: an invalid block is reported in the **Czas pracy** view (month report, days table and week summary) and in the dashboard's month tiles, not in **Źródła**; START/STOP keeps working. With an invalid `dailyNormHours` the report error names it, the dashboard tiles show "raport niedostępny", and the status, entries and reminders fall back to 8 hours.
+An invalid block is reported in the **Źródła** view and does not affect the other blocks. An invalid `notices` block is instead shown in the **Ustawienia** dialog, and all notices stay on. Another exception is `workTime`: an invalid block is reported in the **Czas pracy** view (month report, days table and week summary) and in the dashboard's month tiles, not in **Źródła**; START/STOP keeps working. With an invalid `dailyNormHours` the report error names it, the dashboard tiles show "raport niedostępny", and the status, entries and reminders fall back to 8 hours.
 
 A day can be a whole or a half day off: in the days table the "Wolne" control has three buttons ("nie" / "½" / "tak"), and the "Wybrany dzień" panel has "Dzień" with "roboczy" / "pół dnia wolnego" / "wolny". A half day off stays a workday with half the daily norm; it is refused on weekends and holidays, and the "counter not running" reminder stays silent that day. The "Dni wolne" tile counts a half day as 0.5, and "Średnio / dzień" is the time needed per full workday.
 
-With `autostart` on, the app keeps one entry named `com.sebas.day-navigator` in the current user's Run key, pointing at the copy of the app that last started with the key on, and removes it when the key is off. A start by Windows goes straight to the tray with the window hidden; a manual start shows the window. Disabling the app in Task Manager → Startup apps also works, and the app leaves that choice alone (the row still reads OK). Before uninstalling, set `enabled` to `false` and start the app once, or remove the entry in Task Manager. The result shows as "Autostart" in **Źródła**.
+With `autostart` on, the app keeps one entry named `com.sebas.day-navigator` in the current user's Run key, pointing at the copy of the app that last started, or saved the Autostart section, with the key on, and removes it when the key is off. A start by Windows goes straight to the tray with the window hidden; a manual start shows the window. Disabling the app in Task Manager → Startup apps also works, and the app leaves that choice alone (the row still reads OK). Before uninstalling, switch it off in the dialog (or set `enabled` to `false` and start the app once), or remove the entry in Task Manager. The result shows as "Autostart" in **Źródła**.
 
 ## Development
 

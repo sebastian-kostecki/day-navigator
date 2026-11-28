@@ -1,4 +1,6 @@
-//! Read-only loader for the hand-written `settings.json`. Only `commands` imports `tauri`.
+//! `settings.json`: one loader per block, and the field validators they share
+//! with the settings dialog. The only writer is `commands::save_section`. Only
+//! `commands` imports `tauri`.
 
 use std::fs;
 use std::path::{Path, PathBuf};

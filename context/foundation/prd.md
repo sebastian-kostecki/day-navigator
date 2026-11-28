@@ -241,6 +241,8 @@ Autostart z Windows jest dostarczany w M-3 jako MS-17 (roadmapa): domyślnie wy�
 
 MR-y, w których użytkownik jest reviewerem, są dostarczane w M-4 jako MS-35 (roadmapa): sekcja „Do review” w „Praca (GitLab)” pod filtrem FR-002, „+” do „Do zrobienia”, powiadomienia mechanizmem i progiem FR-004; bez nowego FR.
 
+Ustawienia można zmieniać w aplikacji (okno „Ustawienia”, zapis do `settings.json`; panel „Przypomnienia” z FR-021 sam nadal niczego nie edytuje), a powiadomienia o nowych przypisaniach, problemach GitLaba i GitHuba oraz podsumowanie dnia po STOP z zasobnika można wyłączyć (change `settings-button`, 2026-11-28); bez nowego FR.
+
 ## Open Questions
 
 1. **`gh` w Windows** — narzędzie dostępu do GitHuba jest tylko w WSL; jak aplikacja na Windows ma sięgać do GitHuba (instalacja w Windows czy wywołanie przez WSL)? Owner: użytkownik. Przed planem FR-005. Blokuje: FR-005.

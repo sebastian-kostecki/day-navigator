@@ -701,9 +701,9 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Automated
 
-- [x] 6.1 `npm run format:check` passes (Prettier covers `src/` only; Markdown is checked by eye)
-- [x] 6.2 `rg -n "never changes it|never writes it|Read-only loader" README.md AGENTS.md context/foundation/roadmap.md src-tauri/src/settings.rs src-tauri/src/settings_file.rs` finds nothing
-- [x] 6.3 `cargo test` passes
+- [x] 6.1 `npm run format:check` passes (Prettier covers `src/` only; Markdown is checked by eye) — fa64952
+- [x] 6.2 `rg -n "never changes it|never writes it|Read-only loader" README.md AGENTS.md context/foundation/roadmap.md src-tauri/src/settings.rs src-tauri/src/settings_file.rs` finds nothing — fa64952
+- [x] 6.3 `cargo test` passes — fa64952
 
 #### Manual
 

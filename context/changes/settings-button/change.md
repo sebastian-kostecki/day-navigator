@@ -1,7 +1,7 @@
 ---
 change_id: settings-button
 title: Settings button opening one place to manage all app settings from the UI
-status: implementing
+status: implemented
 created: 2026-11-28
 updated: 2026-11-28
 archived_at: null

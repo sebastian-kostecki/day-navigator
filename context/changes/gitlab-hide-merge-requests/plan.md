@@ -6,6 +6,8 @@ In "Praca (GitLab)" the user can hide a merge request from its row, both an assi
 
 Roadmap M-4, wave 3, slice S-07, anchor MS-33 (PRD ref FR-003; GitHub issue #33). No new FR. Planned non-interactively: the skill's questions were not asked; the user's decisions in the brief are binding and every other choice is marked **default chosen by agent** with a one-line reason.
 
+**To confirm with the user at the end of the slice (plan review F3):** what counts as an MR "state change" is a default chosen by agent, made of three parts: (a) option O1, a merge or close is not shown as "Zmienione" (the MR leaves the list; it returns as "Zmienione" only when reopened and listed again); (b) labels, scoped ones included, never bring an MR back; (c) a draft/ready toggle never brings an MR back. The implementers build exactly these defaults (no implementation change). The orchestrator surfaces all three to the user for confirmation when the slice is done; an O2 or "labels count" answer becomes a follow-up change.
+
 Complexity: MEDIUM-HIGH (one new CLI call, a second hidden round beside the issue round, a new snapshot list with its TS mirror, refresh wiring and UI). No question budget was spent: the research, the user's decisions and the orchestrator's guidance settle every decision.
 
 ## Current State Analysis
@@ -47,6 +49,7 @@ Verify with the gates and the tests named in each phase, plus the Manual rows (c
 - **No migration** and no change to `hidden_issues` (table, SQL, `HiddenRecord`, `ChangeReason`, `SETTLE_MS`, `PRUNE_AFTER_MS`).
 - **No second per-MR call to read a merged/closed state (option O1, default chosen by agent):** a hidden MR that is merged or closed leaves the open lists, is marked absent and pruned after 30 days; it comes back as "Zmienione" ("wróciło na listę") only if it is reopened and listed again, the same rule as GitLab and GitHub issues. With `closedDays` on, a merged hidden MR shows in "Zamknięte". Showing a merge or close as "Zmienione" (option O2: a second read-only `glab api projects/<id>/merge_requests/<iid>` call for absent hidden MRs) is a possible follow-up the user may ask for.
 - **Draft/ready is not a state change (default chosen by agent):** the user's rule names only state and comments, and GitLab writes draft toggles as system notes, which never count.
+- **Labels are not an MR state change (default chosen by agent):** an MR's fingerprint is empty, so no label edit (scoped or not) brings it back; label edits by bots and reviewers would otherwise resurface MRs as noise. O1, this bullet and the draft/ready bullet are surfaced to the user by the orchestrator at the end of the slice (see Overview); the implementers do not change them.
 - No hiding in the "Zamknięte" section; no change to the recently-closed call.
 - No `glab api user` call to learn the user's login (out of scope; would be another new call): without `gitlab.user` every author counts, as for issues, and the existing notice covers it.
 - No change to the NEW flags, seen keys or toasts beyond keeping a hidden MR never NEW (`mark_fresh`); `new_assignments` is otherwise untouched (S-03 may generalise it).
@@ -55,20 +58,22 @@ Verify with the gates and the tests named in each phase, plus the Manual rows (c
 
 ## Implementation Approach
 
-Bottom-up in six phases, each committed with all gates green by one implementer:
+Bottom-up in seven phases, each committed with all gates green by one implementer:
 
 1. The `glab` MR-notes call, its guard shape, fake-cli routes and `fetch_merge_request_notes` (no caller yet).
 2. The snapshot model: `AssignedItems.hidden_merge_requests`, `FilteredOut.hidden_merge_requests`, the TS mirror, the literal fallout, and the places that enumerate the lists (`filter_shown`, `all_items`, `mark_fresh`, `reconcile_gitlab`).
 3. The MR hiding core: the kind-aware fingerprint, `hidden_issues/merge_requests.rs` (records of one host, both kinds' records read together, the MR partition, the store-item builders).
-4. The MR round `hidden_issues/mr_round.rs` (`check_mr_round` with no lock, `commit_mr_round` in one write) and its fake-cli integration tests.
-5. Refresh wiring and commands: `act_on_item` replaces `act_on_issue`, every re-shape reads both kinds' records, the round runs both checks and commits, three new commands.
-6. UI, PRD line and `AGENTS.md`.
+4. The MR round `hidden_issues/mr_round.rs` (`check_mr_round` with no lock, `commit_mr_round` in one write, `mr_calls_allowed`) and its fake-cli integration tests.
+5. State shaping and commands: `GitlabHidden` through `shape_items`/`reshape_kept`, `act_on_item` replaces `act_on_issue`, three new commands registered in `lib.rs`. The round still fills `hidden_merge_requests` with nothing.
+6. The MR round in the refresh thread: `refresh_loop` keeps the MR cursor and skip flag, `refresh_round` runs both checks and both commits.
+7. UI, PRD line and `AGENTS.md`.
 
 Decisions taken as defaults (each also noted where it applies):
 
 - **Kind-aware `HideItem for GitlabItem`** (issue: scoped labels; MR: empty). **Default chosen by agent:** one impl, no newtype; issues keep the exact same fingerprint, and an MR's labels never bring it back (user's rule).
 - **Reuse `IssueRef`** for the MR notes call (project id + iid). **Default chosen by agent:** same two opaque numbers with the same no-zero and opaque-`Debug` rules; a new type would add code and guard surface for no safety gain. Its doc gains "also a merge request's project and iid".
-- **Two independent rounds, two writes** (issues in `hidden_issues`, MRs in `hidden_items`), each one write, both under the same `hidden_gate`. **Default chosen by agent:** the tables are independent and the existing functions each own one write (GitHub precedent); a failure in one leaves the other consistent and is shown by the same notice. Separate `resume_after` cursors; the MR checks run even when the issue checks stopped (the list fetch just succeeded, so a VPN drop costs at most one more timeout).
+- **Two independent rounds, two writes** (issues in `hidden_issues`, MRs in `hidden_items`), each one write, both under the same `hidden_gate`. **Default chosen by agent:** the tables are independent and the existing functions each own one write (GitHub precedent); a failure in one leaves the other consistent and is shown by the same notice. Separate `resume_after` cursors.
+- **Shared stop between the two check halves (plan review F8).** **Default chosen by agent:** when the issue checks stopped this round (`RoundChecks::stopped_at()` is `Some`: unavailable, logged out or no `glab`), the MR checks start no call: every due MR check fails and the MR cursor stays as it was. A VPN drop right after the list fetch then costs one 20 s runner timeout, as today, not 40 s. The skip never happens two rounds in a row (`mr_calls_allowed(issue_checks_stopped, skipped_last_round) = !issue_checks_stopped || skipped_last_round`): one issue whose notes call keeps timing out stops every issue round, and without that rule it would starve the MR checks forever.
 - **One record per global MR id; partition both MR lists by the same records; hidden MRs in one list `hidden_merge_requests`** shown in the main table under the one "Pokaż ukryte (n)" toggle. **Default chosen by agent (orchestrator guidance 3):** the main table already mixes kinds under the "Typ" switch and owns the toggle; one list needs one field, one filter count and one place in the UI; the "Do review" panel then lists visible review MRs only, and a hidden review MR keeps its "Do review" tag.
 - **Separate commands by kind** (`hide_gitlab_merge_request`, `unhide_gitlab_merge_request`, `dismiss_gitlab_merge_request_change`, each by global `id`). **Default chosen by agent:** mirrors the issue and GitHub commands and keeps the issue commands' contract unchanged.
 - **UI error texts for MRs** come from an optional `kind` argument of `hiddenIssueErrorMessage`; issue texts stay word for word. **Default chosen by agent:** issue behaviour unchanged, MR texts correct.
@@ -109,8 +114,8 @@ Adds `glab api projects/<id>/merge_requests/<iid>/notes?sort=desc&order_by=creat
 - Constant `pub const MR_NOTES_MIDDLE: &str = "/merge_requests/";` next to `ISSUE_NOTES_*` (`:349-351`); the prefix and suffix are shared. A private `mr_notes_args(host, &IssueRef)` builds `["api", "projects/<project_id>/merge_requests/<iid>/notes?sort=desc&order_by=created_at&per_page=100", "--paginate", "--hostname", <host>]`.
 - `IssueRef` doc gains: "also a merge request's project id and iid (the MR notes call)".
 - Variant appended at the end of `CliCall`: `/// GET of one merge request's notes, newest first (read-only).` `GlabMergeRequestNotes(GitlabHost, IssueRef)`; `tool()` = `Tool::Glab`; `name()` = `"glab:mr-notes"`; `args()` = `mr_notes_args`. Not in `CliCall::ALL`.
-- `examples()` appends one `GlabMergeRequestNotes(host, IssueRef { project_id: 77, iid: 34 })` (place it right after the `GlabIssueNotes` example; it takes the cloned host, the issue-notes example keeps the move or both clone).
-- Test module: `VARIANT_COUNT` 13 → 14, `EXAMPLE_COUNT` 18 → 19, `ordinal` arm `CliCall::GlabMergeRequestNotes(..) => 13`, `seen` array gains `, 1` at the end, the "ALL must stay parameterless" `matches!` list gains `| CliCall::GlabMergeRequestNotes(..)`.
+- `examples()`, in this order: (1) in the existing `all.push(CliCall::GlabIssueNotes(host, IssueRef { project_id: 77, iid: 12 }))` change `host` to `host.clone()`; (2) right after that push add `all.push(CliCall::GlabMergeRequestNotes(host, IssueRef { project_id: 77, iid: 34 }));` (this one moves `host`; nothing after it uses `host`, the `Gh*` examples that follow take a `GithubRepo`).
+- Test module: `VARIANT_COUNT` 13 → 14, `EXAMPLE_COUNT` 18 → 19, `ordinal` arm `CliCall::GlabMergeRequestNotes(..) => 13` (last arm), and in `examples_cover_every_variant_with_and_without_a_user` the expected array becomes exactly `assert_eq!(seen, [1, 1, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 1]);`. `with_user` stays `5` (the new example has no user). The "ALL must stay parameterless" `matches!` list gains `| CliCall::GlabMergeRequestNotes(..)`.
 - `notes_endpoint_allowed`: after stripping `projects/` and the suffix, accept iff splitting on `/issues/` gives two `guard_number_ok` parts, **or** splitting on `/merge_requests/` gives two `guard_number_ok` parts. Doc comment names both shapes.
 - New tests (beside `notes_call_has_exact_arguments_name_and_tool` and `guard_accepts_the_notes_shape_and_rejects_near_misses`): exact args, name, tool and opaque `Debug` (no `77`, no host) for the MR call; the guard accepts `projects/77/merge_requests/34<SUFFIX>` and rejects: `merge_requests/0`, `merge_requests/034`, `projects/077/merge_requests/34`, `projects//merge_requests/34`, `projects/77/merge_request/34` (singular), `projects/77/merge_requests/34/extra`, `projects/77/merge_requests/34/notes/5?...`, `projects/77/merge_requests/34/issues/2`, `projects/77/issues/1/merge_requests/34`, `sort=asc` instead of `desc`, an extra `&x=1`, a missing `per_page`, and the right endpoint followed by `-X POST` or `--method POST`. A proptest like the issue one: every `(project_id, iid)` in `1..=u64::MAX` passes the guard through `CliCall::args()`.
 
@@ -174,7 +179,8 @@ The snapshot gets a hidden-MR list and its filter count, with the TS mirror in t
 **Contract**:
 - `AssignedItems` gains, after `review_requests`, `/// Merge requests the user has hidden, assigned or awaiting review (S-07). Empty in a fetched list; the round fills it when it partitions both MR lists.` `pub hidden_merge_requests: Vec<GitlabItem>` (serde `hiddenMergeRequests`). The `review_requests` doc "never hidden" becomes "the visible ones after the round partitions them (S-07)". The `GitlabItem.hidden_at_ms` doc becomes "Only on `hidden_issues` and `hidden_merge_requests` items".
 - `FilteredOut` gains `pub hidden_merge_requests: u32` after `review_requests`.
-- Every `AssignedItems { .. }` and `FilteredOut { .. }` literal in `src/` and `tests/` gains the new field with an empty value (`Vec::new()`/`vec![]`/`0`); no assertion changes. The compiler lists them (see Key Discoveries).
+- Every `AssignedItems { .. }` and `FilteredOut { .. }` literal in `src/` and `tests/` gains the new field with an empty value (`Vec::new()`/`vec![]`/`0`). The compiler lists them (see Key Discoveries).
+- **One assertion changes, and only this one** (the compiler does not list it: it is a string). In `src-tauri/src/gitlab/mod.rs`, test `snapshot_serializes_for_the_webview` (about line 2183), the expected JSON string contains `"filteredOut":{"mergeRequests":0,"issues":0,"hiddenIssues":0,"reviewRequests":0}`; change it to `"filteredOut":{"mergeRequests":0,"issues":0,"hiddenIssues":0,"reviewRequests":0,"hiddenMergeRequests":0}` (the field order follows the struct, so `hidden_merge_requests` must be the last field of `FilteredOut`). The snapshot there has `"items":null`, so the `AssignedItems` field does not appear in that string. A grep of `src-tauri/src` and `src-tauri/tests` for `filteredOut`, `hiddenIssues`, `reviewRequests` and `mergeRequests` finds no other test that pins this JSON (the other `filteredOut` hits are the closed section's number, `gitlab/mod.rs:1373` and `:2199`, which do not change). Do not change the struct to make the old string pass.
 
 #### 2. Enumerations
 
@@ -182,7 +188,7 @@ The snapshot gets a hidden-MR list and its filter count, with the TS mirror in t
 
 **Intent**: The visibility filter applies to the new list and counts what it removed.
 
-**Contract**: `filter_shown` (`:277-296`) applies `filter.apply` to `shown.hidden_merge_requests` and fills `FilteredOut.hidden_merge_requests`. `shape_items` and the round build `AssignedItems` with `hidden_merge_requests: Vec::new()` in this phase (Phase 5 fills it).
+**Contract**: `filter_shown` (`:277-296`) applies `filter.apply` to `shown.hidden_merge_requests` and fills `FilteredOut.hidden_merge_requests`. `shape_items` and the round build `AssignedItems` with `hidden_merge_requests: Vec::new()` in this phase (Phase 5 fills it in `shape_items`, Phase 6 in the round).
 
 **File**: `src-tauri/src/new_assignments/mod.rs`
 
@@ -302,7 +308,9 @@ The GitLab MR counterpart of `round.rs`, on the shared rules and the `hidden_ite
 
 **Contract**:
 - `#[derive(Debug)] pub struct MrRoundChecks { records: Result<Vec<HiddenItemRecord>, HiddenIssueError>, checks: HashMap<u64, Result<CommentVerdict, ()>>, stopped_at: Option<u64> }` with `pub fn stopped_at(&self) -> Option<u64>`.
-- `pub fn check_mr_round(store: &StoreHandle, runner: &CliRunner, config: &GitlabConfig, full: &AssignedItems, now_ms: i64, resume_after: Option<u64>) -> MrRoundChecks`: reads `list_mr_records(s, &config.host)` (a failure skips every call); for each record in `check_order(.., resume_after)` finds the listed MR by id in `full.merge_requests` then `full.review_requests` (kind `MergeRequest`); skips it when not listed, when `status_changed` or when not `needs_comment_check`; an unreadable baseline is `Err` without a call; otherwise `fetch_merge_request_notes(runner, &config.host, IssueRef { project_id: item.project_id, iid: item.iid })` → `Comment::from` each note → `comment_verdict(.., baseline, config.user.as_ref().map(GitlabUser::as_str))`; after the first `stops_round` error no further call starts, `stopped_at` is that record and every remaining due check is `Err`. Logs only `gitlab: hidden mr comment checks failed: {n}` at debug.
+- `pub fn check_mr_round(store: &StoreHandle, runner: &CliRunner, config: &GitlabConfig, full: &AssignedItems, now_ms: i64, resume_after: Option<u64>, calls_allowed: bool) -> MrRoundChecks`: reads `list_mr_records(s, &config.host)` (a failure skips every call); for each record in `check_order(.., resume_after)` finds the listed MR by id in `full.merge_requests` then `full.review_requests` (kind `MergeRequest`); skips it when not listed, when `status_changed` or when not `needs_comment_check`; an unreadable baseline is `Err` without a call; otherwise `fetch_merge_request_notes(runner, &config.host, IssueRef { project_id: item.project_id, iid: item.iid })` → `Comment::from` each note → `comment_verdict(.., baseline, config.user.as_ref().map(GitlabUser::as_str))`; after the first `stops_round` error no further call starts, `stopped_at` is that record and every remaining due check is `Err`. Copy the loop of `check_round` (`round.rs`) and change only what this bullet names. Logs only `gitlab: hidden mr comment checks failed: {n}` at debug.
+- `calls_allowed == false` (the shared stop, see Implementation Approach): the records are read as usual, but no notes call starts: every due check (as defined above) is `Err(())`, and the returned `stopped_at` is `resume_after` unchanged, so the cursor survives the skipped round. In code: the call guard `Some(baseline) if stopped_at.is_none()` becomes `Some(baseline) if calls_allowed && stopped_at.is_none()`, and the result is `MrRoundChecks { .., stopped_at: if calls_allowed { stopped_at } else { resume_after } }`. The doc comment says why (a VPN drop costs one timeout per round, not two).
+- `pub fn mr_calls_allowed(issue_checks_stopped: bool, skipped_last_round: bool) -> bool { !issue_checks_stopped || skipped_last_round }` with a doc: the MR calls are skipped after the issue checks stopped this round, but never two rounds in a row, so one issue call that keeps failing cannot starve the MR checks. Its caller is Phase 6.
 - `#[derive(Debug)] pub struct MrRoundOutcome { pub merge_requests: Vec<GitlabItem>, pub review_requests: Vec<GitlabItem>, pub hidden_merge_requests: Vec<GitlabItem>, pub check_failed: u32, pub store_error: Option<HiddenIssueError> }`.
 - `pub fn commit_mr_round(store: &StoreHandle, host: &GitlabHost, full: &AssignedItems, checks: MrRoundChecks, now_ms: i64) -> MrRoundOutcome`: listed = `full.merge_requests` followed by `full.review_requests`; `plan_round(&records, &listed, &verdicts, now_ms)`; one `apply_items_round(store, Gitlab, MergeRequest, &[(host.as_str().to_string(), transitions)], &[host.as_str().to_string()], now_ms)`; keeps the returned rows with `scope == host.as_str()`; `partition_merge_requests`; `check_failed` counts only failed verdicts whose record is still hidden after the write. On a store read or write failure: both MR lists as listed with `changed: None` and `hidden_at_ms: None`, `hidden_merge_requests: []`, `check_failed: 0`, `store_error` set, and `log::warn!("gitlab: hidden mr state unavailable: {}", e.kind())`. Never an empty list in place of the listed MRs.
 
@@ -312,14 +320,19 @@ The GitLab MR counterpart of `round.rs`, on the shared rules and the `hidden_ite
 
 **Intent**: Every rule of the MR round through `fake-cli` and a test store, invented data only.
 
-**Contract**: fixtures from fake-cli: MR 6002 `(102, 34)` assigned and awaiting review (in `merge_requests` with `review_requested`), MR 6101 `(104, 21)` review-only, MR 6003 `(102, 12)` assigned without notes. MRs are hidden through `hide_item(new_hidden_mr(..))` with an `updated_at` older than the listed one, so a check is due. Rounds call `check_mr_round` + `commit_mr_round` as the refresh thread will. Cases:
+**Contract**: fixtures from fake-cli: MR 6002 `(102, 34)` assigned and awaiting review (in `merge_requests` with `review_requested`, listed `updated_at` 2026-03-02T10:00:00.000Z), MR 6101 `(104, 21)` review-only (in `review_requests`, listed 2026-03-03T08:00:00.000Z), MR 6003 `(102, 12)` assigned, no notes (listed 2026-03-02T10:00:00.000Z). Records are checked in `item_id` order: 6002 < 6003 < 6101. Helpers, copied from `tests/hidden_issues_round.rs` (`env()`, `Env::runner`, `Env::notes_calls`, `fetch`, `ids`): `const MR_OLD: &str = "2026-03-01T08:00:00.000Z";` (before every listed MR `updated_at` and before the fake notes of 2026-03-04); `Env::hide_mr(&self, full, id, updated)` clones the MR with that id from `full.merge_requests`, else `full.review_requests`, sets `updated_at = updated` and runs `hide_item(s, &new_hidden_mr(&host(), &item), NOW)` in `with_store`; `fn mr_round(env, runner, cfg, full) -> MrRoundOutcome` runs `check_mr_round(&env.store, runner, cfg, full, NOW + 1_000, None, true)` then `commit_mr_round(&env.store, &cfg.host, full, checks, NOW + 1_000)`; `fn mr_marked(out, id) -> Option<ChangeReason>` looks in `out.merge_requests` then `out.review_requests`. Every MR is hidden with `MR_OLD`, so a check is due. Cases:
 - `gitlab-notes-other`: hidden 6101 (review-only) → visible in `review_requests` with `changed = Comment`; hidden 6002 → visible in `merge_requests` with `changed = Comment`.
 - `gitlab-notes-own` → stays hidden, baseline = listed `updated_at`, settle check set; the next round makes no notes call.
 - `gitlab-notes-system` (a system note by someone else, e.g. an approval or a draft toggle) → stays hidden.
 - Labels changed since hiding (edit the listed MR's labels in the test) with `gitlab-notes-none` → stays hidden (no `Status` for MRs).
 - Drop-off: remove 6101 from `review_requests` → `absent_since_ms` set, not resurfaced; listed again → `changed = Returned`; absent for `PRUNE_AFTER_MS` → record deleted.
 - Moving sections: hidden 6101 listed in `merge_requests` instead of `review_requests` → still hidden, no absent mark.
-- `gitlab-notes-unavailable` with two due MRs → one notes call, `check_failed = 2`, `stopped_at` set; the next round with `resume_after` checks the other MR first (`gitlab-notes-one-unavailable` and the notes call log, as `a_call_that_keeps_failing_does_not_starve_the_checks_after_it`).
+- `gitlab_notes_unavailable_runs_one_call_and_fails_two_checks` (scenario `gitlab-notes-unavailable`: every MR notes call fails as unavailable): hide 6002 and 6101 with `MR_OLD`; `let checks = check_mr_round(&env.store, &runner, &cfg, &full, NOW + 1_000, None, true);` → `checks.stopped_at() == Some(6002)` (6002 is checked first); `commit_mr_round(..)` → `env.notes_calls() == 1`, `out.check_failed == 2`, `ids(&out.hidden_merge_requests) == [6002, 6101]` (hidden assigned first, then review-only), `out.review_requests` and `out.merge_requests` hold neither.
+- `a_failing_mr_call_does_not_starve_the_checks_after_it` (scenario `gitlab-notes-one-unavailable`: 6003 is not in `MR_NOTES_KEYS`, so its call fails as unavailable every time; 6101 is in it and answers with another's comment): hide 6003 and 6101 with `MR_OLD`. Do not use 6002 here: it is checked before 6003, answers, and nothing is starved.
+  - Round 1: `check_mr_round(.., NOW + 1_000, None, true)` → `stopped_at() == Some(6003)`; after `commit_mr_round(.., NOW + 1_000)`: `env.notes_calls() == 1`, `out.check_failed == 2`, `out.hidden_merge_requests.len() == 2`.
+  - Round 2: `check_mr_round(.., NOW + 2_000, Some(6003), true)` → 6101 (id > 6003) is checked first and answers, then 6003 fails again: `stopped_at() == Some(6003)`; after `commit_mr_round(.., NOW + 2_000)`: `env.notes_calls() == 3` (in total), `mr_marked(&out, 6101) == Some(ChangeReason::Comment)` and 6101 is in `out.review_requests`, `ids(&out.hidden_merge_requests) == [6003]`, `out.check_failed == 1`.
+  - Same structure as `a_call_that_keeps_failing_does_not_starve_the_checks_after_it` (`tests/hidden_issues_round.rs:317-348`).
+- `mr_calls_not_allowed_fail_the_due_checks_and_keep_the_cursor` (scenario `gitlab-notes-other`): hide 6002 and 6101 with `MR_OLD`; `check_mr_round(.., NOW + 1_000, Some(6002), false)` → `stopped_at() == Some(6002)` (the cursor passed in); after `commit_mr_round`: `env.notes_calls() == 0`, `out.check_failed == 2`, `ids(&out.hidden_merge_requests) == [6002, 6101]`. Then the same with `resume_after = None`: `stopped_at() == None`, still 0 calls.
 - `gitlab-notes-bad-json` → failed check, no `BAD_NOTES_MARKER` in any `Debug` of the outcome.
 - Without a configured user, `gitlab-notes-own` resurfaces (`Comment`).
 - An unreadable baseline → failed check, no call.
@@ -327,11 +340,15 @@ The GitLab MR counterpart of `round.rs`, on the shared rules and the `hidden_ite
 - A row of another host (hidden 31+ days ago) is pruned; a row of another host hidden recently is kept and never shown.
 - A hidden MR and a hidden issue with the same global id: hiding the MR never hides the issue and the round never touches the `hidden_issues` row.
 
+**File**: `src-tauri/src/hidden_issues/tests.rs` (unit, append)
+
+**Contract**: `mr_calls_allowed_skips_after_an_issue_stop_but_never_twice`: `mr_calls_allowed(false, false) == true`, `mr_calls_allowed(false, true) == true`, `mr_calls_allowed(true, false) == false`, `mr_calls_allowed(true, true) == true`.
+
 ### Success Criteria:
 
 #### Automated Verification:
 
-- MR round integration tests pass: `cargo test --test hidden_mr_round`
+- MR round integration tests pass: `cargo test --test hidden_mr_round` and `cargo test hidden_issues::tests::mr_calls_allowed`
 - GitLab issue round tests pass unchanged: `cargo test --test hidden_issues_round`
 - No leak marker (title, note body) in any error or `Debug` output in these tests
 - All AGENTS.md gates green: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
@@ -340,11 +357,11 @@ The GitLab MR counterpart of `round.rs`, on the shared rules and the `hidden_ite
 
 ---
 
-## Phase 5: Refresh wiring and commands
+## Phase 5: State shaping, actions on either kind, and commands
 
 ### Overview
 
-The GitLab refresh state partitions both kinds everywhere, the round runs the MR checks and commit next to the issue ones, and three commands hide, show and dismiss an MR by its global id.
+Every path that re-shapes the kept list (a command, a failed round) partitions issues and MRs from one `GitlabHidden`, one entry point acts on either kind, and three commands hide, show and dismiss an MR by its global id. The refresh round itself is not changed beyond the kept-records read: a successful round still builds `hidden_merge_requests: Vec::new()` (Phase 6 wires the MR round), so until Phase 6 an MR hidden by a command shows again after the next successful round. Gates are green at the end of this phase.
 
 ### Changes Required:
 
@@ -354,13 +371,12 @@ The GitLab refresh state partitions both kinds everywhere, the round runs the MR
 
 **Intent**: Every path that shapes the list partitions issues and MRs from one `GitlabHidden`; one entry point for actions on either kind.
 
-**Contract**:
-- `shape_items(full, hidden: &GitlabHidden, fresh, filter)`: issues via `partition(&full.issues, &hidden.issues)`, MRs via `partition_merge_requests(&full.merge_requests, &full.review_requests, &hidden.merge_requests)`; fills `merge_requests`, `review_requests` and `hidden_merge_requests` from the MR partition; then `mark_fresh` and `filter_shown` as today.
-- `reshape_kept(.., records: Option<&GitlabHidden>, ..)`; in `refresh_round` the kept records are read with `list_gitlab(s, &cfg.host)` instead of `list_hidden`.
-- `act_on_issue` is replaced by `pub(crate) fn act_on_item(&self, kind: ItemKind, id: u64, act: impl FnOnce(&GitlabHost, &GitlabItem) -> Result<GitlabHidden, HiddenIssueError>) -> Result<(), HiddenIssueError>`: same gate, locks and snapshot write as today; the item is found by id **and** kind: `Issue` in `full.issues`, `MergeRequest` in `full.merge_requests` then `full.review_requests`; `NotInList` otherwise (before `act` runs); the cap is `hidden_total = shown.hidden_issues.len() + filtered_out.hidden_issues + shown.hidden_merge_requests.len() + filtered_out.hidden_merge_requests`. Doc comment names both kinds.
-- `refresh_loop` keeps a second cursor `mr_resume_after: Option<u64>`, passed to `refresh_round` as a new `&mut Option<u64>` parameter.
-- `refresh_round`: right after `check_round`, `check_mr_round(&store, runner, cfg, full, now_ms() as i64, *mr_resume_after)` (no lock; updates `mr_resume_after`); `checks` becomes `Option<(RoundChecks, MrRoundChecks)>`. Under the gate, after `commit_round`, `commit_mr_round(&store, &cfg.host, &full, mr_checks, now_ms() as i64)`; the items take `merge_requests`, `review_requests`, `hidden_merge_requests` from the MR outcome; `check_failed` = both counts summed; `hidden_error` = the issue store error, else the MR store error (`message_pl`). Everything else in the round is unchanged (filter, NEW flags, closed section, "To do" reconcile on the full list, interval).
-- The module doc's `hidden_gate` paragraph says "hidden-issue and hidden-MR state".
+**Contract**, in this order:
+1. Imports: from `crate::hidden_issues` add `GitlabHidden`, `list_gitlab` and `partition_merge_requests` (re-exported in Phase 3). After step 4, remove `list as list_hidden` (and `HiddenRecord` if clippy reports it unused outside tests; keep it under `#[cfg(test)]` use if only tests need it).
+2. `shape_items(full: &AssignedItems, hidden: &GitlabHidden, fresh: &HashSet<ItemKey>, filter: &GitlabFilter) -> (AssignedItems, FilteredOut)`: `let (visible, hidden_issues) = partition(&full.issues, &hidden.issues);` and `let mrs = partition_merge_requests(&full.merge_requests, &full.review_requests, &hidden.merge_requests);`, then `AssignedItems { merge_requests: mrs.merge_requests, issues: visible, hidden_issues, review_requests: mrs.review_requests, hidden_merge_requests: mrs.hidden }`; then `mark_fresh` and `filter_shown` as today.
+3. `reshape_kept(next, full, records: Option<&GitlabHidden>, fresh, filter, filter_invalid)`; body unchanged apart from the type. Its call site in `refresh_round` passes `kept_records.as_ref()` (was `kept_records.as_deref()`).
+4. In `refresh_round`, the kept-records read (today `store.with_store(today, |s| list_hidden(s, &cfg.host)).ok()`, about line 661) becomes `store.with_store(today, |s| list_gitlab(s, &cfg.host)).ok()`. Nothing else in `refresh_round` changes in this phase.
+5. `act_on_issue` is replaced by `pub(crate) fn act_on_item(&self, kind: ItemKind, id: u64, act: impl FnOnce(&GitlabHost, &GitlabItem) -> Result<GitlabHidden, HiddenIssueError>) -> Result<(), HiddenIssueError>`: same gate, locks and snapshot write as today; the item is found by id **and** kind: `ItemKind::Issue` in `full.issues`, `ItemKind::MergeRequest` in `full.merge_requests` then `full.review_requests` (each with `i.id == id && i.kind == kind`); `NotInList` otherwise (before `act` runs). `let hidden = act(&config.host, item)?;` then `shape_items(&full, &hidden, &fresh, &filter)`. The cap is `hidden_total = shown.hidden_issues.len() as u32 + filtered_out.hidden_issues + shown.hidden_merge_requests.len() as u32 + filtered_out.hidden_merge_requests`. The doc comment names both kinds and says `act` returns the host's records of both kinds.
 
 #### 2. Commands
 
@@ -369,14 +385,14 @@ The GitLab refresh state partitions both kinds everywhere, the round runs the MR
 **Intent**: The UI entry for MRs, like the issue commands; the MR data comes from the kept list, never from the UI. The issue commands keep their names, arguments and behaviour, and now re-shape with both kinds' records.
 
 **Contract**:
-- The GitLab helper `run` gains a `kind: ItemKind` parameter, calls `act_on_item(kind, id, ..)`, and its closure ends with `list_gitlab(s, host)` instead of `super::list(s, host)`. The three issue commands pass `ItemKind::Issue`.
-- `#[tauri::command] pub async fn hide_gitlab_merge_request(app: AppHandle, id: u64) -> Result<(), HiddenIssueError>`: `hide_item(store, &new_hidden_mr(host, item), now)`; `unhide_gitlab_merge_request`: `unhide_item(store, &mr_key(host, item.id))`; `dismiss_gitlab_merge_request_change`: `dismiss_item(store, &mr_key(host, item.id))`. Each passes `ItemKind::MergeRequest`; log names `hide-mr`, `unhide-mr`, `dismiss-mr` (store errors at warn by kind, refusals at debug by kind). Module doc mentions GitLab merge requests by `id`.
+- The GitLab helper `run(app, name, id, op)` becomes `run(app, name, kind: ItemKind, id, op)`: it calls `state.act_on_item(kind, id, |host, item| -> Result<GitlabHidden, HiddenIssueError> { store.with_store(today, |s| { op(s, host, item, Utc::now().timestamp_millis())?; super::list_gitlab(s, host) }) })`. Logging unchanged (`hidden_issues: {name} failed/refused: {kind}`). The three issue commands pass `ItemKind::Issue` and are otherwise unchanged. Remove the `HiddenRecord` import if it becomes unused.
+- `#[tauri::command] pub async fn hide_gitlab_merge_request(app: AppHandle, id: u64) -> Result<(), HiddenIssueError>`: `run(&app, "hide-mr", ItemKind::MergeRequest, id, |store, host, item, now| hide_item(store, &new_hidden_mr(host, item), now))`. `unhide_gitlab_merge_request`: name `"unhide-mr"`, `unhide_item(store, &mr_key(host, item.id))`. `dismiss_gitlab_merge_request_change`: name `"dismiss-mr"`, `dismiss_item(store, &mr_key(host, item.id))`. `hide_item`, `unhide_item` and `dismiss_item` (`items.rs`) each return `Result<(), HiddenIssueError>`, which is exactly what `op` returns. Doc comments like the issue commands ("merge request" instead of "issue"). The module doc mentions GitLab merge requests by `id`.
 
 **File**: `src-tauri/src/lib.rs`
 
 **Intent**: Register the commands.
 
-**Contract**: three lines appended right after `hidden_issues::commands::dismiss_gitlab_change` in `generate_handler!` (append-only; S-03 may append its own lines elsewhere).
+**Contract**: in `generate_handler!`, right after the line `hidden_issues::commands::dismiss_gitlab_change,` (about line 213) insert exactly these three lines, in this order: `hidden_issues::commands::hide_gitlab_merge_request,`, `hidden_issues::commands::unhide_gitlab_merge_request,`, `hidden_issues::commands::dismiss_gitlab_merge_request_change,`. Change no other line (S-03 appends its own lines elsewhere).
 
 #### 3. Tests
 
@@ -385,8 +401,8 @@ The GitLab refresh state partitions both kinds everywhere, the round runs the MR
 **Intent**: The state rules without a Tauri app; the existing tests keep their meaning.
 
 **Contract**:
-- Existing `act_on_issue_*` tests move to `act_on_item(ItemKind::Issue, ..)` with a local helper that wraps issue records as `GitlabHidden { issues, merge_requests: vec![] }`; assertions unchanged.
-- `act_on_issue_refuses_an_mr_or_an_unknown_id` becomes `act_on_item_matches_id_and_kind`: an issue id asked as `MergeRequest` and an MR id asked as `Issue` are `NotInList`; an MR of `review_requests` and one of `merge_requests` are accepted; an unknown id is `NotInList`.
+- Existing `act_on_issue_*` tests move to `act_on_item(ItemKind::Issue, ..)` with a local helper `fn issues_only(issues: Vec<HiddenRecord>) -> GitlabHidden { GitlabHidden { issues, merge_requests: vec![] } }`; assertions unchanged. Existing `shape_items`/`reshape_kept` test calls wrap their records the same way.
+- `act_on_issue_refuses_an_mr_or_an_unknown_id` (about line 1364) becomes `act_on_item_matches_id_and_kind`: an issue id asked as `MergeRequest` and an MR id asked as `Issue` are `NotInList`; an MR of `review_requests` and one of `merge_requests` are accepted; an unknown id is `NotInList`.
 - New: hiding an MR re-partitions it into `hidden_merge_requests` (from either section) while a hidden issue stays hidden; an MR marked `Comment` stays in its section with `changed`; the cap counts hidden MRs (including filtered-out ones); `reshape_kept` with both kinds' records partitions both; `reshape_kept` with `None` records leaves the shown list as it was.
 
 ### Success Criteria:
@@ -394,7 +410,6 @@ The GitLab refresh state partitions both kinds everywhere, the round runs the MR
 #### Automated Verification:
 
 - State unit tests pass: `cargo test gitlab_refresh::`
-- Round tests still pass: `cargo test --test hidden_mr_round --test hidden_issues_round`
 - The three MR commands are registered: `grep -c "_gitlab_merge_request" src-tauri/src/lib.rs` prints 3
 - All AGENTS.md gates green: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
 
@@ -402,7 +417,99 @@ The GitLab refresh state partitions both kinds everywhere, the round runs the MR
 
 ---
 
-## Phase 6: "Praca (GitLab)" UI, "Do zrobienia", PRD and AGENTS.md
+## Phase 6: The MR round in the refresh thread
+
+### Overview
+
+The refresh round runs the MR checks right after the issue checks (no lock) and commits them right after the issue commit (under the gate), so a successful round shows hidden MRs as hidden and resurfaces them by the rules of Phase 4. Only `refresh_loop` and `refresh_round` change.
+
+### Changes Required:
+
+#### 1. Refresh loop and round
+
+**File**: `src-tauri/src/gitlab_refresh.rs`
+
+**Intent**: Both check halves and both commits in every successful round, with the shared stop.
+
+**Contract**, in this order:
+1. Imports: from `crate::hidden_issues` add `check_mr_round`, `commit_mr_round` and `mr_calls_allowed`.
+2. `refresh_loop`: next to `let mut resume_after = None;` add `// The merge request whose notes call stopped the last round's MR checks.` `let mut mr_resume_after = None;` and `// Whether the last round skipped the MR calls after an issue stop.` `let mut mr_skipped = false;`, and pass `&mut mr_resume_after, &mut mr_skipped` to `refresh_round` right after `&mut resume_after`.
+3. `refresh_round` gains the parameters `mr_resume_after: &mut Option<u64>, mr_skipped: &mut bool` right after `resume_after: &mut Option<u64>`.
+4. The `checks` block becomes (no lock held, as today):
+
+```rust
+let checks = match (&config, &fetched) {
+    (Some(cfg), Ok(full)) => {
+        let checks = check_round(&store, runner, cfg, full, now_ms() as i64, *resume_after);
+        *resume_after = checks.stopped_at();
+        // An issue call that stopped the round (no VPN, logged out, no glab)
+        // skips the MR calls too, but never two rounds in a row.
+        let calls_allowed = mr_calls_allowed(checks.stopped_at().is_some(), *mr_skipped);
+        *mr_skipped = !calls_allowed;
+        let mr_checks = check_mr_round(
+            &store,
+            runner,
+            cfg,
+            full,
+            now_ms() as i64,
+            *mr_resume_after,
+            calls_allowed,
+        );
+        *mr_resume_after = mr_checks.stopped_at();
+        Some((checks, mr_checks))
+    }
+    _ => None,
+};
+```
+
+5. The success arm of `let outcome = match (&config, fetched, checks)` becomes (the rest of the arm, from `mark_fresh` on, is unchanged):
+
+```rust
+(Some(cfg), Ok(full), Some((checks, mr_checks))) => {
+    let round = commit_round(&store, &cfg.host, &full, checks, now_ms() as i64);
+    let mr = commit_mr_round(&store, &cfg.host, &full, mr_checks, now_ms() as i64);
+    check_failed = round.check_failed + mr.check_failed;
+    hidden_error = round
+        .store_error
+        .as_ref()
+        .or(mr.store_error.as_ref())
+        .map(HiddenIssueError::message_pl);
+    // The filter applies after the partition; `full` stays unfiltered.
+    let mut items = AssignedItems {
+        merge_requests: mr.merge_requests,
+        issues: round.visible_issues,
+        hidden_issues: round.hidden_issues,
+        review_requests: mr.review_requests,
+        hidden_merge_requests: mr.hidden_merge_requests,
+    };
+    mark_fresh(&mut items, &round_fresh);
+    let (shown, out) = filter_shown(items, &filter);
+    filtered_out = out;
+    full_list = Some(full);
+    Ok(shown)
+}
+```
+
+   The other two arms (`(_, Ok(full), _)` and `(_, Err(e), _)`) are unchanged. Everything else in the round is unchanged (filter, NEW flags, closed section, kept records via `list_gitlab` from Phase 5, "To do" reconcile on the full list, interval).
+6. The module doc's `hidden_gate` paragraph says "hidden-issue and hidden-MR state"; the lock-order paragraph (`:9-16`) names `check_mr_round` beside `check_round` and `commit_mr_round` beside `commit_round`.
+
+#### 2. Tests
+
+No new test: `refresh_round` needs an `AppHandle` (no unit test today). The rules it calls are covered by Phase 4 (`tests/hidden_mr_round.rs`, `mr_calls_allowed`) and the shaping by Phase 5. The existing tests must stay green.
+
+### Success Criteria:
+
+#### Automated Verification:
+
+- Round and state tests still pass: `cargo test --test hidden_mr_round --test hidden_issues_round` and `cargo test gitlab_refresh::`
+- The round calls each MR half once: `grep -cE "= (check_mr_round|commit_mr_round)\(" src-tauri/src/gitlab_refresh.rs` prints 2
+- All AGENTS.md gates green: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+
+**Implementation Note**: Commit when all automated rows are green. Phase blocks use plain bullets — the `- [ ]` checkboxes live in `## Progress`.
+
+---
+
+## Phase 7: "Praca (GitLab)" UI, "Do zrobienia", PRD and AGENTS.md
 
 ### Overview
 
@@ -433,8 +540,8 @@ Row actions on every MR row (main table and "Do review"), hidden MRs under the o
 **Contract**:
 - `RowActions`: `busy: ReadonlySet<string>`, `hide`/`unhide`/`dismiss: (kind: ItemKind, id: number) => void`. `RowButtons` uses `busyKey(item.kind, item.id)` and passes `item.kind`.
 - `GitlabRow` renders `RowButtons` whenever `actions` is given (drop the `item.kind === "issue"` condition, `:235`); the prop comment changes accordingly. The "Do zrobienia" button rule stays (`todoFound || !hidden`).
-- `Lists`: hidden rows = `[...items.hiddenIssues, ...items.hiddenMergeRequests]` filtered by kind and view, each `{ item, hidden: true, reviewTag: item.reviewRequested }`; `hiddenCount = items.hiddenIssues.length + items.hiddenMergeRequests.length`; `outByFilter` adds `showHidden && kind !== "issue" ? filteredOut.hiddenMergeRequests : 0`; `viewOptions` input includes `items.hiddenMergeRequests`.
-- `ReviewBlock` is unchanged apart from the buttons it now shows (it lists `items.reviewRequests`, the visible review MRs).
+- `Lists`: hidden rows render **only when `showHidden` is true**, as today. Replace the line `const hiddenOfKind = showHidden ? items.hiddenIssues.filter((i) => matchesKind(i, kind)) : [];` (about line 500) with exactly `const hiddenOfKind = showHidden ? [...items.hiddenIssues, ...items.hiddenMergeRequests].filter((i) => matchesKind(i, kind)) : [];` (keep the `showHidden ?` guard: with the toggle off no hidden row of either kind is shown; Prettier may wrap the line, run `npm run format`). The `hidden` rows line becomes `...hidden.map((item) => ({ item, hidden: true, reviewTag: item.reviewRequested })),` (an issue has `reviewRequested: false`, so issue rows look as before). `hiddenCount = items.hiddenIssues.length + items.hiddenMergeRequests.length`; `outByFilter` adds `+ (showHidden && kind !== "issue" ? filteredOut.hiddenMergeRequests : 0)`; the `viewOptions` input array includes `...items.hiddenMergeRequests` after `...items.hiddenIssues`.
+- `ReviewBlock` lists `items.reviewRequests` (the visible review MRs) and now shows the row buttons. **"Do review" with every review MR hidden (plan review F7, default chosen by agent):** the panel keeps its existing empty text and adds how many review MRs are hidden, so it never reads as "nothing to review". `ReviewBlock` gets a new prop `hiddenReviewCount: number` (not `hiddenCount`, which `Lists` already uses for the toggle); `Lists` passes `hiddenReviewCount={items.hiddenMergeRequests.filter((i) => i.reviewRequested).length}` (hidden MRs that await the user's review, assigned or not; hidden MRs removed by the filter are not counted). In the `rows.length === 0` branch (not the `viewEmpty` one) the `<p className="dn-empty">` text is the existing text, followed, only when `hiddenReviewCount > 0`, by ` Ukryte do review: {hiddenReviewCount} (widoczne po „Pokaż ukryte”).` (a space, then that sentence). Example: "Brak merge requestów do review. Ukryte do review: 2 (widoczne po „Pokaż ukryte”)." The panel `meta` count and the footer stay as they are (visible rows only). Nothing changes when at least one review MR is visible.
 - `GitlabView`: `hasHidden` adds `items.hiddenMergeRequests.length + snapshot.filteredOut.hiddenMergeRequests`; the summary's hidden count adds `items.hiddenMergeRequests.length`.
 - Texts: the `hiddenError` notice → "Lista pokazuje wszystkie pozycje, bo nie udało się odczytać ukrytych."; the `user` hint → "... aby Twoje własne komentarze nie przywracały ukrytych pozycji."; the footnote keeps its issue sentence and adds "Ukryty merge request wraca, gdy {ktoś inny doda komentarz | pojawi się nowy komentarz} albo wróci na listę po zniknięciu z niej (np. po zamknięciu i ponownym otwarciu)." with the comment that it mirrors `plan_round` and the MR fingerprint in `src-tauri/src/hidden_issues/rules.rs`.
 
@@ -474,7 +581,7 @@ Row actions on every MR row (main table and "Do review"), hidden MRs under the o
 #### Manual Verification:
 
 - Hiding an assigned MR removes it from the main table; "Pokaż ukryte (n)" shows it dimmed with "ukryte DD.MM" (today) after the visible rows; "Pokaż na liście" brings it back unmarked
-- Hiding a review-only MR from "Do review" removes it from that panel; with the toggle on it shows dimmed in the main table with the "Do review" tag
+- Hiding a review-only MR from "Do review" removes it from that panel; with the toggle on it shows dimmed in the main table with the "Do review" tag; with every review MR hidden, "Do review" shows its empty text followed by "Ukryte do review: n (widoczne po „Pokaż ukryte”)."
 - An MR that is both assigned and awaiting review, once hidden, is gone from both places and counts once in "Pokaż ukryte (n)"
 - A comment by another account on a hidden MR brings it back after the next refresh in its own section with "Zmienione" and the tooltip "nowy komentarz"; "OK, zauważone" clears the mark
 - The user's own comment (with `gitlab.user` set), an approval, a new commit, a pipeline run, a label change and a draft/ready toggle each leave a hidden MR hidden
@@ -511,6 +618,7 @@ Keep edits to shared files small and local: append enum variants, match arms, st
 - Fingerprint: issue labels kept, MR labels ignored.
 - `partition_merge_requests`, `filter_shown`, `mark_fresh`, `keys_of`, `reconcile_gitlab` with hidden MRs.
 - `act_on_item` (kind check, both sections, cap), `shape_items`/`reshape_kept` with both kinds.
+- `mr_calls_allowed`: the shared stop never skips the MR calls two rounds in a row.
 
 ### Integration Tests:
 
@@ -530,7 +638,7 @@ Keep edits to shared files small and local: append enum variants, match arms, st
 
 ## Performance Considerations
 
-A round adds one `glab api .../merge_requests/<iid>/notes` per hidden MR whose `updated_at` moved past its baseline or whose settle check is due. MRs move `updated_at` on pushes, pipelines and approvals, so hidden MRs with CI activity cost more calls than hidden issues; each call advances the baseline, so a quiet MR costs nothing. Calls run sequentially before the gate and stop after the first unavailable/logged-out/missing-tool failure.
+A round adds one `glab api .../merge_requests/<iid>/notes` per hidden MR whose `updated_at` moved past its baseline or whose settle check is due. MRs move `updated_at` on pushes, pipelines and approvals, so hidden MRs with CI activity cost more calls than hidden issues; each call advances the baseline, so a quiet MR costs nothing. Calls run sequentially before the gate and stop after the first unavailable/logged-out/missing-tool failure. When the issue checks stopped that way, the MR checks start no call that round (never two rounds in a row), so a VPN drop right after the list fetch costs one 20 s runner timeout, not two.
 
 ## Migration Notes
 
@@ -587,32 +695,39 @@ None: MR records are new rows in `hidden_items` (v15). A database written by thi
 - [ ] 4.3 No leak marker in any error or Debug output
 - [ ] 4.4 All AGENTS.md gates green
 
-### Phase 5: Refresh wiring and commands
+### Phase 5: State shaping, actions on either kind, and commands
 
 #### Automated
 
 - [ ] 5.1 State unit tests pass
-- [ ] 5.2 Round tests still pass
-- [ ] 5.3 The three MR commands are registered
-- [ ] 5.4 All AGENTS.md gates green
+- [ ] 5.2 The three MR commands are registered
+- [ ] 5.3 All AGENTS.md gates green
 
-### Phase 6: "Praca (GitLab)" UI, "Do zrobienia", PRD and AGENTS.md
+### Phase 6: The MR round in the refresh thread
 
 #### Automated
 
-- [ ] 6.1 Type check and build pass
-- [ ] 6.2 No colour literal added
-- [ ] 6.3 AGENTS.md names GitLab merge requests in the hidden-item snapshots
-- [ ] 6.4 All AGENTS.md gates green
+- [ ] 6.1 Round and state tests still pass
+- [ ] 6.2 The round calls each MR half once
+- [ ] 6.3 All AGENTS.md gates green
+
+### Phase 7: "Praca (GitLab)" UI, "Do zrobienia", PRD and AGENTS.md
+
+#### Automated
+
+- [ ] 7.1 Type check and build pass
+- [ ] 7.2 No colour literal added
+- [ ] 7.3 AGENTS.md names GitLab merge requests in the hidden-item snapshots
+- [ ] 7.4 All AGENTS.md gates green
 
 #### Manual
 
-- [ ] 6.5 Hiding an assigned MR removes it; the toggle shows it dimmed with ukryte DD.MM; Pokaż na liście brings it back
-- [ ] 6.6 Hiding a review-only MR moves it from Do review to the hidden rows with the Do review tag
-- [ ] 6.7 An MR both assigned and awaiting review is hidden from both places and counted once
-- [ ] 6.8 A comment by another account resurfaces a hidden MR with Zmienione (nowy komentarz); OK, zauważone clears it
-- [ ] 6.9 Own comment, approval, commit, pipeline, label change and draft toggle leave a hidden MR hidden
-- [ ] 6.10 Close and reopen brings a hidden MR back with wróciło na listę
-- [ ] 6.11 A hidden MR in Do zrobienia keeps its entry; a returned one shows zmienione
-- [ ] 6.12 GitLab issue hiding works as before
-- [ ] 6.13 Built app shows no CSP violation and the log holds no host, reference, title, login or note text
+- [ ] 7.5 Hiding an assigned MR removes it; the toggle shows it dimmed with ukryte DD.MM; Pokaż na liście brings it back
+- [ ] 7.6 Hiding a review-only MR moves it from Do review to the hidden rows with the Do review tag; with every review MR hidden, Do review shows the hidden count
+- [ ] 7.7 An MR both assigned and awaiting review is hidden from both places and counted once
+- [ ] 7.8 A comment by another account resurfaces a hidden MR with Zmienione (nowy komentarz); OK, zauważone clears it
+- [ ] 7.9 Own comment, approval, commit, pipeline, label change and draft toggle leave a hidden MR hidden
+- [ ] 7.10 Close and reopen brings a hidden MR back with wróciło na listę
+- [ ] 7.11 A hidden MR in Do zrobienia keeps its entry; a returned one shows zmienione
+- [ ] 7.12 GitLab issue hiding works as before
+- [ ] 7.13 Built app shows no CSP violation and the log holds no host, reference, title, login or note text

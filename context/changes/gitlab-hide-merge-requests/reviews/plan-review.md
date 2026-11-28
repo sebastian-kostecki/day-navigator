@@ -158,3 +158,19 @@ The symbols checked:
 - **Detail**: The plan runs `check_mr_round` even when `check_round` stopped on `Unavailable`. The runner timeout is 20 s (`cli/runner.rs:60`), so a VPN drop right after the list fetch costs up to 40 s before the gate instead of 20 s. The plan states this and accepts it. A `LoggedOut` or `ToolMissing` stop fails fast, so only the timeout case costs time.
 - **Fix**: Optional: skip the MR checks (all due MR checks `Err`, `stopped_at` unchanged) when the issue checks stopped. This needs `RoundChecks` to expose whether it stopped, which it already does through `stopped_at()`. Otherwise accept it.
 - **Decision**: PENDING
+
+## Resolution
+
+Applied non-interactively by the plan-fix pass (decisions by the agent, per the M-4 wave 3 orchestrator brief). The plan now has seven phases: 1 MR notes call, 2 snapshot model, 3 MR hiding core, 4 MR round, 5 state shaping and commands, 6 MR round in the refresh thread, 7 UI and docs. Progress rows are renumbered to match.
+
+- **F1 — resolved.** Phase 2 §1 names the one changed assertion: `snapshot_serializes_for_the_webview` gets `,"hiddenMergeRequests":0` after `"reviewRequests":0`. A grep of `src-tauri/src` and `src-tauri/tests` found no other test that pins the `filteredOut` / `AssignedItems` JSON.
+- **F2 — resolved.** Phase 4 §3 splits the bullet into `gitlab_notes_unavailable_runs_one_call_and_fails_two_checks` (6002 + 6101) and `a_failing_mr_call_does_not_starve_the_checks_after_it` (6003 + 6101). It gives the exact calls, the expected counts and the `MR_OLD`/helper definitions. These match the fake-cli modes and the `item_id` check order.
+- **F3 — Fix A.** O1, "labels never bring an MR back" and "draft/ready ignored" stay defaults chosen by agent. The plan Overview, What We're NOT Doing and the brief now say the orchestrator surfaces them to the user for confirmation at the end of the slice. No implementation change.
+- **F4 — resolved.** Phase 1 §1 spells out the step: `host.clone()` in the issue-notes example, then the MR example moves `host`. The `seen` array is written out (`[1, 1, 1, 1, 2, 2, 1, 1, 2, 2, 1, 1, 2, 1]`) and `with_user` stays 5.
+- **F5 — resolved.** Phase 5 is split:
+  - New Phase 5 threads `GitlabHidden` through `shape_items`/`reshape_kept` and reads the kept records with `list_gitlab`. It adds `act_on_item`, the commands and the append-only `lib.rs` lines. The round still builds `hidden_merge_requests: Vec::new()`.
+  - New Phase 6 wires `check_mr_round`/`commit_mr_round` into `refresh_loop`/`refresh_round`, with code sketches of the checks block and of the success arm's `AssignedItems` literal.
+  - Each phase leaves every gate green.
+- **F6 — resolved.** Phase 7 §2 gives the exact `showHidden ? [...hiddenIssues, ...hiddenMergeRequests].filter(..) : []` line and the hidden-row mapping with `reviewTag`.
+- **F7 — resolved (default chosen by agent).** When no review MR is visible, "Do review" keeps its empty text and adds "Ukryte do review: n (widoczne po „Pokaż ukryte”)." through a new `hiddenReviewCount` prop. Manual row 7.6 covers it.
+- **F8 — resolved with a shared stop (default chosen by agent).** When the issue checks stopped this round, `check_mr_round(.., calls_allowed = false)` starts no MR call: every due check fails and the MR cursor is kept. `mr_calls_allowed(issue_stopped, skipped_last) = !issue_stopped || skipped_last` never skips two rounds in a row. Without that rule, one issue call that keeps timing out would starve the MR checks for good. Both rules are tested in Phase 4 and wired in Phase 6.

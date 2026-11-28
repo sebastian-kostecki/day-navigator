@@ -583,6 +583,36 @@ mod tests {
     }
 
     #[test]
+    fn act_on_issue_keeps_the_refresh_setting_flag() {
+        let state = state_with_list();
+        {
+            let mut snap = state.write();
+            snap.refresh_setting_invalid = true;
+            snap.refresh_minutes = 4;
+            snap.next_refresh_at_ms = Some(99);
+        }
+        // Hide, then show again: neither action touches the round's refresh fields.
+        state
+            .act_on_issue("octo-test/alpha#1", |_, _| {
+                Ok(vec![hidden_record("octo-test/alpha", 1)])
+            })
+            .unwrap();
+        let hidden = state.snapshot();
+        assert_eq!(hidden.repos[0].hidden.len(), 1);
+        assert!(hidden.refresh_setting_invalid);
+        assert_eq!(hidden.refresh_minutes, 4);
+        assert_eq!(hidden.next_refresh_at_ms, Some(99));
+        state
+            .act_on_issue("octo-test/alpha#1", |_, _| Ok(vec![]))
+            .unwrap();
+        let shown = state.snapshot();
+        assert!(shown.repos[0].hidden.is_empty());
+        assert!(shown.refresh_setting_invalid);
+        assert_eq!(shown.refresh_minutes, 4);
+        assert_eq!(shown.next_refresh_at_ms, Some(99));
+    }
+
+    #[test]
     fn reconcile_input_joins_visible_and_hidden_issues_once_per_repo() {
         let mut ok = snap(State::Ok);
         let mut alpha = view("Octo-Test/Alpha", false);

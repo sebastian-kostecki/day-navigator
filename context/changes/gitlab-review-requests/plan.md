@@ -699,11 +699,11 @@ Rollback to an older build is safe. Old code never reads the marker row, and the
 
 #### Automated
 
-- [ ] 4.1 To-do unit tests pass, including the review-only presence and tick cases
-- [ ] 4.2 To-do integration tests stay green
-- [ ] 4.3 npm run lint, npm run format:check, npm run build are clean
-- [ ] 4.4 cargo fmt --check and cargo clippy --all-targets -- -D warnings are clean
-- [ ] 4.5 Full suite green: cargo test
+- [x] 4.1 To-do unit tests pass, including the review-only presence and tick cases
+- [x] 4.2 To-do integration tests stay green
+- [x] 4.3 npm run lint, npm run format:check, npm run build are clean
+- [x] 4.4 cargo fmt --check and cargo clippy --all-targets -- -D warnings are clean
+- [x] 4.5 Full suite green: cargo test
 
 ### Phase 5: "Do review" section in "Praca (GitLab)" and the PRD note
 

@@ -407,13 +407,21 @@ export default function TodoView() {
         busy={busy}
         ownLoad={ownLoad}
         gitlabItems={
-          snapshot?.items ? [...snapshot.items.mergeRequests, ...snapshot.items.issues] : []
+          snapshot?.items
+            ? [
+                ...snapshot.items.mergeRequests,
+                ...snapshot.items.reviewRequests,
+                ...snapshot.items.issues,
+              ]
+            : []
         }
         gitlabHidden={snapshot?.items?.hiddenIssues.length ?? 0}
         gitlabOk={gitlabState === "ok"}
         gitlabFilteredOut={
           snapshot?.filterActive
-            ? snapshot.filteredOut.mergeRequests + snapshot.filteredOut.issues
+            ? snapshot.filteredOut.mergeRequests +
+              snapshot.filteredOut.reviewRequests +
+              snapshot.filteredOut.issues
             : null
         }
         gitlabLoadError={gitlabLoadError}

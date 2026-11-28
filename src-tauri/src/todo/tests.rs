@@ -499,6 +499,35 @@ fn reconcile_keeps_a_picked_issue_the_user_hid_open() {
 }
 
 #[test]
+fn reconcile_keeps_a_picked_review_only_merge_request_and_ticks_it_once_gone() {
+    let (_t, mut s) = open();
+    let item = gl(ItemKind::MergeRequest, 1);
+    pick_gl(&mut s, &item, D1, 8, 5).unwrap();
+    // Only in the review list: present, title and URL refreshed from it.
+    let mut fresh = item.clone();
+    fresh.title = "Nowy tytul review".into();
+    fresh.web_url = Some("https://gitlab.example.invalid/invented/project/rev".into());
+    let mut items = assigned(&[]);
+    items.review_requests.push(fresh);
+
+    let n = reconcile_gitlab(&mut s, ACC, &items, day(D1), at(D1, 9, 0)).unwrap();
+
+    assert_eq!(n, 1);
+    let l = list_on(&mut s, D1, 5);
+    assert_eq!(titles(&l), ["Nowy tytul review"]);
+    assert!(!l.items[0].ticked);
+    assert!(matches!(
+        &l.items[0].entry,
+        TodoEntry::Gitlab { web_url: Some(u), .. } if u.ends_with("/rev")
+    ));
+
+    // In neither list any more (also: removed as reviewer): ticked.
+    let n = reconcile_gitlab(&mut s, ACC, &assigned(&[]), day(D1), at(D1, 10, 0)).unwrap();
+    assert_eq!(n, 1);
+    assert!(list_on(&mut s, D1, 5).items[0].ticked);
+}
+
+#[test]
 fn reconcile_count_is_zero_when_nothing_changes() {
     let (_t, mut s) = open();
     let item = gl(ItemKind::Issue, 1);

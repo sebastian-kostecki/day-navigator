@@ -596,6 +596,6 @@ One extra `Store::write` per GitHub round (at most 50 repos × 500 issues, the e
 
 #### Automated
 
-- [ ] 6.1 The inserted phrase is present once: `grep -c "GitHub seen-issue keys" AGENTS.md` prints `1`
-- [ ] 6.2 AGENTS.md diff touches one line only: before the commit, `git diff HEAD --numstat -- AGENTS.md` shows `1	1` (staged or not)
-- [ ] 6.3 All gates pass: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 6.1 The inserted phrase is present once: `grep -c "GitHub seen-issue keys" AGENTS.md` prints `1`
+- [x] 6.2 AGENTS.md diff touches one line only: before the commit, `git diff HEAD --numstat -- AGENTS.md` shows `1	1` (staged or not)
+- [x] 6.3 All gates pass: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`

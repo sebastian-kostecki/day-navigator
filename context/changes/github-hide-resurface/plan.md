@@ -604,10 +604,10 @@ v15 only creates `hidden_items`; existing data is untouched and no GitLab row mo
 
 #### Automated
 
-- [ ] 2.1 Existing GitLab hidden-issue tests pass unchanged in behaviour
-- [ ] 2.2 New store, upgrade and crash tests pass
-- [ ] 2.3 No GitLab call site changed
-- [ ] 2.4 All AGENTS.md gates green
+- [x] 2.1 Existing GitLab hidden-issue tests pass unchanged in behaviour — 409f337
+- [x] 2.2 New store, upgrade and crash tests pass — 409f337
+- [x] 2.3 No GitLab call site changed — 409f337
+- [x] 2.4 All AGENTS.md gates green — 409f337
 
 ### Phase 3: GitHub hidden round and snapshot fields
 

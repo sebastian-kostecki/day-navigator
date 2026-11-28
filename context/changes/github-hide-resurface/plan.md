@@ -622,10 +622,10 @@ v15 only creates `hidden_items`; existing data is untouched and no GitLab row mo
 
 #### Automated
 
-- [ ] 4.1 State and reconcile unit tests pass
-- [ ] 4.2 Phase 3 round tests still pass
-- [ ] 4.3 The three commands are registered
-- [ ] 4.4 All AGENTS.md gates green
+- [x] 4.1 State and reconcile unit tests pass — 13f0761
+- [x] 4.2 Phase 3 round tests still pass — 13f0761
+- [x] 4.3 The three commands are registered — 13f0761
+- [x] 4.4 All AGENTS.md gates green — 13f0761
 
 ### Phase 5: "Projekty (GitHub)" UI
 

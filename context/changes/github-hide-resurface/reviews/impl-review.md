@@ -173,3 +173,7 @@
 - **Detail**: `let tmp = tempfile::tempdir().unwrap();` is only dropped at the end. The test uses `StoreHandle::new(None)`, so the tempdir serves no purpose.
 - **Fix**: Remove the `tmp` lines.
 - **Decision**: PENDING
+
+## Fixes applied
+
+Findings 1, 2, 5, 6, 7, 8 fixed in the follow-up fix commit. Findings 3 and 4 left deliberately (only if timing data shows a need).

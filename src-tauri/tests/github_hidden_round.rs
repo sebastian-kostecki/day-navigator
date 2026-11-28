@@ -347,7 +347,6 @@ fn an_unreadable_comment_answer_is_a_failed_check_without_a_leak() {
 #[test]
 fn a_store_failure_gives_unpartitioned_repos_and_a_store_error() {
     let store = StoreHandle::new(None);
-    let tmp = tempfile::tempdir().unwrap();
     let runner = CliRunner::with_programs(
         fake(),
         fake(),
@@ -369,7 +368,6 @@ fn a_store_failure_gives_unpartitioned_repos_and_a_store_error() {
     assert_eq!(numbers(&out.repos[0].issues), [11, 3]);
     assert_eq!(numbers(&out.repos[1].issues), [5]);
     assert!(out.repos.iter().all(|r| r.hidden.is_empty()));
-    drop(tmp);
 }
 
 #[test]

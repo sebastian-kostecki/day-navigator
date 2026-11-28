@@ -30,11 +30,21 @@ type Key = (String, u64);
 /// What `check_github_round` found: the records read before the calls, one
 /// verdict per checked issue, and the record whose failed call stopped the
 /// round (if any).
-#[derive(Debug)]
 pub struct GithubRoundChecks {
     records: Result<Vec<HiddenItemRecord>, HiddenIssueError>,
     checks: HashMap<Key, Result<CommentVerdict, ()>>,
     stopped_at: Option<Key>,
+}
+
+/// The keys are repo names and issue numbers (work data): only counts print.
+impl std::fmt::Debug for GithubRoundChecks {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GithubRoundChecks")
+            .field("records_ok", &self.records.is_ok())
+            .field("checks", &self.checks.len())
+            .field("stopped", &self.stopped_at.is_some())
+            .finish()
+    }
 }
 
 impl GithubRoundChecks {
@@ -328,6 +338,21 @@ mod tests {
     use super::*;
     use crate::cli::GithubRepo;
     use crate::hidden_issues::ChangeReason;
+
+    #[test]
+    fn checks_debug_prints_counts_only() {
+        let mut checks = HashMap::new();
+        checks.insert(("octo-test/leakmarker".to_string(), 987_654), Err(()));
+        let value = GithubRoundChecks {
+            records: Ok(Vec::new()),
+            checks,
+            stopped_at: Some(("octo-test/leakmarker".to_string(), 987_654)),
+        };
+        let text = format!("{value:?}");
+        assert!(!text.contains("octo-test"), "{text}");
+        assert!(!text.contains("leakmarker"), "{text}");
+        assert!(!text.contains("987654"), "{text}");
+    }
 
     fn issue(repo: &str, n: u64) -> GithubIssue {
         GithubIssue {

@@ -610,7 +610,13 @@ fn gh_hidden_scenario(scenario: &str) -> i32 {
             }
             _ => 98,
         },
-        (Some("issue"), Some("view")) => {
+        (Some("issue"), Some("view"))
+            if args.len() == 7
+                && args[2].parse::<u64>().is_ok()
+                && args[3] == "-R"
+                && args[5] == "--json"
+                && args[6] == "comments" =>
+        {
             let later = "2026-03-10T09:00:00Z";
             let comments: Vec<serde_json::Value> = match scenario {
                 "gh-hidden-other" => vec![gh_comment_value(Some("octo-other-4e7a"), later)],

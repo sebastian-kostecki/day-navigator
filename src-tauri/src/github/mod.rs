@@ -14,7 +14,7 @@ use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 
 use crate::cli::{CliError, GithubConfig, GithubRepo, Tool};
-use crate::gitlab::ChangeReason;
+use crate::hidden_issues::ChangeReason;
 use fetch::RepoResult;
 
 /// One open issue assigned to the `gh` account.

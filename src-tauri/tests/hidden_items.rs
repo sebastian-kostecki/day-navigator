@@ -88,6 +88,35 @@ fn apply(
 }
 
 #[test]
+fn debug_and_errors_do_not_print_scope_or_number() {
+    let (_tmp, dir) = test_store_dir();
+    let mut store = open(&dir);
+    let scope = "octo-test/leakmarker";
+    hide_item(&mut store, &new_item(scope, 987_654), NOW).unwrap();
+    let rec = list_items(&store, HiddenSource::Github, HiddenKind::Issue)
+        .unwrap()
+        .remove(0);
+    let text = format!("{rec:?}");
+    assert!(
+        !text.contains("leakmarker") && !text.contains("987654"),
+        "{text}"
+    );
+    for err in [
+        unhide_item(&mut store, &key(scope, 987_655)).unwrap_err(),
+        dismiss_item(&mut store, &key(scope, 987_654)).unwrap_err(),
+    ] {
+        for text in [format!("{err:?}"), err.to_string()] {
+            assert!(
+                !text.contains("leakmarker")
+                    && !text.contains("987654")
+                    && !text.contains("987655"),
+                "{text}"
+            );
+        }
+    }
+}
+
+#[test]
 fn hide_list_unhide_dismiss_round_trip() {
     let (_tmp, dir) = test_store_dir();
     let mut store = open(&dir);

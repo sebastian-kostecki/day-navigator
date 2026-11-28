@@ -1,10 +1,10 @@
 ---
 change_id: gitlab-hide-merge-requests
 title: Hide GitLab merge requests with resurface as "Zmienione"
-status: impl_reviewed
+status: archived
 created: 2026-11-28
 updated: 2026-11-28
-archived_at: null
+archived_at: 2026-11-28T10:34:08Z
 ---
 
 ## Notes

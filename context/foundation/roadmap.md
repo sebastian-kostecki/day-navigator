@@ -1,6 +1,6 @@
 ---
 project: "Nawigator dnia"
-version: 8
+version: 9
 status: draft
 created: 2026-11-20
 updated: 2026-11-28
@@ -9,7 +9,7 @@ main_goal: quality
 top_blocker: decisions
 milestone_id: sources-github-parity
 milestone_seq: 4
-milestone_status: open
+milestone_status: done
 ---
 
 # Roadmap: Nawigator dnia
@@ -21,7 +21,7 @@ milestone_status: open
 
 ## Milestone
 
-**M-4: Sources — GitHub on a par with GitLab** — Status: open
+**M-4: Sources — GitHub on a par with GitLab** — Status: done
 
 - **Intent:** "Projects (GitHub)" behaves like "Work (GitLab)": a refresh interval from settings with the next try shown, a NEW flag on new assignments, hiding with resurfacing on change, all on one shared refresh mechanism for both sources. "Work (GitLab)" closes its own gaps: the last list stays visible without VPN, the view's type and "Hidden" section are remembered between runs, merge requests where the user is a reviewer get a "Do review" section, and merge requests can be hidden too. Outcome-scoped; no dates.
 - **Source materials:** GitHub issues #28–#35 (GitHub milestone "M-4: Źródła – GitHub na równi z GitLabem"); `context/foundation/prd.md` v2 for the existing source rules (FR-001–FR-005, FR-015, FR-023, FR-024, FR-026). The later GitHub milestones M-5 and M-6 stay outside this milestone.
@@ -225,6 +225,7 @@ Slices below assume these are present and do NOT re-scaffold them.
 - **M-1: The narrowed day flow runs in the app** (`full-day-flow`) — closed 2026-11-23. The day flow from PRD v1 runs in the app: GitLab issues and MRs (filter, hiding, notifications), GitHub issues, own tasks, the "To do" list, and the work-time counter with its norm report and reminders. FR-001–FR-008 and FR-010–FR-018 are covered.
 - **M-2: Konsola mockup gaps closed and the codebase cleaned up** (`konsola-gaps-and-cleanup`) — closed 2026-11-24. The Konsola mockup gaps are now in the app: the event log, the days table, the reminders panel, the app-data details, the GitLab NEW flag, hidden date and filter bar, GitHub labels, and "+" to "To do". They sit on a cleaner base (shared UI tools and timer state, no vault layer), and the design-system artifact matches the app. Releases carry a changelog and real metadata (0.2.1, 0.3.0). FR-019–FR-026 and MS-09–MS-12 and MS-14–MS-16 are covered. MS-13 (installer signing) was parked.
 - **M-3: Work time and the tray** (`worktime-and-tray`) — closed 2026-11-27. The work-time counter and its norm report can be trusted and reached without opening the window: Polish public holidays count out of the norm, the daily norm is configurable with a half day off, the counter starts and stops from the tray (with today's time in the tooltip and a running icon), the app can start with Windows into the tray, the month report copies to the clipboard for a spreadsheet, work-time entries carry a short note, STOP shows an end-of-day summary, and "Work time" shows a week summary against the week's norm. MS-17, MS-18, MS-19 and MS-23–MS-27 are covered.
+- **M-4: Sources — GitHub on a par with GitLab** (`sources-github-parity`) — closed 2026-11-28. "Projects (GitHub)" now behaves like "Work (GitLab)" on one shared refresh skeleton: its own refresh interval with the next try shown, a NEW flag on issues new since the last visit (no GitHub notices), and hiding until a state change or someone else's comment brings an issue back marked "Changed". "Work (GitLab)" closed its gaps: without VPN the calm unavailable card shows the last list dimmed under it, the type choice and the hidden expansion are remembered between runs, merge requests where the user is a reviewer appear in a "Do review" section with notices and "+" to "To do", and merge requests can be hidden too. MS-28–MS-35 are covered; no new FR.
 
 ## Done
 

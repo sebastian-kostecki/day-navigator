@@ -7,7 +7,6 @@ use tempfile::TempDir;
 
 use super::rules::*;
 use super::*;
-use crate::cli::GitlabUser;
 use crate::gitlab::GitlabLabel;
 use crate::gitlab::notes::IssueNote;
 use crate::store::schema;
@@ -23,8 +22,8 @@ fn host() -> GitlabHost {
     GitlabHost::parse("gitlab.example.invalid").unwrap()
 }
 
-fn user() -> GitlabUser {
-    GitlabUser::parse("Invented.User").unwrap()
+fn user() -> &'static str {
+    "Invented.User"
 }
 
 fn issue(id: u64, labels: &[&str], updated: &str) -> GitlabItem {
@@ -68,14 +67,15 @@ fn record(item: &GitlabItem) -> HiddenRecord {
     }
 }
 
-fn note(author: &str, system: bool, at: &str) -> IssueNote {
-    IssueNote {
+fn note(author: &str, system: bool, at: &str) -> Comment {
+    Comment::from(&IssueNote {
         author: author.into(),
         system,
         created_at: ts(at),
-    }
+    })
 }
 
+const NO_ITEMS: &[GitlabItem] = &[];
 const T0: &str = "2026-03-02T10:00:00Z";
 const T1: &str = "2026-03-02T10:05:00Z";
 
@@ -134,12 +134,12 @@ fn scoped_label_add_remove_and_swap_change_status() {
 fn comment_exactly_at_the_baseline_is_not_new() {
     let n = [note("someone", false, T0)];
     assert_eq!(
-        comment_verdict(&n, ts(T0), Some(&user())),
+        comment_verdict(&n, ts(T0), Some(user())),
         CommentVerdict::NothingNew
     );
     let n = [note("someone", false, T1)];
     assert_eq!(
-        comment_verdict(&n, ts(T0), Some(&user())),
+        comment_verdict(&n, ts(T0), Some(user())),
         CommentVerdict::NewFromOthers
     );
 }
@@ -148,7 +148,7 @@ fn comment_exactly_at_the_baseline_is_not_new() {
 fn own_comment_is_ignored_case_insensitively() {
     let n = [note("INVENTED.user", false, T1)];
     assert_eq!(
-        comment_verdict(&n, ts(T0), Some(&user())),
+        comment_verdict(&n, ts(T0), Some(user())),
         CommentVerdict::NothingNew
     );
 }
@@ -171,7 +171,7 @@ fn system_note_is_ignored_and_a_bot_counts() {
     );
     let n = [note("project_7_bot", false, T1)];
     assert_eq!(
-        comment_verdict(&n, ts(T0), Some(&user())),
+        comment_verdict(&n, ts(T0), Some(user())),
         CommentVerdict::NewFromOthers
     );
 }
@@ -354,13 +354,13 @@ fn drop_off_marks_absent_then_return_resurfaces() {
     let item = issue(1, &[], T0);
     let rec = record(&item);
     assert_eq!(
-        plan_round(std::slice::from_ref(&rec), &[], &HashMap::new(), NOW),
+        plan_round(std::slice::from_ref(&rec), NO_ITEMS, &HashMap::new(), NOW),
         [Transition::MarkAbsent { issue_id: 1 }]
     );
     let mut absent = rec;
     absent.absent_since_ms = Some(NOW - DAY);
     // Still missing a day later: nothing to do.
-    assert!(plan_round(&[absent.clone()], &[], &HashMap::new(), NOW).is_empty());
+    assert!(plan_round(&[absent.clone()], NO_ITEMS, &HashMap::new(), NOW).is_empty());
     let p = plan_round(&[absent], &[item], &HashMap::new(), NOW);
     assert!(matches!(
         p[0],
@@ -375,10 +375,10 @@ fn drop_off_marks_absent_then_return_resurfaces() {
 fn prune_boundary_is_exactly_thirty_days() {
     let mut rec = record(&issue(1, &[], T0));
     rec.absent_since_ms = Some(NOW - 30 * DAY + 1);
-    assert!(plan_round(std::slice::from_ref(&rec), &[], &HashMap::new(), NOW).is_empty());
+    assert!(plan_round(std::slice::from_ref(&rec), NO_ITEMS, &HashMap::new(), NOW).is_empty());
     rec.absent_since_ms = Some(NOW - 30 * DAY);
     assert_eq!(
-        plan_round(&[rec], &[], &HashMap::new(), NOW),
+        plan_round(&[rec], NO_ITEMS, &HashMap::new(), NOW),
         [Transition::Prune { issue_id: 1 }]
     );
 }
@@ -400,7 +400,7 @@ fn marked_rows_get_no_new_reason_only_absence_handling() {
     let verdict = checks(1, Ok(CommentVerdict::NewFromOthers));
     assert!(plan_round(std::slice::from_ref(&rec), &[changed], &verdict, NOW).is_empty());
     assert_eq!(
-        plan_round(std::slice::from_ref(&rec), &[], &HashMap::new(), NOW),
+        plan_round(std::slice::from_ref(&rec), NO_ITEMS, &HashMap::new(), NOW),
         [Transition::MarkAbsent { issue_id: 1 }]
     );
     rec.absent_since_ms = Some(NOW - DAY);
@@ -410,7 +410,7 @@ fn marked_rows_get_no_new_reason_only_absence_handling() {
     );
     rec.absent_since_ms = Some(NOW - 31 * DAY);
     assert_eq!(
-        plan_round(&[rec], &[], &HashMap::new(), NOW),
+        plan_round(&[rec], NO_ITEMS, &HashMap::new(), NOW),
         [Transition::Prune { issue_id: 1 }]
     );
 }
@@ -514,4 +514,121 @@ fn error_json_shape_is_tagged() {
     assert_eq!(json, r#"{"kind":"NotInList"}"#);
     let json = serde_json::to_string(&HiddenIssueError::Store(StoreError::Busy)).unwrap();
     assert_eq!(json, r#"{"kind":"Store","detail":{"kind":"Busy"}}"#);
+}
+
+// ------------------------------------------- the same rules, GitHub-shaped
+
+fn gh_issue(number: u64, updated: &str) -> crate::github::GithubIssue {
+    crate::github::GithubIssue {
+        repo: "octo-test/alpha".into(),
+        number,
+        reference: format!("octo-test/alpha#{number}"),
+        title: format!("Invented issue {number}"),
+        web_url: None,
+        updated_at: updated.into(),
+        labels: vec!["area::api".into(), "bug".into()],
+    }
+}
+
+fn gh_record(number: u64, updated: &str) -> items::HiddenItemRecord {
+    items::HiddenItemRecord {
+        source: items::HiddenSource::Github,
+        scope: "octo-test/alpha".into(),
+        kind: items::HiddenKind::Issue,
+        item_id: number,
+        project_id: None,
+        iid: None,
+        status_fingerprint: Vec::new(),
+        baseline_updated_at: updated.into(),
+        settle_after_ms: None,
+        hidden_at_ms: NOW - DAY,
+        absent_since_ms: None,
+        changed_reason: None,
+        changed_at_ms: None,
+    }
+}
+
+fn gh_comment(author: Option<&str>, at: &str) -> Comment {
+    Comment {
+        author: author.map(String::from),
+        counts: true,
+        created_at: ts(at),
+    }
+}
+
+#[test]
+fn github_labels_never_change_the_status() {
+    let rec = gh_record(5, T0);
+    assert!(!status_changed(&rec, &gh_issue(5, T0)));
+    let mut relabelled = gh_issue(5, T0);
+    relabelled.labels = vec!["workflow::done".into()];
+    assert!(!status_changed(&rec, &relabelled));
+    let plan = plan_round(&[rec], &[relabelled], &HashMap::new(), NOW);
+    assert!(plan.is_empty());
+}
+
+#[test]
+fn github_ghost_author_counts_as_someone_else() {
+    let n = [gh_comment(None, T1)];
+    assert_eq!(
+        comment_verdict(&n, ts(T0), Some("invented-user")),
+        CommentVerdict::NewFromOthers
+    );
+}
+
+#[test]
+fn github_own_comment_in_another_letter_case_does_not_count() {
+    let n = [gh_comment(Some("INVENTED-user"), T1)];
+    assert_eq!(
+        comment_verdict(&n, ts(T0), Some("invented-User")),
+        CommentVerdict::NothingNew
+    );
+}
+
+#[test]
+fn github_comment_at_exactly_the_baseline_does_not_count() {
+    let n = [gh_comment(Some("someone-else"), T0)];
+    assert_eq!(
+        comment_verdict(&n, ts(T0), Some("invented-user")),
+        CommentVerdict::NothingNew
+    );
+}
+
+#[test]
+fn github_without_a_user_any_author_counts() {
+    let n = [gh_comment(Some("invented-user"), T1)];
+    assert_eq!(
+        comment_verdict(&n, ts(T0), None),
+        CommentVerdict::NewFromOthers
+    );
+}
+
+#[test]
+fn github_record_resurfaces_on_a_verdict_and_returns() {
+    let rec = gh_record(5, T0);
+    let verdict = checks(5, Ok(CommentVerdict::NewFromOthers));
+    let p = plan_round(
+        std::slice::from_ref(&rec),
+        &[gh_issue(5, T1)],
+        &verdict,
+        NOW,
+    );
+    assert_eq!(
+        p,
+        [Transition::Resurface {
+            issue_id: 5,
+            hidden_at_ms: NOW - DAY,
+            reason: ChangeReason::Comment
+        }]
+    );
+    let mut absent = rec;
+    absent.absent_since_ms = Some(NOW - 1);
+    let p = plan_round(&[absent], &[gh_issue(5, T0)], &HashMap::new(), NOW);
+    assert!(matches!(
+        p[..],
+        [Transition::Resurface {
+            reason: ChangeReason::Returned,
+            ..
+        }]
+    ));
 }

@@ -32,7 +32,10 @@ pub fn list_mr_records(
     )
 }
 
-/// Both GitLab kinds' records of one host; the first read error wins.
+/// Both GitLab kinds' records of one host; the first read error wins. Both
+/// halves fail together on purpose: one store, one notice. A failed merge
+/// request read therefore also drops the issue records of that call (the
+/// callers keep the list they already show and surface the failure).
 pub fn list_gitlab(store: &Store, host: &GitlabHost) -> Result<GitlabHidden, HiddenIssueError> {
     let issues = list(store, host)?;
     let merge_requests = list_mr_records(store, host)?;
@@ -104,18 +107,31 @@ fn place(item: &GitlabItem, records: &[HiddenItemRecord]) -> Placed {
 
 /// Splits both merge request lists by the same records, matched by global id.
 /// Marked records stay visible with their reason. Order is kept in all three
-/// lists and every other field, `review_requested` included, is kept.
+/// lists and every other field is kept, except that a hidden assigned merge
+/// request loses `review_requested` (see the match arm).
 pub fn partition_merge_requests(
     merge_requests: &[GitlabItem],
     review_requests: &[GitlabItem],
     records: &[HiddenItemRecord],
 ) -> MrPartition {
+    debug_assert!(
+        merge_requests
+            .iter()
+            .all(|a| review_requests.iter().all(|b| a.id != b.id)),
+        "the two merge request lists must not share an id"
+    );
     let mut visible_assigned = Vec::new();
     let mut hidden_assigned = Vec::new();
     for item in merge_requests {
         match place(item, records) {
             Placed::Visible(i) => visible_assigned.push(i),
-            Placed::Hidden(i) => hidden_assigned.push(i),
+            // A hidden assigned merge request would sit in the main table, never
+            // in "Do review": only hidden review-only ones keep the review flag,
+            // so the UI counts the hidden "Do review" members by it.
+            Placed::Hidden(i) => hidden_assigned.push(GitlabItem {
+                review_requested: false,
+                ..i
+            }),
         }
     }
     let mut visible_review = Vec::new();

@@ -26,11 +26,20 @@ use crate::store::StoreHandle;
 /// What `check_mr_round` found: the records read before the notes calls, one
 /// verdict per checked merge request, and the merge request whose failed call
 /// stopped the round (if any).
-#[derive(Debug)]
 pub struct MrRoundChecks {
     records: Result<Vec<HiddenItemRecord>, HiddenIssueError>,
     checks: HashMap<u64, Result<CommentVerdict, ()>>,
     stopped_at: Option<u64>,
+}
+
+impl std::fmt::Debug for MrRoundChecks {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MrRoundChecks")
+            .field("records_ok", &self.records.is_ok())
+            .field("checks", &self.checks.len())
+            .field("stopped", &self.stopped_at.is_some())
+            .finish()
+    }
 }
 
 impl MrRoundChecks {

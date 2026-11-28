@@ -1286,6 +1286,88 @@ mod tests {
         }
     }
 
+    #[test]
+    fn guard_rejects_more_mr_notes_near_misses() {
+        let ok = format!("projects/77/merge_requests/34{MR_NOTES_SUFFIX}");
+        let bad = [
+            // placeholders and non-numbers
+            format!("projects/:id/merge_requests/34{MR_NOTES_SUFFIX}"),
+            format!("projects/77/merge_requests/:iid{MR_NOTES_SUFFIX}"),
+            format!("projects/a/merge_requests/34{MR_NOTES_SUFFIX}"),
+            format!("projects/77/merge_requests/a{MR_NOTES_SUFFIX}"),
+            format!("projects/77/merge_requests/{MR_NOTES_SUFFIX}"),
+            format!("projects/-1/merge_requests/34{MR_NOTES_SUFFIX}"),
+            format!("projects/77/merge_requests/-1{MR_NOTES_SUFFIX}"),
+            // 21-digit ids
+            format!(
+                "projects/{}/merge_requests/34{MR_NOTES_SUFFIX}",
+                "1".repeat(21)
+            ),
+            format!(
+                "projects/77/merge_requests/{}{MR_NOTES_SUFFIX}",
+                "1".repeat(21)
+            ),
+            // other resources
+            "projects/77/merge_requests/34/discussions?per_page=100".to_string(),
+            "projects/77/merge_requests/34/approvals".to_string(),
+            "projects/77/merge_requests/34/changes".to_string(),
+            format!("groups/77/merge_requests/34{MR_NOTES_SUFFIX}"),
+            format!("/projects/77/merge_requests/34{MR_NOTES_SUFFIX}"),
+            format!("projects/77/merge_requests/34/{MR_NOTES_SUFFIX}"),
+            // other queries
+            "projects/77/merge_requests/34/notes".to_string(),
+            "projects/77/merge_requests/34/notes?sort=desc&order_by=updated_at&per_page=100"
+                .to_string(),
+            "projects/77/merge_requests/34/notes?sort=desc&order_by=created_at&per_page=50"
+                .to_string(),
+            format!("projects/77/merge_requests/34{MR_NOTES_SUFFIX} "),
+        ];
+        for ep in &bad {
+            assert!(!guard_accepts_endpoint(ep), "{ep:?}");
+        }
+        // No `--paginate`: not the notes call.
+        assert!(check_read_only(&["api", &ok, "--hostname", "gitlab.example.invalid"]).is_err());
+    }
+
+    /// Every character, in either id position, passes the guard only when it
+    /// is an ASCII digit (and not a leading zero).
+    #[test]
+    fn mr_notes_guard_accepts_only_digits_in_the_ids() {
+        for c in (0u8..=127).map(char::from).chain(['ä', 'ł', '\u{2028}']) {
+            let in_project = format!("projects/1{c}2/merge_requests/3{MR_NOTES_SUFFIX}");
+            let in_iid = format!("projects/1/merge_requests/2{c}3{MR_NOTES_SUFFIX}");
+            let alone = format!("projects/{c}/merge_requests/{c}{MR_NOTES_SUFFIX}");
+            let digit = c.is_ascii_digit();
+            assert_eq!(guard_accepts_endpoint(&in_project), digit, "{c:?}");
+            assert_eq!(guard_accepts_endpoint(&in_iid), digit, "{c:?}");
+            assert_eq!(
+                guard_accepts_endpoint(&alone),
+                c.is_ascii_digit() && c != '0',
+                "{c:?}"
+            );
+        }
+    }
+
+    proptest::proptest! {
+        /// A near miss built from real numbers never passes.
+        #[test]
+        fn near_misses_of_a_valid_mr_notes_endpoint_fail(
+            project_id in 1u64..,
+            iid in 1u64..,
+            junk in "[a-z:/?&=.-]{1,5}",
+        ) {
+            let cases = [
+                format!("projects/{project_id}/merge_requests/{iid}/{junk}{MR_NOTES_SUFFIX}"),
+                format!("projects/{project_id}{junk}/merge_requests/{iid}{MR_NOTES_SUFFIX}"),
+                format!("projects/{project_id}/merge_requests/{iid}{junk}{MR_NOTES_SUFFIX}"),
+                format!("projects/{project_id}/merge_requests/{iid}/notes?{junk}"),
+            ];
+            for ep in &cases {
+                proptest::prop_assert!(!guard_accepts_endpoint(ep), "{:?}", ep);
+            }
+        }
+    }
+
     fn gh_args(repo: &str) -> Vec<String> {
         let mut args: Vec<String> = ["issue", "list", "-R", repo]
             .iter()

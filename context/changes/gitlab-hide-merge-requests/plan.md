@@ -592,6 +592,8 @@ Row actions on every MR row (main table and "Do review"), hidden MRs under the o
 
 **Implementation Note**: Commit when all automated rows are green; the Manual rows stay unticked for the user. Phase blocks use plain bullets — the `- [ ]` checkboxes live in `## Progress`.
 
+**Implementation note (post-review)**: the MR footnote sentence shows only when hidden MRs exist (default chosen by agent; the plan had it unconditional). "Ukryte do review: n" counts only hidden review-only MRs: `partition_merge_requests` clears `review_requested` on hidden assigned MRs, so the flag on a hidden MR means it belongs to "Do review".
+
 ---
 
 ## Parallel Slice S-03: Shared Files and Merge Points

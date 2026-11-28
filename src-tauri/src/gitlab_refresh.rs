@@ -1499,6 +1499,118 @@ mod tests {
     }
 
     #[test]
+    fn act_on_item_accepts_a_merge_request_from_the_assigned_list() {
+        let state = kept_state();
+        state
+            .act_on_item(ItemKind::MergeRequest, 3, |h, item| {
+                assert_eq!(h, &host());
+                assert_eq!((item.id, item.kind), (3, ItemKind::MergeRequest));
+                Ok(GitlabHidden {
+                    issues: vec![],
+                    merge_requests: vec![mr_record(3, None)],
+                })
+            })
+            .unwrap();
+        let snap = state.snapshot();
+        let items = snap.items.unwrap();
+        // Hidden from `merge_requests`: it leaves the assigned list and the
+        // issues stay as they were.
+        assert!(items.merge_requests.is_empty());
+        assert_eq!(
+            items
+                .hidden_merge_requests
+                .iter()
+                .map(|i| (i.id, i.hidden_at_ms))
+                .collect::<Vec<_>>(),
+            [(3, Some(1))]
+        );
+        assert_eq!(items.issues.len(), 2);
+        assert_eq!(snap.seq, 1);
+    }
+
+    #[test]
+    fn act_on_item_cap_counts_hidden_merge_requests_including_filtered_out_ones() {
+        let (state, _rx) = GitlabRefreshState::new();
+        *state.kept_config.lock().unwrap() = Some(GitlabConfig {
+            host: host(),
+            user: None,
+        });
+        *state.kept_full.lock().unwrap() = Some(AssignedItems {
+            merge_requests: vec![
+                entry_in(10, ItemKind::MergeRequest, "acme/a"),
+                entry_in(11, ItemKind::MergeRequest, "acme/b"),
+                entry_in(12, ItemKind::MergeRequest, "acme/a"),
+            ],
+            ..AssignedItems::default()
+        });
+        *state.kept_filter.lock().unwrap() = project_filter("acme/a");
+        state.write().hidden_check_failed = 9;
+
+        // 10 is kept by the filter and 11 is removed by it; both count.
+        state
+            .act_on_item(ItemKind::MergeRequest, 10, |_, _| {
+                Ok(GitlabHidden {
+                    issues: vec![],
+                    merge_requests: vec![mr_record(10, None), mr_record(11, None)],
+                })
+            })
+            .unwrap();
+
+        let snap = state.snapshot();
+        let items = snap.items.unwrap();
+        assert_eq!(items.hidden_merge_requests.len(), 1);
+        assert_eq!(snap.filtered_out.hidden_merge_requests, 1);
+        assert_eq!(snap.hidden_check_failed, 2);
+    }
+
+    #[test]
+    fn reshape_kept_partitions_both_kinds_of_merge_requests() {
+        let full = AssignedItems {
+            merge_requests: vec![
+                entry(3, ItemKind::MergeRequest),
+                entry(5, ItemKind::MergeRequest),
+            ],
+            review_requests: vec![
+                entry(4, ItemKind::MergeRequest),
+                entry(6, ItemKind::MergeRequest),
+            ],
+            ..AssignedItems::default()
+        };
+        let records = GitlabHidden {
+            issues: vec![],
+            merge_requests: vec![
+                mr_record(3, None),
+                mr_record(4, None),
+                mr_record(6, Some(gitlab::ChangeReason::Comment)),
+            ],
+        };
+        let mut next = GitlabSnapshot {
+            state: State::Unavailable {
+                message: String::new(),
+            },
+            items: Some(full.clone()),
+            ..GitlabSnapshot::starting()
+        };
+        assert!(reshape_kept(
+            &mut next,
+            Some(&full),
+            Some(&records),
+            &HashSet::new(),
+            &GitlabFilter::default(),
+            false
+        ));
+        let items = next.items.unwrap();
+        let ids = |v: &[GitlabItem]| v.iter().map(|i| i.id).collect::<Vec<_>>();
+        assert_eq!(ids(&items.merge_requests), [5]);
+        assert_eq!(ids(&items.review_requests), [6]);
+        assert_eq!(ids(&items.hidden_merge_requests), [3, 4]);
+        assert_eq!(
+            items.review_requests[0].changed,
+            Some(gitlab::ChangeReason::Comment)
+        );
+    }
+
+    #[test]
     fn act_on_item_partitions_both_kinds_from_one_result() {
         let state = kept_state();
         {

@@ -688,6 +688,23 @@ fn merge_request_label_change_is_not_a_status_change() {
 }
 
 #[test]
+fn only_a_hidden_review_only_merge_request_keeps_the_review_flag() {
+    let assigned = vec![GitlabItem {
+        review_requested: true,
+        ..mr(10, &[], T0)
+    }];
+    let review = vec![GitlabItem {
+        review_requested: true,
+        ..mr(20, &[], T0)
+    }];
+    let records = vec![mr_record(10, None), mr_record(20, None)];
+    let p = merge_requests::partition_merge_requests(&assigned, &review, &records);
+    assert_eq!(p.hidden.iter().map(|i| i.id).collect::<Vec<_>>(), [10, 20]);
+    assert!(!p.hidden[0].review_requested, "assigned: main table only");
+    assert!(p.hidden[1].review_requested, "review-only: Do review");
+}
+
+#[test]
 fn partition_splits_both_lists_and_keeps_order() {
     let assigned = vec![mr(10, &[], T0), mr(11, &[], T0), mr(12, &[], T0)];
     let review = vec![

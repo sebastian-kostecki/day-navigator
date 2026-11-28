@@ -190,3 +190,16 @@ These are the checks the orchestrator asked to be made hard. They are not findin
 - `context/foundation/prd.md`: the MS-33 paragraph after the MS-35 line. An MS-30 line may be added at the same place; keep both.
 - `src/todo/TodoView.tsx`: `changedGitlab` (about :238) and `gitlabHidden` (about :431). This conflicts only if S-03 edits the same lines.
 - `src-tauri/src/bin/fake_cli.rs`: the notes routes (`MrNotes`, `MR_NOTES_KEYS`). This conflicts only if S-03 adds GitHub scenarios next to them.
+
+## Resolution
+
+Fixes applied after the review (all gates green).
+
+- **F1**: added `act_on_item_accepts_a_merge_request_from_the_assigned_list`, `act_on_item_cap_counts_hidden_merge_requests_including_filtered_out_ones` and `reshape_kept_partitions_both_kinds_of_merge_requests` to `gitlab_refresh.rs` (the review-only accept case was already in `act_on_item_partitions_both_kinds_from_one_result`). In `tests/hidden_mr_round.rs`: a write failure after a good read (commit against a failing store) and a review-list drop-off/return case that also asserts which list it returns to (the plain `Returned` case already existed as `drop_off_marks_absent_then_return_resurfaces_as_returned`).
+- **F2**: mirrored the issue near-miss coverage for the MR notes shape in `cli/mod.rs`: junk proptest, per-character digit test, missing `--paginate`, placeholders, 21-digit ids and other resources. The guard code is unchanged.
+- **F3**: chose the doc comment (Fix A), not a code change. `list_gitlab` documents that both halves fail together on purpose.
+- **F4**: `partition_merge_requests` now clears `review_requested` on hidden assigned MRs, so on a hidden MR the flag means "belongs to Do review" and the UI count matches its label. Unit test `only_a_hidden_review_only_merge_request_keeps_the_review_flag`; the TS doc comment is updated.
+- **F5**: `MrRoundChecks` has a manual opaque `Debug` (counts and flags only).
+- **F6**: `debug_assert!` that the two MR lists share no id, in `partition_merge_requests`.
+- **F7**: conditional footnote kept; recorded in plan.md Phase 7 as an implementation note.
+- **F8**: no action.

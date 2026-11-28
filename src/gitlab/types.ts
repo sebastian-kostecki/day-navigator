@@ -35,7 +35,10 @@ export type GitlabItem = {
   isNew: boolean;
   /** When the user hid the issue or merge request (UTC ms); only on hidden issues and merge requests. */
   hiddenAtMs: number | null;
-  /** On every "Do review" item and on an assigned MR that also awaits review. */
+  /**
+   * On every "Do review" item and on a visible assigned MR that also awaits
+   * review. A hidden MR keeps it only when it belongs to "Do review".
+   */
   reviewRequested: boolean;
 };
 

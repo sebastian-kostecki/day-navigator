@@ -546,3 +546,54 @@ fn a_hidden_merge_request_and_a_hidden_issue_with_one_id_do_not_touch_each_other
         "2026-03-02T10:00:00.000Z"
     );
 }
+
+#[test]
+fn a_write_failure_after_a_good_read_gives_the_listed_lists_and_keeps_the_rows() {
+    let env = env();
+    let cfg = config(Some("invented.user"));
+    let runner = env.runner("gitlab-notes-other");
+    let full = fetch(&runner, &cfg);
+    env.hide_mr(&full, ASSIGNED, MR_OLD);
+
+    // The read and the notes calls work; the commit goes to a store that fails.
+    let checks = check_mr_round(&env.store, &runner, &cfg, &full, NOW + 1_000, None, true);
+    assert_eq!(env.notes_calls(), 1);
+    let broken = StoreHandle::new(None);
+    let out = commit_mr_round(&broken, &cfg.host, &full, checks, NOW + 1_000);
+
+    assert!(matches!(
+        out.store_error,
+        Some(HiddenIssueError::Store(StoreError::DirUnavailable { .. }))
+    ));
+    // Never an empty list in place of a failed write: both lists as listed.
+    assert_eq!(out.merge_requests, full.merge_requests);
+    assert_eq!(out.review_requests, full.review_requests);
+    assert!(out.hidden_merge_requests.is_empty());
+    assert_eq!(out.check_failed, 0);
+    // Nothing was stored: the row is still hidden with its old baseline.
+    let rec = env.mr_record(ASSIGNED);
+    assert!(rec.changed_reason.is_none());
+    assert_eq!(rec.baseline_updated_at, MR_OLD);
+}
+
+#[test]
+fn a_hidden_review_only_merge_request_that_drops_off_returns_through_the_review_list() {
+    let env = env();
+    let cfg = config(Some("invented.user"));
+    let runner = env.runner("gitlab-notes-none");
+    let full = fetch(&runner, &cfg);
+    env.hide_mr(&full, REVIEW, MR_OLD);
+
+    let mut without = full.clone();
+    without.review_requests.retain(|i| i.id != REVIEW);
+    let gone = mr_round(&env, &runner, &cfg, &without);
+    assert!(gone.hidden_merge_requests.is_empty());
+    assert!(gone.review_requests.iter().all(|i| i.id != REVIEW));
+
+    let back = mr_round(&env, &runner, &cfg, &full);
+    // It returns in "Do review", not among the assigned ones, and not hidden.
+    assert!(back.review_requests.iter().any(|i| i.id == REVIEW));
+    assert!(back.merge_requests.iter().all(|i| i.id != REVIEW));
+    assert!(back.hidden_merge_requests.is_empty());
+    assert_eq!(mr_marked(&back, REVIEW), Some(ChangeReason::Returned));
+}

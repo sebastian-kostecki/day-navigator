@@ -707,9 +707,9 @@ None: MR records are new rows in `hidden_items` (v15). A database written by thi
 
 #### Automated
 
-- [ ] 6.1 Round and state tests still pass
-- [ ] 6.2 The round calls each MR half once
-- [ ] 6.3 All AGENTS.md gates green
+- [x] 6.1 Round and state tests still pass
+- [x] 6.2 The round calls each MR half once
+- [x] 6.3 All AGENTS.md gates green
 
 ### Phase 7: "Praca (GitLab)" UI, "Do zrobienia", PRD and AGENTS.md
 

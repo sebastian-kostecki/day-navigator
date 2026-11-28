@@ -6,7 +6,7 @@
 //! clone or a store, never across `emit`, a tray call or a process. The refresh
 //! thread runs `glab` directly, so the commands only read state or send a wake.
 //!
-//! `hidden_gate` serializes the hidden-issue state: a round's commit + snapshot
+//! `hidden_gate` serializes the hidden-issue and hidden-MR state: a round's commit + snapshot
 //! store and every hide/unhide/dismiss command run under it, so a late round can
 //! never publish a partition older than a command's. It is never held across a
 //! `glab` call or an `emit`. Lock order: gate, then `kept_config`, then
@@ -14,6 +14,8 @@
 //! `last_mark`, then the snapshot lock (which now lives in the shared
 //! `SourceCell` of `source_refresh.rs`). The store lock is taken inside the
 //! gate, but never while a `kept_*`, `shown_until` or `last_mark` lock is held.
+//! `check_mr_round` runs `glab` with no lock, right after `check_round`;
+//! `commit_mr_round` runs under the gate, right after `commit_round`.
 //!
 //! NEW flags (S-02): a round records its seen set before the gate and brings
 //! the fresh keys under it. `kept_new` holds them so every path that shapes the
@@ -48,8 +50,8 @@ use crate::gitlab::{
 };
 use crate::health;
 use crate::hidden_issues::{
-    GitlabHidden, HiddenIssueError, check_round, commit_round, list_gitlab, partition,
-    partition_merge_requests,
+    GitlabHidden, HiddenIssueError, check_mr_round, check_round, commit_mr_round, commit_round,
+    list_gitlab, mr_calls_allowed, partition, partition_merge_requests,
 };
 use crate::new_assignments::{
     ItemKey, NewAssignmentError, SessionSeen, items_for, keys_of, mark_fresh, mark_view_seen,
@@ -492,6 +494,10 @@ fn refresh_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::R
     let runner = CliRunner::system();
     // The issue whose notes call stopped the last round; checks resume after it.
     let mut resume_after = None;
+    // The merge request whose notes call stopped the last round's MR checks.
+    let mut mr_resume_after = None;
+    // Whether the last round skipped the MR calls after an issue stop.
+    let mut mr_skipped = false;
     // Session memory for new-assignment toasts while the store fails.
     let mut session_seen = SessionSeen::new();
     source_refresh::run_loop(wake_rx, || {
@@ -500,6 +506,8 @@ fn refresh_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::R
             &settings_path,
             &runner,
             &mut resume_after,
+            &mut mr_resume_after,
+            &mut mr_skipped,
             &mut session_seen,
         )
     });
@@ -558,6 +566,8 @@ fn refresh_round(
     settings_path: &Option<PathBuf>,
     runner: &CliRunner,
     resume_after: &mut Option<u64>,
+    mr_resume_after: &mut Option<u64>,
+    mr_skipped: &mut bool,
     session_seen: &mut SessionSeen,
 ) -> Duration {
     let (minutes, refresh_invalid) = refresh_interval(settings_path);
@@ -579,7 +589,21 @@ fn refresh_round(
         (Some(cfg), Ok(full)) => {
             let checks = check_round(&store, runner, cfg, full, now_ms() as i64, *resume_after);
             *resume_after = checks.stopped_at();
-            Some(checks)
+            // An issue call that stopped the round (no VPN, logged out, no glab)
+            // skips the MR calls too, but never two rounds in a row.
+            let calls_allowed = mr_calls_allowed(checks.stopped_at().is_some(), *mr_skipped);
+            *mr_skipped = !calls_allowed;
+            let mr_checks = check_mr_round(
+                &store,
+                runner,
+                cfg,
+                full,
+                now_ms() as i64,
+                *mr_resume_after,
+                calls_allowed,
+            );
+            *mr_resume_after = mr_checks.stopped_at();
+            Some((checks, mr_checks))
         }
         _ => None,
     };
@@ -622,17 +646,22 @@ fn refresh_round(
     let mut full_list = None;
     let mut filtered_out = FilteredOut::default();
     let outcome = match (&config, fetched, checks) {
-        (Some(cfg), Ok(full), Some(checks)) => {
+        (Some(cfg), Ok(full), Some((checks, mr_checks))) => {
             let round = commit_round(&store, &cfg.host, &full, checks, now_ms() as i64);
-            check_failed = round.check_failed;
-            hidden_error = round.store_error.as_ref().map(HiddenIssueError::message_pl);
+            let mr = commit_mr_round(&store, &cfg.host, &full, mr_checks, now_ms() as i64);
+            check_failed = round.check_failed + mr.check_failed;
+            hidden_error = round
+                .store_error
+                .as_ref()
+                .or(mr.store_error.as_ref())
+                .map(HiddenIssueError::message_pl);
             // The filter applies after the partition; `full` stays unfiltered.
             let mut items = AssignedItems {
-                merge_requests: full.merge_requests.clone(),
+                merge_requests: mr.merge_requests,
                 issues: round.visible_issues,
                 hidden_issues: round.hidden_issues,
-                review_requests: full.review_requests.clone(),
-                hidden_merge_requests: Vec::new(),
+                review_requests: mr.review_requests,
+                hidden_merge_requests: mr.hidden_merge_requests,
             };
             mark_fresh(&mut items, &round_fresh);
             let (shown, out) = filter_shown(items, &filter);

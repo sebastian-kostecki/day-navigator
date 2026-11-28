@@ -1,0 +1,91 @@
+.dn-chiplist {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.dn-chiplist-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-1h);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dn-chiplist-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-hair);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dn-chiplist-chip {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  padding-left: var(--space-2);
+  border: 1px solid var(--line-control);
+  border-radius: var(--radius-sm);
+  background: var(--surface-active);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.dn-chiplist-chip.is-error {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.dn-chiplist-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.dn-chiplist-remove {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.dn-chiplist-remove:hover:not(:disabled) {
+  color: var(--ink-strong);
+}
+
+.dn-chiplist-remove:disabled {
+  color: var(--ink-disabled);
+  cursor: default;
+}
+
+.dn-chiplist-error {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--danger-ink);
+}
+
+.dn-chiplist-note {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--warn);
+}
+
+/* Always mounted for screen readers; takes no room while silent. */
+.dn-chiplist-note:empty {
+  position: absolute;
+}

@@ -81,6 +81,8 @@
   --danger-line: #6e2a2a;
   --danger-bg: #1f1416;
   --danger-bg-strong: #2a1618;
+  /* Backdrop behind a modal dialog */
+  --scrim: #05070ab8;
   --src-gitlab: #ff9f5a;
   --src-github: #c9ced6;
   --src-own: #7cc4ff;

@@ -654,10 +654,10 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Automated
 
-- [x] 3.1 An autostart test: the save path's sync against the in-memory `RunEntry` fake writes the entry when on, removes it when off, and leaves it unchanged in a debug build (`DevOnly`)
-- [x] 3.2 Notice-gate tests: each kind off skips only its toast. With `sourceProblems` off, `Gitlab` and `Github` transitions are dropped while `Settings`, `AppData`, `Reminders` and `Autostart` transitions still toast (one case per `SourceId`). Absent or invalid `notices` keeps all on. The stall, tray-failure and reminder toasts are never gated
-- [x] 3.3 `cargo test`, `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass
-- [x] 3.4 `npm run build`, `npm run lint` and `npm run format:check` pass
+- [x] 3.1 An autostart test: the save path's sync against the in-memory `RunEntry` fake writes the entry when on, removes it when off, and leaves it unchanged in a debug build (`DevOnly`) — ff849b9
+- [x] 3.2 Notice-gate tests: each kind off skips only its toast. With `sourceProblems` off, `Gitlab` and `Github` transitions are dropped while `Settings`, `AppData`, `Reminders` and `Autostart` transitions still toast (one case per `SourceId`). Absent or invalid `notices` keeps all on. The stall, tray-failure and reminder toasts are never gated — ff849b9
+- [x] 3.3 `cargo test`, `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` pass — ff849b9
+- [x] 3.4 `npm run build`, `npm run lint` and `npm run format:check` pass — ff849b9
 
 #### Manual
 
@@ -668,9 +668,9 @@ No store migration. Existing hand-written files keep working unchanged. The firs
 
 #### Automated
 
-- [ ] 4.1 `npm run build` (tsc strict plus Vite) shows zero errors
-- [ ] 4.2 `npm run lint` and `npm run format:check` pass
-- [ ] 4.3 `src/components/Dialog/Dialog.css` and `src/components/ChipListField/ChipListField.css` have no literal colours: `rg "#[0-9a-fA-F]{3,8}|rgba?\(" src/components/Dialog src/components/ChipListField` finds nothing
+- [x] 4.1 `npm run build` (tsc strict plus Vite) shows zero errors
+- [x] 4.2 `npm run lint` and `npm run format:check` pass
+- [x] 4.3 `src/components/Dialog/Dialog.css` and `src/components/ChipListField/ChipListField.css` have no literal colours: `rg "#[0-9a-fA-F]{3,8}|rgba?\(" src/components/Dialog src/components/ChipListField` finds nothing
 
 #### Manual
 

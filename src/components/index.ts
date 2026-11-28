@@ -1,6 +1,8 @@
 export { AppHeader, type AppHeaderProps } from "./AppHeader/AppHeader";
 export { Button, type ButtonProps } from "./Button/Button";
 export { Chip, type ChipProps } from "./Chip/Chip";
+export { ChipListField, type ChipListFieldProps } from "./ChipListField/ChipListField";
+export { Dialog, type DialogProps } from "./Dialog/Dialog";
 export { ErrorState } from "./ErrorState";
 export {
   DataTable,

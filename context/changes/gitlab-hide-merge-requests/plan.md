@@ -681,10 +681,10 @@ None: MR records are new rows in `hidden_items` (v15). A database written by thi
 
 #### Automated
 
-- [ ] 3.1 Fingerprint and partition unit tests pass
-- [ ] 3.2 Store tests pass
-- [ ] 3.3 Existing GitLab issue hiding tests pass unchanged
-- [ ] 3.4 All AGENTS.md gates green
+- [x] 3.1 Fingerprint and partition unit tests pass
+- [x] 3.2 Store tests pass
+- [x] 3.3 Existing GitLab issue hiding tests pass unchanged
+- [x] 3.4 All AGENTS.md gates green
 
 ### Phase 4: The MR round
 

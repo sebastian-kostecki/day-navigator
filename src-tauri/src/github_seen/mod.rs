@@ -50,6 +50,19 @@ pub fn round_input(results: &[RepoResult]) -> Vec<RepoRound> {
         .collect()
 }
 
+/// The active repo keys that did not load in a round: configured, but absent
+/// from `loaded` (the fetch failed or was truncated). Their fresh issues are
+/// not on screen, so a mark saved for that round must not cover them.
+pub fn unloaded_repos(active: &[String], loaded: &[RepoRound]) -> Vec<String> {
+    let loaded: HashSet<&str> = loaded.iter().map(|r| r.repo.as_str()).collect();
+    let mut seen = HashSet::new();
+    active
+        .iter()
+        .filter(|repo| !loaded.contains(repo.as_str()) && seen.insert(repo.as_str()))
+        .cloned()
+        .collect()
+}
+
 /// The references of the visible issues that are fresh, in list order. Only
 /// visible issues count (a hidden one is never flagged) and only repos that
 /// loaded (a repo with an error has no list).
@@ -136,7 +149,8 @@ pub fn record_round(
             );
             if plan.seed {
                 tx.execute(
-                    "INSERT INTO github_seen_repos (repo, seeded_at_ms) VALUES (?1, ?2)",
+                    "INSERT OR IGNORE INTO github_seen_repos (repo, seeded_at_ms)
+                     VALUES (?1, ?2)",
                     rusqlite::params![round.repo, now_ms],
                 )?;
             }
@@ -178,9 +192,38 @@ pub fn record_round(
     })
 }
 
-/// Saves the GitHub view's seen-until mark, never moving it back.
-pub fn mark_view_seen(store: &mut Store, seen_until_ms: i64) -> Result<(), GithubSeenError> {
+/// Saves the GitHub view's seen-until mark, never moving it back. `unloaded`
+/// are the repos that did not load in the shown round: their issues first seen
+/// in `(old mark, seen_until_ms]` were never on screen, so they are moved to
+/// `seen_until_ms + 1` and stay fresh for the next visit. Nothing is moved
+/// without an old mark (nothing was fresh then). One write.
+pub fn mark_view_seen(
+    store: &mut Store,
+    seen_until_ms: i64,
+    unloaded: &[String],
+) -> Result<(), GithubSeenError> {
     store.write::<_, GithubSeenError>(|tx| {
+        let old: Option<i64> = tx
+            .query_row(
+                "SELECT seen_until_ms FROM github_view_mark WHERE id = 1",
+                [],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if let Some(old) = old {
+            let mut keep_fresh = tx.prepare(
+                "UPDATE github_seen_issues SET first_seen_ms = ?1
+                 WHERE repo = ?2 AND first_seen_ms > ?3 AND first_seen_ms <= ?4",
+            )?;
+            for repo in unloaded {
+                keep_fresh.execute(rusqlite::params![
+                    seen_until_ms.saturating_add(1),
+                    repo,
+                    old,
+                    seen_until_ms
+                ])?;
+            }
+        }
         tx.execute(
             "INSERT INTO github_view_mark (id, seen_until_ms) VALUES (1, ?1)
              ON CONFLICT (id)
@@ -257,6 +300,19 @@ mod tests {
             visible_new(&repos, &fresh),
             ["octo-test/alpha#2", "octo-test/alpha#1"]
         );
+    }
+
+    #[test]
+    fn unloaded_repos_lists_active_repos_missing_from_the_round_once() {
+        let loaded = vec![RepoRound {
+            repo: "octo-test/alpha".to_string(),
+            numbers: vec![1],
+        }];
+        let active: Vec<String> = ["octo-test/alpha", "octo-test/beta", "octo-test/beta"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(unloaded_repos(&active, &loaded), ["octo-test/beta"]);
     }
 
     #[test]

@@ -90,6 +90,10 @@ pub struct GithubRefreshState {
     /// The `now_ms` of the last round stored in the snapshot whose seen set was
     /// written: the mark a visit that ends saves. `None` after a dropped list.
     shown_until: Mutex<Option<i64>>,
+    /// The repo keys configured but not loaded in the shown round (set and
+    /// cleared with `shown_until`, locked right after it): their fresh issues
+    /// were not on screen, so the saved mark must not cover them.
+    shown_unloaded: Mutex<Vec<String>>,
     /// The mark saved this session. A round that read an older mark drops the
     /// keys it covers.
     last_mark: Mutex<Option<i64>>,
@@ -106,6 +110,7 @@ impl GithubRefreshState {
             kept_full: Mutex::new(None),
             kept_new: Mutex::new(HashSet::new()),
             shown_until: Mutex::new(None),
+            shown_unloaded: Mutex::new(Vec::new()),
             last_mark: Mutex::new(None),
             hidden_gate: Mutex::new(()),
         };
@@ -193,13 +198,23 @@ impl GithubRefreshState {
     /// A successful round's NEW keys, under `hidden_gate`: drops the keys the
     /// last saved mark already covers (`first_seen_ms <= last_mark`, a round
     /// that read the mark before the user left the view), stores the rest as
-    /// `kept_new` and records `now_ms` as `shown_until`. `fresh` is `None` when
+    /// `kept_new` and records `now_ms` as `shown_until` with the repos that did
+    /// not load (`unloaded`) as `shown_unloaded`. `fresh` is `None` when
     /// the seen-set write failed: then `kept_new` and `shown_until` stay
     /// unchanged (leaving the view never marks unshown items as seen) and the
     /// current flags are returned. Returns the set to flag the round with.
-    fn accept_round(&self, now_ms: i64, fresh: Option<&[(SeenKey, i64)]>) -> HashSet<SeenKey> {
+    fn accept_round(
+        &self,
+        now_ms: i64,
+        fresh: Option<&[(SeenKey, i64)]>,
+        unloaded: Vec<String>,
+    ) -> HashSet<SeenKey> {
         let mut kept_new = self.kept_new.lock().unwrap_or_else(|p| p.into_inner());
         let mut shown_until = self.shown_until.lock().unwrap_or_else(|p| p.into_inner());
+        let mut shown_unloaded = self
+            .shown_unloaded
+            .lock()
+            .unwrap_or_else(|p| p.into_inner());
         let covered = *self.last_mark.lock().unwrap_or_else(|p| p.into_inner());
         let Some(fresh) = fresh else {
             return kept_new.clone();
@@ -210,6 +225,7 @@ impl GithubRefreshState {
             .map(|(key, _)| key.clone())
             .collect();
         *shown_until = Some(now_ms);
+        *shown_unloaded = unloaded;
         kept_new.clone()
     }
 
@@ -221,29 +237,40 @@ impl GithubRefreshState {
         let mut kept_new = self.kept_new.lock().unwrap_or_else(|p| p.into_inner());
         if list_dropped {
             let mut shown_until = self.shown_until.lock().unwrap_or_else(|p| p.into_inner());
+            let mut shown_unloaded = self
+                .shown_unloaded
+                .lock()
+                .unwrap_or_else(|p| p.into_inner());
             kept_new.clear();
             *shown_until = None;
+            shown_unloaded.clear();
         }
         github_seen::visible_new(repos, &kept_new)
     }
 
     /// Ends a visit, under `hidden_gate`: saves the mark of the last shown round
-    /// with `save(shown_until_ms)` (never the clock), remembers it as
+    /// with `save(shown_until_ms, unloaded)` (never the clock; `unloaded` are
+    /// the repos that did not load in that round), remembers it as
     /// `last_mark`, clears the NEW flags and bumps `seq`. Returns whether
     /// anything was saved: `Ok(false)` without a shown round (no successful
     /// round yet, or the list was dropped). A `save` error changes nothing. The
     /// caller publishes after this returns.
     pub(crate) fn mark_seen(
         &self,
-        save: impl FnOnce(i64) -> Result<(), GithubSeenError>,
+        save: impl FnOnce(i64, &[String]) -> Result<(), GithubSeenError>,
     ) -> Result<bool, GithubSeenError> {
         let _gate = self.hidden_gate.lock().unwrap_or_else(|p| p.into_inner());
         // Copied and released: `save` takes the store lock.
         let shown = *self.shown_until.lock().unwrap_or_else(|p| p.into_inner());
+        let unloaded = self
+            .shown_unloaded
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
         let Some(until) = shown else {
             return Ok(false);
         };
-        save(until)?;
+        save(until, &unloaded)?;
         let mut kept_new = self.kept_new.lock().unwrap_or_else(|p| p.into_inner());
         let mut last_mark = self.last_mark.lock().unwrap_or_else(|p| p.into_inner());
         kept_new.clear();
@@ -281,7 +308,9 @@ pub async fn mark_github_seen(app: AppHandle) -> Result<(), GithubSeenError> {
     let result = crate::blocking(move || {
         let state = handle.state::<GithubRefreshState>();
         let store = handle.state::<StoreHandle>();
-        state.mark_seen(|until| store.with_store(today, |s| github_seen::mark_view_seen(s, until)))
+        state.mark_seen(|until, unloaded| {
+            store.with_store(today, |s| github_seen::mark_view_seen(s, until, unloaded))
+        })
     })
     .await;
     match &result {
@@ -418,7 +447,15 @@ fn refresh_round(
     // gate, so a command can never see (or publish over) a half-updated state.
     let gate = state.hidden_gate.lock().unwrap_or_else(|p| p.into_inner());
     if let Some(fresh) = &seen {
-        state.accept_round(round_ms, fresh.as_deref());
+        // `seen` is `Some` only for a successful round, so both are present.
+        let unloaded = match (&config, &fetched) {
+            (Some(cfg), Ok(results)) => {
+                let active: Vec<String> = cfg.repos.iter().map(GithubRepo::key).collect();
+                github_seen::unloaded_repos(&active, &github_seen::round_input(results))
+            }
+            _ => Vec::new(),
+        };
+        state.accept_round(round_ms, fresh.as_deref(), unloaded);
     }
     let kept = state
         .kept_config
@@ -840,7 +877,7 @@ mod tests {
             (key("octo-test/alpha", 1), 500),
             (key("octo-test/alpha", 2), 900),
         ];
-        let set = state.accept_round(1000, Some(&fresh));
+        let set = state.accept_round(1000, Some(&fresh), Vec::new());
         assert_eq!(set.len(), 2);
         assert_eq!(state.kept_new.lock().unwrap().len(), 2);
         assert_eq!(*state.shown_until.lock().unwrap(), Some(1000));
@@ -854,28 +891,53 @@ mod tests {
             (key("octo-test/alpha", 1), 500),
             (key("octo-test/alpha", 2), 900),
         ];
-        let set = state.accept_round(1000, Some(&fresh));
+        let set = state.accept_round(1000, Some(&fresh), Vec::new());
         assert_eq!(set, HashSet::from([key("octo-test/alpha", 2)]));
     }
 
     #[test]
     fn a_key_first_seen_after_the_saved_mark_stays_new() {
         let (state, _rx) = GithubRefreshState::new();
-        state.accept_round(100, Some(&[]));
-        assert!(matches!(state.mark_seen(|_| Ok(())), Ok(true)));
+        state.accept_round(100, Some(&[]), Vec::new());
+        assert!(matches!(state.mark_seen(|_, _| Ok(())), Ok(true)));
         assert_eq!(*state.last_mark.lock().unwrap(), Some(100));
         // A round that stored alpha#3 after the saved mark keeps it new.
-        let set = state.accept_round(200, Some(&[(key("octo-test/alpha", 3), 200)]));
+        let set = state.accept_round(200, Some(&[(key("octo-test/alpha", 3), 200)]), Vec::new());
         assert_eq!(set, HashSet::from([key("octo-test/alpha", 3)]));
         assert_eq!(*state.kept_new.lock().unwrap(), set);
         assert_eq!(*state.shown_until.lock().unwrap(), Some(200));
     }
 
     #[test]
+    fn a_round_with_a_failed_repo_hands_its_key_to_the_mark_save_and_a_drop_clears_it() {
+        let (state, _rx) = GithubRefreshState::new();
+        state.accept_round(
+            100,
+            Some(&[(key("octo-test/alpha", 1), 50)]),
+            vec!["octo-test/beta".to_string()],
+        );
+        let mut saved = None;
+        let out = state.mark_seen(|until, unloaded| {
+            saved = Some((until, unloaded.to_vec()));
+            Ok(())
+        });
+        assert!(matches!(out, Ok(true)));
+        assert_eq!(saved, Some((100, vec!["octo-test/beta".to_string()])));
+
+        // A failed seen-set write keeps the previous unloaded list.
+        state.accept_round(200, Some(&[]), vec!["octo-test/beta".to_string()]);
+        state.accept_round(300, None, Vec::new());
+        assert_eq!(*state.shown_unloaded.lock().unwrap(), ["octo-test/beta"]);
+        // A dropped list clears it with shown_until.
+        state.settle_new(true, &[]);
+        assert!(state.shown_unloaded.lock().unwrap().is_empty());
+    }
+
+    #[test]
     fn a_failed_seen_set_write_keeps_the_flags_and_shown_until() {
         let (state, _rx) = GithubRefreshState::new();
-        state.accept_round(100, Some(&[(key("octo-test/alpha", 1), 50)]));
-        let set = state.accept_round(200, None);
+        state.accept_round(100, Some(&[(key("octo-test/alpha", 1), 50)]), Vec::new());
+        let set = state.accept_round(200, None, Vec::new());
         assert_eq!(set, HashSet::from([key("octo-test/alpha", 1)]));
         assert_eq!(*state.shown_until.lock().unwrap(), Some(100));
     }
@@ -904,7 +966,7 @@ mod tests {
     fn mark_seen_without_shown_until_saves_nothing() {
         let state = state_with_list();
         let before = state.snapshot();
-        let out = state.mark_seen(|_| panic!("nothing was shown"));
+        let out = state.mark_seen(|_, _| panic!("nothing was shown"));
         assert!(matches!(out, Ok(false)));
         assert_eq!(state.snapshot(), before);
         assert!(state.last_mark.lock().unwrap().is_none());
@@ -921,7 +983,7 @@ mod tests {
             .insert(key("octo-test/alpha", 1));
         state.write().new_references = vec!["octo-test/alpha#1".into()];
         let mut saved = None;
-        let out = state.mark_seen(|until| {
+        let out = state.mark_seen(|until, _| {
             saved = Some(until);
             Ok(())
         });
@@ -946,7 +1008,7 @@ mod tests {
             .insert(key("octo-test/alpha", 1));
         state.write().new_references = vec!["octo-test/alpha#1".into()];
         let before = state.snapshot();
-        let out = state.mark_seen(|_| Err(GithubSeenError::Store(StoreError::Busy)));
+        let out = state.mark_seen(|_, _| Err(GithubSeenError::Store(StoreError::Busy)));
         assert!(matches!(out, Err(GithubSeenError::Store(StoreError::Busy))));
         assert_eq!(state.snapshot(), before);
         assert_eq!(state.kept_new.lock().unwrap().len(), 1);

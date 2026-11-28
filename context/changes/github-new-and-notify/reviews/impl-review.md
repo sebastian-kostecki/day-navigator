@@ -94,3 +94,10 @@ Checked against `slice/gitlab-hide-merge-requests` at e9f920c (phases 1–3 so f
 4. **src-tauri/src/store/schema.rs** — no conflict: only S-03 appends v16; S-07 adds no migration. Tests that derive the latest version from `MIGRATIONS.len()` stay valid; S-07's `tests/hidden_items.rs` changes assert no fixed version number.
 5. **src-tauri/src/cli/, bin/fake_cli.rs, hidden_issues/, gitlab_refresh.rs, src/gitlab/** — S-07 only; S-03 does not touch them. `src/github/types.ts` imports `ChangeReason` from `src/gitlab/types.ts`, which S-07 edits but does not change `ChangeReason`.
 6. **Combined build** — after merging both into develop, run all gates once: S-07 adds a field to `AssignedItems` (GitLab), S-03 a field to `GithubSnapshot` (GitHub); neither adds a literal of the other's type, so no compile break is expected.
+
+## Fixes applied
+
+- **F1 (Fix A)**: `GithubRefreshState.shown_unloaded` remembers the repos configured but not loaded in the shown round (set with `shown_until`, cleared on a dropped list; a failed seen-set write keeps it). `mark_view_seen(store, until, unloaded)` moves rows of those repos with `old_mark < first_seen_ms <= until` to `until + 1` in the same write, before the mark moves (skipped without an old mark). Tests: `a_mark_saved_while_a_repo_failed_keeps_that_repos_fresh_issues_new`, `a_failed_repo_changes_nothing_without_an_old_mark` (tests/github_seen.rs), `a_round_with_a_failed_repo_hands_its_key_to_the_mark_save_and_a_drop_clears_it`, `unloaded_repos_lists_active_repos_missing_from_the_round_once` (lib). Plan deviations recorded in Phases 2 and 4.
+- **F2**: kept the carry-over in `next_snapshot` and documented that `refresh_round` overwrites it via `settle_new` (the existing test pins the pure function's contract).
+- **F3**: the seeding marker is inserted with `INSERT OR IGNORE`; test `a_repo_key_repeated_in_one_round_does_not_fail_the_round`.
+- **F4**: `plan_repo` builds a `HashMap<u64, i64>` of stored first instants once; behaviour unchanged, existing tests green.

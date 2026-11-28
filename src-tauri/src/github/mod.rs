@@ -369,6 +369,9 @@ pub fn next_snapshot(
         next.last_success_ms = prev.last_success_ms;
         next.hidden_check_failed = prev.hidden_check_failed;
         next.hidden_error = prev.hidden_error.clone();
+        // Only the pure function's contract: `refresh_round` overwrites the
+        // field with `settle_new` on every path, so this copy never reaches
+        // the stored snapshot.
         next.new_references = prev.new_references.clone();
         (next, kept.cloned())
     } else {

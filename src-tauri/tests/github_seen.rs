@@ -182,7 +182,7 @@ fn issue_rows(store: &Store, repo: &str) -> Vec<(i64, i64, i64)> {
 fn first_round_seeds_silently_even_with_a_mark() {
     let (_tmp, dir) = test_store_dir();
     let mut store = open(&dir);
-    mark_view_seen(&mut store, NOW - DAY).unwrap();
+    mark_view_seen(&mut store, NOW - DAY, &[]).unwrap();
 
     let fresh = record_round(&mut store, &[round(ALPHA, &[1, 2])], &active(&[ALPHA]), NOW).unwrap();
     assert!(fresh.is_empty());
@@ -216,7 +216,7 @@ fn a_repo_seeded_without_a_mark_is_never_fresh_under_an_older_mark() {
     assert!(fresh.is_empty());
 
     // A mark older than beta's seeding round, as a visit ending mid-round saves.
-    mark_view_seen(&mut store, NOW).unwrap();
+    mark_view_seen(&mut store, NOW, &[]).unwrap();
     let fresh = record_round(
         &mut store,
         &[round(ALPHA, &[1]), round(BETA, &[5, 6])],
@@ -253,7 +253,7 @@ fn an_issue_first_seen_after_the_mark_is_fresh_until_the_mark_passes_it() {
     let mut store = open(&dir);
     let alpha = active(&[ALPHA]);
     record_round(&mut store, &[round(ALPHA, &[1])], &alpha, NOW).unwrap();
-    mark_view_seen(&mut store, NOW).unwrap();
+    mark_view_seen(&mut store, NOW, &[]).unwrap();
 
     let fresh = record_round(&mut store, &[round(ALPHA, &[1, 2])], &alpha, NOW + 1000).unwrap();
     assert_eq!(
@@ -267,7 +267,7 @@ fn an_issue_first_seen_after_the_mark_is_fresh_until_the_mark_passes_it() {
         vec![("octo-test/alpha#2".to_string(), NOW + 1000)]
     );
 
-    mark_view_seen(&mut store, NOW + 2000).unwrap();
+    mark_view_seen(&mut store, NOW + 2000, &[]).unwrap();
     let fresh = record_round(&mut store, &[round(ALPHA, &[1, 2])], &alpha, NOW + 3000).unwrap();
     assert!(fresh.is_empty());
 }
@@ -277,7 +277,7 @@ fn a_repo_added_later_seeds_silently_under_an_existing_mark() {
     let (_tmp, dir) = test_store_dir();
     let mut store = open(&dir);
     record_round(&mut store, &[round(ALPHA, &[1])], &active(&[ALPHA]), NOW).unwrap();
-    mark_view_seen(&mut store, NOW).unwrap();
+    mark_view_seen(&mut store, NOW, &[]).unwrap();
 
     let both = active(&[ALPHA, BETA]);
     let fresh = record_round(
@@ -323,7 +323,7 @@ fn an_absent_issue_is_forgotten_after_30_days_and_is_fresh_again() {
     let mut store = open(&dir);
     let alpha = active(&[ALPHA]);
     record_round(&mut store, &[round(ALPHA, &[1, 2])], &alpha, NOW).unwrap();
-    mark_view_seen(&mut store, NOW).unwrap();
+    mark_view_seen(&mut store, NOW, &[]).unwrap();
 
     record_round(&mut store, &[round(ALPHA, &[1])], &alpha, NOW + 31 * DAY).unwrap();
     assert_eq!(issue_rows(&store, ALPHA), vec![(1, 0, NOW + 31 * DAY)]);
@@ -341,7 +341,7 @@ fn an_issue_back_within_30_days_keeps_its_first_instant() {
     let mut store = open(&dir);
     let alpha = active(&[ALPHA]);
     record_round(&mut store, &[round(ALPHA, &[1, 2])], &alpha, NOW).unwrap();
-    mark_view_seen(&mut store, NOW).unwrap();
+    mark_view_seen(&mut store, NOW, &[]).unwrap();
 
     record_round(&mut store, &[round(ALPHA, &[1])], &alpha, NOW + 10 * DAY).unwrap();
     let fresh = record_round(&mut store, &[round(ALPHA, &[1, 2])], &alpha, NOW + 20 * DAY).unwrap();
@@ -383,7 +383,7 @@ fn a_repo_removed_from_settings_is_pruned_and_seeds_silently_when_added_again() 
         0
     );
 
-    mark_view_seen(&mut store, NOW + 1000).unwrap();
+    mark_view_seen(&mut store, NOW + 1000, &[]).unwrap();
     let fresh = record_round(
         &mut store,
         &[round(ALPHA, &[1]), round(BETA, &[9])],
@@ -398,10 +398,10 @@ fn a_repo_removed_from_settings_is_pruned_and_seeds_silently_when_added_again() 
 fn the_mark_never_moves_back() {
     let (_tmp, dir) = test_store_dir();
     let mut store = open(&dir);
-    mark_view_seen(&mut store, 500).unwrap();
-    mark_view_seen(&mut store, 400).unwrap();
+    mark_view_seen(&mut store, 500, &[]).unwrap();
+    mark_view_seen(&mut store, 400, &[]).unwrap();
     assert_eq!(view_mark(&store).unwrap(), Some(500));
-    mark_view_seen(&mut store, 600).unwrap();
+    mark_view_seen(&mut store, 600, &[]).unwrap();
     assert_eq!(view_mark(&store).unwrap(), Some(600));
 }
 
@@ -412,7 +412,7 @@ fn the_seen_set_survives_a_reopen() {
     {
         let mut store = open(&dir);
         record_round(&mut store, &[round(ALPHA, &[1])], &alpha, NOW).unwrap();
-        mark_view_seen(&mut store, NOW).unwrap();
+        mark_view_seen(&mut store, NOW, &[]).unwrap();
     }
     let mut store = open(&dir);
     let fresh = record_round(&mut store, &[round(ALPHA, &[1, 2])], &alpha, NOW + 1000).unwrap();
@@ -420,4 +420,80 @@ fn the_seen_set_survives_a_reopen() {
         refs(&fresh),
         vec![("octo-test/alpha#2".to_string(), NOW + 1000)]
     );
+}
+
+#[test]
+fn a_mark_saved_while_a_repo_failed_keeps_that_repos_fresh_issues_new() {
+    let (_tmp, dir) = test_store_dir();
+    let mut store = open(&dir);
+    let both = active(&[ALPHA, BETA]);
+    record_round(
+        &mut store,
+        &[round(ALPHA, &[1]), round(BETA, &[7])],
+        &both,
+        NOW,
+    )
+    .unwrap();
+    mark_view_seen(&mut store, NOW, &[]).unwrap();
+    // Beta#9 and alpha#2 appear; then beta fails in the round that is shown.
+    record_round(
+        &mut store,
+        &[round(ALPHA, &[1, 2]), round(BETA, &[7, 9])],
+        &both,
+        NOW + 1000,
+    )
+    .unwrap();
+    record_round(&mut store, &[round(ALPHA, &[1, 2])], &both, NOW + 2000).unwrap();
+    mark_view_seen(&mut store, NOW + 2000, &[BETA.to_string()]).unwrap();
+    assert_eq!(view_mark(&store).unwrap(), Some(NOW + 2000));
+
+    // Loaded repo rows are untouched; the failed repo's fresh row moved just past the mark.
+    assert_eq!(
+        issue_rows(&store, ALPHA),
+        vec![(1, 0, NOW + 2000), (2, NOW + 1000, NOW + 2000)]
+    );
+    assert_eq!(
+        issue_rows(&store, BETA),
+        vec![(7, 0, NOW + 1000), (9, NOW + 2001, NOW + 1000)]
+    );
+    let fresh = record_round(
+        &mut store,
+        &[round(ALPHA, &[1, 2]), round(BETA, &[7, 9])],
+        &both,
+        NOW + 3000,
+    )
+    .unwrap();
+    assert_eq!(
+        refs(&fresh),
+        vec![("octo-test/beta#9".to_string(), NOW + 2001)]
+    );
+}
+
+#[test]
+fn a_failed_repo_changes_nothing_without_an_old_mark() {
+    let (_tmp, dir) = test_store_dir();
+    let mut store = open(&dir);
+    let both = active(&[ALPHA, BETA]);
+    record_round(&mut store, &[round(BETA, &[7])], &both, NOW).unwrap();
+    record_round(&mut store, &[round(BETA, &[7, 9])], &both, NOW + 1000).unwrap();
+    mark_view_seen(&mut store, NOW + 1000, &[BETA.to_string()]).unwrap();
+    assert_eq!(
+        issue_rows(&store, BETA),
+        vec![(7, 0, NOW + 1000), (9, NOW + 1000, NOW + 1000)]
+    );
+}
+
+#[test]
+fn a_repo_key_repeated_in_one_round_does_not_fail_the_round() {
+    let (_tmp, dir) = test_store_dir();
+    let mut store = open(&dir);
+    let alpha = active(&[ALPHA]);
+    record_round(
+        &mut store,
+        &[round(ALPHA, &[1]), round(ALPHA, &[1])],
+        &alpha,
+        NOW,
+    )
+    .unwrap();
+    assert_eq!(scalar(&store, "SELECT count(*) FROM github_seen_repos"), 1);
 }

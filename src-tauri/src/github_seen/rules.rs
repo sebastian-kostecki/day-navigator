@@ -73,16 +73,18 @@ pub fn plan_repo(
 
     let fresh = match mark {
         Some(mark) if !seed => {
+            let first_seen: std::collections::HashMap<u64, i64> =
+                stored.iter().map(|s| (s.number, s.first_seen_ms)).collect();
             let mut seen: HashSet<u64> = HashSet::new();
             let mut out = Vec::new();
             for &number in current {
                 if !seen.insert(number) {
                     continue;
                 }
-                let first = stored
-                    .iter()
-                    .find(|s| s.number == number)
-                    .map_or(insert_first_seen_ms, |s| s.first_seen_ms);
+                let first = first_seen
+                    .get(&number)
+                    .copied()
+                    .unwrap_or(insert_first_seen_ms);
                 if first > mark {
                     out.push((number, first));
                 }

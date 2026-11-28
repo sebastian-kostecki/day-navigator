@@ -21,10 +21,10 @@ Each successful GitHub round records the issues of the repos that loaded. The sn
 | --- | --- | --- | --- |
 | Notifications | None for GitHub; NEW flag only | User decision | User |
 | Migration | v16: `github_seen_repos`, `github_seen_issues`, `github_view_mark` | User decision (the wave's only migration); own tables avoid rebuilding the GitLab ones | User / Research |
-| Module | New tauri-free `github_seen/`; imports `FORGET_AFTER_MS`, `baseline_first_seen` only | No edit in `new_assignments/` (shared with S-07) | Plan (agent default) |
+| Module | New tauri-free `github_seen/`; imports `FORGET_AFTER_MS` only | No edit in `new_assignments/` (shared with S-07) | Plan (agent default) |
 | Repo key | Plain lowercase `owner/name`, as `hidden_items.scope` | No new kind of work data | Plan (agent default) |
 | Where flags travel | `GithubSnapshot.new_references` (TS `newReferences`) | No edit in `hidden_issues/` or the 21 `GithubIssue` literals | Plan (agent default, orchestrator preference) |
-| Seeding | Per repo, silent, stored at `min(mark, now)` | A repo added later never floods NEW under an older global mark | Plan (agent default) |
+| Seeding | Per repo, silent, first instant stored as `0` (forget still by last seen) | No mark can be below `0`, so neither a repo added under an older global mark nor one seeded before the first mark ever floods NEW (plan review F1) | Plan (agent default) |
 | Mark | One global row; value = `shown_until`, saved with `max()` | Same semantics as GitLab, never the clock | Research / Plan |
 | First visit | No mark means nothing NEW | User decision ("seed like GitLab") | User / Plan |
 | Prune | Rows and marker of repos no longer in settings dropped; 30-day forget inside loaded repos; failed repos untouched | Bounded table; re-adding seeds silently | Plan (agent default) |
@@ -48,7 +48,7 @@ Each successful GitHub round records the issues of the repos that loaded. The sn
 | Phase | What it delivers | Key risk |
 | --- | --- | --- |
 | 1. Migration v16, rules and error | Tables, pure `plan_repo`, `GithubSeenError`, migration tests | Editing a shipped migration instead of appending |
-| 2. Seen-set store operations | `record_round`, `mark_view_seen`, `round_input`; integration and crash tests | Seeding stored at `now` instead of `min(mark, now)` |
+| 2. Seen-set store operations | `record_round`, `mark_view_seen`, `round_input`; integration and crash tests | Seeding stored at `now` instead of `0` |
 | 3. Snapshot contract | `new_references` + TS mirror, `visible_new` | Forgetting the keep branch of `next_snapshot` |
 | 4. Refresh state and command | Round wiring, `act_on_issue` flags, `mark_github_seen` | Lock order and the record-before-gate sequence |
 | 5. UI | `Nowe` flag, `useGithubSeenMark` in `App.tsx` | Flagging hidden rows |

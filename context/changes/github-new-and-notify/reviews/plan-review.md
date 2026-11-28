@@ -45,7 +45,7 @@ Checked and found sound (no finding):
   - Tradeoff: Departs from the S-06 `baseline_first_seen` helper the plan imports (the import can then go); three tests change.
   - Confidence: HIGH — the sequence follows directly from `mark_seen` saving `shown_until` and `record_round` reading the mark before the gate.
   - Blind spot: None significant.
-- **Decision**: PENDING
+- **Decision**: ACCEPTED (applied, see "Plan review fixes")
 
 ### F2 — Rule unit tests leave `seeded`, `mark` or `now` unstated
 
@@ -55,7 +55,7 @@ Checked and found sound (no finding):
 - **Location**: Phase 1 §4, unit tests of `rules.rs`
 - **Detail**: `a_stored_issue_keeps_its_first_instant`, `absent_issue_is_forgotten_after_thirty_days_only` and `repeated_numbers_are_fresh_once_in_input_order` do not say `seeded = true`, the `now_ms`, or (for the repeated-numbers test) a mark and empty `stored`. With `seeded = false` the expected `fresh` values are empty, so an implementer working from the plan alone writes red tests or guesses. The integration and refresh-state tests are fully specified; these three are the gap for a single-agent implementer.
 - **Fix**: Add the inputs to each test line, e.g. `seeded = true, now = 1000`; repeated numbers: `stored = []`, `mark = Some(0)`, `current = [3, 2, 3]` → `fresh == [(3, 1000), (2, 1000)]`.
-- **Decision**: PENDING
+- **Decision**: ACCEPTED (applied, see "Plan review fixes")
 
 ### F3 — No refresh-state test for "a key first seen after the saved mark stays NEW"
 
@@ -65,7 +65,7 @@ Checked and found sound (no finding):
 - **Location**: Phase 4 §5 unit tests
 - **Detail**: GitLab covers the visit-ends-mid-round sequence with `an_item_from_a_round_stored_after_shown_until_stays_new` (`gitlab_refresh.rs`). The GitHub list has `accept_round_drops_keys_the_last_mark_covers` (the drop side) but no test that a key first seen after the saved mark survives the `last_mark` filter, the half that keeps unseen items flagged.
 - **Fix**: Add `a_key_first_seen_after_the_saved_mark_stays_new`: `accept_round(100, Some(&[]))`, `mark_seen(|_| Ok(()))` (saves 100), `accept_round(200, Some(&[(alpha#3, 200)]))` → returns `{alpha#3}`.
-- **Decision**: PENDING
+- **Decision**: ACCEPTED (applied, see "Plan review fixes")
 
 ### F4 — Phase 4 lists no new imports for `github_refresh.rs`
 
@@ -75,7 +75,7 @@ Checked and found sound (no finding):
 - **Location**: Phase 4 §1–§3
 - **Detail**: The contracts need `std::collections::HashSet`, `std::sync::atomic::{AtomicBool, Ordering}`, `crate::github_seen::{self, GithubSeenError, SeenKey}`, `crate::github::RepoView` and `crate::store::StoreError` (today only `StoreHandle` is imported). The compiler will point them out, but the plan is otherwise exact to the line.
 - **Fix**: Add one "Imports" bullet to Phase 4 §1 with that list.
-- **Decision**: PENDING
+- **Decision**: ACCEPTED (applied, see "Plan review fixes")
 
 ### F5 — Check 6.2 reads the unstaged diff only
 
@@ -85,4 +85,16 @@ Checked and found sound (no finding):
 - **Location**: Phase 6, success criterion 6.2
 - **Detail**: `git diff --numstat -- AGENTS.md` prints nothing once the file is staged, so the check passes or fails depending on when it runs.
 - **Fix**: Use `git diff HEAD --numstat -- AGENTS.md` (shows `1	1` staged or not).
-- **Decision**: PENDING
+- **Decision**: ACCEPTED (applied, see "Plan review fixes")
+
+## Plan review fixes
+
+Applied to `plan.md` (and the mirrored rows of `plan-brief.md`) by the plan-fix sub-subagent on 2026-11-28; all five findings accepted.
+
+- **F1** — Seeded keys are stored at `first_seen_ms = 0` (`insert_first_seen_ms = if seed { 0 } else { now_ms }`), not `baseline_first_seen(mark, now)`; the `baseline_first_seen` import is gone (only `FORGET_AFTER_MS` is imported). Decision 8, Key Discoveries, Implementation Approach, decision 2, Critical Implementation Details and the brief's Module/Seeding/Phase 2 rows updated. The forget rule is stated as by `last_seen_ms` only, so `0` rows are forgotten like any other. `seeding_round_is_silent_and_stores_at_the_baseline_instant` became `seeding_round_is_silent_and_stores_at_instant_zero` (every mark → `0`); `first_round_seeds_silently_even_with_a_mark` asserts the `0` rows; the crash model has `first = 0` for round-1 numbers; new test `a_repo_seeded_without_a_mark_is_never_fresh_under_an_older_mark` with criterion and Progress row 2.6. Chosen over `mark.map_or(0, |m| m.min(now))` (equally safe, but an extra branch and import for no gain) — default chosen by agent.
+- **F2** — All six `plan_repo` unit tests now state `seeded`, `stored`, `current`, `mark`, `now` and the expected `seed` / `insert_first_seen_ms` / `forget` / `fresh`.
+- **F3** — Phase 4 test `a_key_first_seen_after_the_saved_mark_stays_new` added, with criterion and Progress row 4.5.
+- **F4** — Phase 4 §1 has an "Imports" bullet for `github_refresh.rs`.
+- **F5** — Check 6.2 uses `git diff HEAD --numstat -- AGENTS.md`.
+
+Progress rows stay unticked; existing row numbers are unchanged (new rows appended at the end of their phase).

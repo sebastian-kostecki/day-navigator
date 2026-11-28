@@ -37,7 +37,7 @@ Verify: all gates green; `cargo test --test github_seen`, `cargo test --test git
 ### Key Discoveries:
 
 - `record_round` in `src-tauri/src/new_assignments/mod.rs` is the pattern for one-write seen-set rounds (read marker, rows and mark; plan; insert marker; upsert; forget; return fresh).
-- `baseline_first_seen(mark, now) = min(mark, now)` (`new_assignments/rules.rs`) is how S-06 stores a silent baseline so a later round never flags it; GitHub's per-repo seeding needs the same, because the GitHub mark is global and can predate a repo added later.
+- `baseline_first_seen(mark, now) = min(mark, now)` (`new_assignments/rules.rs`) is how S-06 stores a silent baseline so a later round never flags it. GitHub's per-repo seeding needs a stronger baseline, because the GitHub mark is global and seeding is per repo: a repo can seed before the first mark exists and a mark older than that round's `now` can still be saved afterwards (plan review F1). Seeded GitHub keys are therefore stored at `first_seen_ms = 0` (decision 8), and `baseline_first_seen` is not used.
 - `accept_round` / `mark_seen` in `src-tauri/src/gitlab_refresh.rs` (and their tests `mark_seen_without_shown_until_saves_nothing`, `mark_seen_saves_shown_until_clears_flags_and_bumps_seq`, `a_failed_seen_set_write_keeps_the_flags_and_shown_until`) are the patterns to mirror.
 - `partition_github` (`src-tauri/src/hidden_issues/github_round.rs`) rebuilds every `GithubIssue` and `RepoView`; a flag carried on the snapshot instead of on the issue or repo view needs no edit there.
 - `tests/hidden_items.rs` `v14_database_upgrades_to_the_hidden_items_table_and_keeps_its_data` and `tests/new_assignments_crash.rs` are the migration-test and crash-test patterns.
@@ -54,20 +54,20 @@ Verify: all gates green; `cargo test --test github_seen`, `cargo test --test git
 
 ## Implementation Approach
 
-A tauri-free module `src-tauri/src/github_seen/` holds the rules (`rules.rs`), the error (`error.rs`) and the store operations (`mod.rs`), with its own tables in migration v16 (research Open Question 2: own module, no generic shared with GitLab; `FORGET_AFTER_MS` and `baseline_first_seen` are imported from `new_assignments`, never edited) **(default chosen by agent)**. `github_refresh.rs` mirrors GitLab's `kept_new` / `shown_until` / `last_mark` state, records the seen set before the gate, accepts the fresh keys under it, and writes `next.new_references` on every path that shapes the list. A new command `mark_github_seen` saves the mark. The UI adds a twin hook `useGithubSeenMark(view)` next to the GitLab one in `App.tsx` and renders `Nowe` from `snapshot.newReferences`.
+A tauri-free module `src-tauri/src/github_seen/` holds the rules (`rules.rs`), the error (`error.rs`) and the store operations (`mod.rs`), with its own tables in migration v16 (research Open Question 2: own module, no generic shared with GitLab; `FORGET_AFTER_MS` is imported from `new_assignments`, never edited) **(default chosen by agent)**. `github_refresh.rs` mirrors GitLab's `kept_new` / `shown_until` / `last_mark` state, records the seen set before the gate, accepts the fresh keys under it, and writes `next.new_references` on every path that shapes the list. A new command `mark_github_seen` saves the mark. The UI adds a twin hook `useGithubSeenMark(view)` next to the GitLab one in `App.tsx` and renders `Nowe` from `snapshot.newReferences`.
 
 Order: schema and rules → store operations → snapshot contract → refresh state and command → UI → AGENTS.md. Each phase compiles, passes every gate and is committed on its own.
 
 Resolved decisions (research Open Questions and the slice's open details):
 
 1. **Repo key plain vs hashed** → plain lowercase `owner/name` (`GithubRepo::key()`), the same value `hidden_items.scope` already stores; no new kind of work data **(default chosen by agent)**.
-2. **Own tables and rules vs a generic shared with GitLab** → own module `github_seen` and own tables; import `new_assignments::{FORGET_AFTER_MS, baseline_first_seen}` without editing that module **(default chosen by agent)**.
+2. **Own tables and rules vs a generic shared with GitLab** → own module `github_seen` and own tables; import `new_assignments::FORGET_AFTER_MS` without editing that module **(default chosen by agent)**.
 3. **Prune of repos removed from settings** → in every successful round, the rows and the seeding marker of every stored repo not in this round's settings are deleted; re-adding a repo later seeds silently again. Within a loaded repo, an issue absent for 30 days or more (`FORGET_AFTER_MS`, by `last_seen_ms`) is deleted. A configured repo that failed this round is not recorded, not forgotten and not pruned **(default chosen by agent)**.
 4. **Where the flag travels** → `GithubSnapshot.new_references: Vec<String>` (TS `newReferences: string[]`), the references of visible NEW issues in list order; this deviates from the research default (`is_new` on `GithubIssue`) to keep `hidden_issues/` and the 21 literals untouched, as the orchestrator preferred **(default chosen by agent)**.
 5. **Seen-mark hook** → a twin `src/github/useGithubSeenMark.ts`; `src/gitlab/useGitlabSeenMark.ts` stays unchanged **(default chosen by agent)**.
 6. **PRD one-liner for MS-30** → none (see "What We're NOT Doing") **(default chosen by agent)**.
 7. **`main-hidden` emit reliability on close** → accepted as for GitLab: if the event is lost, no mark is saved and the flags simply show again next time (the safe side) **(default chosen by agent)**.
-8. **Seeding** → per repo: a repo with no row in `github_seen_repos` seeds silently in its first successful round, also after the user adds it to settings. Seeded keys are stored with `first_seen_ms = baseline_first_seen(mark, now)` (= `min(mark, now)`, or `now` without a mark) and `last_seen_ms = now`, so no later round flags them even when the global mark predates the repo **(default chosen by agent)**.
+8. **Seeding** → per repo: a repo with no row in `github_seen_repos` seeds silently in its first successful round, also after the user adds it to settings. Seeded keys are stored with `first_seen_ms = 0` and `last_seen_ms = now`, so no later round flags them, whatever mark is saved later. Two cases need this: the global mark can predate a repo added later, and a repo can seed in a round that read no mark while a visit ending between `record_seen` and the gate saves the previous round's `shown_until`, which is older than that round's `now` (plan review F1). `0` is at or below every possible mark, so the strict `first_seen_ms > mark` rule never holds for a seeded key. `mark.map_or(0, |m| m.min(now))` would be equally safe (a saved mark only moves forward with `max()`), but it adds a branch for no gain and an import of `baseline_first_seen`, so the constant `0` is used. `first_seen_ms` is read only by the NEW rule; the 30-day forget uses `last_seen_ms` only, so a `0` row is forgotten 30 days after it was last seen, like any other **(default chosen by agent)**.
 9. **First-ever visit** → no mark means nothing is fresh; the first mark is written when the user first leaves the GitHub view after a successful round; only issues first seen after that are NEW (as GitLab) **(default chosen by agent)**.
 10. **The mark** → one global row (`github_view_mark`, `id = 1`), not per repo; its value is `shown_until` (the `now_ms` of the last round stored in the snapshot whose seen-set write succeeded), never the wall clock, saved with `max()` **(default chosen by agent)**.
 11. **Hidden issues** → recorded in the seen set (so hiding and unhiding never makes an issue NEW) but never flagged while hidden; an issue unhidden during the same visit shows `Nowe` again if it is still fresh **(default chosen by agent)**.
@@ -81,7 +81,7 @@ Resolved decisions (research Open Questions and the slice's open details):
 
 - **State sequencing.** In `refresh_round` the seen set is written before `hidden_gate` is taken (it takes the store lock; no `kept_*` lock may be held then), `accept_round` runs right after the gate is taken, and `next.new_references` is written after the `kept_full` block, before `*state.write() = next`. `results` is moved inside the `kept_full` block, so compute `list_dropped` before it.
 - **Lock order** becomes: `hidden_gate`, `kept_config`, `kept_full`, `kept_new`, `shown_until`, `last_mark`, snapshot. `mark_seen` clones `shown_until` and releases it before calling `save` (which takes the store lock).
-- **Seeding with an existing mark.** Storing a seeded repo's keys at `now` would flag them all in the next round when the global mark is older; store them at `baseline_first_seen(mark, now)` instead (decision 8).
+- **Seeding.** Storing a seeded repo's keys at `now` would flag them all in a later round whenever the global mark is older than that `now` (a mark that predates the repo, or a mark saved by a visit that ended mid-round before the first mark existed); store them at `first_seen_ms = 0` instead (decision 8).
 
 ## Phase 1: Migration v16, rules and error
 
@@ -145,24 +145,24 @@ CREATE TABLE github_view_mark (
 
 **Contract**:
 
-- `pub use crate::new_assignments::FORGET_AFTER_MS;` and `use crate::new_assignments::baseline_first_seen;` (imports only).
+- `pub use crate::new_assignments::FORGET_AFTER_MS;` (the only import from `new_assignments`).
 - `#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)] pub struct SeenKey { pub repo: String, pub number: u64 }` — `repo` is the lowercase `owner/name` key. `impl SeenKey { pub fn new(repo: impl Into<String>, number: u64) -> Self; pub fn reference(&self) -> String /* format!("{}#{}", repo, number), the same text as GithubIssue::reference */ }`. `impl std::fmt::Debug for SeenKey` writes exactly `SeenKey(..)` (keys never reach a log).
 - `#[derive(Debug, Clone, Copy, PartialEq, Eq)] pub struct StoredIssue { pub number: u64, pub first_seen_ms: i64, pub last_seen_ms: i64 }`.
 - `#[derive(Debug, Clone, PartialEq, Eq)] pub struct RepoPlan { pub seed: bool, pub insert_first_seen_ms: i64, pub forget: Vec<u64>, pub fresh: Vec<(u64, i64)> }`.
 - `pub fn plan_repo(seeded: bool, stored: &[StoredIssue], current: &[u64], mark: Option<i64>, now_ms: i64) -> RepoPlan`:
   - `seed = !seeded`;
-  - `insert_first_seen_ms = if seed { baseline_first_seen(mark, now_ms) } else { now_ms }`;
-  - `forget` = numbers of `stored` not in `current` with `now_ms - last_seen_ms >= FORGET_AFTER_MS`, in `stored` order;
+  - `insert_first_seen_ms = if seed { 0 } else { now_ms }` (decision 8: `0` is at or below every mark, so a seeded key is never fresh);
+  - `forget` = numbers of `stored` not in `current` with `now_ms - last_seen_ms >= FORGET_AFTER_MS`, in `stored` order (by `last_seen_ms` only, never `first_seen_ms`, so seeded rows stored at `0` are forgotten like any other);
   - `fresh` = empty when `seed` or `mark` is `None`; otherwise, for each number of `current` in input order, once per number: its first instant is the stored `first_seen_ms` if stored, else `insert_first_seen_ms`; include `(number, first)` iff `first > mark`.
 
 Unit tests in `#[cfg(test)] mod tests` of `rules.rs` (invented data only):
 
-- `seeding_round_is_silent_and_stores_at_the_baseline_instant` — not seeded, mark `Some(500)`, now 1000 → `seed`, `insert_first_seen_ms == 500`, `fresh` empty; not seeded, mark `None` → `insert_first_seen_ms == 1000`; mark `Some(2000)` (after now) → 1000.
-- `without_a_mark_nothing_is_fresh` — seeded, unknown numbers, mark `None` → `fresh` empty, `insert_first_seen_ms == now`.
-- `first_seen_after_the_mark_is_fresh_and_at_the_mark_is_not` — seeded, mark 500, stored #1 first 500 and #2 first 501, current [1, 2, 3] → `fresh == [(2, 501), (3, now)]`.
-- `a_stored_issue_keeps_its_first_instant` — stored #1 first 100, current [1], mark 50 → `fresh == [(1, 100)]`.
-- `absent_issue_is_forgotten_after_thirty_days_only` — stored #1 last `now - FORGET_AFTER_MS`, #2 last `now - FORGET_AFTER_MS + 1`, current [] → `forget == [1]`; a present number is never forgotten.
-- `repeated_numbers_are_fresh_once_in_input_order` — current [3, 2, 3] → `fresh` numbers `[3, 2]`.
+- `seeding_round_is_silent_and_stores_at_instant_zero` — `seeded = false`, `stored = []`, `current = [1, 2]`, `now = 1000`, for each of mark `Some(500)`, `None` and `Some(2000)` (after now) → `seed`, `insert_first_seen_ms == 0`, `fresh` empty, `forget` empty.
+- `without_a_mark_nothing_is_fresh` — `seeded = true`, `stored = []`, `current = [1, 2]`, mark `None`, `now = 1000` → `seed == false`, `fresh` empty, `insert_first_seen_ms == 1000`.
+- `first_seen_after_the_mark_is_fresh_and_at_the_mark_is_not` — `seeded = true`, mark `Some(500)`, `now = 1000`, stored #1 `{ first 500, last 900 }` and #2 `{ first 501, last 900 }`, `current = [1, 2, 3]` → `fresh == [(2, 501), (3, 1000)]`, `forget` empty.
+- `a_stored_issue_keeps_its_first_instant` — `seeded = true`, mark `Some(50)`, `now = 1000`, stored #1 `{ first 100, last 900 }`, `current = [1]` → `fresh == [(1, 100)]` (not `(1, 1000)`), `forget` empty.
+- `absent_issue_is_forgotten_after_thirty_days_only` — `seeded = true`, mark `None`, `now = 1_800_000_000_000`, stored #1 `{ first 0, last now - FORGET_AFTER_MS }`, #2 `{ first 0, last now - FORGET_AFTER_MS + 1 }`, #3 `{ first 0, last now - 2 * FORGET_AFTER_MS }`, `current = [3]` → `forget == [1]` (#2 is one millisecond short; #3 is present, so never forgotten; a `first_seen_ms` of `0` plays no part), `fresh` empty.
+- `repeated_numbers_are_fresh_once_in_input_order` — `seeded = true`, `stored = []`, mark `Some(0)`, `now = 1000`, `current = [3, 2, 3]` → `fresh == [(3, 1000), (2, 1000)]`.
 - `seen_key_debug_is_opaque_and_reference_is_key_hash_number` — `format!("{:?}", SeenKey::new("octo-test/alpha", 7)) == "SeenKey(..)"`, `reference() == "octo-test/alpha#7"`.
 
 #### 5. Migration tests
@@ -229,7 +229,8 @@ Unit test in `#[cfg(test)] mod tests` of `mod.rs`:
 
 **Contract** — tests:
 
-- `first_round_seeds_silently_even_with_a_mark` — `mark_view_seen(NOW - DAY)`; record alpha [1, 2] at NOW → fresh empty; the marker row exists; next round alpha [1, 2] at NOW + 1000 → fresh empty (baseline stored at the mark).
+- `first_round_seeds_silently_even_with_a_mark` — `mark_view_seen(NOW - DAY)`; record alpha [1, 2] at NOW → fresh empty; the marker row exists; both issue rows have `first_seen_ms = 0` and `last_seen_ms = NOW`; next round alpha [1, 2] at NOW + 1000 → fresh empty (baseline stored at `0`).
+- `a_repo_seeded_without_a_mark_is_never_fresh_under_an_older_mark` — no mark; record alpha [1] at NOW (seeds alpha); record alpha [1] and beta [5, 6] at NOW + 1000 with both active (seeds beta, still no mark) → fresh empty; `mark_view_seen(NOW)` (a mark older than beta's seeding round, as saved by a visit that ended between `record_seen` and the gate); record alpha [1] and beta [5, 6] at NOW + 2000 → fresh empty (beta's rows are at `0`, not `NOW + 1000`).
 - `no_mark_means_nothing_is_fresh` — seed alpha [1] at NOW; record alpha [1, 2] at NOW + 1000 → fresh empty.
 - `an_issue_first_seen_after_the_mark_is_fresh_until_the_mark_passes_it` — seed alpha [1] at NOW; `mark_view_seen(NOW)`; record alpha [1, 2] at NOW + 1000 → fresh `[(alpha#2, NOW + 1000)]`; again at NOW + 2000 → same (first instant kept); `mark_view_seen(NOW + 2000)`; again at NOW + 3000 → empty.
 - `a_repo_added_later_seeds_silently_under_an_existing_mark` — seed alpha, `mark_view_seen(NOW)`; record alpha and beta [7] at NOW + 1000 (beta new) → fresh empty; record again at NOW + 2000 → still empty.
@@ -244,7 +245,7 @@ Unit test in `#[cfg(test)] mod tests` of `mod.rs`:
 
 **File**: `src-tauri/tests/github_seen_crash.rs` (new)
 
-**Intent**: Killing the writer mid-round never leaves a partial round or a marker without its rows. Copy the structure of `tests/new_assignments_crash.rs` exactly, with one repo `"octo-test/crash"`, no mark, `STEP_MS = 11 days`, `WIDTH = 4`, round `n` = issue numbers `n..n + WIDTH`, `model_after(m)` computing `number -> (first, last)` with the 30-day forget, the writer resuming after `MAX(last_seen_ms)` of `github_seen_issues`, and the parent asserting: `quick_check == "ok"`, marker present iff `committed > 0`, `committed ∈ {last, last + 1}` when `last > 0`, `committed` never goes back, and the rows equal `model_after(committed)`; plus `previous > 4` at the end.
+**Intent**: Killing the writer mid-round never leaves a partial round or a marker without its rows. Copy the structure of `tests/new_assignments_crash.rs` exactly, with one repo `"octo-test/crash"`, no mark, `STEP_MS = 11 days`, `WIDTH = 4`, round `n` = issue numbers `n..n + WIDTH`, `model_after(m)` computing `number -> (first, last)` with the 30-day forget (by `last` only), where the numbers of round 1 (the seeding round, no mark) have `first = 0` and a number first seen in round `k > 1` has `first = now_of(k)`, the writer resuming after `MAX(last_seen_ms)` of `github_seen_issues`, and the parent asserting: `quick_check == "ok"`, marker present iff `committed > 0`, `committed ∈ {last, last + 1}` when `last > 0`, `committed` never goes back, and the rows equal `model_after(committed)`; plus `previous > 4` at the end.
 
 **Contract** — tests `writer_process` (`#[ignore = "writer process for crash_never_leaves_a_partial_round"]`) and `crash_never_leaves_a_partial_round`; the writer calls `record_round(&mut store, &[RepoRound { repo, numbers }], &[repo], now_of(n))`.
 
@@ -257,6 +258,7 @@ Unit test in `#[cfg(test)] mod tests` of `mod.rs`:
 - Crash test passes: `cargo test --test github_seen_crash`
 - Full Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
 - Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- Seeding-race test passes: `cargo test --test github_seen a_repo_seeded_without_a_mark_is_never_fresh_under_an_older_mark`
 
 ---
 
@@ -328,6 +330,7 @@ The GitHub refresh records the seen set each successful round, keeps the flags o
 
 **Contract**:
 
+- Imports (added to the existing `use` block; `StoreHandle`, `GithubConfig`, `GithubRepo`, `RepoResult`, `AppHandle`, `Manager`, `Local` and `now_ms` are already imported): `use std::collections::HashSet;`, `use std::sync::atomic::{AtomicBool, Ordering};`, `use crate::github_seen::{self, GithubSeenError, SeenKey};`, `RepoView` added to the existing `use crate::github::{..}` list, and `StoreError` added to `use crate::store::StoreHandle;` (→ `use crate::store::{StoreError, StoreHandle};`). Keep `rustfmt` order; nothing else in the block changes.
 - Module doc: replace the lock-order sentence with "Lock order: `hidden_gate`, then `kept_config`, then `kept_full`, then `kept_new`, then `shown_until`, then `last_mark`, then the snapshot lock (in `SourceCell`). The store lock is taken inside the gate but never while a `kept_*`, `shown_until` or `last_mark` lock is held." and add a paragraph "NEW flags (S-03): a round records its seen set before the gate and brings the fresh keys under it; `kept_new` holds them so every path that shapes the list writes the same `new_references`. `shown_until` is the `now_ms` of the last round stored in the snapshot whose seen set was written: `mark_seen` saves exactly that, never the clock. A failed write leaves both as they were. `last_mark` is the last mark saved this session; a round that read an older mark drops the keys it covers. No toast and no event-log entry for GitHub."
 - New fields on `GithubRefreshState`: `kept_new: Mutex<HashSet<SeenKey>>`, `shown_until: Mutex<Option<i64>>`, `last_mark: Mutex<Option<i64>>` (doc comments as in GitLab, without the account); initialised empty/`None` in `new()`.
 - `fn accept_round(&self, now_ms: i64, fresh: Option<&[(SeenKey, i64)]>) -> HashSet<SeenKey>` — under the caller's gate; locks `kept_new`, `shown_until`, `last_mark` in that order. `fresh == None` (write failed): return `kept_new.clone()`, change nothing. Otherwise `kept_new` = keys of `fresh` whose `first_seen_ms > last_mark` (all of them when `last_mark` is `None`), `shown_until = Some(now_ms)`, return the new `kept_new`.
@@ -381,6 +384,7 @@ The GitHub refresh records the seen set each successful round, keeps the flags o
 
 - `accept_round_keeps_fresh_keys_and_records_shown_until` — fresh `[(alpha#1, 500), (alpha#2, 900)]`, no `last_mark` → returns both; `kept_new` has both; `shown_until == Some(now)`.
 - `accept_round_drops_keys_the_last_mark_covers` — `last_mark = Some(600)` → only alpha#2.
+- `a_key_first_seen_after_the_saved_mark_stays_new` — the other half of the visit-ends-mid-round guard (GitLab: `an_item_from_a_round_stored_after_shown_until_stays_new`): `accept_round(100, Some(&[]))`; `mark_seen(|_| Ok(()))` → `Ok(true)` and `last_mark == Some(100)`; `accept_round(200, Some(&[(alpha#3, 200)]))` returns `{alpha#3}`, `kept_new == {alpha#3}` and `shown_until == Some(200)`.
 - `a_failed_seen_set_write_keeps_the_flags_and_shown_until` — after a successful accept, `accept_round(later, None)` returns the previous set and leaves `shown_until` at the earlier instant.
 - `settle_new_reapplies_kept_flags_and_clears_them_when_the_list_is_dropped` — with `kept_new = {alpha#1}` and the list of `state_with_list()`, `settle_new(false, &repos) == ["octo-test/alpha#1"]`; `settle_new(true, &[])` is empty and `shown_until` and `kept_new` are cleared.
 - `mark_seen_without_shown_until_saves_nothing` — `save` is never called, returns `Ok(false)`, snapshot unchanged.
@@ -396,6 +400,7 @@ The GitHub refresh records the seen set each successful round, keeps the flags o
 - Full Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
 - Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 - No new CLI call: `git diff --stat develop -- src-tauri/src/cli src-tauri/src/bin src-tauri/src/hidden_issues src-tauri/src/new_assignments` is empty
+- Saved-mark test passes: `cargo test --lib github_refresh a_key_first_seen_after_the_saved_mark_stays_new`
 
 ---
 
@@ -474,7 +479,7 @@ Documents the new records in the Hard Rules app-data list (user decision), as a 
 #### Automated Verification:
 
 - The inserted phrase is present once: `grep -c "GitHub seen-issue keys" AGENTS.md` prints `1`
-- AGENTS.md diff touches one line only: before the commit, `git diff --numstat -- AGENTS.md` shows `1	1`
+- AGENTS.md diff touches one line only: before the commit, `git diff HEAD --numstat -- AGENTS.md` shows `1	1` (staged or not)
 - All gates pass: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
 
 ---
@@ -483,14 +488,14 @@ Documents the new records in the Hard Rules app-data list (user decision), as a 
 
 ### Unit Tests:
 
-- `github_seen::rules`: seeding at the baseline instant, no mark, strict `>` at the mark, kept first instants, 30-day forget boundary, duplicate numbers, opaque `Debug`.
+- `github_seen::rules`: seeding at instant `0`, no mark, strict `>` at the mark, kept first instants, 30-day forget boundary, duplicate numbers, opaque `Debug`.
 - `github_seen`: `round_input` (only `Ok` repos, lowercase keys), `visible_new` (visible issues of loaded repos only, list order).
 - `github::tests`: `new_references` reset/carry and serialization.
-- `github_refresh::tests`: `accept_round`, `settle_new`, `mark_seen` (with and without `shown_until`, failing save), `act_on_issue` flags.
+- `github_refresh::tests`: `accept_round` (including a key first seen after the saved mark), `settle_new`, `mark_seen` (with and without `shown_until`, failing save), `act_on_issue` flags.
 
 ### Integration Tests:
 
-- `tests/github_seen.rs`: v15 → v16 upgrade, CHECK/FK refusals, column lists, seeding under a mark, new repo under a mark, failed repo, forget and return, prune and re-add, mark never moves back, reopen.
+- `tests/github_seen.rs`: v15 → v16 upgrade, CHECK/FK refusals, column lists, seeding under a mark, new repo under a mark, repo seeded without a mark then an older mark, failed repo, forget and return, prune and re-add, mark never moves back, reopen.
 - `tests/github_seen_crash.rs`: kill harness, whole rounds only.
 
 ### Manual Testing Steps:
@@ -546,6 +551,7 @@ One extra `Store::write` per GitHub round (at most 50 repos × 500 issues, the e
 - [ ] 2.3 Crash test passes: `cargo test --test github_seen_crash`
 - [ ] 2.4 Full Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
 - [ ] 2.5 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [ ] 2.6 Seeding-race test passes: `cargo test --test github_seen a_repo_seeded_without_a_mark_is_never_fresh_under_an_older_mark`
 
 ### Phase 3: Snapshot contract `newReferences`
 
@@ -564,6 +570,7 @@ One extra `Store::write` per GitHub round (at most 50 repos × 500 issues, the e
 - [ ] 4.2 Full Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
 - [ ] 4.3 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 - [ ] 4.4 No new CLI call: `git diff --stat develop -- src-tauri/src/cli src-tauri/src/bin src-tauri/src/hidden_issues src-tauri/src/new_assignments` is empty
+- [ ] 4.5 Saved-mark test passes: `cargo test --lib github_refresh a_key_first_seen_after_the_saved_mark_stays_new`
 
 ### Phase 5: UI — `Nowe` flag and end-of-visit hook
 
@@ -586,5 +593,5 @@ One extra `Store::write` per GitHub round (at most 50 repos × 500 issues, the e
 #### Automated
 
 - [ ] 6.1 The inserted phrase is present once: `grep -c "GitHub seen-issue keys" AGENTS.md` prints `1`
-- [ ] 6.2 AGENTS.md diff touches one line only: before the commit, `git diff --numstat -- AGENTS.md` shows `1	1`
+- [ ] 6.2 AGENTS.md diff touches one line only: before the commit, `git diff HEAD --numstat -- AGENTS.md` shows `1	1` (staged or not)
 - [ ] 6.3 All gates pass: `npm run lint`, `npm run format:check`, `npm run build`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`

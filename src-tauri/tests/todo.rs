@@ -156,6 +156,7 @@ fn reconcile_flow_against_a_real_store() {
         issues: vec![],
         hidden_issues: vec![],
         review_requests: Vec::new(),
+        hidden_merge_requests: Vec::new(),
     };
     let n = todo::reconcile_gitlab(&mut store, ACC, &list, day(d1), at(d1, 10)).unwrap();
     assert_eq!(n, 2);
@@ -195,6 +196,7 @@ fn an_item_filtered_out_of_the_view_stays_unticked_when_reconciled_on_the_full_l
         issues: vec![shown_item, hidden_by_filter],
         hidden_issues: vec![],
         review_requests: Vec::new(),
+        hidden_merge_requests: Vec::new(),
     };
     let mut filter = GitlabFilter::default();
     filter.projects.include = vec!["invented/shown".into()];

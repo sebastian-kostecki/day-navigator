@@ -43,6 +43,7 @@ pub fn fetch_assigned(
         issues,
         review_requests,
         hidden_issues: Vec::new(),
+        hidden_merge_requests: Vec::new(),
     })
 }
 

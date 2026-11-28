@@ -673,9 +673,9 @@ None: MR records are new rows in `hidden_items` (v15). A database written by thi
 
 #### Automated
 
-- [ ] 2.1 New and existing unit tests pass
-- [ ] 2.2 Type check and build pass with the new TS fields
-- [ ] 2.3 All AGENTS.md gates green
+- [x] 2.1 New and existing unit tests pass
+- [x] 2.2 Type check and build pass with the new TS fields
+- [x] 2.3 All AGENTS.md gates green
 
 ### Phase 3: MR hiding core (fingerprint, records, partition)
 

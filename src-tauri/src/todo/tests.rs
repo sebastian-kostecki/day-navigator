@@ -499,6 +499,21 @@ fn reconcile_keeps_a_picked_issue_the_user_hid_open() {
 }
 
 #[test]
+fn reconcile_keeps_a_picked_merge_request_the_user_hid_open() {
+    let (_t, mut s) = open();
+    let item = gl(ItemKind::MergeRequest, 1);
+    pick_gl(&mut s, &item, D1, 8, 5).unwrap();
+    // The round's partitioned list: the merge request is hidden, not gone.
+    let mut items = assigned(&[]);
+    items.hidden_merge_requests.push(item.clone());
+
+    let n = reconcile_gitlab(&mut s, ACC, &items, day(D1), at(D1, 9, 0)).unwrap();
+
+    assert_eq!(n, 0);
+    assert!(!list_on(&mut s, D1, 5).items[0].ticked);
+}
+
+#[test]
 fn reconcile_keeps_a_picked_review_only_merge_request_and_ticks_it_once_gone() {
     let (_t, mut s) = open();
     let item = gl(ItemKind::MergeRequest, 1);

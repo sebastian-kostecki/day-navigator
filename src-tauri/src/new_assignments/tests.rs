@@ -329,6 +329,7 @@ mod items {
             ],
             hidden_issues: vec![],
             review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         let keys = [key(ItemKind::Issue, 1), key(ItemKind::Issue, 1)];
         assert_eq!(items_for(&full, &keys).len(), 1);
@@ -345,6 +346,7 @@ mod items {
             issues: vec![at(ItemKind::Issue, 7, "2026-03-04T10:00:00+01:00")],
             hidden_issues: vec![at(ItemKind::Issue, 9, "2026-03-02T09:00:00Z")],
             review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         let keys = [
             key(ItemKind::MergeRequest, 7),
@@ -384,6 +386,7 @@ mod items {
             ],
             hidden_issues: vec![],
             review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         assert_eq!(keys_of(&full), vec![key(ItemKind::Issue, max)]);
     }
@@ -424,7 +427,7 @@ mod flags {
 
     use super::notices::item;
     use crate::gitlab::{AssignedItems, ItemKind};
-    use crate::new_assignments::{ItemKey, mark_fresh};
+    use crate::new_assignments::{ItemKey, keys_of, mark_fresh};
 
     #[test]
     fn mark_fresh_flags_mrs_and_visible_issues_but_never_hidden() {
@@ -436,12 +439,15 @@ mod flags {
             issues: vec![item(ItemKind::Issue, 1, "c"), item(ItemKind::Issue, 2, "d")],
             hidden_issues: vec![item(ItemKind::Issue, 3, "e")],
             review_requests: Vec::new(),
+            hidden_merge_requests: vec![item(ItemKind::MergeRequest, 4, "f")],
         };
         items.hidden_issues[0].is_new = true;
+        items.hidden_merge_requests[0].is_new = true;
         let fresh: HashSet<ItemKey> = [
             ItemKey::new(ItemKind::MergeRequest, 1),
             ItemKey::new(ItemKind::Issue, 2),
             ItemKey::new(ItemKind::Issue, 3),
+            ItemKey::new(ItemKind::MergeRequest, 4),
         ]
         .into_iter()
         .collect();
@@ -451,6 +457,9 @@ mod flags {
         assert!(!items.issues[0].is_new);
         assert!(items.issues[1].is_new);
         assert!(!items.hidden_issues[0].is_new);
+        assert!(!items.hidden_merge_requests[0].is_new);
+        // A hidden merge request keeps its seen key (it is still assigned).
+        assert!(keys_of(&items).contains(&ItemKey::new(ItemKind::MergeRequest, 4)));
     }
 }
 
@@ -516,6 +525,7 @@ mod review {
                 item(ItemKind::MergeRequest, 2, "c"),
                 item(ItemKind::MergeRequest, 0, "bad id"),
             ],
+            hidden_merge_requests: Vec::new(),
         }
     }
 

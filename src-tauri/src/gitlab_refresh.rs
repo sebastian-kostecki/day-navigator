@@ -279,18 +279,21 @@ fn filter_shown(shown: AssignedItems, filter: &GitlabFilter) -> (AssignedItems, 
     let (issues, issues_out) = filter.apply(&shown.issues);
     let (hidden_issues, hidden_out) = filter.apply(&shown.hidden_issues);
     let (review_requests, review_out) = filter.apply(&shown.review_requests);
+    let (hidden_merge_requests, hidden_mrs_out) = filter.apply(&shown.hidden_merge_requests);
     (
         AssignedItems {
             merge_requests,
             issues,
             hidden_issues,
             review_requests,
+            hidden_merge_requests,
         },
         FilteredOut {
             merge_requests: mrs_out,
             issues: issues_out,
             hidden_issues: hidden_out,
             review_requests: review_out,
+            hidden_merge_requests: hidden_mrs_out,
         },
     )
 }
@@ -310,6 +313,7 @@ fn shape_items(
         issues: visible,
         hidden_issues: hidden,
         review_requests: full.review_requests.clone(),
+        hidden_merge_requests: Vec::new(),
     };
     mark_fresh(&mut items, fresh);
     filter_shown(items, filter)
@@ -610,6 +614,7 @@ fn refresh_round(
                 issues: round.visible_issues,
                 hidden_issues: round.hidden_issues,
                 review_requests: full.review_requests.clone(),
+                hidden_merge_requests: Vec::new(),
             };
             mark_fresh(&mut items, &round_fresh);
             let (shown, out) = filter_shown(items, &filter);
@@ -890,6 +895,7 @@ mod tests {
             issues: vec![entry(1, ItemKind::Issue)],
             hidden_issues: vec![],
             review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         let with = |state| GitlabSnapshot {
             state,
@@ -955,6 +961,7 @@ mod tests {
             ],
             hidden_issues: vec![entry_in(5, ItemKind::Issue, "acme/b")],
             review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         let (out, counts) = filter_shown(shown.clone(), &project_filter("acme/a"));
         assert_eq!(out.merge_requests, vec![shown.merge_requests[0].clone()]);
@@ -966,6 +973,7 @@ mod tests {
                 issues: 2,
                 hidden_issues: 1,
                 review_requests: 0,
+                hidden_merge_requests: 0,
             }
         );
         // The default filter changes nothing.
@@ -986,6 +994,7 @@ mod tests {
             ],
             hidden_issues: vec![],
             review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         let (shown, _) = filter_shown(full.clone(), &project_filter("acme/a"));
         let snapshot = GitlabSnapshot {
@@ -1010,6 +1019,7 @@ mod tests {
             ],
             hidden_issues: vec![],
             review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         let records = [record(2, None)];
         let (shown, out) = shape_items(&full, &records, &HashSet::new(), &project_filter("acme/a"));
@@ -1025,6 +1035,7 @@ mod tests {
                 issues: 1,
                 hidden_issues: 0,
                 review_requests: 0,
+                hidden_merge_requests: 0,
             }
         );
         // After an invalid block the default filter shows every item again.
@@ -1053,6 +1064,7 @@ mod tests {
             ],
             hidden_issues: vec![],
             review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         let (shown, out) = shape_items(&full, &[], &HashSet::new(), &project_filter("acme/a"));
         let next = GitlabSnapshot {
@@ -1090,9 +1102,28 @@ mod tests {
     }
 
     #[test]
+    fn filter_shown_filters_and_counts_hidden_merge_requests() {
+        let shown = AssignedItems {
+            hidden_merge_requests: vec![
+                entry_in(1, ItemKind::MergeRequest, "acme/a"),
+                entry_in(2, ItemKind::MergeRequest, "acme/b"),
+            ],
+            ..AssignedItems::default()
+        };
+        let (out, counts) = filter_shown(shown.clone(), &project_filter("acme/a"));
+        assert_eq!(
+            out.hidden_merge_requests,
+            vec![shown.hidden_merge_requests[0].clone()]
+        );
+        assert_eq!(counts.hidden_merge_requests, 1);
+        assert_eq!(counts.review_requests, 0);
+    }
+
+    #[test]
     fn shape_items_and_reshape_kept_keep_the_review_items() {
         let full = AssignedItems {
             review_requests: vec![entry_in(8, ItemKind::MergeRequest, "acme/a")],
+            hidden_merge_requests: Vec::new(),
             ..AssignedItems::default()
         };
         let (shown, out) = shape_items(&full, &[], &HashSet::new(), &GitlabFilter::default());
@@ -1149,6 +1180,7 @@ mod tests {
                 issues: 1,
                 hidden_issues: 1,
                 review_requests: 0,
+                hidden_merge_requests: 0,
             }
         );
         // A valid rule with the closed section on keeps the section as it was.
@@ -1348,6 +1380,7 @@ mod tests {
             issues: vec![entry(1, ItemKind::Issue), entry(2, ItemKind::Issue)],
             hidden_issues: vec![],
             review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         });
         state
     }
@@ -1428,6 +1461,7 @@ mod tests {
             ],
             hidden_issues: vec![],
             review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         });
         *state.kept_filter.lock().unwrap() = project_filter("acme/a");
         {
@@ -1459,6 +1493,7 @@ mod tests {
                 issues: 1,
                 hidden_issues: 1,
                 review_requests: 0,
+                hidden_merge_requests: 0,
             }
         );
         // The round flag is left as the last round set it; the cap uses the
@@ -1581,6 +1616,7 @@ mod tests {
             issues: vec![entry(1, ItemKind::Issue), entry(2, ItemKind::Issue)],
             hidden_issues: vec![],
             review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         // Issue 2 is hidden: even when in the set it is never NEW. The MR 1
         // key (same id as issue 1, other kind) flags nothing.

@@ -1,10 +1,10 @@
 ---
 change_id: github-hide-resurface
 title: Hide and resurface GitHub issues in "Projekty (GitHub)"
-status: impl_reviewed
+status: archived
 created: 2026-11-27
-updated: 2026-11-27
-archived_at: null
+updated: 2026-11-28
+archived_at: 2026-11-28T06:52:45Z
 ---
 
 ## Notes

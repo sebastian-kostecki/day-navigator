@@ -1,10 +1,10 @@
 ---
 change_id: gitlab-review-requests
 title: GitLab merge requests awaiting my review in "Praca (GitLab)"
-status: impl_reviewed
+status: archived
 created: 2026-11-27
 updated: 2026-11-28
-archived_at: null
+archived_at: 2026-11-28T06:52:56Z
 ---
 
 ## Notes

@@ -56,12 +56,14 @@ function IssueRow({
   todo,
   actions,
   hidden = false,
+  isNew = false,
 }: {
   issue: GithubIssue;
   now: number;
   todo: TodoPicks;
   actions: RowActions;
   hidden?: boolean;
+  isNew?: boolean;
 }) {
   const url = issue.webUrl;
   const found = todo.find(githubKey(issue.reference));
@@ -81,6 +83,7 @@ function IssueRow({
               {issue.hiddenAtMs != null ? `ukryte ${formatDay(issue.hiddenAtMs, now)}` : "ukryte"}
             </span>
           )}
+          {isNew && <Flag tone="new">Nowe</Flag>}
           {changed && (
             <span className="github-flag" title={CHANGE_LABEL[changed]}>
               <Flag tone="change">
@@ -163,12 +166,14 @@ function RepoGroup({
   todo,
   actions,
   showHidden,
+  newRefs,
 }: {
   repo: RepoView;
   now: number;
   todo: TodoPicks;
   actions: RowActions;
   showHidden: boolean;
+  newRefs: ReadonlySet<string>;
 }) {
   return (
     <Panel
@@ -192,7 +197,14 @@ function RepoGroup({
             <p className="github-repo-empty">Wszystkie przypisane zgłoszenia są ukryte.</p>
           )}
           {repo.issues.map((issue) => (
-            <IssueRow key={issue.reference} issue={issue} now={now} todo={todo} actions={actions} />
+            <IssueRow
+              key={issue.reference}
+              issue={issue}
+              now={now}
+              todo={todo}
+              actions={actions}
+              isNew={newRefs.has(issue.reference)}
+            />
           ))}
           {showHidden &&
             repo.hidden.map((issue) => (
@@ -295,6 +307,7 @@ export function GithubView() {
   }
 
   const { state, repos, lastSuccessMs, refreshing } = snapshot;
+  const newRefs = new Set(snapshot.newReferences);
   const actions: RowActions = { busy, hide, unhide, dismiss };
   // The tick can lag a fresh snapshot; never show a refresh "in the future".
   const nowMs = Math.max(now, lastSuccessMs ?? 0);
@@ -414,6 +427,7 @@ export function GithubView() {
                 todo={todo}
                 actions={actions}
                 showHidden={showHidden}
+                newRefs={newRefs}
               />
             ))}
           </div>

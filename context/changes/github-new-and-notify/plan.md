@@ -580,8 +580,8 @@ One extra `Store::write` per GitHub round (at most 50 repos × 500 issues, the e
 
 #### Automated
 
-- [ ] 5.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
-- [ ] 5.2 Full Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 5.1 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 5.2 Full Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
 
 #### Manual
 

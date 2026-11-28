@@ -631,9 +631,9 @@ v15 only creates `hidden_items`; existing data is untouched and no GitLab row mo
 
 #### Automated
 
-- [ ] 5.1 Type check and build pass with the new fields and props
-- [ ] 5.2 No colour literal outside tokens
-- [ ] 5.3 All AGENTS.md gates green
+- [x] 5.1 Type check and build pass with the new fields and props — 16f648c
+- [x] 5.2 No colour literal outside tokens — 16f648c
+- [x] 5.3 All AGENTS.md gates green — 16f648c
 
 #### Manual
 

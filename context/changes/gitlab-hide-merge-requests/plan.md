@@ -715,10 +715,10 @@ None: MR records are new rows in `hidden_items` (v15). A database written by thi
 
 #### Automated
 
-- [ ] 7.1 Type check and build pass
-- [ ] 7.2 No colour literal added
-- [ ] 7.3 AGENTS.md names GitLab merge requests in the hidden-item snapshots
-- [ ] 7.4 All AGENTS.md gates green
+- [x] 7.1 Type check and build pass
+- [x] 7.2 No colour literal added
+- [x] 7.3 AGENTS.md names GitLab merge requests in the hidden-item snapshots
+- [x] 7.4 All AGENTS.md gates green
 
 #### Manual
 

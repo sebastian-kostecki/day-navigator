@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::cli::{CliError, GithubConfig, GithubRepo, Tool};
 use crate::hidden_issues::ChangeReason;
+use crate::settings::DEFAULT_REFRESH_MINUTES;
 use fetch::RepoResult;
 
 /// One open issue assigned to the `gh` account.
@@ -256,6 +257,14 @@ pub struct GithubSnapshot {
     /// Fixed Polish text when the hide records could not be read or written;
     /// the repos then show every issue.
     pub hidden_error: Option<String>,
+    /// True when `githubRefresh.minutes` is invalid and the default interval is
+    /// used. A round flag: set on every round.
+    pub refresh_setting_invalid: bool,
+    /// The interval (minutes) the last round used. A round flag.
+    pub refresh_minutes: u32,
+    /// When the wait after the last round ends (UTC ms); `None` before the first
+    /// round.
+    pub next_refresh_at_ms: Option<u64>,
 }
 
 impl GithubSnapshot {
@@ -270,6 +279,9 @@ impl GithubSnapshot {
             seq: 0,
             hidden_check_failed: 0,
             hidden_error: None,
+            refresh_setting_invalid: false,
+            refresh_minutes: DEFAULT_REFRESH_MINUTES,
+            next_refresh_at_ms: None,
         }
     }
 }
@@ -317,6 +329,10 @@ pub fn next_snapshot(
         seq: prev.seq + 1,
         hidden_check_failed: 0,
         hidden_error: None,
+        // Round flags, carried over: the round sets them.
+        refresh_setting_invalid: prev.refresh_setting_invalid,
+        refresh_minutes: prev.refresh_minutes,
+        next_refresh_at_ms: prev.next_refresh_at_ms,
     };
     let error = match outcome {
         Ok(results) => {
@@ -629,6 +645,59 @@ mod tests {
         assert!(s.repos.is_empty());
         assert_eq!((s.seq, s.last_success_ms, s.checked_at_ms), (0, None, None));
         assert!(!s.refreshing);
+        assert_eq!(s.refresh_minutes, DEFAULT_REFRESH_MINUTES);
+        assert_eq!(s.next_refresh_at_ms, None);
+        assert!(!s.refresh_setting_invalid);
+    }
+
+    #[test]
+    fn snapshot_carries_the_refresh_interval_fields_across_rounds() {
+        let (base, cfg) = prev_with_list();
+        let prev = GithubSnapshot {
+            refresh_minutes: 3,
+            next_refresh_at_ms: Some(123_456),
+            refresh_setting_invalid: true,
+            ..base
+        };
+        let (ok, _) = next_snapshot(&prev, Some(&cfg), Some(&cfg), Ok(good_round()), 400);
+        let (kept, _) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            Some(&cfg),
+            Err(GithubError::Unavailable),
+            400,
+        );
+        let (dropped, _) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            None,
+            Err(GithubError::NotConfigured),
+            400,
+        );
+        let (down, _) = next_snapshot(&prev, None, None, Err(GithubError::ThreadDown), 400);
+        for s in [ok, kept, dropped, down] {
+            assert_eq!(s.refresh_minutes, 3);
+            assert_eq!(s.next_refresh_at_ms, Some(123_456));
+            assert!(s.refresh_setting_invalid);
+        }
+    }
+
+    #[test]
+    fn snapshot_serializes_the_interval_fields() {
+        let s = GithubSnapshot {
+            refresh_minutes: 7,
+            next_refresh_at_ms: Some(42),
+            refresh_setting_invalid: true,
+            ..GithubSnapshot::starting()
+        };
+        let v = serde_json::to_value(&s).unwrap();
+        assert_eq!(v["refreshMinutes"], 7);
+        assert_eq!(v["nextRefreshAtMs"], 42);
+        assert_eq!(v["refreshSettingInvalid"], true);
+        let v = serde_json::to_value(GithubSnapshot::starting()).unwrap();
+        assert_eq!(v["nextRefreshAtMs"], serde_json::Value::Null);
+        assert_eq!(v["refreshMinutes"], 10);
+        assert_eq!(v["refreshSettingInvalid"], false);
     }
 
     #[test]

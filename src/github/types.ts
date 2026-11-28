@@ -59,4 +59,10 @@ export type GithubSnapshot = {
   hiddenCheckFailed: number;
   /** Fixed Polish text when the hide records could not be read or written. */
   hiddenError: string | null;
+  /** Invalid `githubRefresh.minutes`: the default interval is in use. */
+  refreshSettingInvalid: boolean;
+  /** The interval (minutes) the last round used. */
+  refreshMinutes: number;
+  /** When the wait after the last round ends (UTC ms); `null` before the first round. */
+  nextRefreshAtMs: number | null;
 };

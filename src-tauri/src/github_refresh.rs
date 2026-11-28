@@ -36,7 +36,7 @@ use crate::hidden_issues::github_round::{
 };
 use crate::hidden_issues::items::HiddenItemRecord;
 use crate::runtime::now_ms;
-use crate::settings::load_github_settings;
+use crate::settings::{DEFAULT_REFRESH_MINUTES, load_github_refresh_minutes, load_github_settings};
 use crate::source_refresh::{self, RefreshSnapshot, SourceCell, SourceId};
 use crate::store::StoreHandle;
 use crate::todo;
@@ -47,7 +47,6 @@ const SOURCE: SourceId = SourceId {
     prefix: "github",
     target: module_path!(),
 };
-const REFRESH_INTERVAL: Duration = Duration::from_secs(10 * 60);
 
 impl RefreshSnapshot for GithubSnapshot {
     fn seq(&self) -> u64 {
@@ -235,6 +234,18 @@ fn run_fetch(
     }
 }
 
+/// `(minutes, invalid)` for this round: `githubRefresh.minutes`, or the default
+/// when it is invalid (`invalid` is then true).
+fn refresh_interval(settings_path: &Option<PathBuf>) -> (u32, bool) {
+    let Some(path) = settings_path else {
+        return (DEFAULT_REFRESH_MINUTES, false);
+    };
+    match load_github_refresh_minutes(path) {
+        Ok(minutes) => (minutes, false),
+        Err(_) => (DEFAULT_REFRESH_MINUTES, true),
+    }
+}
+
 fn refresh_round(
     app: &AppHandle,
     settings_path: &Option<PathBuf>,
@@ -242,6 +253,8 @@ fn refresh_round(
     resume_after: &mut Option<(String, u64)>,
 ) -> Duration {
     let state = app.state::<GithubRefreshState>();
+    let (minutes, refresh_invalid) = refresh_interval(settings_path);
+    let wait = Duration::from_secs(u64::from(minutes) * 60);
     let started = Instant::now();
     let before = state.snapshot();
     let before_status = health::github_status(&before);
@@ -296,11 +309,15 @@ fn refresh_round(
             None => {}
         }
     }
+    next.refresh_setting_invalid = refresh_invalid;
+    next.refresh_minutes = minutes;
     *state.kept_config.lock().unwrap_or_else(|p| p.into_inner()) = next_kept;
     let after_status = health::github_status(&next);
     let from = state_label(&before);
     let to = state_label(&next);
     let todo_changed = reconcile_todo(app, &next);
+    // The wait starts when the snapshot is stored.
+    next.next_refresh_at_ms = Some(source_refresh::next_refresh_at_ms(wait));
     *state.write() = next;
     drop(gate);
     publish(app, &state);
@@ -309,7 +326,7 @@ fn refresh_round(
     // A changed GitHub source status runs a health round now instead of waiting
     // up to 30 s for the tray to catch up.
     SOURCE.end_round(app, &from, &to, started, before_status != after_status);
-    REFRESH_INTERVAL
+    wait
 }
 
 /// The repos a "To do" reconcile may use: only those that loaded in a
@@ -578,6 +595,24 @@ mod tests {
         let numbers: Vec<u64> = got[0].1.iter().map(|i| i.number).collect();
         assert_eq!(numbers, vec![1, 2]);
         assert!(got[1].1.is_empty());
+    }
+
+    #[test]
+    fn refresh_interval_reads_the_setting_and_falls_back_to_ten_minutes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let some = Some(path.clone());
+        let write = |body: &str| std::fs::write(&path, body).unwrap();
+
+        assert_eq!(refresh_interval(&None), (10, false));
+        write(r#"{"version":1,"githubRefresh":{"minutes":3}}"#);
+        assert_eq!(refresh_interval(&some), (3, false));
+        write(r#"{"version":1,"githubRefresh":{"minutes":15}}"#);
+        assert_eq!(refresh_interval(&some), (10, true));
+        write(r#"{"version":1,"gitlabRefresh":{"minutes":3}}"#);
+        assert_eq!(refresh_interval(&some), (10, false));
+        write(r#"{"version":1,"gitlabRefresh":{"minutes":15}}"#);
+        assert_eq!(refresh_interval(&some), (10, false));
     }
 
     #[test]

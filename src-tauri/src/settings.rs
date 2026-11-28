@@ -403,15 +403,15 @@ pub const DEFAULT_REFRESH_MINUTES: u32 = 10;
 /// 14 keeps a margin.
 pub const REFRESH_MINUTES_MAX: u64 = 14;
 
-/// The top-level `gitlabRefresh` block is invalid (not an object, an unknown
-/// key or a value outside 1..=14). Carries no detail: serde errors can quote
-/// the value.
+/// A top-level refresh block (`gitlabRefresh` or `githubRefresh`) is invalid
+/// (not an object, an unknown key or a value outside 1..=14). Carries no
+/// detail: serde errors can quote the value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RefreshSettingInvalid;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct RawGitlabRefresh {
+struct RawRefresh {
     #[serde(default)]
     minutes: Option<serde_json::Value>,
 }
@@ -420,6 +420,17 @@ struct RawGitlabRefresh {
 /// problem (unreadable, bad UTF-8 or JSON, wrong `version`) is `Ok(10)`: the
 /// GitLab block already reports the file. Only a block-level problem is `Err`.
 pub fn load_gitlab_refresh_minutes(path: &Path) -> Result<u32, RefreshSettingInvalid> {
+    load_refresh_minutes(path, "gitlabRefresh")
+}
+
+/// Reads only the top-level `githubRefresh` block, on its own. A file-level
+/// problem is `Ok(10)`: the `github` block already reports the file
+/// (`load_github_settings`). Only a block-level problem is `Err`.
+pub fn load_github_refresh_minutes(path: &Path) -> Result<u32, RefreshSettingInvalid> {
+    load_refresh_minutes(path, "githubRefresh")
+}
+
+fn load_refresh_minutes(path: &Path, key: &str) -> Result<u32, RefreshSettingInvalid> {
     let Ok(bytes) = fs::read(path) else {
         return Ok(DEFAULT_REFRESH_MINUTES);
     };
@@ -429,17 +440,17 @@ pub fn load_gitlab_refresh_minutes(path: &Path) -> Result<u32, RefreshSettingInv
     let Ok(text) = std::str::from_utf8(bytes) else {
         return Ok(DEFAULT_REFRESH_MINUTES);
     };
-    parse_gitlab_refresh_minutes(text)
+    parse_refresh_minutes(text, key)
 }
 
-fn parse_gitlab_refresh_minutes(text: &str) -> Result<u32, RefreshSettingInvalid> {
+fn parse_refresh_minutes(text: &str, key: &str) -> Result<u32, RefreshSettingInvalid> {
     let Ok(value) = serde_json::from_str::<serde_json::Value>(text) else {
         return Ok(DEFAULT_REFRESH_MINUTES);
     };
     if value.get("version").and_then(|v| v.as_u64()) != Some(SUPPORTED_VERSION) {
         return Ok(DEFAULT_REFRESH_MINUTES);
     }
-    let Some(block) = value.get("gitlabRefresh") else {
+    let Some(block) = value.get(key) else {
         return Ok(DEFAULT_REFRESH_MINUTES);
     };
     if block.is_null() {
@@ -448,7 +459,7 @@ fn parse_gitlab_refresh_minutes(text: &str) -> Result<u32, RefreshSettingInvalid
     if !block.is_object() {
         return Err(RefreshSettingInvalid);
     }
-    let raw: RawGitlabRefresh =
+    let raw: RawRefresh =
         serde_json::from_value(block.clone()).map_err(|_| RefreshSettingInvalid)?;
     match raw.minutes {
         None | Some(serde_json::Value::Null) => Ok(DEFAULT_REFRESH_MINUTES),
@@ -1479,6 +1490,123 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let text = r#"{"version":1,"spaces":{},"gitlab":"nope","todo":{"limit":0},"gitlabRefresh":{"minutes":6}}"#;
         assert_eq!(load_gitlab_refresh_minutes(&write(&dir, text)), Ok(6));
+    }
+
+    fn github_refresh_text(block: &str) -> String {
+        format!(r#"{{"version":1,"spaces":{{}},"githubRefresh":{block}}}"#)
+    }
+
+    #[test]
+    fn github_refresh_minutes_defaults_and_file_level_problems_give_ten() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(
+            load_github_refresh_minutes(&dir.path().join("settings.json")),
+            Ok(DEFAULT_REFRESH_MINUTES)
+        );
+        for text in [
+            r#"{"version":1,"spaces":{}}"#.to_string(),
+            github_refresh_text("null"),
+            github_refresh_text("{}"),
+            github_refresh_text(r#"{"minutes":null}"#),
+            "{ not json".to_string(),
+            r#"{"version":2,"githubRefresh":{"minutes":0}}"#.to_string(),
+            r#"{"githubRefresh":{"minutes":0}}"#.to_string(),
+        ] {
+            assert_eq!(
+                load_github_refresh_minutes(&write(&dir, &text)),
+                Ok(10),
+                "{text}"
+            );
+        }
+        let p = dir.path().join("settings.json");
+        fs::write(&p, [0xFF, 0xFE, 0x00]).unwrap();
+        assert_eq!(load_github_refresh_minutes(&p), Ok(10));
+        assert_eq!(load_github_refresh_minutes(dir.path()), Ok(10));
+    }
+
+    #[test]
+    fn github_refresh_minutes_range_edges() {
+        let dir = tempfile::tempdir().unwrap();
+        for n in [1u32, 7, 14] {
+            let text = github_refresh_text(&format!(r#"{{"minutes":{n}}}"#));
+            assert_eq!(load_github_refresh_minutes(&write(&dir, &text)), Ok(n));
+        }
+    }
+
+    #[test]
+    fn github_refresh_minutes_invalid_blocks_are_refused() {
+        let dir = tempfile::tempdir().unwrap();
+        for block in [
+            r#"{"minutes":0}"#,
+            r#"{"minutes":15}"#,
+            r#"{"minutes":"10"}"#,
+            r#"{"minutes":10.5}"#,
+            r#"{"minutes":true}"#,
+            r#"{"minutes":-1}"#,
+            r#"{"minutes":5,"extra":1}"#,
+            r#"{"other":1}"#,
+            r#""10""#,
+            r#"[10]"#,
+        ] {
+            assert_eq!(
+                load_github_refresh_minutes(&write(&dir, &github_refresh_text(block))),
+                Err(RefreshSettingInvalid),
+                "{block}"
+            );
+        }
+    }
+
+    #[test]
+    fn github_refresh_minutes_bom_is_stripped() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("settings.json");
+        let mut bytes = vec![0xEF, 0xBB, 0xBF];
+        bytes.extend_from_slice(github_refresh_text(r#"{"minutes":3}"#).as_bytes());
+        fs::write(&p, bytes).unwrap();
+        assert_eq!(load_github_refresh_minutes(&p), Ok(3));
+    }
+
+    #[test]
+    fn refresh_keys_are_independent() {
+        let dir = tempfile::tempdir().unwrap();
+        let both = |gl: &str, gh: &str| {
+            format!(r#"{{"version":1,"spaces":{{}},"gitlabRefresh":{gl},"githubRefresh":{gh}}}"#)
+        };
+        let p = write(&dir, &both(r#"{"minutes":4}"#, r#"{"minutes":99}"#));
+        assert_eq!(load_gitlab_refresh_minutes(&p), Ok(4));
+        assert_eq!(load_github_refresh_minutes(&p), Err(RefreshSettingInvalid));
+        let p = write(&dir, &both(r#"{"minutes":99}"#, r#"{"minutes":5}"#));
+        assert_eq!(load_gitlab_refresh_minutes(&p), Err(RefreshSettingInvalid));
+        assert_eq!(load_github_refresh_minutes(&p), Ok(5));
+        let p = write(&dir, &refresh_text(r#"{"minutes":3}"#));
+        assert_eq!(load_gitlab_refresh_minutes(&p), Ok(3));
+        assert_eq!(load_github_refresh_minutes(&p), Ok(10));
+        let p = write(&dir, &github_refresh_text(r#"{"minutes":3}"#));
+        assert_eq!(load_github_refresh_minutes(&p), Ok(3));
+        assert_eq!(load_gitlab_refresh_minutes(&p), Ok(10));
+    }
+
+    #[test]
+    fn broken_github_refresh_block_leaves_the_other_loaders_green() {
+        let dir = tempfile::tempdir().unwrap();
+        for block in [r#"{"minutes":0}"#, r#""nope""#, r#"{"bogus":1}"#] {
+            let text = format!(
+                r#"{{"version":1,"gitlab":{{"host":"gitlab.example.invalid"}},"todo":{{"limit":4}},"githubRefresh":{block}}}"#
+            );
+            let p = write(&dir, &text);
+            assert!(check_settings(&p).is_ok(), "{block}");
+            assert!(load_github_settings(&p).is_ok(), "{block}");
+            assert!(load_gitlab_refresh_minutes(&p).is_ok(), "{block}");
+            assert_eq!(load_todo_limit(&p).unwrap(), 4, "{block}");
+            assert!(load_github_refresh_minutes(&p).is_err(), "{block}");
+        }
+    }
+
+    #[test]
+    fn github_refresh_loader_ignores_a_broken_github_block() {
+        let dir = tempfile::tempdir().unwrap();
+        let text = r#"{"version":1,"spaces":{},"github":"nope","githubRefresh":{"minutes":6}}"#;
+        assert_eq!(load_github_refresh_minutes(&write(&dir, text)), Ok(6));
     }
 
     fn filter_text(block: &str) -> String {

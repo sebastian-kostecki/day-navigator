@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use serde::{Serialize, Serializer};
 
+use crate::settings::NoticeSettings;
 use crate::store::BackupSummary;
 
 pub use probe::{
@@ -218,6 +219,21 @@ pub(crate) fn short_reason(kind: &str) -> &'static str {
     }
 }
 
+/// The transitions the toast may mention. With `sourceProblems` off, the GitLab
+/// and GitHub ones are left out; the app's own sources always stay.
+pub fn filter_transitions(transitions: &[Transition], notices: NoticeSettings) -> Vec<Transition> {
+    transitions
+        .iter()
+        .filter(|t| match t.id {
+            SourceId::Gitlab | SourceId::Github => notices.source_problems,
+            SourceId::Settings | SourceId::AppData | SourceId::Reminders | SourceId::Autostart => {
+                true
+            }
+        })
+        .cloned()
+        .collect()
+}
+
 /// One toast for a batch of transitions, or `None` when there are none.
 pub fn notice_for(transitions: &[Transition]) -> Option<Notice> {
     if transitions.is_empty() {
@@ -415,6 +431,69 @@ mod tests {
 
     const S: SourceId = SourceId::Settings;
     const D: SourceId = SourceId::AppData;
+
+    fn failed(id: SourceId) -> Transition {
+        Transition {
+            id,
+            label: id.key(),
+            from_kind: None,
+            to_kind: Some("Failed".to_string()),
+        }
+    }
+
+    #[test]
+    fn source_problems_off_drops_only_the_gitlab_and_github_transitions() {
+        let off = NoticeSettings {
+            source_problems: false,
+            ..NoticeSettings::default()
+        };
+        for (id, stays) in [
+            (SourceId::Settings, true),
+            (SourceId::AppData, true),
+            (SourceId::Gitlab, false),
+            (SourceId::Github, false),
+            (SourceId::Reminders, true),
+            (SourceId::Autostart, true),
+        ] {
+            let one = [failed(id)];
+            let want = if stays { one.to_vec() } else { Vec::new() };
+            assert_eq!(filter_transitions(&one, off), want, "{id}");
+            let on = NoticeSettings::default();
+            assert_eq!(filter_transitions(&one, on), one, "{id}");
+        }
+    }
+
+    #[test]
+    fn a_mixed_batch_keeps_the_app_sources_in_order() {
+        let off = NoticeSettings {
+            source_problems: false,
+            ..NoticeSettings::default()
+        };
+        let batch = [
+            failed(SourceId::Settings),
+            failed(SourceId::Gitlab),
+            failed(SourceId::AppData),
+            failed(SourceId::Github),
+        ];
+        assert_eq!(
+            filter_transitions(&batch, off),
+            [failed(SourceId::Settings), failed(SourceId::AppData)]
+        );
+        // Nothing left means no toast at all.
+        let remote = [failed(SourceId::Gitlab), failed(SourceId::Github)];
+        assert_eq!(notice_for(&filter_transitions(&remote, off)), None);
+    }
+
+    #[test]
+    fn the_other_notice_kinds_do_not_touch_source_transitions() {
+        let others_off = NoticeSettings {
+            new_assignments: false,
+            source_problems: true,
+            day_summary: false,
+        };
+        let batch = [failed(SourceId::Gitlab), failed(SourceId::Settings)];
+        assert_eq!(filter_transitions(&batch, others_off), batch);
+    }
 
     #[test]
     fn source_keys_are_stable() {

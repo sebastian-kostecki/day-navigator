@@ -2,18 +2,39 @@ import { useCallback, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   dismissGitlabChange,
+  dismissGitlabMergeRequestChange,
   getGitlabSnapshot,
   hiddenIssueErrorMessage,
   hideGitlabIssue,
+  hideGitlabMergeRequest,
   isHiddenIssueStale,
   refreshGitlab,
   unhideGitlabIssue,
+  unhideGitlabMergeRequest,
 } from "./api";
-import type { GitlabSnapshot } from "./types";
+import type { GitlabSnapshot, ItemKind } from "./types";
 
 function errorText(e: unknown): string {
   return typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
 }
+
+/** Issue and merge request ids are separate numbering spaces; the busy set keys both. */
+export function busyKey(kind: ItemKind, id: number): string {
+  return `${kind}:${id}`;
+}
+
+const HIDE: Record<ItemKind, (id: number) => Promise<void>> = {
+  issue: hideGitlabIssue,
+  mergeRequest: hideGitlabMergeRequest,
+};
+const UNHIDE: Record<ItemKind, (id: number) => Promise<void>> = {
+  issue: unhideGitlabIssue,
+  mergeRequest: unhideGitlabMergeRequest,
+};
+const DISMISS: Record<ItemKind, (id: number) => Promise<void>> = {
+  issue: dismissGitlabChange,
+  mergeRequest: dismissGitlabMergeRequestChange,
+};
 
 /** `refreshOnMount: false` only reads the stored snapshot and listens, so a view that
  * just displays it never starts a `glab` round. */
@@ -25,7 +46,7 @@ export function useGitlab({ refreshOnMount = true }: { refreshOnMount?: boolean 
   // success changes no local list; a failure becomes an inline notice that
   // lasts until the next action or the next finished round.
   const [actionError, setActionError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<ReadonlySet<number>>(new Set());
+  const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
   // Bumped by `retry` to re-run the subscribe-and-load effect.
   const [attempt, setAttempt] = useState(0);
 
@@ -90,19 +111,20 @@ export function useGitlab({ refreshOnMount = true }: { refreshOnMount?: boolean 
   }, []);
 
   const act = useCallback(
-    async (id: number, run: (id: number) => Promise<void>) => {
+    async (kind: ItemKind, id: number, run: (id: number) => Promise<void>) => {
+      const key = busyKey(kind, id);
       setActionError(null);
-      setBusy((b) => new Set(b).add(id));
+      setBusy((b) => new Set(b).add(key));
       try {
         await run(id);
       } catch (e) {
-        setActionError(hiddenIssueErrorMessage(e));
+        setActionError(hiddenIssueErrorMessage(e, kind));
         // The row was stale (own-tasks pattern): fetch a fresh list.
         if (isHiddenIssueStale(e)) void refresh();
       } finally {
         setBusy((b) => {
           const next = new Set(b);
-          next.delete(id);
+          next.delete(key);
           return next;
         });
       }
@@ -110,9 +132,9 @@ export function useGitlab({ refreshOnMount = true }: { refreshOnMount?: boolean 
     [refresh],
   );
 
-  const hide = useCallback((id: number) => act(id, hideGitlabIssue), [act]);
-  const unhide = useCallback((id: number) => act(id, unhideGitlabIssue), [act]);
-  const dismiss = useCallback((id: number) => act(id, dismissGitlabChange), [act]);
+  const hide = useCallback((kind: ItemKind, id: number) => act(kind, id, HIDE[kind]), [act]);
+  const unhide = useCallback((kind: ItemKind, id: number) => act(kind, id, UNHIDE[kind]), [act]);
+  const dismiss = useCallback((kind: ItemKind, id: number) => act(kind, id, DISMISS[kind]), [act]);
 
   return {
     snapshot,

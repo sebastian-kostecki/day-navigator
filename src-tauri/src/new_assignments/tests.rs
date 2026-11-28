@@ -104,6 +104,7 @@ mod notices {
             milestone: None,
             is_new: false,
             hidden_at_ms: None,
+            review_requested: false,
         }
     }
 
@@ -327,6 +328,8 @@ mod items {
                 at(ItemKind::Issue, 1, "2026-03-03T08:00:00Z"),
             ],
             hidden_issues: vec![],
+            review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         let keys = [key(ItemKind::Issue, 1), key(ItemKind::Issue, 1)];
         assert_eq!(items_for(&full, &keys).len(), 1);
@@ -342,6 +345,8 @@ mod items {
             // The same instant as MR 8 in another offset: a tie keeps key order.
             issues: vec![at(ItemKind::Issue, 7, "2026-03-04T10:00:00+01:00")],
             hidden_issues: vec![at(ItemKind::Issue, 9, "2026-03-02T09:00:00Z")],
+            review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         let keys = [
             key(ItemKind::MergeRequest, 7),
@@ -380,6 +385,8 @@ mod items {
                 at(ItemKind::Issue, max + 1, "2026-03-01T09:00:00Z"),
             ],
             hidden_issues: vec![],
+            review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         assert_eq!(keys_of(&full), vec![key(ItemKind::Issue, max)]);
     }
@@ -420,7 +427,7 @@ mod flags {
 
     use super::notices::item;
     use crate::gitlab::{AssignedItems, ItemKind};
-    use crate::new_assignments::{ItemKey, mark_fresh};
+    use crate::new_assignments::{ItemKey, keys_of, mark_fresh};
 
     #[test]
     fn mark_fresh_flags_mrs_and_visible_issues_but_never_hidden() {
@@ -431,12 +438,16 @@ mod flags {
             ],
             issues: vec![item(ItemKind::Issue, 1, "c"), item(ItemKind::Issue, 2, "d")],
             hidden_issues: vec![item(ItemKind::Issue, 3, "e")],
+            review_requests: Vec::new(),
+            hidden_merge_requests: vec![item(ItemKind::MergeRequest, 4, "f")],
         };
         items.hidden_issues[0].is_new = true;
+        items.hidden_merge_requests[0].is_new = true;
         let fresh: HashSet<ItemKey> = [
             ItemKey::new(ItemKind::MergeRequest, 1),
             ItemKey::new(ItemKind::Issue, 2),
             ItemKey::new(ItemKind::Issue, 3),
+            ItemKey::new(ItemKind::MergeRequest, 4),
         ]
         .into_iter()
         .collect();
@@ -446,5 +457,110 @@ mod flags {
         assert!(!items.issues[0].is_new);
         assert!(items.issues[1].is_new);
         assert!(!items.hidden_issues[0].is_new);
+        assert!(!items.hidden_merge_requests[0].is_new);
+        // A hidden merge request keeps its seen key (it is still assigned).
+        assert!(keys_of(&items).contains(&ItemKey::new(ItemKind::MergeRequest, 4)));
+    }
+}
+
+mod review {
+    use std::collections::HashSet;
+
+    use super::notices::item;
+    use crate::gitlab::{AssignedItems, ItemKind};
+    use crate::new_assignments::rules::*;
+    use crate::new_assignments::{
+        ItemKey, items_for, keys_of, mark_fresh, notices_for, review_marker_key, review_only_keys,
+    };
+
+    fn mr(id: u64) -> ItemKey {
+        ItemKey::new(ItemKind::MergeRequest, id)
+    }
+
+    fn row(key: ItemKey) -> SeenRow {
+        SeenRow {
+            key,
+            last_seen_ms: 1,
+        }
+    }
+
+    #[test]
+    fn baseline_is_empty_for_an_unseeded_account() {
+        assert!(review_baseline(false, false, &[], &[mr(1)]).is_empty());
+    }
+
+    #[test]
+    fn baseline_is_empty_when_the_review_set_is_seeded() {
+        assert!(review_baseline(true, true, &[], &[mr(1)]).is_empty());
+    }
+
+    #[test]
+    fn baseline_takes_the_unknown_review_keys_once() {
+        let stored = [row(mr(2))];
+        let got = review_baseline(true, false, &stored, &[mr(1), mr(2), mr(3), mr(1)]);
+        assert_eq!(got, vec![mr(1), mr(3)]);
+    }
+
+    #[test]
+    fn baseline_first_seen_never_exceeds_the_mark_or_now() {
+        assert_eq!(baseline_first_seen(None, 500), 500);
+        assert_eq!(baseline_first_seen(Some(100), 500), 100);
+        assert_eq!(baseline_first_seen(Some(900), 500), 500);
+        // Never fresh: first_seen is not after the mark.
+        let seen = [(mr(1), baseline_first_seen(Some(100), 500))];
+        assert!(fresh_since(&seen, Some(100)).is_empty());
+    }
+
+    #[test]
+    fn marker_key_is_a_suffix_of_the_account_key() {
+        assert_eq!(review_marker_key("abc"), "abc:reviews");
+    }
+
+    fn with_reviews() -> AssignedItems {
+        AssignedItems {
+            merge_requests: vec![item(ItemKind::MergeRequest, 1, "a")],
+            issues: vec![item(ItemKind::Issue, 1, "b")],
+            hidden_issues: vec![],
+            review_requests: vec![
+                item(ItemKind::MergeRequest, 2, "c"),
+                item(ItemKind::MergeRequest, 0, "bad id"),
+            ],
+            hidden_merge_requests: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn review_items_join_keys_items_and_flags() {
+        let mut items = with_reviews();
+        assert!(keys_of(&items).contains(&mr(2)));
+        assert_eq!(review_only_keys(&items), vec![mr(2)]);
+        assert_eq!(items_for(&items, &[mr(2)]).len(), 1);
+        let fresh: HashSet<ItemKey> = [mr(2)].into_iter().collect();
+        mark_fresh(&mut items, &fresh);
+        assert!(items.review_requests[0].is_new);
+        assert!(!items.merge_requests[0].is_new);
+    }
+
+    #[test]
+    fn a_review_mr_notice_has_its_own_title() {
+        let mut it = item(ItemKind::MergeRequest, 5, "Add widget");
+        it.review_requested = true;
+        let n = notices_for(&[&it]);
+        assert_eq!(n.len(), 1);
+        assert!(n[0].title.ends_with("nowy MR do review"));
+        let plain = item(ItemKind::MergeRequest, 6, "Other");
+        assert!(notices_for(&[&plain])[0].title.ends_with("nowy MR"));
+    }
+
+    #[test]
+    fn mixed_review_and_plain_items_keep_the_combined_notice() {
+        let mut a = item(ItemKind::MergeRequest, 1, "a");
+        a.review_requested = true;
+        let b = item(ItemKind::Issue, 2, "b");
+        let c = item(ItemKind::Issue, 3, "c");
+        let d = item(ItemKind::Issue, 4, "d");
+        let n = notices_for(&[&a, &b, &c, &d]);
+        assert_eq!(n.len(), 1);
+        assert!(n[0].title.ends_with("nowe przypisania (4)"));
     }
 }

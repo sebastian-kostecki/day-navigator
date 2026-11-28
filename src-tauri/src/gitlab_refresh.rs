@@ -6,13 +6,16 @@
 //! clone or a store, never across `emit`, a tray call or a process. The refresh
 //! thread runs `glab` directly, so the commands only read state or send a wake.
 //!
-//! `hidden_gate` serializes the hidden-issue state: a round's commit + snapshot
+//! `hidden_gate` serializes the hidden-issue and hidden-MR state: a round's commit + snapshot
 //! store and every hide/unhide/dismiss command run under it, so a late round can
 //! never publish a partition older than a command's. It is never held across a
 //! `glab` call or an `emit`. Lock order: gate, then `kept_config`, then
 //! `kept_full`, then `kept_filter`, then `kept_new`, then `shown_until`, then
-//! `last_mark`, then the snapshot lock. The store lock is taken inside the
+//! `last_mark`, then the snapshot lock (which now lives in the shared
+//! `SourceCell` of `source_refresh.rs`). The store lock is taken inside the
 //! gate, but never while a `kept_*`, `shown_until` or `last_mark` lock is held.
+//! `check_mr_round` runs `glab` with no lock, right after `check_round`;
+//! `commit_mr_round` runs under the gate, right after `commit_round`.
 //!
 //! NEW flags (S-02): a round records its seen set before the gate and brings
 //! the fresh keys under it. `kept_new` holds them so every path that shapes the
@@ -30,12 +33,12 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, RecvTimeoutError};
-use std::sync::{Mutex, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::mpsc;
+use std::sync::{Mutex, RwLockWriteGuard};
 use std::time::{Duration, Instant};
 
 use chrono::{Local, TimeZone};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 
 use crate::cli::{CliRunner, GitlabConfig, GitlabHost};
 use crate::events::{self, EventError, NewEvent};
@@ -47,28 +50,47 @@ use crate::gitlab::{
 };
 use crate::health;
 use crate::hidden_issues::{
-    HiddenIssueError, HiddenRecord, check_round, commit_round, list as list_hidden, partition,
+    GitlabHidden, HiddenIssueError, check_mr_round, check_round, commit_mr_round, commit_round,
+    list_gitlab, mr_calls_allowed, partition, partition_merge_requests,
 };
 use crate::new_assignments::{
     ItemKey, NewAssignmentError, SessionSeen, items_for, keys_of, mark_fresh, mark_view_seen,
-    notices_for, record_round,
+    notices_for, record_round, review_only_keys,
 };
-use crate::runtime::{HealthState, now_ms, toast};
+use crate::runtime::{notice_settings, now_ms, toast};
 use crate::settings::{
-    DEFAULT_REFRESH_MINUTES, load_gitlab_filter, load_gitlab_refresh_minutes, load_gitlab_settings,
+    DEFAULT_REFRESH_MINUTES, Toast, load_gitlab_filter, load_gitlab_refresh_minutes,
+    load_gitlab_settings,
 };
+use crate::source_refresh::{self, RefreshSnapshot, SourceCell, SourceId};
 use crate::store::{StoreError, StoreHandle};
 use crate::todo;
 
-const EVENT: &str = "gitlab-changed";
+const SOURCE: SourceId = SourceId {
+    event: "gitlab-changed",
+    thread: "gitlab-refresh",
+    prefix: "gitlab",
+    target: module_path!(),
+};
 /// Set after the first seen-set write failure of a session was logged as a
 /// warning; later failures log at debug level.
 static SEEN_SET_WARNED: AtomicBool = AtomicBool::new(false);
 
+impl RefreshSnapshot for GitlabSnapshot {
+    fn seq(&self) -> u64 {
+        self.seq
+    }
+
+    fn begin_refresh(&mut self) {
+        self.refreshing = true;
+        self.seq += 1;
+    }
+}
+
 /// Managed state of the GitLab list, shared by the refresh thread, the health
 /// round and the commands.
 pub struct GitlabRefreshState {
-    snapshot: RwLock<GitlabSnapshot>,
+    cell: SourceCell<GitlabSnapshot>,
     /// The host and user the kept items came from. Read by the commands under
     /// `hidden_gate`; written by the refresh thread under it.
     kept_config: Mutex<Option<GitlabConfig>>,
@@ -89,17 +111,13 @@ pub struct GitlabRefreshState {
     last_mark: Mutex<Option<(String, i64)>>,
     /// Serializes a round's commit-and-store step with the hidden-issue commands.
     hidden_gate: Mutex<()>,
-    /// Wakes the refresh thread for an immediate round.
-    wake: mpsc::Sender<()>,
-    /// `seq` of the last snapshot pushed to the webview.
-    published: Mutex<u64>,
 }
 
 impl GitlabRefreshState {
     fn new() -> (Self, mpsc::Receiver<()>) {
-        let (wake, rx) = mpsc::channel();
+        let (cell, rx) = SourceCell::new(GitlabSnapshot::starting(), SOURCE);
         let state = GitlabRefreshState {
-            snapshot: RwLock::new(GitlabSnapshot::starting()),
+            cell,
             kept_config: Mutex::new(None),
             kept_full: Mutex::new(None),
             kept_filter: Mutex::new(GitlabFilter::default()),
@@ -107,8 +125,6 @@ impl GitlabRefreshState {
             shown_until: Mutex::new(None),
             last_mark: Mutex::new(None),
             hidden_gate: Mutex::new(()),
-            wake,
-            published: Mutex::new(0),
         };
         (state, rx)
     }
@@ -116,26 +132,28 @@ impl GitlabRefreshState {
     /// The stored snapshot (`starting` before the first round): a clone under a
     /// short lock.
     pub fn snapshot(&self) -> GitlabSnapshot {
-        self.read().clone()
+        self.cell.snapshot()
     }
 
     /// Asks the refresh thread for a round. Bursts coalesce; fails only when the
     /// thread is gone.
     pub fn wake(&self) -> Result<(), mpsc::SendError<()>> {
-        self.wake.send(())
+        self.cell.wake()
     }
 
-    /// One hidden-issue action on an issue of the kept full list, under
-    /// `hidden_gate`. `act` does the store op and returns the host's records as
-    /// they are afterwards; the list is re-partitioned from them and stored with
-    /// `seq + 1`. The caller publishes after this returns (the gate is released).
+    /// One hidden-item action on an issue or a merge request of the kept full
+    /// list, under `hidden_gate`. `act` does the store op and returns the host's
+    /// records of both kinds as they are afterwards; both lists are
+    /// re-partitioned from them and stored with `seq + 1`. The caller publishes
+    /// after this returns (the gate is released).
     ///
-    /// `NotInList` when `id` is not an issue of the kept list (checked before
+    /// `NotInList` when `id` of `kind` is not on the kept list (checked before
     /// `act` runs); `ListUnavailable` when there is no kept list or config.
-    pub(crate) fn act_on_issue(
+    pub(crate) fn act_on_item(
         &self,
+        kind: ItemKind,
         id: u64,
-        act: impl FnOnce(&GitlabHost, &GitlabItem) -> Result<Vec<HiddenRecord>, HiddenIssueError>,
+        act: impl FnOnce(&GitlabHost, &GitlabItem) -> Result<GitlabHidden, HiddenIssueError>,
     ) -> Result<(), HiddenIssueError> {
         let _gate = self.hidden_gate.lock().unwrap_or_else(|p| p.into_inner());
         let config = self
@@ -161,15 +179,25 @@ impl GitlabRefreshState {
         let (Some(config), Some(full)) = (config, full) else {
             return Err(HiddenIssueError::ListUnavailable);
         };
-        let item = full
-            .issues
-            .iter()
-            .find(|i| i.id == id && i.kind == ItemKind::Issue)
+        let listed: Vec<&GitlabItem> = match kind {
+            ItemKind::Issue => full.issues.iter().collect(),
+            ItemKind::MergeRequest => full
+                .merge_requests
+                .iter()
+                .chain(&full.review_requests)
+                .collect(),
+        };
+        let item = listed
+            .into_iter()
+            .find(|i| i.id == id && i.kind == kind)
             .ok_or(HiddenIssueError::NotInList)?;
-        let records = act(&config.host, item)?;
-        let (shown, filtered_out) = shape_items(&full, &records, &fresh, &filter);
-        // The checks ran on every hidden issue, so the cap ignores the filter.
-        let hidden_total = shown.hidden_issues.len() as u32 + filtered_out.hidden_issues;
+        let hidden = act(&config.host, item)?;
+        let (shown, filtered_out) = shape_items(&full, &hidden, &fresh, &filter);
+        // The checks ran on every hidden item, so the cap ignores the filter.
+        let hidden_total = shown.hidden_issues.len() as u32
+            + filtered_out.hidden_issues
+            + shown.hidden_merge_requests.len() as u32
+            + filtered_out.hidden_merge_requests;
         // One write: a concurrent "refreshing" flag flip must not be lost.
         let mut snap = self.write();
         // Failed checks are only counted per round; never more than are hidden.
@@ -255,12 +283,8 @@ impl GitlabRefreshState {
         Ok(true)
     }
 
-    fn read(&self) -> RwLockReadGuard<'_, GitlabSnapshot> {
-        self.snapshot.read().unwrap_or_else(|p| p.into_inner())
-    }
-
     fn write(&self) -> RwLockWriteGuard<'_, GitlabSnapshot> {
-        self.snapshot.write().unwrap_or_else(|p| p.into_inner())
+        self.cell.write()
     }
 }
 
@@ -270,16 +294,22 @@ fn filter_shown(shown: AssignedItems, filter: &GitlabFilter) -> (AssignedItems, 
     let (merge_requests, mrs_out) = filter.apply(&shown.merge_requests);
     let (issues, issues_out) = filter.apply(&shown.issues);
     let (hidden_issues, hidden_out) = filter.apply(&shown.hidden_issues);
+    let (review_requests, review_out) = filter.apply(&shown.review_requests);
+    let (hidden_merge_requests, hidden_mrs_out) = filter.apply(&shown.hidden_merge_requests);
     (
         AssignedItems {
             merge_requests,
             issues,
             hidden_issues,
+            review_requests,
+            hidden_merge_requests,
         },
         FilteredOut {
             merge_requests: mrs_out,
             issues: issues_out,
             hidden_issues: hidden_out,
+            review_requests: review_out,
+            hidden_merge_requests: hidden_mrs_out,
         },
     )
 }
@@ -289,15 +319,22 @@ fn filter_shown(shown: AssignedItems, filter: &GitlabFilter) -> (AssignedItems, 
 /// failed round that re-shapes the kept list.
 fn shape_items(
     full: &AssignedItems,
-    records: &[HiddenRecord],
+    hidden: &GitlabHidden,
     fresh: &HashSet<ItemKey>,
     filter: &GitlabFilter,
 ) -> (AssignedItems, FilteredOut) {
-    let (visible, hidden) = partition(&full.issues, records);
+    let (visible, hidden_issues) = partition(&full.issues, &hidden.issues);
+    let mrs = partition_merge_requests(
+        &full.merge_requests,
+        &full.review_requests,
+        &hidden.merge_requests,
+    );
     let mut items = AssignedItems {
-        merge_requests: full.merge_requests.clone(),
+        merge_requests: mrs.merge_requests,
         issues: visible,
-        hidden_issues: hidden,
+        hidden_issues,
+        review_requests: mrs.review_requests,
+        hidden_merge_requests: mrs.hidden,
     };
     mark_fresh(&mut items, fresh);
     filter_shown(items, filter)
@@ -315,7 +352,7 @@ fn shape_items(
 fn reshape_kept(
     next: &mut GitlabSnapshot,
     full: Option<&AssignedItems>,
-    records: Option<&[HiddenRecord]>,
+    records: Option<&GitlabHidden>,
     fresh: &HashSet<ItemKey>,
     filter: &GitlabFilter,
     filter_invalid: bool,
@@ -444,44 +481,37 @@ pub fn manage(app: &tauri::App) -> mpsc::Receiver<()> {
 /// dir cannot be resolved.
 pub fn start(app: &AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Receiver<()>) {
     let a = app.clone();
-    if let Err(e) = std::thread::Builder::new()
-        .name("gitlab-refresh".into())
-        .spawn(move || refresh_loop(a, settings_path, wake_rx))
-    {
-        log::error!("gitlab: cannot start refresh thread: {e}");
-        // Never leave the view on "Pobieram…" and the tray green: store an error
-        // the view and the health round both show.
-        let state = app.state::<GitlabRefreshState>();
-        let next = {
-            let prev = state.snapshot();
-            gitlab::next_snapshot(&prev, None, None, Err(GitlabError::ThreadDown), now_ms()).0
-        };
-        *state.write() = next;
-        publish(app, &state);
-        let _ = app.state::<HealthState>().wake.send(());
-    }
+    let state = app.state::<GitlabRefreshState>();
+    // Never leave the view on "Pobieram…" and the tray green: when the thread
+    // cannot start, store an error the view and the health round both show.
+    state.cell.start_thread(
+        app,
+        move || refresh_loop(a, settings_path, wake_rx),
+        |prev| gitlab::next_snapshot(prev, None, None, Err(GitlabError::ThreadDown), now_ms()).0,
+    );
 }
 
 fn refresh_loop(app: AppHandle, settings_path: Option<PathBuf>, wake_rx: mpsc::Receiver<()>) {
     let runner = CliRunner::system();
     // The issue whose notes call stopped the last round; checks resume after it.
     let mut resume_after = None;
+    // The merge request whose notes call stopped the last round's MR checks.
+    let mut mr_resume_after = None;
+    // Whether the last round skipped the MR calls after an issue stop.
+    let mut mr_skipped = false;
     // Session memory for new-assignment toasts while the store fails.
     let mut session_seen = SessionSeen::new();
-    loop {
-        let wait = refresh_round(
+    source_refresh::run_loop(wake_rx, || {
+        refresh_round(
             &app,
             &settings_path,
             &runner,
             &mut resume_after,
+            &mut mr_resume_after,
+            &mut mr_skipped,
             &mut session_seen,
-        );
-        match wake_rx.recv_timeout(wait) {
-            Ok(()) => while wake_rx.try_recv().is_ok() {},
-            Err(RecvTimeoutError::Timeout) => {}
-            Err(RecvTimeoutError::Disconnected) => return,
-        }
-    }
+        )
+    });
 }
 
 /// Short, value-free name of a snapshot state for log lines.
@@ -537,6 +567,8 @@ fn refresh_round(
     settings_path: &Option<PathBuf>,
     runner: &CliRunner,
     resume_after: &mut Option<u64>,
+    mr_resume_after: &mut Option<u64>,
+    mr_skipped: &mut bool,
     session_seen: &mut SessionSeen,
 ) -> Duration {
     let (minutes, refresh_invalid) = refresh_interval(settings_path);
@@ -548,12 +580,7 @@ fn refresh_round(
     let before_status = health::gitlab_status(&before);
 
     // Show "refreshing" first; the stored items and state stay as they were.
-    {
-        let mut guard = state.write();
-        guard.refreshing = true;
-        guard.seq += 1;
-    }
-    publish(app, &state);
+    state.cell.begin_round(app);
 
     let (config, fetched) = run_fetch(settings_path, runner);
 
@@ -563,7 +590,21 @@ fn refresh_round(
         (Some(cfg), Ok(full)) => {
             let checks = check_round(&store, runner, cfg, full, now_ms() as i64, *resume_after);
             *resume_after = checks.stopped_at();
-            Some(checks)
+            // An issue call that stopped the round (no VPN, logged out, no glab)
+            // skips the MR calls too, but never two rounds in a row.
+            let calls_allowed = mr_calls_allowed(checks.stopped_at().is_some(), *mr_skipped);
+            *mr_skipped = !calls_allowed;
+            let mr_checks = check_mr_round(
+                &store,
+                runner,
+                cfg,
+                full,
+                now_ms() as i64,
+                *mr_resume_after,
+                calls_allowed,
+            );
+            *mr_resume_after = mr_checks.stopped_at();
+            Some((checks, mr_checks))
         }
         _ => None,
     };
@@ -606,15 +647,22 @@ fn refresh_round(
     let mut full_list = None;
     let mut filtered_out = FilteredOut::default();
     let outcome = match (&config, fetched, checks) {
-        (Some(cfg), Ok(full), Some(checks)) => {
+        (Some(cfg), Ok(full), Some((checks, mr_checks))) => {
             let round = commit_round(&store, &cfg.host, &full, checks, now_ms() as i64);
-            check_failed = round.check_failed;
-            hidden_error = round.store_error.as_ref().map(HiddenIssueError::message_pl);
+            let mr = commit_mr_round(&store, &cfg.host, &full, mr_checks, now_ms() as i64);
+            check_failed = round.check_failed + mr.check_failed;
+            hidden_error = round
+                .store_error
+                .as_ref()
+                .or(mr.store_error.as_ref())
+                .map(HiddenIssueError::message_pl);
             // The filter applies after the partition; `full` stays unfiltered.
             let mut items = AssignedItems {
-                merge_requests: full.merge_requests.clone(),
+                merge_requests: mr.merge_requests,
                 issues: round.visible_issues,
                 hidden_issues: round.hidden_issues,
+                review_requests: mr.review_requests,
+                hidden_merge_requests: mr.hidden_merge_requests,
             };
             mark_fresh(&mut items, &round_fresh);
             let (shown, out) = filter_shown(items, &filter);
@@ -663,7 +711,7 @@ fn refresh_round(
     let kept_records = match (&full_list, &next_kept) {
         (None, Some(cfg)) if next.items.is_some() => {
             let today = Local::now().naive_local().date();
-            store.with_store(today, |s| list_hidden(s, &cfg.host)).ok()
+            store.with_store(today, |s| list_gitlab(s, &cfg.host)).ok()
         }
         _ => None,
     };
@@ -690,7 +738,7 @@ fn refresh_round(
                 if reshape_kept(
                     &mut next,
                     kept_full.as_ref(),
-                    kept_records.as_deref(),
+                    kept_records.as_ref(),
                     &kept_new,
                     &filter,
                     filter_invalid,
@@ -708,31 +756,19 @@ fn refresh_round(
     // "To do" reconciles on the full list, never the filtered one.
     let todo_changed = reconcile_todo(app, &next, round_full.as_ref());
     // The wait starts when the snapshot is stored.
-    next.next_refresh_at_ms = Some(now_ms().saturating_add(wait.as_millis() as u64));
+    next.next_refresh_at_ms = Some(source_refresh::next_refresh_at_ms(wait));
     *state.write() = next;
     drop(gate);
     publish(app, &state);
-    if todo_changed && let Err(e) = app.emit(todo::CHANGED_EVENT, ()) {
-        log::warn!("todo: emit failed: {e}");
-    }
-    if todo_changed {
-        events::commands::notify(app);
-    }
+    SOURCE.notify_todo_changed(app, todo_changed);
     // After the gate and the publish: no lock is held while a toast shows.
     if let (true, Some(full), Some((_, outcome))) = (may_notify, &round_full, &seen) {
         toast_new_assignments(app, full, &outcome.toast_keys);
     }
 
-    if from != to {
-        log::info!("gitlab: {from} -> {to}");
-    }
-    log::debug!("gitlab: round {to} in {} ms", started.elapsed().as_millis());
-
-    if before_status != after_status {
-        // The GitLab source status changed: run a health round now instead of
-        // waiting up to 30 s for the tray to catch up.
-        let _ = app.state::<HealthState>().wake.send(());
-    }
+    // A changed GitLab source status runs a health round now instead of waiting
+    // up to 30 s for the tray to catch up.
+    SOURCE.end_round(app, &from, &to, started, before_status != after_status);
     wait
 }
 
@@ -779,6 +815,7 @@ fn record_seen(
     now_ms: i64,
 ) -> SeenOutcome {
     let current = keys_of(full);
+    let review_only = review_only_keys(full);
     // Day and event time both come from the round's instant, so they agree.
     let now_local = Local
         .timestamp_millis_opt(now_ms)
@@ -787,7 +824,7 @@ fn record_seen(
     let today = now_local.date();
     let mut events_stored = false;
     let recorded = app.state::<StoreHandle>().with_store(today, |s| {
-        let round = record_round(s, account, &current, now_ms)?;
+        let round = record_round(s, account, &current, &review_only, now_ms)?;
         // The event log must never change the round's outcome: its failure is
         // logged by kind only and the toasts and NEW flags stay as they are.
         if !round.new.is_empty() {
@@ -832,13 +869,18 @@ fn record_seen(
     SeenOutcome { toast_keys, fresh }
 }
 
-/// Shows a toast for every new item. Runs after the publish, outside every lock.
+/// Shows a toast for every new item, unless `notices` turns them off. Runs after
+/// the publish, outside every lock.
 fn toast_new_assignments(app: &AppHandle, full: &AssignedItems, new_keys: &[ItemKey]) {
     if new_keys.is_empty() {
         return;
     }
     let items = items_for(full, new_keys);
     log::info!("gitlab: {} new assignments", items.len());
+    let path = crate::settings_file::settings_path(app);
+    if !notice_settings(path.as_deref()).allows(Toast::NewAssignments) {
+        return;
+    }
     for notice in notices_for(&items) {
         toast(app, "gitlab", &notice.title, &notice.body);
     }
@@ -855,44 +897,21 @@ fn reconcile_todo(app: &AppHandle, next: &GitlabSnapshot, full: Option<&Assigned
     let result = app.state::<StoreHandle>().with_store(now.date(), |s| {
         todo::reconcile_gitlab(s, account, items, now.date(), now)
     });
-    match result {
-        Ok(changed) => {
-            if changed > 0 {
-                log::debug!("todo: reconcile changed {changed} rows");
-            }
-            changed > 0
-        }
-        // An unopenable store is reported by the health round; a warning every
-        // GitLab round would only repeat it.
-        Err(e @ todo::TodoError::Store(_)) => {
-            log::debug!("todo: reconcile failed: {}", e.kind());
-            false
-        }
-        Err(e) => {
-            log::warn!("todo: reconcile failed: {}", e.kind());
-            false
-        }
-    }
+    SOURCE.log_reconcile(result)
 }
 
 /// Pushes the stored snapshot to the webview unless a newer one was already
-/// pushed. Re-reading under `published` keeps events ordered by `seq`.
+/// pushed.
 pub(crate) fn publish(app: &AppHandle, state: &GitlabRefreshState) {
-    let mut last = state.published.lock().unwrap_or_else(|p| p.into_inner());
-    let snap = state.snapshot();
-    if snap.seq <= *last {
-        return;
-    }
-    *last = snap.seq;
-    if let Err(e) = app.emit(EVENT, &snap) {
-        log::warn!("gitlab: emit failed: {e}");
-    }
+    state.cell.publish(app);
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::gitlab::GitlabState as State;
+    use crate::hidden_issues::HiddenRecord;
+    use crate::hidden_issues::items::{HiddenItemRecord, HiddenKind, HiddenSource};
 
     /// A snapshot with only `state` set; the hidden-issue fields keep their
     /// `starting` defaults.
@@ -930,6 +949,8 @@ mod tests {
             merge_requests: vec![],
             issues: vec![entry(1, ItemKind::Issue)],
             hidden_issues: vec![],
+            review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         let with = |state| GitlabSnapshot {
             state,
@@ -994,6 +1015,8 @@ mod tests {
                 entry_in(4, ItemKind::Issue, "acme/b"),
             ],
             hidden_issues: vec![entry_in(5, ItemKind::Issue, "acme/b")],
+            review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         let (out, counts) = filter_shown(shown.clone(), &project_filter("acme/a"));
         assert_eq!(out.merge_requests, vec![shown.merge_requests[0].clone()]);
@@ -1003,7 +1026,9 @@ mod tests {
             FilteredOut {
                 merge_requests: 1,
                 issues: 2,
-                hidden_issues: 1
+                hidden_issues: 1,
+                review_requests: 0,
+                hidden_merge_requests: 0,
             }
         );
         // The default filter changes nothing.
@@ -1023,6 +1048,8 @@ mod tests {
                 entry_in(2, ItemKind::Issue, "acme/b"),
             ],
             hidden_issues: vec![],
+            review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         let (shown, _) = filter_shown(full.clone(), &project_filter("acme/a"));
         let snapshot = GitlabSnapshot {
@@ -1046,8 +1073,10 @@ mod tests {
                 entry_in(4, ItemKind::Issue, "acme/b"),
             ],
             hidden_issues: vec![],
+            review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
-        let records = [record(2, None)];
+        let records = issues_only(vec![record(2, None)]);
         let (shown, out) = shape_items(&full, &records, &HashSet::new(), &project_filter("acme/a"));
         assert_eq!(shown.issues.len(), 1);
         assert_eq!(shown.issues[0].id, 1);
@@ -1059,7 +1088,9 @@ mod tests {
             FilteredOut {
                 merge_requests: 1,
                 issues: 1,
-                hidden_issues: 0
+                hidden_issues: 0,
+                review_requests: 0,
+                hidden_merge_requests: 0,
             }
         );
         // After an invalid block the default filter shows every item again.
@@ -1087,8 +1118,15 @@ mod tests {
                 entry_in(4, ItemKind::Issue, "acme/b"),
             ],
             hidden_issues: vec![],
+            review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
-        let (shown, out) = shape_items(&full, &[], &HashSet::new(), &project_filter("acme/a"));
+        let (shown, out) = shape_items(
+            &full,
+            &GitlabHidden::default(),
+            &HashSet::new(),
+            &project_filter("acme/a"),
+        );
         let next = GitlabSnapshot {
             state: State::Unavailable {
                 message: String::new(),
@@ -1107,6 +1145,74 @@ mod tests {
         (next, full)
     }
 
+    #[test]
+    fn filter_shown_filters_and_counts_review_requests_like_merge_requests() {
+        let shown = AssignedItems {
+            review_requests: vec![
+                entry_in(1, ItemKind::MergeRequest, "acme/a"),
+                entry_in(2, ItemKind::MergeRequest, "acme/b"),
+                entry_in(3, ItemKind::MergeRequest, "acme/b"),
+            ],
+            ..AssignedItems::default()
+        };
+        let (out, counts) = filter_shown(shown.clone(), &project_filter("acme/a"));
+        assert_eq!(out.review_requests, vec![shown.review_requests[0].clone()]);
+        assert_eq!(counts.review_requests, 2);
+        assert_eq!(counts.merge_requests, 0);
+    }
+
+    #[test]
+    fn filter_shown_filters_and_counts_hidden_merge_requests() {
+        let shown = AssignedItems {
+            hidden_merge_requests: vec![
+                entry_in(1, ItemKind::MergeRequest, "acme/a"),
+                entry_in(2, ItemKind::MergeRequest, "acme/b"),
+            ],
+            ..AssignedItems::default()
+        };
+        let (out, counts) = filter_shown(shown.clone(), &project_filter("acme/a"));
+        assert_eq!(
+            out.hidden_merge_requests,
+            vec![shown.hidden_merge_requests[0].clone()]
+        );
+        assert_eq!(counts.hidden_merge_requests, 1);
+        assert_eq!(counts.review_requests, 0);
+    }
+
+    #[test]
+    fn shape_items_and_reshape_kept_keep_the_review_items() {
+        let full = AssignedItems {
+            review_requests: vec![entry_in(8, ItemKind::MergeRequest, "acme/a")],
+            hidden_merge_requests: Vec::new(),
+            ..AssignedItems::default()
+        };
+        let (shown, out) = shape_items(
+            &full,
+            &GitlabHidden::default(),
+            &HashSet::new(),
+            &GitlabFilter::default(),
+        );
+        assert_eq!(shown.review_requests, full.review_requests);
+        assert_eq!(out, FilteredOut::default());
+        let mut next = GitlabSnapshot {
+            state: State::Unavailable {
+                message: String::new(),
+            },
+            items: Some(shown),
+            ..GitlabSnapshot::starting()
+        };
+        assert!(reshape_kept(
+            &mut next,
+            Some(&full),
+            Some(&GitlabHidden::default()),
+            &HashSet::new(),
+            &project_filter("acme/zzz"),
+            false
+        ));
+        assert!(next.items.as_ref().unwrap().review_requests.is_empty());
+        assert_eq!(next.filtered_out.review_requests, 1);
+    }
+
     fn closed_on(mut filter: GitlabFilter) -> GitlabFilter {
         filter.closed_days = Some(7);
         filter
@@ -1116,7 +1222,7 @@ mod tests {
     fn reshape_kept_applies_this_rounds_filter_and_hidden_records() {
         let (mut next, full) = kept_round();
         let closed = next.closed.clone();
-        let records = [record(2, None)];
+        let records = issues_only(vec![record(2, None)]);
         let filter = closed_on(project_filter("acme/b"));
         assert!(reshape_kept(
             &mut next,
@@ -1137,7 +1243,9 @@ mod tests {
             FilteredOut {
                 merge_requests: 0,
                 issues: 1,
-                hidden_issues: 1
+                hidden_issues: 1,
+                review_requests: 0,
+                hidden_merge_requests: 0,
             }
         );
         // A valid rule with the closed section on keeps the section as it was.
@@ -1150,7 +1258,7 @@ mod tests {
         assert!(reshape_kept(
             &mut next,
             Some(&full),
-            Some(&[]),
+            Some(&GitlabHidden::default()),
             &HashSet::new(),
             &GitlabFilter::default(),
             true
@@ -1169,7 +1277,7 @@ mod tests {
         assert!(reshape_kept(
             &mut next,
             Some(&full),
-            Some(&[]),
+            Some(&GitlabHidden::default()),
             &HashSet::new(),
             &project_filter("acme/a"),
             false
@@ -1209,7 +1317,7 @@ mod tests {
         assert!(!reshape_kept(
             &mut next,
             Some(&full),
-            Some(&[]),
+            Some(&GitlabHidden::default()),
             &HashSet::new(),
             &GitlabFilter::default(),
             true
@@ -1221,7 +1329,7 @@ mod tests {
         assert!(!reshape_kept(
             &mut next,
             None,
-            Some(&[]),
+            Some(&GitlabHidden::default()),
             &HashSet::new(),
             &filter,
             false
@@ -1306,6 +1414,7 @@ mod tests {
             milestone: None,
             is_new: false,
             hidden_at_ms: None,
+            review_requested: false,
         }
     }
 
@@ -1315,6 +1424,33 @@ mod tests {
             project_id: 100,
             iid: id,
             scoped_labels: vec![],
+            baseline_updated_at: "2026-03-03T08:00:00.000Z".into(),
+            settle_after_ms: None,
+            hidden_at_ms: 1,
+            absent_since_ms: None,
+            changed_reason: reason,
+            changed_at_ms: reason.map(|_| 2),
+        }
+    }
+
+    /// The GitLab records of a test with issue records only.
+    fn issues_only(issues: Vec<HiddenRecord>) -> GitlabHidden {
+        GitlabHidden {
+            issues,
+            merge_requests: vec![],
+        }
+    }
+
+    /// A merge request record of the test host, hidden at 1 like `record`.
+    fn mr_record(id: u64, reason: Option<gitlab::ChangeReason>) -> HiddenItemRecord {
+        HiddenItemRecord {
+            source: HiddenSource::Gitlab,
+            scope: host().as_str().to_string(),
+            kind: HiddenKind::MergeRequest,
+            item_id: id,
+            project_id: Some(100),
+            iid: Some(id),
+            status_fingerprint: vec![],
             baseline_updated_at: "2026-03-03T08:00:00.000Z".into(),
             settle_after_ms: None,
             hidden_at_ms: 1,
@@ -1335,6 +1471,8 @@ mod tests {
             merge_requests: vec![entry(3, ItemKind::MergeRequest)],
             issues: vec![entry(1, ItemKind::Issue), entry(2, ItemKind::Issue)],
             hidden_issues: vec![],
+            review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         });
         state
     }
@@ -1342,19 +1480,188 @@ mod tests {
     #[test]
     fn act_on_issue_without_a_kept_list_is_list_unavailable() {
         let (state, _rx) = GitlabRefreshState::new();
-        let out = state.act_on_issue(1, |_, _| panic!("no store op without a list"));
+        let out = state.act_on_item(ItemKind::Issue, 1, |_, _| {
+            panic!("no store op without a list")
+        });
         assert!(matches!(out, Err(HiddenIssueError::ListUnavailable)));
         assert_eq!(state.snapshot().seq, 0);
     }
 
     #[test]
-    fn act_on_issue_refuses_an_mr_or_an_unknown_id() {
+    fn act_on_item_matches_id_and_kind() {
         let state = kept_state();
-        for id in [3, 99] {
-            let out = state.act_on_issue(id, |_, _| panic!("no store op for {id}"));
+        // An issue id asked as a merge request, a merge request id asked as an
+        // issue and unknown ids are refused before the store op.
+        for (kind, id) in [
+            (ItemKind::MergeRequest, 1),
+            (ItemKind::Issue, 3),
+            (ItemKind::Issue, 99),
+            (ItemKind::MergeRequest, 99),
+        ] {
+            let out = state.act_on_item(kind, id, |_, _| panic!("no store op for {id}"));
             assert!(matches!(out, Err(HiddenIssueError::NotInList)));
         }
         assert_eq!(state.snapshot().seq, 0);
+    }
+
+    #[test]
+    fn act_on_item_accepts_a_merge_request_from_the_assigned_list() {
+        let state = kept_state();
+        state
+            .act_on_item(ItemKind::MergeRequest, 3, |h, item| {
+                assert_eq!(h, &host());
+                assert_eq!((item.id, item.kind), (3, ItemKind::MergeRequest));
+                Ok(GitlabHidden {
+                    issues: vec![],
+                    merge_requests: vec![mr_record(3, None)],
+                })
+            })
+            .unwrap();
+        let snap = state.snapshot();
+        let items = snap.items.unwrap();
+        // Hidden from `merge_requests`: it leaves the assigned list and the
+        // issues stay as they were.
+        assert!(items.merge_requests.is_empty());
+        assert_eq!(
+            items
+                .hidden_merge_requests
+                .iter()
+                .map(|i| (i.id, i.hidden_at_ms))
+                .collect::<Vec<_>>(),
+            [(3, Some(1))]
+        );
+        assert_eq!(items.issues.len(), 2);
+        assert_eq!(snap.seq, 1);
+    }
+
+    #[test]
+    fn act_on_item_cap_counts_hidden_merge_requests_including_filtered_out_ones() {
+        let (state, _rx) = GitlabRefreshState::new();
+        *state.kept_config.lock().unwrap() = Some(GitlabConfig {
+            host: host(),
+            user: None,
+        });
+        *state.kept_full.lock().unwrap() = Some(AssignedItems {
+            merge_requests: vec![
+                entry_in(10, ItemKind::MergeRequest, "acme/a"),
+                entry_in(11, ItemKind::MergeRequest, "acme/b"),
+                entry_in(12, ItemKind::MergeRequest, "acme/a"),
+            ],
+            ..AssignedItems::default()
+        });
+        *state.kept_filter.lock().unwrap() = project_filter("acme/a");
+        state.write().hidden_check_failed = 9;
+
+        // 10 is kept by the filter and 11 is removed by it; both count.
+        state
+            .act_on_item(ItemKind::MergeRequest, 10, |_, _| {
+                Ok(GitlabHidden {
+                    issues: vec![],
+                    merge_requests: vec![mr_record(10, None), mr_record(11, None)],
+                })
+            })
+            .unwrap();
+
+        let snap = state.snapshot();
+        let items = snap.items.unwrap();
+        assert_eq!(items.hidden_merge_requests.len(), 1);
+        assert_eq!(snap.filtered_out.hidden_merge_requests, 1);
+        assert_eq!(snap.hidden_check_failed, 2);
+    }
+
+    #[test]
+    fn reshape_kept_partitions_both_kinds_of_merge_requests() {
+        let full = AssignedItems {
+            merge_requests: vec![
+                entry(3, ItemKind::MergeRequest),
+                entry(5, ItemKind::MergeRequest),
+            ],
+            review_requests: vec![
+                entry(4, ItemKind::MergeRequest),
+                entry(6, ItemKind::MergeRequest),
+            ],
+            ..AssignedItems::default()
+        };
+        let records = GitlabHidden {
+            issues: vec![],
+            merge_requests: vec![
+                mr_record(3, None),
+                mr_record(4, None),
+                mr_record(6, Some(gitlab::ChangeReason::Comment)),
+            ],
+        };
+        let mut next = GitlabSnapshot {
+            state: State::Unavailable {
+                message: String::new(),
+            },
+            items: Some(full.clone()),
+            ..GitlabSnapshot::starting()
+        };
+        assert!(reshape_kept(
+            &mut next,
+            Some(&full),
+            Some(&records),
+            &HashSet::new(),
+            &GitlabFilter::default(),
+            false
+        ));
+        let items = next.items.unwrap();
+        let ids = |v: &[GitlabItem]| v.iter().map(|i| i.id).collect::<Vec<_>>();
+        assert_eq!(ids(&items.merge_requests), [5]);
+        assert_eq!(ids(&items.review_requests), [6]);
+        assert_eq!(ids(&items.hidden_merge_requests), [3, 4]);
+        assert_eq!(
+            items.review_requests[0].changed,
+            Some(gitlab::ChangeReason::Comment)
+        );
+    }
+
+    #[test]
+    fn act_on_item_partitions_both_kinds_from_one_result() {
+        let state = kept_state();
+        {
+            let mut kept = state.kept_full.lock().unwrap();
+            kept.as_mut()
+                .unwrap()
+                .review_requests
+                .push(entry(4, ItemKind::MergeRequest));
+        }
+        state
+            .act_on_item(ItemKind::MergeRequest, 4, |_, item| {
+                assert_eq!(item.id, 4);
+                Ok(GitlabHidden {
+                    issues: vec![record(1, None)],
+                    merge_requests: vec![
+                        mr_record(4, None),
+                        mr_record(3, Some(gitlab::ChangeReason::Comment)),
+                    ],
+                })
+            })
+            .unwrap();
+
+        let items = state.snapshot().items.unwrap();
+        // The issue record hides issue 1 too: one result, both kinds.
+        assert_eq!(
+            items.hidden_issues.iter().map(|i| i.id).collect::<Vec<_>>(),
+            [1]
+        );
+        // A hidden review-only MR leaves "Do review" for the hidden list.
+        assert!(items.review_requests.is_empty());
+        assert_eq!(
+            items
+                .hidden_merge_requests
+                .iter()
+                .map(|i| (i.id, i.hidden_at_ms))
+                .collect::<Vec<_>>(),
+            [(4, Some(1))]
+        );
+        // A marked MR stays visible in its own section with its reason.
+        assert_eq!(items.merge_requests.len(), 1);
+        assert_eq!(items.merge_requests[0].id, 3);
+        assert_eq!(
+            items.merge_requests[0].changed,
+            Some(gitlab::ChangeReason::Comment)
+        );
     }
 
     #[test]
@@ -1368,13 +1675,13 @@ mod tests {
         }
 
         state
-            .act_on_issue(1, |h, item| {
+            .act_on_item(ItemKind::Issue, 1, |h, item| {
                 assert_eq!(h, &host());
                 assert_eq!(item.id, 1);
-                Ok(vec![
+                Ok(issues_only(vec![
                     record(1, None),
                     record(2, Some(gitlab::ChangeReason::Comment)),
-                ])
+                ]))
             })
             .unwrap();
 
@@ -1414,6 +1721,8 @@ mod tests {
                 entry_in(4, ItemKind::Issue, "acme/b"),
             ],
             hidden_issues: vec![],
+            review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         });
         *state.kept_filter.lock().unwrap() = project_filter("acme/a");
         {
@@ -1424,7 +1733,9 @@ mod tests {
 
         // Hide issues 1 (kept by the filter) and 3 (removed by it).
         state
-            .act_on_issue(1, |_, _| Ok(vec![record(1, None), record(3, None)]))
+            .act_on_item(ItemKind::Issue, 1, |_, _| {
+                Ok(issues_only(vec![record(1, None), record(3, None)]))
+            })
             .unwrap();
 
         let snap = state.snapshot();
@@ -1443,7 +1754,9 @@ mod tests {
             FilteredOut {
                 merge_requests: 1,
                 issues: 1,
-                hidden_issues: 1
+                hidden_issues: 1,
+                review_requests: 0,
+                hidden_merge_requests: 0,
             }
         );
         // The round flag is left as the last round set it; the cap uses the
@@ -1456,7 +1769,9 @@ mod tests {
     fn act_on_issue_with_the_default_filter_reports_no_filter() {
         let state = kept_state();
         state
-            .act_on_issue(1, |_, _| Ok(vec![record(1, None)]))
+            .act_on_item(ItemKind::Issue, 1, |_, _| {
+                Ok(issues_only(vec![record(1, None)]))
+            })
             .unwrap();
         let snap = state.snapshot();
         assert!(!snap.filter_active);
@@ -1476,7 +1791,9 @@ mod tests {
         };
         state.write().closed = Some(closed.clone());
         state
-            .act_on_issue(1, |_, _| Ok(vec![record(1, None)]))
+            .act_on_item(ItemKind::Issue, 1, |_, _| {
+                Ok(issues_only(vec![record(1, None)]))
+            })
             .unwrap();
         assert_eq!(state.snapshot().closed, Some(closed));
     }
@@ -1491,7 +1808,9 @@ mod tests {
             snap.next_refresh_at_ms = Some(99);
         }
         state
-            .act_on_issue(1, |_, _| Ok(vec![record(1, None)]))
+            .act_on_item(ItemKind::Issue, 1, |_, _| {
+                Ok(issues_only(vec![record(1, None)]))
+            })
             .unwrap();
         let snap = state.snapshot();
         assert!(snap.refresh_setting_invalid);
@@ -1514,7 +1833,7 @@ mod tests {
     #[test]
     fn act_on_issue_store_error_leaves_the_snapshot_alone() {
         let state = kept_state();
-        let out = state.act_on_issue(1, |_, _| Err(HiddenIssueError::NotFound));
+        let out = state.act_on_item(ItemKind::Issue, 1, |_, _| Err(HiddenIssueError::NotFound));
         assert!(matches!(out, Err(HiddenIssueError::NotFound)));
         assert_eq!(state.snapshot(), GitlabSnapshot::starting());
     }
@@ -1537,7 +1856,12 @@ mod tests {
         ];
         let set = state.accept_round(Some(account), now_ms, Some(&fresh));
         let full = state.kept_full.lock().unwrap().clone().unwrap();
-        let (shown, _) = shape_items(&full, &[], &set, &GitlabFilter::default());
+        let (shown, _) = shape_items(
+            &full,
+            &GitlabHidden::default(),
+            &set,
+            &GitlabFilter::default(),
+        );
         let mut snap = state.write();
         snap.state = State::Ok;
         snap.items = Some(shown);
@@ -1565,6 +1889,8 @@ mod tests {
             ],
             issues: vec![entry(1, ItemKind::Issue), entry(2, ItemKind::Issue)],
             hidden_issues: vec![],
+            review_requests: Vec::new(),
+            hidden_merge_requests: Vec::new(),
         };
         // Issue 2 is hidden: even when in the set it is never NEW. The MR 1
         // key (same id as issue 1, other kind) flags nothing.
@@ -1574,7 +1900,12 @@ mod tests {
             key(ItemKind::Issue, 2),
             key(ItemKind::MergeRequest, 1),
         ]);
-        let (shown, _) = shape_items(&full, &[record(2, None)], &fresh, &GitlabFilter::default());
+        let (shown, _) = shape_items(
+            &full,
+            &issues_only(vec![record(2, None)]),
+            &fresh,
+            &GitlabFilter::default(),
+        );
         assert_eq!(
             new_flags(&shown),
             [(3, true), (4, false), (1, true), (2, false)]
@@ -1586,7 +1917,9 @@ mod tests {
     fn act_on_issue_keeps_is_new_and_hidden_at_after_hiding_another_issue() {
         let state = shown_state("account-a", 100);
         state
-            .act_on_issue(2, |_, _| Ok(vec![record(2, None)]))
+            .act_on_item(ItemKind::Issue, 2, |_, _| {
+                Ok(issues_only(vec![record(2, None)]))
+            })
             .unwrap();
         let items = state.snapshot().items.unwrap();
         assert_eq!(new_flags(&items), [(3, true), (1, true), (2, false)]);
@@ -1600,7 +1933,7 @@ mod tests {
         assert!(reshape_kept(
             &mut next,
             Some(&full),
-            Some(&[]),
+            Some(&GitlabHidden::default()),
             &fresh,
             &GitlabFilter::default(),
             false

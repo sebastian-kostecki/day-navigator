@@ -30,11 +30,22 @@ const GH_TITLE_MARKER: &str = "LEAK-MARKER-GH-TITLE-5a8e";
 /// Marker in a label name of the same issue (`gh-issues`, `octo-test/alpha#3`);
 /// tests assert it reaches the issue's labels and nothing else.
 const GH_LABEL_MARKER: &str = "LEAK-MARKER-GH-LABEL-3d9f";
+/// Marker in every comment body of the `gh-hidden-*` scenarios; tests assert it
+/// never shows up in an error, a `Debug` output or a log.
+const GH_COMMENT_MARKER: &str = "LEAK-MARKER-GH-COMMENT-8d3a";
+/// The invented login `gh api user` returns in the `gh-hidden-*` scenarios.
+const GH_LOGIN_MARKER: &str = "LEAK-MARKER-GH-LOGIN-6b1c";
 
 /// The one issue that has notes in the notes scenarios: project and in-project
 /// number of "Widget crashes on start". Any other issue gets an empty array.
 const NOTES_PROJECT_ID: u64 = 102;
 const NOTES_IID: u64 = 12;
+
+/// The merge requests that have notes in the notes scenarios, as (project id,
+/// iid): MR 6002 `acme/widgets!34` (assigned and awaiting review) and MR 6101
+/// `acme/gadgets!21` (review-only). Every other merge request, including
+/// 6003 `(102, 12)`, gets `[]`: its notes call is told apart by path.
+const MR_NOTES_KEYS: [(u64, u64); 2] = [(102, 34), (104, 21)];
 
 /// Which endpoint was asked for, from the `glab api` arguments.
 #[derive(PartialEq)]
@@ -45,8 +56,15 @@ enum Endpoint {
     ClosedMergeRequests,
     /// `issues?...state=closed...` (recently closed).
     ClosedIssues,
+    /// `merge_requests?scope=reviews_for_me...` or `...&reviewer_username=...`.
+    ReviewMergeRequests,
     /// `projects/<project_id>/issues/<iid>/notes?...`
     Notes {
+        project_id: u64,
+        iid: u64,
+    },
+    /// `projects/<project_id>/merge_requests/<iid>/notes?...`
+    MrNotes {
         project_id: u64,
         iid: u64,
     },
@@ -56,11 +74,36 @@ enum Endpoint {
 fn parse_notes_endpoint(arg: &str) -> Option<Endpoint> {
     let rest = arg.strip_prefix("projects/")?;
     let (ids, _query) = rest.split_once("/notes?")?;
-    let (project, iid) = ids.split_once("/issues/")?;
-    Some(Endpoint::Notes {
+    if let Some((project, iid)) = ids.split_once("/issues/") {
+        return Some(Endpoint::Notes {
+            project_id: project.parse().ok()?,
+            iid: iid.parse().ok()?,
+        });
+    }
+    let (project, iid) = ids.split_once("/merge_requests/")?;
+    Some(Endpoint::MrNotes {
         project_id: project.parse().ok()?,
         iid: iid.parse().ok()?,
     })
+}
+
+/// The (project id, iid) of a notes call and whether it is a merge request's.
+fn notes_target(endpoint: &Endpoint) -> Option<(u64, u64, bool)> {
+    match endpoint {
+        Endpoint::Notes { project_id, iid } => Some((*project_id, *iid, false)),
+        Endpoint::MrNotes { project_id, iid } => Some((*project_id, *iid, true)),
+        _ => None,
+    }
+}
+
+/// Whether the fixed fake GitLab has notes for this notes call: the issue
+/// (102, 12), or a merge request listed in `MR_NOTES_KEYS`.
+fn has_notes(endpoint: &Endpoint) -> bool {
+    match notes_target(endpoint) {
+        Some((project_id, iid, true)) => MR_NOTES_KEYS.contains(&(project_id, iid)),
+        Some((project_id, iid, false)) => project_id == NOTES_PROJECT_ID && iid == NOTES_IID,
+        None => false,
+    }
 }
 
 fn endpoint() -> Endpoint {
@@ -71,6 +114,11 @@ fn endpoint() -> Endpoint {
         }
         if arg.starts_with("issues?") && arg.contains("&state=closed&") {
             return Endpoint::ClosedIssues;
+        }
+        if arg.starts_with("merge_requests?")
+            && (arg.contains("scope=reviews_for_me") || arg.contains("&reviewer_username="))
+        {
+            return Endpoint::ReviewMergeRequests;
         }
         if arg.starts_with("merge_requests?") {
             return Endpoint::MergeRequests;
@@ -263,6 +311,42 @@ fn gitlab_assigned_body(endpoint: &Endpoint, paged: bool) -> Option<String> {
                 "references": { "full": "acme/widgets!12" }
             }
         ]),
+        Endpoint::ReviewMergeRequests => serde_json::json!([
+            {
+                "id": 6101,
+                "iid": 21,
+                "project_id": 104,
+                "title": "Review gadget cache",
+                "web_url": "https://gitlab.example.invalid/acme/gadgets/-/merge_requests/21",
+                "updated_at": "2026-03-03T08:00:00.000Z",
+                "labels": ["backend"],
+                "draft": false,
+                "references": { "full": "acme/gadgets!21" }
+            },
+            {
+                "id": 6102,
+                "iid": 5,
+                "project_id": 105,
+                "title": "Tune sprocket timeouts",
+                "web_url": "https://gitlab.example.invalid/acme/sprockets/-/merge_requests/5",
+                "updated_at": "2026-03-03T09:00:00.000Z",
+                "labels": [],
+                "milestone": { "id": 31, "iid": 2, "title": "Sprint 7" },
+                "draft": false,
+                "references": { "full": "acme/sprockets!5" }
+            },
+            {
+                "id": 6002,
+                "iid": 34,
+                "project_id": 102,
+                "title": "Add widget parser",
+                "web_url": "https://gitlab.example.invalid/acme/widgets/-/merge_requests/34",
+                "updated_at": "2026-03-02T10:00:00.000Z",
+                "labels": ["backend", "review"],
+                "draft": true,
+                "references": { "full": "acme/widgets!34" }
+            }
+        ]),
         Endpoint::Issues => {
             let issues = issue_values();
             if paged {
@@ -277,7 +361,7 @@ fn gitlab_assigned_body(endpoint: &Endpoint, paged: bool) -> Option<String> {
         Endpoint::ClosedMergeRequests | Endpoint::ClosedIssues => {
             return gitlab_closed_body(endpoint);
         }
-        Endpoint::Notes { .. } | Endpoint::Other => return None,
+        Endpoint::Notes { .. } | Endpoint::MrNotes { .. } | Endpoint::Other => return None,
     };
     Some(body.to_string())
 }
@@ -297,10 +381,8 @@ fn note_value(author: &str, system: bool, created_at: &str) -> serde_json::Value
 /// a notes scenario or the endpoint is not a notes call. Only the fixed
 /// project/iid has notes; any other issue gets `[]`.
 fn gitlab_notes_body(scenario: &str, endpoint: &Endpoint) -> Option<String> {
-    let Endpoint::Notes { project_id, iid } = endpoint else {
-        return None;
-    };
-    let mine = *project_id == NOTES_PROJECT_ID && *iid == NOTES_IID;
+    notes_target(endpoint)?;
+    let mine = has_notes(endpoint);
     let notes: Vec<serde_json::Value> = match (scenario, mine) {
         (_, false) => vec![],
         // A comment by someone else, older ones by the configured user.
@@ -361,11 +443,11 @@ fn record_notes_call() {
 fn gitlab_notes_scenario(scenario: &str) -> i32 {
     let endpoint = endpoint();
     let paged = scenario == "gitlab-two-pages";
-    if matches!(endpoint, Endpoint::Notes { .. }) {
+    if notes_target(&endpoint).is_some() {
         record_notes_call();
     }
     let body = match &endpoint {
-        Endpoint::Notes { .. } => match scenario {
+        Endpoint::Notes { .. } | Endpoint::MrNotes { .. } => match scenario {
             "gitlab-notes-unavailable" => {
                 eprint!("{GLAB_NO_NETWORK}");
                 return 1;
@@ -373,10 +455,10 @@ fn gitlab_notes_scenario(scenario: &str) -> i32 {
             // Only the issue without notes is unreachable (like a slow call that
             // timed out); the one with notes answers as in `gitlab-notes-other`.
             "gitlab-notes-one-unavailable" => {
-                let Endpoint::Notes { project_id, iid } = &endpoint else {
+                if notes_target(&endpoint).is_none() {
                     return 98;
-                };
-                if (*project_id, *iid) != (NOTES_PROJECT_ID, NOTES_IID) {
+                }
+                if !has_notes(&endpoint) {
                     eprint!("{GLAB_NO_NETWORK}");
                     return 1;
                 }
@@ -525,6 +607,127 @@ fn gh_issues_scenario() -> i32 {
     }
 }
 
+fn gh_comment_value(login: Option<&str>, created: &str) -> serde_json::Value {
+    let author = match login {
+        Some(login) => serde_json::json!({ "login": login }),
+        None => serde_json::Value::Null,
+    };
+    serde_json::json!({
+        "id": "IC_invented",
+        "author": author,
+        "authorAssociation": "NONE",
+        "body": format!("Invented comment {GH_COMMENT_MARKER}"),
+        "createdAt": created,
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/octo-test/alpha/issues/3#issuecomment-1",
+        "viewerDidAuthor": false
+    })
+}
+
+/// The `gh-hidden-*` scenarios. `gh issue list` is routed like `gh-issues`
+/// (alpha has #3 and #11, beta has #5), `gh api user` returns an invented
+/// login, and `gh issue view <N> --json comments` returns the comments the
+/// scenario names for every issue. All comments are dated after the issues'
+/// `updatedAt`, except in `gh-hidden-old`. Invented data only.
+fn gh_hidden_scenario(scenario: &str) -> i32 {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let first = args.first().map(String::as_str);
+    let second = args.get(1).map(String::as_str);
+    match (first, second) {
+        (Some("api"), Some("user")) => {
+            if scenario == "gh-hidden-user-fails" {
+                eprintln!("something unexpected happened");
+                return 2;
+            }
+            println!(
+                "{}",
+                serde_json::json!({ "login": GH_LOGIN_MARKER, "id": 1, "type": "User" })
+            );
+            0
+        }
+        (Some("issue"), Some("list")) => match gh_repo_arg().as_deref() {
+            Some("octo-test/alpha") => {
+                let mut issues = Vec::new();
+                if scenario != "gh-hidden-closed" {
+                    issues.push(gh_issue_value(
+                        "octo-test/alpha",
+                        3,
+                        "Gizmo jitters",
+                        "2026-02-20T08:00:00Z",
+                        &["bug"],
+                    ));
+                }
+                issues.push(gh_issue_value(
+                    "octo-test/alpha",
+                    11,
+                    "Widget crashes on start",
+                    "2026-03-03T08:00:00Z",
+                    &["bug", "needs-triage"],
+                ));
+                println!("{}", serde_json::Value::Array(issues));
+                0
+            }
+            Some("octo-test/beta") => {
+                if scenario == "gh-hidden-beta-fails" {
+                    eprintln!("something unexpected happened");
+                    return 2;
+                }
+                let issues = vec![gh_issue_value(
+                    "octo-test/beta",
+                    5,
+                    "Sprocket squeaks",
+                    "2026-02-25T08:00:00Z",
+                    &[],
+                )];
+                println!("{}", serde_json::Value::Array(issues));
+                0
+            }
+            _ => 98,
+        },
+        (Some("issue"), Some("view"))
+            if args.len() == 7
+                && args[2].parse::<u64>().is_ok()
+                && args[3] == "-R"
+                && args[5] == "--json"
+                && args[6] == "comments" =>
+        {
+            let later = "2026-03-10T09:00:00Z";
+            let comments: Vec<serde_json::Value> = match scenario {
+                "gh-hidden-other" => vec![gh_comment_value(Some("octo-other-4e7a"), later)],
+                "gh-hidden-own" => vec![gh_comment_value(
+                    Some(&GH_LOGIN_MARKER.to_ascii_lowercase()),
+                    later,
+                )],
+                "gh-hidden-ghost" => vec![
+                    gh_comment_value(None, later),
+                    gh_comment_value(Some(""), later),
+                ],
+                "gh-hidden-old" => vec![gh_comment_value(
+                    Some("octo-other-4e7a"),
+                    "2026-01-05T09:00:00Z",
+                )],
+                "gh-hidden-bad-json" => {
+                    println!(
+                        "{{\"comments\":[{{\"author\":{{\"login\":\"x\"}},\"body\":\"{GH_COMMENT_MARKER}\",\"createdAt\":\"2026-03"
+                    );
+                    return 0;
+                }
+                "gh-hidden-view-unavailable" => {
+                    eprint!("{GH_NO_NETWORK}");
+                    return 1;
+                }
+                _ => Vec::new(),
+            };
+            println!("{}", serde_json::json!({ "comments": comments }));
+            0
+        }
+        _ => 98,
+    }
+}
+
 /// Starts a copy of this program that sleeps a few seconds while holding the
 /// inherited stdout open (stderr is not shared), like a helper process that
 /// outlives the CLI.
@@ -557,6 +760,7 @@ fn main() {
     record_call();
     let code = match scenario.as_str() {
         "gh-issues" => gh_issues_scenario(),
+        name if name.starts_with("gh-hidden-") => gh_hidden_scenario(name),
         "data" => {
             println!("{}", echo_argv());
             0
@@ -601,6 +805,34 @@ fn main() {
                 eprint!("{GLAB_NO_NETWORK}");
                 1
             }
+        },
+        // The MRs and issues answer; the review call has no network.
+        "gitlab-reviews-no-network" => match endpoint() {
+            Endpoint::ReviewMergeRequests => {
+                eprint!("{GLAB_NO_NETWORK}");
+                1
+            }
+            other => match gitlab_assigned_body(&other, false) {
+                Some(body) => {
+                    println!("{body}");
+                    0
+                }
+                None => 98,
+            },
+        },
+        // The MRs and issues answer; the review call is refused with a 400.
+        "gitlab-reviews-bad-scope" => match endpoint() {
+            Endpoint::ReviewMergeRequests => {
+                eprintln!("glab: 400 Bad Request (HTTP 400)");
+                1
+            }
+            other => match gitlab_assigned_body(&other, false) {
+                Some(body) => {
+                    println!("{body}");
+                    0
+                }
+                None => 98,
+            },
         },
         // The open lists and the closed merge requests answer; the closed
         // issues call has no network.

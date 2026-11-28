@@ -283,6 +283,70 @@ INSERT INTO events_new SELECT id, at, kind, item_source, item_kind, reference, t
 DROP TABLE events;
 ALTER TABLE events_new RENAME TO events;",
     },
+    // v14 (slice S-05 `gitlab-view-memory`): the remembered type choice and
+    // "Ukryte" expansion of the GitLab view. One fixed row (id = 1); no filter
+    // values and no other work data. `kind` values mirror
+    // `gitlab_view_state::ViewKind`.
+    Migration {
+        version: 14,
+        sql: "CREATE TABLE gitlab_view_state (
+  id          INTEGER PRIMARY KEY CHECK (id = 1),
+  kind        TEXT    NOT NULL CHECK (kind IN ('all','issue','mergeRequest')),
+  show_hidden INTEGER NOT NULL CHECK (show_hidden IN (0, 1))
+);",
+    },
+    // v15 (slice S-01 `github-hide-resurface`): hide records for GitHub issues
+    // now and GitLab merge requests later (S-07), keyed by source, scope (the
+    // lowercase `owner/name` repo key, later the GitLab host), kind and item id
+    // (GitHub issue number, later the GitLab global MR id). A row holds ids, a
+    // status fingerprint (JSON list of scoped labels, `[]` for GitHub), the
+    // baseline `updated_at` and instants: no title, URL, reference, comment text
+    // or login. `project_id`/`iid` are set for `gitlab` rows only. GitLab issues
+    // stay in `hidden_issues`.
+    Migration {
+        version: 15,
+        sql: "CREATE TABLE hidden_items (
+  source              TEXT    NOT NULL CHECK (source IN ('gitlab','github')),
+  scope               TEXT    NOT NULL CHECK (length(scope) BETWEEN 1 AND 255),
+  kind                TEXT    NOT NULL CHECK (kind IN ('issue','mergeRequest')),
+  item_id             INTEGER NOT NULL CHECK (item_id > 0),
+  project_id          INTEGER,
+  iid                 INTEGER,
+  status_fingerprint  TEXT    NOT NULL,
+  baseline_updated_at TEXT    NOT NULL,
+  settle_after_ms     INTEGER,
+  hidden_at_ms        INTEGER NOT NULL,
+  absent_since_ms     INTEGER,
+  changed_reason      TEXT CHECK (changed_reason IN ('status','comment','returned')),
+  changed_at_ms       INTEGER,
+  CHECK ((changed_reason IS NULL) = (changed_at_ms IS NULL)),
+  CHECK ((project_id IS NULL) = (iid IS NULL)),
+  CHECK ((source = 'gitlab') = (project_id IS NOT NULL)),
+  PRIMARY KEY (source, scope, kind, item_id)
+);",
+    },
+    // v16 (slice S-03 `github-new-and-notify`): seen GitHub issues for the NEW
+    // flag of the GitHub view, keyed by the lowercase `owner/name` repo key and
+    // issue number, a per-repo seeding marker and the view's one seen-until
+    // mark. Only keys and instants: no title, URL, reference, label or login.
+    Migration {
+        version: 16,
+        sql: "CREATE TABLE github_seen_repos (
+  repo         TEXT    PRIMARY KEY CHECK (length(repo) BETWEEN 1 AND 255 AND repo = lower(repo)),
+  seeded_at_ms INTEGER NOT NULL
+) WITHOUT ROWID;
+CREATE TABLE github_seen_issues (
+  repo          TEXT    NOT NULL REFERENCES github_seen_repos(repo),
+  issue_number  INTEGER NOT NULL CHECK (issue_number > 0),
+  first_seen_ms INTEGER NOT NULL,
+  last_seen_ms  INTEGER NOT NULL,
+  PRIMARY KEY (repo, issue_number)
+) WITHOUT ROWID;
+CREATE TABLE github_view_mark (
+  id            INTEGER PRIMARY KEY CHECK (id = 1),
+  seen_until_ms INTEGER NOT NULL
+);",
+    },
 ];
 
 /// Versions must start at 1 and rise by exactly 1.

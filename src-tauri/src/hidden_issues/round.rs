@@ -13,10 +13,10 @@ use std::collections::HashMap;
 use chrono::Local;
 
 use super::{
-    CommentVerdict, HiddenIssueError, HiddenRecord, apply_round, comment_verdict, list,
-    needs_comment_check, partition, plan_round, status_changed,
+    Comment, CommentVerdict, HiddenIssueError, HiddenRecord, HideRecord, apply_round,
+    comment_verdict, list, needs_comment_check, partition, plan_round, status_changed,
 };
-use crate::cli::{CliRunner, GitlabConfig, GitlabHost, IssueRef};
+use crate::cli::{CliRunner, GitlabConfig, GitlabHost, GitlabUser, IssueRef};
 use crate::gitlab::fetch::fetch_issue_notes;
 use crate::gitlab::{AssignedItems, GitlabError, GitlabItem};
 use crate::store::StoreHandle;
@@ -52,7 +52,7 @@ pub struct RoundOutcome {
 
 /// A failure after which more notes calls are pointless this round (no VPN,
 /// logged out, no `glab`): a VPN drop costs one timeout, not one per issue.
-fn stops_round(e: &GitlabError) -> bool {
+pub(super) fn stops_round(e: &GitlabError) -> bool {
     matches!(
         e,
         GitlabError::Unavailable | GitlabError::LoggedOut | GitlabError::ToolMissing
@@ -61,11 +61,11 @@ fn stops_round(e: &GitlabError) -> bool {
 
 /// The records in check order: those after `resume_after` (by issue id) first,
 /// then the rest from the start. `None` keeps the stored order.
-fn check_order(records: &[HiddenRecord], resume_after: Option<u64>) -> Vec<&HiddenRecord> {
+pub(super) fn check_order<R: HideRecord>(records: &[R], resume_after: Option<u64>) -> Vec<&R> {
     let Some(cursor) = resume_after else {
         return records.iter().collect();
     };
-    let (rest, first): (Vec<_>, Vec<_>) = records.iter().partition(|r| r.issue_id <= cursor);
+    let (rest, first): (Vec<_>, Vec<_>) = records.iter().partition(|r| r.item_id() <= cursor);
     first.into_iter().chain(rest).collect()
 }
 
@@ -115,7 +115,14 @@ pub fn check_round(
                     iid: item.iid,
                 };
                 match fetch_issue_notes(runner, &config.host, issue) {
-                    Ok(notes) => Ok(comment_verdict(&notes, baseline, config.user.as_ref())),
+                    Ok(notes) => {
+                        let comments: Vec<Comment> = notes.iter().map(Comment::from).collect();
+                        Ok(comment_verdict(
+                            &comments,
+                            baseline,
+                            config.user.as_ref().map(GitlabUser::as_str),
+                        ))
+                    }
                     Err(e) => {
                         if stops_round(&e) {
                             stopped_at = Some(rec.issue_id);

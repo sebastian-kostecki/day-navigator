@@ -11,8 +11,16 @@
 //! - A key the session fallback toasted while the store failed, which leaves
 //!   the list before the store recovers, is never stored; if it returns later
 //!   it notifies again.
-//! - Rows and the seeding marker of an account key no longer in use (after a
+//! - Rows and the seeding markers of an account key no longer in use (after a
 //!   host or `gitlab.user` change) are never pruned; they are a few rows.
+//!
+//! Review requests (S-06) share the seen set: a merge request is one key
+//! whether it is in the assigned list or the review list, so moving between
+//! them never notifies again. The review set has its own seeding flag, a
+//! marker row `review_marker_key(account)` in `assignment_accounts` (no
+//! schema change); no `seen_assignments` row ever uses it. Like the account
+//! marker it is never pruned. The first round after the flag is missing takes
+//! the already-open review-only keys in silently.
 
 pub mod error;
 pub mod notice;
@@ -31,7 +39,10 @@ use crate::gitlab::{AssignedItems, GitlabItem, ItemKind};
 use crate::store::{Store, StoreError};
 pub use error::NewAssignmentError;
 pub use notice::notices_for;
-pub use rules::{FORGET_AFTER_MS, ItemKey, RoundPlan, RoundSeen, SeenRow, fresh_since, plan_round};
+pub use rules::{
+    FORGET_AFTER_MS, ItemKey, RoundPlan, RoundSeen, SeenRow, baseline_first_seen, fresh_since,
+    plan_round, review_baseline,
+};
 
 fn kind_text(kind: ItemKind) -> &'static str {
     match kind {
@@ -54,6 +65,30 @@ fn all_items(items: &AssignedItems) -> impl Iterator<Item = &GitlabItem> {
         .iter()
         .chain(&items.issues)
         .chain(&items.hidden_issues)
+        .chain(&items.review_requests)
+        .chain(&items.hidden_merge_requests)
+}
+
+fn valid_id(item: &GitlabItem) -> bool {
+    i64::try_from(item.id).is_ok_and(|id| id > 0)
+}
+
+/// The keys of the review-only list, under the same id filter as `keys_of`.
+pub fn review_only_keys(items: &AssignedItems) -> Vec<ItemKey> {
+    items
+        .review_requests
+        .iter()
+        .filter(|i| valid_id(i))
+        .map(|i| ItemKey::new(i.kind, i.id))
+        .collect()
+}
+
+/// The marker row in `assignment_accounts` that says the account's review set
+/// is seeded. The account key is 64 hex characters, so the suffix cannot
+/// collide with a real key; it stays opaque and no `seen_assignments` row uses
+/// it.
+pub fn review_marker_key(account: &str) -> String {
+    format!("{account}:reviews")
 }
 
 /// The full assigned list: merge requests, visible issues and hidden issues.
@@ -62,7 +97,7 @@ fn all_items(items: &AssignedItems) -> impl Iterator<Item = &GitlabItem> {
 /// the whole round's write.
 pub fn keys_of(items: &AssignedItems) -> Vec<ItemKey> {
     all_items(items)
-        .filter(|i| i64::try_from(i.id).is_ok_and(|id| id > 0))
+        .filter(|i| valid_id(i))
         .map(|i| ItemKey::new(i.kind, i.id))
         .collect()
 }
@@ -88,13 +123,22 @@ pub fn items_for<'a>(items: &'a AssignedItems, keys: &[ItemKey]) -> Vec<&'a Gitl
     out
 }
 
-/// Sets `is_new` on merge requests and visible issues from `fresh`; hidden
-/// issues are never new.
+/// Sets `is_new` on merge requests, review requests and visible issues from
+/// `fresh`; hidden issues and hidden merge requests are never new.
 pub fn mark_fresh(items: &mut AssignedItems, fresh: &HashSet<ItemKey>) {
-    for item in items.merge_requests.iter_mut().chain(&mut items.issues) {
+    for item in items
+        .merge_requests
+        .iter_mut()
+        .chain(&mut items.issues)
+        .chain(&mut items.review_requests)
+    {
         item.is_new = fresh.contains(&ItemKey::new(item.kind, item.id));
     }
-    for item in &mut items.hidden_issues {
+    for item in items
+        .hidden_issues
+        .iter_mut()
+        .chain(&mut items.hidden_merge_requests)
+    {
         item.is_new = false;
     }
 }
@@ -123,16 +167,28 @@ pub fn mark_view_seen(
 /// mark). One write: read the seeded flag, rows and mark, plan, insert the
 /// marker when seeding, upsert every current key, then delete this account's
 /// stale absent rows. Rows of other accounts are never touched.
+///
+/// `current` holds every key, including the review-only ones in `review_only`.
+/// When the account is seeded but its review marker is missing, the review-only
+/// keys not yet stored are a silent baseline: never new, never fresh, stored
+/// with `first_seen_ms = min(mark, now)` and `last_seen_ms = now`.
 pub fn record_round(
     store: &mut Store,
     account: &str,
     current: &[ItemKey],
+    review_only: &[ItemKey],
     now_ms: i64,
 ) -> Result<RoundSeen, NewAssignmentError> {
     store.write::<_, NewAssignmentError>(|tx| {
         let seeded: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM assignment_accounts WHERE account = ?1)",
             [account],
+            |r| r.get(0),
+        )?;
+        let review_marker = review_marker_key(account);
+        let reviews_seeded: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM assignment_accounts WHERE account = ?1)",
+            [&review_marker],
             |r| r.get(0),
         )?;
 
@@ -172,6 +228,9 @@ pub fn record_round(
             .optional()?;
 
         let plan = plan_round(seeded, &stored, current, now_ms);
+        let baseline = review_baseline(seeded, reviews_seeded, &stored, review_only);
+        let baseline_set: HashSet<ItemKey> = baseline.iter().copied().collect();
+        let baseline_first = baseline_first_seen(mark, now_ms);
 
         if plan.seed {
             tx.execute(
@@ -179,10 +238,16 @@ pub fn record_round(
                 rusqlite::params![account, now_ms],
             )?;
         }
+        if !reviews_seeded {
+            tx.execute(
+                "INSERT INTO assignment_accounts (account, seeded_at_ms) VALUES (?1, ?2)",
+                rusqlite::params![review_marker, now_ms],
+            )?;
+        }
         {
             let mut upsert = tx.prepare(
                 "INSERT INTO seen_assignments (account, kind, item_id, first_seen_ms, last_seen_ms)
-                 VALUES (?1, ?2, ?3, ?4, ?4)
+                 VALUES (?1, ?2, ?3, ?4, ?5)
                  ON CONFLICT (account, kind, item_id)
                  DO UPDATE SET last_seen_ms = excluded.last_seen_ms",
             )?;
@@ -191,6 +256,11 @@ pub fn record_round(
                     account,
                     kind_text(key.kind),
                     key.id as i64,
+                    if baseline_set.contains(key) {
+                        baseline_first
+                    } else {
+                        now_ms
+                    },
                     now_ms
                 ])?;
             }
@@ -208,10 +278,17 @@ pub fn record_round(
             }
         }
         // A stored key keeps its first instant (the upsert never changes it);
-        // an inserted one has `now_ms`.
+        // an inserted one has `now_ms`, or the baseline instant.
         let seen: Vec<(ItemKey, i64)> = current
             .iter()
-            .map(|k| (*k, first_seen.get(k).copied().unwrap_or(now_ms)))
+            .map(|k| {
+                let inserted = if baseline_set.contains(k) {
+                    baseline_first
+                } else {
+                    now_ms
+                };
+                (*k, first_seen.get(k).copied().unwrap_or(inserted))
+            })
             .collect();
         // The seeding round is a baseline for the view too: nothing is fresh,
         // even when a mark was saved before the account's first stored round.
@@ -221,7 +298,11 @@ pub fn record_round(
             fresh_since(&seen, mark)
         };
         Ok(RoundSeen {
-            new: plan.new,
+            new: plan
+                .new
+                .into_iter()
+                .filter(|k| !baseline_set.contains(k))
+                .collect(),
             fresh,
         })
     })

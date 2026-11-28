@@ -7,7 +7,9 @@ use chrono::{DateTime, FixedOffset, NaiveDate};
 use day_navigator_lib::cli::{
     CliRunner, GitlabConfig, GitlabHost, GitlabUser, IssueRef, UpdatedAfter,
 };
-use day_navigator_lib::gitlab::fetch::{fetch_assigned, fetch_issue_notes, fetch_recently_closed};
+use day_navigator_lib::gitlab::fetch::{
+    fetch_assigned, fetch_issue_notes, fetch_merge_request_notes, fetch_recently_closed,
+};
 use day_navigator_lib::gitlab::notes::IssueNote;
 use day_navigator_lib::gitlab::{GitlabError, GitlabLabel, ItemKind};
 
@@ -150,6 +152,58 @@ fn second_call_failure_is_unavailable_with_no_partial_result() {
 }
 
 #[test]
+fn review_requests_are_the_third_call_deduped_against_the_assigned_list() {
+    let got = fetch_assigned(&runner("gitlab-assigned"), &host()).expect("data");
+    assert_eq!(
+        refs(&got.review_requests),
+        ["acme/sprockets!5", "acme/gadgets!21"]
+    );
+    assert!(got.review_requests.iter().all(|r| r.review_requested));
+    assert!(
+        got.review_requests
+            .iter()
+            .all(|r| r.kind == ItemKind::MergeRequest)
+    );
+    // The assigned list is unchanged; the MR in both lists is flagged there.
+    assert_eq!(
+        refs(&got.merge_requests),
+        ["acme/widgets!12", "acme/widgets!34", "acme/gizmo!7"]
+    );
+    let flagged: Vec<&str> = got
+        .merge_requests
+        .iter()
+        .filter(|m| m.review_requested)
+        .map(|m| m.reference.as_str())
+        .collect();
+    assert_eq!(flagged, ["acme/widgets!34"]);
+    assert!(got.issues.iter().all(|i| !i.review_requested));
+}
+
+#[test]
+fn review_requests_are_empty_for_empty_arrays() {
+    let got = fetch_assigned(&runner("gitlab-empty"), &host()).expect("data");
+    assert!(got.review_requests.is_empty());
+}
+
+#[test]
+fn a_failing_review_call_fails_the_round_with_no_partial_result() {
+    assert_eq!(
+        fetch_assigned(&runner("gitlab-reviews-no-network"), &host()),
+        Err(GitlabError::Unavailable)
+    );
+    let unknown = fetch_assigned(&runner("unknown-error"), &host()).unwrap_err();
+    let bad_scope = fetch_assigned(&runner("gitlab-reviews-bad-scope"), &host()).unwrap_err();
+    assert!(
+        matches!(bad_scope, GitlabError::Failed { .. }),
+        "{bad_scope:?}"
+    );
+    assert_eq!(
+        std::mem::discriminant(&bad_scope),
+        std::mem::discriminant(&unknown)
+    );
+}
+
+#[test]
 fn missing_program_is_tool_missing() {
     let dir = tempfile::tempdir().unwrap();
     let r = CliRunner::with_programs(
@@ -174,6 +228,10 @@ fn with_a_user_both_endpoint_forms_are_served_and_parsed() {
     let without = fetch_assigned(&runner("gitlab-assigned"), &host()).expect("data");
     assert_eq!(with, without);
     assert_eq!(refs(&with.issues), ["acme/widgets#12", "acme/gizmo#5"]);
+    assert_eq!(
+        refs(&with.review_requests),
+        ["acme/sprockets!5", "acme/gadgets!21"]
+    );
 }
 
 #[test]
@@ -184,6 +242,8 @@ fn with_a_user_failures_never_show_the_user_or_host() {
         "glab-logged-out",
         "unknown-error",
         "gitlab-mrs-ok-issues-no-network",
+        "gitlab-reviews-no-network",
+        "gitlab-reviews-bad-scope",
     ];
     for scenario in cases {
         let err = fetch_assigned(&runner(scenario), &host_with_user()).unwrap_err();
@@ -411,4 +471,55 @@ fn notes_failures_map_to_their_gitlab_errors() {
         fetch_issue_notes(&r, &gitlab_host(), WITH_NOTES),
         Err(GitlabError::ToolMissing)
     );
+}
+
+// ------------------------------------------------------- merge request notes
+
+/// Merge request 6002 `acme/widgets!34` has notes in the fake GitLab (project
+/// 102, iid 34).
+const MR_WITH_NOTES: IssueRef = IssueRef {
+    project_id: 102,
+    iid: 34,
+};
+
+fn mr_notes(scenario: &str, mr: IssueRef) -> Result<Vec<IssueNote>, GitlabError> {
+    fetch_merge_request_notes(&runner(scenario), &gitlab_host(), mr)
+}
+
+#[test]
+fn merge_request_notes_are_parsed_newest_first() {
+    let got = mr_notes("gitlab-notes-other", MR_WITH_NOTES).expect("notes");
+    assert_eq!(authors(&got), ["other.invented", "invented.user"]);
+    assert!(got.iter().all(|n| !n.system));
+    assert!(got[0].created_at > got[1].created_at);
+}
+
+#[test]
+fn a_merge_request_is_told_apart_from_the_issue_with_the_same_numbers() {
+    let mr_12 = IssueRef {
+        project_id: 102,
+        iid: 12,
+    };
+    assert!(mr_notes("gitlab-notes-other", mr_12).unwrap().is_empty());
+    assert_eq!(notes("gitlab-notes-other", WITH_NOTES).unwrap().len(), 2);
+}
+
+#[test]
+fn merge_request_notes_unavailable_and_bad_json_are_errors() {
+    assert_eq!(
+        mr_notes("gitlab-notes-unavailable", MR_WITH_NOTES),
+        Err(GitlabError::Unavailable)
+    );
+    let err = mr_notes("gitlab-notes-bad-json", MR_WITH_NOTES).unwrap_err();
+    assert_eq!(err, GitlabError::ResponseInvalid);
+    let shown = [
+        format!("{err:?}"),
+        err.to_string(),
+        serde_json::to_string(&err).unwrap(),
+        err.message_pl(),
+    ];
+    for text in shown {
+        assert!(!text.contains("LEAK-MARKER-NOTE-4b2d"), "{text}");
+        assert!(!text.contains("example.invalid"), "{text}");
+    }
 }

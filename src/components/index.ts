@@ -1,6 +1,8 @@
 export { AppHeader, type AppHeaderProps } from "./AppHeader/AppHeader";
 export { Button, type ButtonProps } from "./Button/Button";
 export { Chip, type ChipProps } from "./Chip/Chip";
+export { ChipListField, type ChipListFieldProps } from "./ChipListField/ChipListField";
+export { Dialog, type DialogProps } from "./Dialog/Dialog";
 export { ErrorState } from "./ErrorState";
 export {
   DataTable,
@@ -31,5 +33,5 @@ export { StatusPill, type PillState, type StatusPillProps } from "./StatusPill/S
 export { Tabs, type TabsProps } from "./Tabs/Tabs";
 export { plural } from "./plural";
 export { formatAge, formatAgo, formatDay, formatHm, formatHms } from "./time";
-export { formatClock } from "./time";
+export { formatClock, retryText } from "./time";
 export { RELATIVE_TICK_MS, useNow } from "./useNow";

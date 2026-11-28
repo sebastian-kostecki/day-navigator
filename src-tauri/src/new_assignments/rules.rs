@@ -98,6 +98,35 @@ pub fn fresh_since(seen: &[(ItemKey, i64)], mark: Option<i64>) -> Vec<(ItemKey, 
         .collect()
 }
 
+/// The review-only keys the review set's first round takes in silently (S-06):
+/// those not already stored, once each, in input order. Only for an account
+/// already seeded whose review set is not: a brand-new account's seeding round
+/// is silent anyway, and later rounds notify normally.
+pub fn review_baseline(
+    seeded: bool,
+    reviews_seeded: bool,
+    stored: &[SeenRow],
+    review_only: &[ItemKey],
+) -> Vec<ItemKey> {
+    if !seeded || reviews_seeded {
+        return Vec::new();
+    }
+    let known: HashSet<ItemKey> = stored.iter().map(|r| r.key).collect();
+    let mut taken = HashSet::new();
+    review_only
+        .iter()
+        .filter(|k| !known.contains(k) && taken.insert(**k))
+        .copied()
+        .collect()
+}
+
+/// The `first_seen_ms` a baseline key is stored with: `min(mark, now_ms)`, so
+/// `fresh_since` (`first_seen > mark`) never flags it. Without a mark nothing
+/// is fresh, so `now_ms`.
+pub fn baseline_first_seen(mark: Option<i64>, now_ms: i64) -> i64 {
+    mark.map_or(now_ms, |m| m.min(now_ms))
+}
+
 pub fn plan_round(seeded: bool, stored: &[SeenRow], current: &[ItemKey], now_ms: i64) -> RoundPlan {
     let known: HashSet<ItemKey> = stored.iter().map(|r| r.key).collect();
     let present: HashSet<ItemKey> = current.iter().copied().collect();

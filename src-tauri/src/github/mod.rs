@@ -5,6 +5,7 @@
 //! error value, log line or message carries a repository name, a URL, a title,
 //! a `serde_json` error or any other response content.
 
+pub mod comments;
 pub mod fetch;
 
 use std::cmp::Reverse;
@@ -13,6 +14,8 @@ use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
 
 use crate::cli::{CliError, GithubConfig, GithubRepo, Tool};
+use crate::hidden_issues::ChangeReason;
+use crate::settings::DEFAULT_REFRESH_MINUTES;
 use fetch::RepoResult;
 
 /// One open issue assigned to the `gh` account.
@@ -32,6 +35,10 @@ pub struct GithubIssue {
     pub updated_at: String,
     /// Label names in the order GitHub sent them; empty when there are none.
     pub labels: Vec<String>,
+    /// Why a hidden issue came back; set only on a marked, visible issue.
+    pub changed: Option<ChangeReason>,
+    /// When the issue was hidden (UTC epoch ms); set only on a hidden issue.
+    pub hidden_at_ms: Option<i64>,
 }
 
 /// Why a repo or a round produced no list. No variant carries a value from the
@@ -187,6 +194,8 @@ pub fn parse_issues(repo: &GithubRepo, stdout: &str) -> Result<Vec<GithubIssue>,
             web_url: checked_url(&r.url, repo),
             updated_at: r.updated_at,
             labels: r.labels.into_iter().map(|l| l.name).collect(),
+            changed: None,
+            hidden_at_ms: None,
         };
         keyed.push((stamp, issue));
     }
@@ -225,7 +234,11 @@ pub struct RepoErrorView {
 pub struct RepoView {
     /// `owner/name` as written in settings.
     pub repo: String,
+    /// The visible issues (a marked one carries `changed`).
     pub issues: Vec<GithubIssue>,
+    /// The repo's hidden issues in list order; empty in a fetched,
+    /// unpartitioned view.
+    pub hidden: Vec<GithubIssue>,
     pub error: Option<RepoErrorView>,
 }
 
@@ -239,6 +252,23 @@ pub struct GithubSnapshot {
     pub checked_at_ms: Option<u64>,
     pub refreshing: bool,
     pub seq: u64,
+    /// Hidden issues whose comment check failed this round.
+    pub hidden_check_failed: u32,
+    /// Fixed Polish text when the hide records could not be read or written;
+    /// the repos then show every issue.
+    pub hidden_error: Option<String>,
+    /// True when `githubRefresh.minutes` is invalid and the default interval is
+    /// used. A round flag: set on every round.
+    pub refresh_setting_invalid: bool,
+    /// The interval (minutes) the last round used. A round flag.
+    pub refresh_minutes: u32,
+    /// When the wait after the last round ends (UTC ms); `None` before the first
+    /// round.
+    pub next_refresh_at_ms: Option<u64>,
+    /// References of visible issues that are new since the last visit to the
+    /// GitHub view, in list order; never a hidden issue. Set by the refresh
+    /// state on every path that shapes the list.
+    pub new_references: Vec<String>,
 }
 
 impl GithubSnapshot {
@@ -251,11 +281,17 @@ impl GithubSnapshot {
             checked_at_ms: None,
             refreshing: false,
             seq: 0,
+            hidden_check_failed: 0,
+            hidden_error: None,
+            refresh_setting_invalid: false,
+            refresh_minutes: DEFAULT_REFRESH_MINUTES,
+            next_refresh_at_ms: None,
+            new_references: Vec::new(),
         }
     }
 }
 
-fn repo_view(result: RepoResult) -> RepoView {
+pub fn repo_view(result: RepoResult) -> RepoView {
     let (issues, error) = match result.outcome {
         Ok(issues) => (issues, None),
         Err(e) => (
@@ -269,6 +305,7 @@ fn repo_view(result: RepoResult) -> RepoView {
     RepoView {
         repo: result.repo.as_str().to_string(),
         issues,
+        hidden: Vec::new(),
         error,
     }
 }
@@ -295,6 +332,13 @@ pub fn next_snapshot(
         checked_at_ms: Some(now_ms),
         refreshing: false,
         seq: prev.seq + 1,
+        hidden_check_failed: 0,
+        hidden_error: None,
+        // Round flags, carried over: the round sets them.
+        refresh_setting_invalid: prev.refresh_setting_invalid,
+        refresh_minutes: prev.refresh_minutes,
+        next_refresh_at_ms: prev.next_refresh_at_ms,
+        new_references: Vec::new(),
     };
     let error = match outcome {
         Ok(results) => {
@@ -323,6 +367,12 @@ pub fn next_snapshot(
     if keeps {
         next.repos = prev.repos.clone();
         next.last_success_ms = prev.last_success_ms;
+        next.hidden_check_failed = prev.hidden_check_failed;
+        next.hidden_error = prev.hidden_error.clone();
+        // Only the pure function's contract: `refresh_round` overwrites the
+        // field with `settle_new` on every path, so this copy never reaches
+        // the stored snapshot.
+        next.new_references = prev.new_references.clone();
         (next, kept.cloned())
     } else {
         (next, None)
@@ -532,6 +582,8 @@ mod tests {
             web_url: None,
             updated_at: "2026-03-03T08:00:00Z".to_string(),
             labels: vec![],
+            changed: None,
+            hidden_at_ms: None,
         }
     }
 
@@ -563,12 +615,130 @@ mod tests {
     }
 
     #[test]
+    fn hidden_fields_reset_on_success_and_carry_over_when_the_list_is_kept() {
+        let (mut prev, cfg) = prev_with_list();
+        assert_eq!(
+            (prev.hidden_check_failed, prev.hidden_error.clone()),
+            (0, None)
+        );
+        prev.hidden_check_failed = 2;
+        prev.hidden_error = Some("fixed text".to_string());
+        let (kept, _) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            Some(&cfg),
+            Err(GithubError::Unavailable),
+            300,
+        );
+        assert_eq!(kept.hidden_check_failed, 2);
+        assert_eq!(kept.hidden_error.as_deref(), Some("fixed text"));
+        let (fresh, _) = next_snapshot(&prev, Some(&cfg), Some(&cfg), Ok(good_round()), 400);
+        assert_eq!((fresh.hidden_check_failed, fresh.hidden_error), (0, None));
+        assert!(fresh.repos.iter().all(|r| r.hidden.is_empty()));
+        let (dropped, _) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            None,
+            Err(GithubError::NotConfigured),
+            500,
+        );
+        assert_eq!(
+            (dropped.hidden_check_failed, dropped.hidden_error),
+            (0, None)
+        );
+    }
+
+    #[test]
     fn starting_snapshot_is_empty() {
         let s = GithubSnapshot::starting();
         assert_eq!(s.state, GithubState::Starting);
         assert!(s.repos.is_empty());
         assert_eq!((s.seq, s.last_success_ms, s.checked_at_ms), (0, None, None));
         assert!(!s.refreshing);
+        assert_eq!(s.refresh_minutes, DEFAULT_REFRESH_MINUTES);
+        assert_eq!(s.next_refresh_at_ms, None);
+        assert!(!s.refresh_setting_invalid);
+        assert!(s.new_references.is_empty());
+    }
+
+    #[test]
+    fn new_references_reset_on_success_and_carry_over_when_the_list_is_kept() {
+        let (mut prev, cfg) = prev_with_list();
+        prev.new_references = vec!["octo-test/alpha#1".into()];
+        let (ok, _) = next_snapshot(&prev, Some(&cfg), Some(&cfg), Ok(good_round()), 300);
+        assert!(ok.new_references.is_empty());
+        let (kept, _) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            Some(&cfg),
+            Err(GithubError::Unavailable),
+            300,
+        );
+        assert_eq!(kept.new_references, ["octo-test/alpha#1"]);
+        let (dropped, _) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            None,
+            Err(GithubError::NotConfigured),
+            300,
+        );
+        assert!(dropped.new_references.is_empty());
+    }
+
+    #[test]
+    fn snapshot_serializes_new_references_in_camel_case() {
+        let v = serde_json::to_value(GithubSnapshot::starting()).unwrap();
+        assert_eq!(v["newReferences"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn snapshot_carries_the_refresh_interval_fields_across_rounds() {
+        let (base, cfg) = prev_with_list();
+        let prev = GithubSnapshot {
+            refresh_minutes: 3,
+            next_refresh_at_ms: Some(123_456),
+            refresh_setting_invalid: true,
+            ..base
+        };
+        let (ok, _) = next_snapshot(&prev, Some(&cfg), Some(&cfg), Ok(good_round()), 400);
+        let (kept, _) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            Some(&cfg),
+            Err(GithubError::Unavailable),
+            400,
+        );
+        let (dropped, _) = next_snapshot(
+            &prev,
+            Some(&cfg),
+            None,
+            Err(GithubError::NotConfigured),
+            400,
+        );
+        let (down, _) = next_snapshot(&prev, None, None, Err(GithubError::ThreadDown), 400);
+        for s in [ok, kept, dropped, down] {
+            assert_eq!(s.refresh_minutes, 3);
+            assert_eq!(s.next_refresh_at_ms, Some(123_456));
+            assert!(s.refresh_setting_invalid);
+        }
+    }
+
+    #[test]
+    fn snapshot_serializes_the_interval_fields() {
+        let s = GithubSnapshot {
+            refresh_minutes: 7,
+            next_refresh_at_ms: Some(42),
+            refresh_setting_invalid: true,
+            ..GithubSnapshot::starting()
+        };
+        let v = serde_json::to_value(&s).unwrap();
+        assert_eq!(v["refreshMinutes"], 7);
+        assert_eq!(v["nextRefreshAtMs"], 42);
+        assert_eq!(v["refreshSettingInvalid"], true);
+        let v = serde_json::to_value(GithubSnapshot::starting()).unwrap();
+        assert_eq!(v["nextRefreshAtMs"], serde_json::Value::Null);
+        assert_eq!(v["refreshMinutes"], 10);
+        assert_eq!(v["refreshSettingInvalid"], false);
     }
 
     #[test]

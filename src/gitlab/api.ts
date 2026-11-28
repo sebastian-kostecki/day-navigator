@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { storeErrorMessage } from "../components/storeError";
-import type { GitlabSnapshot, HiddenIssueError, OpenSettingsError } from "./types";
+import type { GitlabSnapshot, GitlabViewState, HiddenIssueError, ItemKind } from "./types";
 
 export function getGitlabSnapshot(): Promise<GitlabSnapshot> {
   return invoke<GitlabSnapshot>("gitlab_snapshot");
@@ -37,6 +37,21 @@ export function dismissGitlabChange(id: number): Promise<void> {
   return invoke<void>("dismiss_gitlab_change", { id });
 }
 
+/** Hides a merge request (assigned or awaiting review); the new snapshot arrives as a `gitlab-changed` event. */
+export function hideGitlabMergeRequest(id: number): Promise<void> {
+  return invoke<void>("hide_gitlab_merge_request", { id });
+}
+
+/** Shows a hidden merge request again, unmarked. */
+export function unhideGitlabMergeRequest(id: number): Promise<void> {
+  return invoke<void>("unhide_gitlab_merge_request", { id });
+}
+
+/** Dismisses the "changed" mark of a returned merge request. */
+export function dismissGitlabMergeRequestChange(id: number): Promise<void> {
+  return invoke<void>("dismiss_gitlab_merge_request_change", { id });
+}
+
 function asHiddenIssueError(e: unknown): HiddenIssueError | null {
   if (typeof e === "object" && e !== null && "kind" in e) {
     return e as HiddenIssueError;
@@ -50,17 +65,21 @@ export function isHiddenIssueStale(e: unknown): boolean {
   return kind === "NotFound" || kind === "NotInList";
 }
 
-/** Polish message for anything thrown by a hide, unhide or dismiss call. */
-export function hiddenIssueErrorMessage(e: unknown): string {
+/** Polish message for anything thrown by a hide, unhide or dismiss call. `kind` picks the words for the row's item kind. */
+export function hiddenIssueErrorMessage(e: unknown, kind: ItemKind = "issue"): string {
   const err = asHiddenIssueError(e);
   if (!err) return `Nieoczekiwany błąd: ${String(e)}`;
   switch (err.kind) {
     case "Store":
       return storeErrorMessage(err.detail);
     case "NotFound":
-      return "Zgłoszenie nie jest już ukryte — odśwież listę.";
+      return kind === "mergeRequest"
+        ? "Merge request nie jest już ukryty — odśwież listę."
+        : "Zgłoszenie nie jest już ukryte — odśwież listę.";
     case "NotInList":
-      return "Zgłoszenia nie ma na liście — odśwież listę.";
+      return kind === "mergeRequest"
+        ? "Merge requesta nie ma na liście — odśwież listę."
+        : "Zgłoszenia nie ma na liście — odśwież listę.";
     case "ListUnavailable":
       return "Lista GitLaba nie jest jeszcze dostępna.";
     default:
@@ -68,25 +87,12 @@ export function hiddenIssueErrorMessage(e: unknown): string {
   }
 }
 
-/** Opens `settings.json` from the app config folder in the default program. */
-export function openSettingsFile(): Promise<void> {
-  return invoke<void>("open_settings_file");
+/** The remembered type choice and hidden expansion. A failure rejects with `GitlabViewStateError`; Rust has already logged it. */
+export function getGitlabViewState(): Promise<GitlabViewState> {
+  return invoke<GitlabViewState>("gitlab_view_state");
 }
 
-/** Polish message for anything thrown by `openSettingsFile`. */
-export function openSettingsErrorMessage(e: unknown): string {
-  if (typeof e === "object" && e !== null && "kind" in e) {
-    const err = e as OpenSettingsError;
-    switch (err.kind) {
-      case "ConfigDirUnresolved":
-        return "Nie można ustalić folderu ustawień aplikacji.";
-      case "Missing":
-        return "Brak pliku settings.json w folderze ustawień aplikacji.";
-      case "OpenFailed":
-        return "Nie udało się otworzyć settings.json.";
-      default:
-        return `Nieoczekiwany błąd (${(err as { kind: string }).kind})`;
-    }
-  }
-  return `Nieoczekiwany błąd: ${String(e)}`;
+/** Saves the type choice and hidden expansion. A failure rejects with `GitlabViewStateError`; Rust has already logged it. */
+export function setGitlabViewState(view: GitlabViewState): Promise<void> {
+  return invoke<void>("set_gitlab_view_state", { view });
 }

@@ -5,8 +5,10 @@ pub mod day_summary;
 pub mod events;
 pub mod github;
 pub mod github_refresh;
+pub mod github_seen;
 pub mod gitlab;
 pub mod gitlab_refresh;
+pub mod gitlab_view_state;
 pub mod health;
 pub mod hidden_issues;
 pub mod new_assignments;
@@ -14,6 +16,7 @@ pub mod own_tasks;
 pub mod runtime;
 pub mod settings;
 pub mod settings_file;
+pub mod source_refresh;
 pub mod space;
 pub mod store;
 pub mod todo;
@@ -35,7 +38,8 @@ const MAIN_HIDDEN_EVENT: &str = "main-hidden";
 /// command error type maps it to its own variant.
 pub struct BackgroundFailed(pub String);
 
-/// Runs blocking work off the main thread (used by the work-time commands).
+/// Runs blocking work off the main thread (used by the work-time and settings
+/// commands).
 pub(crate) async fn blocking<T, E>(
     work: impl FnOnce() -> Result<T, E> + Send + 'static,
 ) -> Result<T, E>
@@ -165,6 +169,7 @@ pub fn run() {
             // its own thread, so `quick_check`, backup and migrations never
             // delay the main thread.
             app.manage(store::StoreHandle::new(data_dir));
+            app.manage(settings::commands::SettingsWriteLock::default());
             // Managed before the health thread starts: its first round reads it.
             let gitlab_rx = gitlab_refresh::manage(app);
             let github_rx = github_refresh::manage(app);
@@ -203,12 +208,23 @@ pub fn run() {
             gitlab_refresh::refresh_gitlab,
             gitlab_refresh::mark_gitlab_seen,
             settings_file::open_settings_file,
+            settings::commands::settings_view,
+            settings::commands::save_settings_section,
             backups_folder::open_backups_folder,
             github_refresh::github_snapshot,
             github_refresh::refresh_github,
+            github_refresh::mark_github_seen,
             hidden_issues::commands::hide_gitlab_issue,
             hidden_issues::commands::unhide_gitlab_issue,
             hidden_issues::commands::dismiss_gitlab_change,
+            hidden_issues::commands::hide_gitlab_merge_request,
+            hidden_issues::commands::unhide_gitlab_merge_request,
+            hidden_issues::commands::dismiss_gitlab_merge_request_change,
+            hidden_issues::commands::hide_github_issue,
+            hidden_issues::commands::unhide_github_issue,
+            hidden_issues::commands::dismiss_github_change,
+            gitlab_view_state::commands::gitlab_view_state,
+            gitlab_view_state::commands::set_gitlab_view_state,
             list_own_tasks,
             add_own_task,
             edit_own_task,

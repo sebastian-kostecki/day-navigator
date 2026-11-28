@@ -235,8 +235,18 @@ export default function TodoView() {
   // "ZMIENIONE" and "DZIŚ" come from data this view already holds: the stored
   // GitLab snapshot's change marks and the own tasks' due dates.
   const changedGitlab = new Set<string>();
-  for (const i of snapshot?.items?.issues ?? []) {
+  for (const i of [
+    ...(snapshot?.items?.mergeRequests ?? []),
+    ...(snapshot?.items?.reviewRequests ?? []),
+    ...(snapshot?.items?.issues ?? []),
+  ]) {
     if (i.changed !== null) changedGitlab.add(gitlabKey(i.kind, i.reference));
+  }
+  const changedGithub = new Set<string>();
+  for (const r of githubSnapshot?.repos ?? []) {
+    for (const i of r.issues) {
+      if (i.changed !== null) changedGithub.add(githubKey(i.reference));
+    }
   }
   const dueToday = new Set<number>();
   if (ownLoad.state === "loaded") {
@@ -286,6 +296,9 @@ export default function TodoView() {
       flags.push({ text: carriedLabel(item.pickedOn, list.day), tone: "change" });
     }
     if (!item.ticked && entry.kind === "gitlab" && changedGitlab.has(entryKey(entry))) {
+      flags.push({ text: "zmienione", tone: "change" });
+    }
+    if (!item.ticked && entry.kind === "github" && changedGithub.has(entryKey(entry))) {
       flags.push({ text: "zmienione", tone: "change" });
     }
     if (!item.ticked && entry.kind === "own" && dueToday.has(entry.taskId)) {
@@ -407,13 +420,24 @@ export default function TodoView() {
         busy={busy}
         ownLoad={ownLoad}
         gitlabItems={
-          snapshot?.items ? [...snapshot.items.mergeRequests, ...snapshot.items.issues] : []
+          snapshot?.items
+            ? [
+                ...snapshot.items.mergeRequests,
+                ...snapshot.items.reviewRequests,
+                ...snapshot.items.issues,
+              ]
+            : []
         }
-        gitlabHidden={snapshot?.items?.hiddenIssues.length ?? 0}
+        gitlabHidden={
+          (snapshot?.items?.hiddenIssues.length ?? 0) +
+          (snapshot?.items?.hiddenMergeRequests.length ?? 0)
+        }
         gitlabOk={gitlabState === "ok"}
         gitlabFilteredOut={
           snapshot?.filterActive
-            ? snapshot.filteredOut.mergeRequests + snapshot.filteredOut.issues
+            ? snapshot.filteredOut.mergeRequests +
+              snapshot.filteredOut.reviewRequests +
+              snapshot.filteredOut.issues
             : null
         }
         gitlabLoadError={gitlabLoadError}

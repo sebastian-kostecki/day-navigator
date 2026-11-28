@@ -1,242 +1,235 @@
 ---
 project: "Nawigator dnia"
-version: 7
+version: 9
 status: draft
 created: 2026-11-20
-updated: 2026-11-27
+updated: 2026-11-28
 prd_version: 2
 main_goal: quality
 top_blocker: decisions
-milestone_id: worktime-and-tray
-milestone_seq: 3
-milestone_status: closed
+milestone_id: sources-github-parity
+milestone_seq: 4
+milestone_status: done
 ---
 
 # Roadmap: Nawigator dnia
 
-> Derived from GitHub issues #17–#19 and #23–#27 (GitHub milestone "M-3: Czas pracy i zasobnik", 2026-11-25), `context/foundation/prd.md` (v2) + the codebase baseline.
+> Derived from GitHub issues #28–#35 (GitHub milestone "M-4: Źródła – GitHub na równi z GitLabem"), `context/foundation/prd.md` (v2) + the codebase baseline.
 > Edit-in-place; the next milestone continues this file. Archive only when an independent roadmap replaces it.
 > Slices below are listed in dependency order. The "At a glance" table is the index.
-> M-2's decomposition (F-01–F-05, S-01–S-10, all done) was replaced in place by M-3; M-1 and M-2 are recorded in `## Milestone History` and their archived changes in `## Done`.
+> M-3's decomposition (S-01–S-08, all done) was replaced in place by M-4; M-1–M-3 are recorded in `## Milestone History` and their archived changes in `## Done`.
 
 ## Milestone
 
-**M-3: Work time and the tray** — Status: closed
+**M-4: Sources — GitHub on a par with GitLab** — Status: done
 
-- **Intent:** The work-time counter and its norm report can be trusted and reached without opening the window: public holidays and a configurable norm count in the norm, the counter is controlled from the tray and the app starts with Windows, the month report can be copied out, entries can carry a note, and the day and week can be summed up. Outcome-scoped; no dates.
-- **Source materials:** GitHub issues #17, #18, #19, #23, #24, #25, #26, #27 (GitHub milestone "M-3: Czas pracy i zasobnik"); `context/foundation/prd.md` v2 for the existing work-time rules (FR-013, FR-014, FR-017, FR-018, FR-020, FR-021). The later GitHub milestones M-4–M-6 (#20, #28–#52) stay outside this milestone.
-- **Done when:** every S-NN below is `done`, and the preserved behaviour still holds: the work-time guardrail ("time is never lost"), FR-016 (CI green, an installer only on a version bump) and the read-only `glab`/`gh` rule.
-- **Scope anchors:** The issues have no FR in the PRD yet (see `## Open Roadmap Questions`), so each is anchored here; each `MS-NN` number matches its issue number:
-  - MS-17: The app starts with Windows into the tray, controlled by a switch in `settings.json` (issue #17).
-  - MS-18: A week summary in "Work time": the week's sum against the week's norm, day by day (issue #18).
-  - MS-19: An end-of-day summary after STOP: time today, the month's deviation, what was ticked off and what carries over to tomorrow, with no forced decision (issue #19).
-  - MS-23: START/STOP in the tray menu and today's work time in the tray tooltip (issue #23).
-  - MS-24: The month report copied to the clipboard as text that pastes into a spreadsheet (issue #24).
-  - MS-25: Polish public holidays counted out of the norm, computed locally, switchable in `settings.json` (issue #25).
-  - MS-26: A configurable daily norm and a half day off (issue #26).
-  - MS-27: An optional plain-text note on a work-time entry (issue #27).
+- **Intent:** "Projects (GitHub)" behaves like "Work (GitLab)": a refresh interval from settings with the next try shown, a NEW flag on new assignments, hiding with resurfacing on change, all on one shared refresh mechanism for both sources. "Work (GitLab)" closes its own gaps: the last list stays visible without VPN, the view's type and "Hidden" section are remembered between runs, merge requests where the user is a reviewer get a "Do review" section, and merge requests can be hidden too. Outcome-scoped; no dates.
+- **Source materials:** GitHub issues #28–#35 (GitHub milestone "M-4: Źródła – GitHub na równi z GitLabem"); `context/foundation/prd.md` v2 for the existing source rules (FR-001–FR-005, FR-015, FR-023, FR-024, FR-026). The later GitHub milestones M-5 and M-6 stay outside this milestone.
+- **Done when:** every F-NN and S-NN below is `done`, and the preserved behaviour still holds: "never an empty list instead of an error", a calm "GitLab unavailable" without VPN (FR-015), the read-only `glab`/`gh` rule with every new call covered by the guard test, and no work data in the repo, tests or logs.
+- **Scope anchors:** The user decided on 2026-11-27 that M-4 adds no new FR to the PRD; each issue is anchored here and each `MS-NN` number matches its issue number:
+  - MS-28: One shared refresh skeleton for GitLab and GitHub (thread, interval, wake after sleep, "Check now", snapshot publication, `lastSuccessMs`, `nextRefreshAtMs`); the source-specific fetch and rules stay in each source's module; no change in behaviour or commands (issue #28).
+  - MS-29: `githubRefresh.minutes` in `settings.json` (same range and default as GitLab), validated in Rust, and "every N min — next try in M min (HH:MM)" in GitHub's unavailable and error states (issue #29).
+  - MS-30: GitHub seen-assignment keys in today's shape and a NEW flag on items that appeared since the last visit to the view; no Windows notice for GitHub (issue #30; decided 2026-11-27: private projects are usually self-assigned, so a notice would be noise).
+  - MS-31: Hide and show in a GitHub row, a "Hidden (n)" section with the hide date, resurfacing marked "Changed" on a state change or a comment by someone else, snapshots in the app data store, data through a new read-only `gh` call (issue #31).
+  - MS-32: Without VPN, "Work (GitLab)" shows the calm unavailable card and under it the session's last list, dimmed, and the view header shows that list's counts (issue #32; the user chose the fix over `wontfix` on 2026-11-27).
+  - MS-33: Hide on a GitLab merge request, resurfacing on a state change or a comment by someone else, data through a new read-only `glab api` call (issue #33).
+  - MS-34: The type choice (issues/MRs) and the "Hidden" section's expansion in "Work (GitLab)" are remembered between runs; the view filter stays in memory only, so no work data is stored (issue #34; decided 2026-11-27).
+  - MS-35: Merge requests where the user is a reviewer appear in a "Do review" section of "Work (GitLab)", under the same settings filter (FR-002); a new review request gives a Windows notice by the FR-004 mechanism and threshold, bypassing the filter; rows have "+" to "To do"; hiding (MS-33) covers them once it lands (issue #35; decided 2026-11-27, lifting the PRD Non-Goal "reviewer MRs outside v1").
 
 ## Vision recap
 
-One developer on one Windows 11 machine uses the app every day for their work GitLab, their private GitHub projects, their own tasks, a "To do" list and a work-time counter. M-1 delivered that day flow and M-2 closed the Konsola mockup gaps on a cleaner base. Work-time records start on 2026-12-01; M-3 makes the counter's norm report something the user can trust for monthly settlement and makes the counter reachable without opening the window.
+One developer on one Windows 11 machine uses the app every day for their work GitLab, their private GitHub projects, their own tasks, a "To do" list and a work-time counter. M-1–M-3 delivered the day flow, the Konsola look and a trustworthy work-time counter, but GitHub stayed a plain list next to a GitLab view that hides, flags and notifies. M-4 brings GitHub to the same level on one shared refresh mechanism and closes the GitLab view's remaining gaps.
 
 ## North star
 
-**S-01: User can see Polish public holidays counted out of the month's norm** — the norm report is the product's main promise ("at the end of each day I know how far I am from the norm"), and without holidays it is wrong in every month with a holiday on a workday, so a quality-first milestone proves itself here first.
+**S-01: User can hide a GitHub issue and see it come back marked "Changed" when its state changes or someone else comments** — hiding is the GitLab behaviour behind the secondary success criterion ("hidden issues do not clutter the list") and the hardest piece of parity (a migration, a new `gh` call, shared rules), so a quality-first milestone proves itself here first.
 
 > "North star" here means the smallest end-to-end slice whose delivery proves the milestone works. It is placed as early as its prerequisites allow, because the rest of the milestone matters most if this one works.
 
 ## At a glance
 
-| ID   | Change ID               | Outcome (user can …)                                                          | Prerequisites | PRD refs              | Status   |
-| ---- | ----------------------- | ----------------------------------------------------------------------------- | ------------- | --------------------- | -------- |
-| S-01 | public-holidays-norm    | see Polish public holidays counted out of the month's norm                     | —             | MS-25, FR-014, FR-020 | done |
-| S-02 | configurable-daily-norm | set the daily norm and mark a half day off                                     | S-01          | MS-26, FR-014, FR-020 | done |
-| S-03 | tray-timer-control      | start and stop the counter from the tray and see today's time in its tooltip   | —             | MS-23, FR-013         | done |
-| S-04 | windows-autostart       | have the app start with Windows into the tray                                  | —             | MS-17, FR-018         | done |
-| S-05 | month-report-copy       | copy the month report to the clipboard and paste it into a spreadsheet         | —             | MS-24, FR-014, FR-020 | done |
-| S-06 | work-entry-note         | add a short note to a work-time entry                                          | —             | MS-27, FR-017         | done |
-| S-07 | end-of-day-summary      | see a summary of the day after STOP                                            | —             | MS-19, FR-013, FR-014 | done |
-| S-08 | week-summary            | see the week's sum against the week's norm in "Work time"                      | S-01          | MS-18, FR-014         | done |
+| ID   | Change ID                  | Outcome (user can …)                                                              | Prerequisites | PRD refs                      | Status   |
+| ---- | -------------------------- | --------------------------------------------------------------------------------- | ------------- | ----------------------------- | -------- |
+| F-01 | source-refresh-skeleton    | (foundation) GitLab and GitHub refresh on one shared skeleton, behaviour unchanged | —             | MS-28, FR-015                 | done     |
+| S-01 | github-hide-resurface      | hide a GitHub issue and see it come back marked "Changed"                         | F-01          | MS-31, FR-003, FR-005         | done |
+| S-02 | github-refresh-interval    | set GitHub's refresh interval and see when the next try happens                    | F-01          | MS-29, FR-005, FR-024         | done |
+| S-03 | github-new-and-notify      | see a NEW flag on GitHub items that appeared since their last visit              | F-01          | MS-30, FR-005, FR-023         | done |
+| S-04 | gitlab-offline-last-list   | see the last GitLab list, dimmed, under the unavailable card without VPN           | —             | MS-32, FR-015                 | done     |
+| S-05 | gitlab-view-memory         | find "Work (GitLab)" with the same type and "Hidden" section after a restart       | —             | MS-34, FR-001, FR-003         | done     |
+| S-06 | gitlab-review-requests     | see merge requests waiting for their review in a "Do review" section               | F-01          | MS-35, FR-001, FR-002, FR-004 | done |
+| S-07 | gitlab-hide-merge-requests | hide a GitLab merge request and see it come back marked "Changed"                 | S-01, S-06    | MS-33, FR-003                 | done |
 
 ## Streams
 
 Navigation aid — groups items that share a Prerequisites chain. Canonical ordering still lives in the dependency graph below; this table is the proposed reading order across parallel tracks.
 
-| Stream | Theme                 | Chain                         | Note                                                                                                   |
-| ------ | --------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------ |
-| A      | Norm rules            | `S-01` → `S-02`, `S-08`       | Quality goal: the norm rule is settled (holidays) before it is extended (custom norm) and summed by week. |
-| B      | Tray and start        | `S-03`; `S-04`                | Both touch the tray and app start-up in Rust; plan them one after the other, not at once.               |
-| C      | Report and entries    | `S-05`; `S-06`                | Share the "Work time" view; if S-06 lands first, S-05 copies the note too.                              |
-| D      | End of day            | `S-07`                        | Standalone; reads today's event log and the report that already exist.                                  |
+| Stream | Theme                      | Chain                           | Note                                                                                                                |
+| ------ | -------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| A      | GitHub parity              | `F-01` → `S-01`, `S-02`, `S-03` | Quality goal: one refresh skeleton first, then each GitHub behaviour on it; S-01 and S-03 each add a migration.      |
+| B      | GitLab view fixes          | `S-04`; `S-05`                  | Standalone; both touch the GitLab view's UI, S-05 also the store (a migration), so they run next to F-01.           |
+| C      | Review requests, MR hiding | `S-06` → `S-07`                 | Joins Stream A at `F-01` (S-06 adds a GitLab fetch) and at `S-01` (S-07 reuses the hiding rules generalised there). |
+
+Migrations: S-01, S-03, S-05 and S-07 each need one (S-06 reuses today's seen-assignment keys). Only one migration lands per wave of parallel work, so the migration slices run in different waves.
 
 ## Baseline
 
-What's already in place in the codebase as of `2026-11-25` (researched + user-confirmed).
+What's already in place in the codebase as of `2026-11-27` (researched).
 Slices below assume these are present and do NOT re-scaffold them.
 
-- **Frontend:** present — React 19 views per feature; "Work time" has the days table, the reminders panel and the entry list (`src/worktime/`); shared components in `src/components/`.
-- **Backend / API:** present — 34 Tauri commands (`src-tauri/src/lib.rs`); `work_time` module with a fixed 8 h norm (`src-tauri/src/work_time/norm.rs:12`), the month report and manual days off (`report.rs`); the tray menu has only "Otwórz", "Sprawdź teraz" and "Zakończ" (`src-tauri/src/runtime.rs:152-185`).
-- **Data:** present — app data store in `src-tauri/src/store/` (SQLite, 10 migrations, daily backups); work-time entries carry only start and end; the event log keeps today only.
+- **Frontend:** present — "Work (GitLab)" with the type filter, NEW flag, hidden section, filter bar and calm offline card (`src/gitlab/`); "Projects (GitHub)" with labels, "+" to "To do" and a dimmed stale list (`src/github/`); the GitLab list state lives in memory in `GitlabListViewProvider`.
+- **Backend / API:** present — `gitlab_refresh.rs` (interval from `gitlabRefresh.minutes`, hidden-issue round, new-assignment notices, seen-until mark) and `github_refresh.rs` (a fixed 10-minute interval, no `nextRefreshAtMs`), which repeat each other's thread, loop and publication code; `cli/` with 9 read-only `CliCall` variants and the guard test.
+- **Data:** present — app data store at schema v13; `hidden_issues` keyed by GitLab host and issue id (issues only); `seen_assignments` with kind `issue`/`mergeRequest`; `gitlab_view_marks` for the GitLab view's seen-until mark.
 - **Auth:** not applicable — single user; `glab`/`gh` sessions only.
-- **Deploy / infra:** present — `.github/workflows/ci.yml` publishes the NSIS installer on a version bump with release notes; no autostart, no updater.
+- **Deploy / infra:** present — `.github/workflows/ci.yml` publishes the NSIS installer on a version bump with release notes.
 - **Observability:** present — tray status icon, Windows notices, app log, "Źródła" view, today's event log.
 
 ## Foundations
 
-No foundations in M-3: every layer the slices need is present (see `## Baseline`), and each slice brings its own small technical piece (a plugin, a settings key, a migration) inside the slice that first uses it.
+### F-01: Shared source refresh skeleton
+
+- **Outcome:** (foundation) GitLab and GitHub refresh through one shared skeleton (thread with a `ThreadDown` stand-in, interval, wake after sleep, "Check now", snapshot publication, `lastSuccessMs` and `nextRefreshAtMs`), with the fetch and rules left in each source's module, and no change in behaviour, commands or existing test bodies.
+- **Change ID:** source-refresh-skeleton
+- **PRD refs:** MS-28, FR-015
+- **Unlocks:** S-01, S-02, S-03, S-06 (each adds a GitHub behaviour or a GitLab fetch on the shared skeleton instead of a second copy of the loop).
+- **Prerequisites:** —
+- **Parallel with:** S-04, S-05
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** A refactor of the two busiest Rust files (GitLab's refresh round holds six mutexes); it goes first and alone on those files, and the existing tests stay unchanged so a behaviour change shows up as a failing test.
+- **Status:** done
 
 ## Slices
 
-### S-01: Public holidays in the norm
+### S-01: Hide a GitHub issue, resurface on change
 
-- **Outcome:** user can see Polish public holidays (fixed dates and the Easter-based ones) counted out of the month's norm and shown in the days table like a day off, with the holiday's name; a setting turns the calendar off.
-- **Change ID:** public-holidays-norm
-- **PRD refs:** MS-25, FR-014, FR-020
+- **Outcome:** user can hide and show a GitHub issue in its row, see a "Hidden (n)" section with the hide date, and see a hidden issue come back marked "Changed" when its state changes or someone other than them comments.
+- **Change ID:** github-hide-resurface
+- **PRD refs:** MS-31, FR-003, FR-005
+- **Prerequisites:** F-01
+- **Parallel with:** S-02, S-04, S-05, S-06
+- **Blockers:** —
+- **Unknowns:**
+  - Resolved 2026-11-27: the GitHub login comes from a new read-only `gh api user` call (a new `CliCall` covered by the guard test), not from a setting. — Owner: user. Block: no.
+  - Can the rules in `hidden_issues/rules.rs` be shared without a copy, and can the new storage hold GitLab merge requests too, so S-07 needs no migration? — Owner: team. Block: no (settled in `/10x-plan`).
+- **Risk:** A migration and a new `gh` call; it runs in a wave with no other migration, and the shared hiding rules it settles are what S-07 builds on.
+- **Status:** done
+
+### S-02: GitHub refresh interval and next try
+
+- **Outcome:** user can set GitHub's refresh interval in `settings.json` (`githubRefresh.minutes`, same range and default as GitLab) and see "every N min — next try in M min (HH:MM)" in GitHub's unavailable and error states.
+- **Change ID:** github-refresh-interval
+- **PRD refs:** MS-29, FR-005, FR-024
+- **Prerequisites:** F-01
+- **Parallel with:** S-01, S-03, S-04, S-05, S-06
+- **Blockers:** —
+- **Unknowns:** —
+- **Risk:** Small once F-01 exposes the interval and `nextRefreshAtMs` for every source; shares the GitHub view with S-01 and S-03.
+- **Status:** done
+
+### S-03: GitHub NEW flag
+
+- **Outcome:** user can see a NEW flag on GitHub items that appeared since their last visit to the view; GitHub gives no Windows notice (decided 2026-11-27).
+- **Change ID:** github-new-and-notify
+- **PRD refs:** MS-30, FR-005, FR-023
+- **Prerequisites:** F-01
+- **Parallel with:** S-02, S-04, S-05, S-06
+- **Blockers:** —
+- **Unknowns:**
+  - Resolved 2026-11-27: NEW flag only, no GitHub notices. — Owner: user. Block: no.
+- **Risk:** A migration (GitHub seen keys and a GitHub view mark); it runs in a later wave than S-01 so the two migrations do not collide.
+- **Status:** done
+
+### S-04: Last GitLab list without VPN
+
+- **Outcome:** user can see, without VPN, the calm "GitLab unavailable" card with the last success and next try, and under it the session's last list, dimmed as in GitHub; the view header shows that list's counts instead of only "source unavailable".
+- **Change ID:** gitlab-offline-last-list
+- **PRD refs:** MS-32, FR-015
 - **Prerequisites:** —
-- **Parallel with:** S-03, S-04, S-05, S-06, S-07
+- **Parallel with:** F-01, S-01, S-02, S-03, S-05, S-06
 - **Blockers:** —
-- **Unknowns:**
-  - The PRD Non-Goal "no automatic holiday calendar" must change; the user welcomed the calendar on 2026-11-25. — Owner: user. Block: no (recorded in `/10x-plan`).
-  - A holiday on a Saturday gives another day off whose date the employer sets: stays a manual day off, with or without a hint in the table? — Owner: user. Block: no (settled in `/10x-plan`).
-  - A day that is both a holiday and a marked day off. — Owner: user. Block: no (settled in `/10x-plan`).
-- **Risk:** Changes the norm rule every report shows; it goes first so S-02 and S-08 build on a settled rule, and the rule stays in Rust with tests on known dates.
+- **Unknowns:** —
+- **Risk:** A UI condition introduced by the Konsola alignment; the fix must keep the calm card (no red, no alarm) and make clear the list is stale.
 - **Status:** done
 
-### S-02: Configurable daily norm and half day off
+### S-05: Remembered GitLab view state
 
-- **Outcome:** user can set the daily norm in settings (default 8 h) and mark a half day off in the days table, and the report counts both.
-- **Change ID:** configurable-daily-norm
-- **PRD refs:** MS-26, FR-014, FR-020
-- **Prerequisites:** S-01
-- **Parallel with:** S-03, S-04, S-05, S-06, S-07, S-08
-- **Blockers:** —
-- **Unknowns:**
-  - Can the norm change within a month (a change of contract), which needs a norm history rather than one setting? — Owner: user. Block: no (settled in `/10x-plan`).
-  - Is a half day off really needed, or is a full day enough? — Owner: user. Block: no (settled in `/10x-plan`).
-- **Risk:** Extends the same norm rule as S-01; planned after it so the two do not change the rule at once.
-- **Status:** done
-
-### S-03: START/STOP from the tray
-
-- **Outcome:** user can start and stop the work-time counter from the tray menu and see today's work time in the tray tooltip next to the source state.
-- **Change ID:** tray-timer-control
-- **PRD refs:** MS-23, FR-013
+- **Outcome:** user can close and reopen the app and find "Work (GitLab)" with the same type choice (issues/MRs) and the same "Hidden" section expansion; the view filter still resets.
+- **Change ID:** gitlab-view-memory
+- **PRD refs:** MS-34, FR-001, FR-003
 - **Prerequisites:** —
-- **Parallel with:** S-01, S-02, S-05, S-06, S-07, S-08
+- **Parallel with:** F-01, S-01, S-02, S-03, S-04, S-06
 - **Blockers:** —
-- **Unknowns:**
-  - Does STOP from the tray need the same confirmation as the header, and how is it shown? — Owner: user. Block: no (settled in `/10x-plan`).
-  - Does the tray icon get a "counter running" variant? — Owner: user. Block: no (settled in `/10x-plan`).
-- **Risk:** The counter is a guardrail ("time is never lost"): the tray must use the same state as the header and the event log, with no second counter.
+- **Unknowns:** —
+- **Risk:** A migration and a new kind of record in the app data dir (no work data); the AGENTS.md list of app data and the "in memory only" rule change with it.
 - **Status:** done
 
-### S-04: Autostart with Windows
+### S-06: "Do review" section for merge requests
 
-- **Outcome:** user can have the app start with Windows into the tray, without showing the window, controlled by a switch in `settings.json`.
-- **Change ID:** windows-autostart
-- **PRD refs:** MS-17, FR-018
-- **Prerequisites:** —
-- **Parallel with:** S-01, S-02, S-05, S-06, S-07, S-08
+- **Outcome:** user can see the GitLab merge requests where they are a reviewer in a "Do review" section of "Work (GitLab)", under the same settings filter, add them to "To do" with "+", and get a Windows notice of a new review request by the FR-004 mechanism and threshold, whatever the filter says.
+- **Change ID:** gitlab-review-requests
+- **PRD refs:** MS-35, FR-001, FR-002, FR-004
+- **Prerequisites:** F-01
+- **Parallel with:** S-01, S-02, S-03, S-04, S-05
 - **Blockers:** —
-- **Unknowns:**
-  - On or off by default? — Owner: user. Block: no (settled in `/10x-plan`).
-  - The registry entry is a write outside the app's own folders; the AGENTS.md rule needs an exception. — Owner: user. Block: no (recorded in `/10x-plan`).
-- **Risk:** Reminders (FR-018) only fire while the app runs; shares start-up code with S-03, so the two are planned one after the other.
+- **Unknowns:** —
+- **Risk:** A new `glab api` call and a second source of merge requests in the refresh round; review requests reuse today's seen-assignment keys so they add no migration, and an MR both assigned and to review must not notify twice.
 - **Status:** done
 
-### S-05: Month report to the clipboard
+### S-07: Hide a GitLab merge request
 
-- **Outcome:** user can copy the month report (days, entries, sums, deviation, days off) to the clipboard as text that pastes into a spreadsheet.
-- **Change ID:** month-report-copy
-- **PRD refs:** MS-24, FR-014, FR-020
-- **Prerequisites:** —
-- **Parallel with:** S-01, S-02, S-03, S-04, S-07, S-08
+- **Outcome:** user can hide a GitLab merge request (assigned or in "Do review") and see it come back marked "Changed" when its state changes or someone other than them comments.
+- **Change ID:** gitlab-hide-merge-requests
+- **PRD refs:** MS-33, FR-003
+- **Prerequisites:** S-01, S-06
+- **Parallel with:** S-02, S-03
 - **Blockers:** —
 - **Unknowns:**
-  - Clipboard only, or also a file in a folder set in settings (a file elsewhere breaks the AGENTS.md write rule)? — Owner: user. Block: no (settled in `/10x-plan`).
-  - Format: TSV, CSV or Markdown. — Owner: user. Block: no (settled in `/10x-plan`).
-- **Risk:** The text must come from the same Rust report the view shows, so the copied numbers never differ from the screen.
-- **Status:** done
-
-### S-06: Note on a work-time entry
-
-- **Outcome:** user can add, edit and see a short plain-text note on a work-time entry.
-- **Change ID:** work-entry-note
-- **PRD refs:** MS-27, FR-017
-- **Prerequisites:** —
-- **Parallel with:** S-01, S-02, S-03, S-04, S-07, S-08
-- **Blockers:** —
-- **Unknowns:**
-  - Entry notes must be added to the AGENTS.md list of what the app keeps in its data dir. — Owner: user. Block: no (recorded in `/10x-plan`).
-- **Risk:** A new migration and user content in the store; the note must not reach the app log or the event log.
-- **Status:** done
-
-### S-07: End-of-day summary
-
-- **Outcome:** user can see, after STOP, a summary of the day: time worked today, the month's deviation, what was ticked off and what carries over to tomorrow, with no decision forced.
-- **Change ID:** end-of-day-summary
-- **PRD refs:** MS-19, FR-013, FR-014
-- **Prerequisites:** —
-- **Parallel with:** S-01, S-02, S-03, S-04, S-05, S-06, S-08
-- **Blockers:** —
-- **Unknowns:**
-  - After STOP only, or also at a fixed hour; and what happens on STOP from the tray (S-03)? — Owner: user. Block: no (settled in `/10x-plan`).
-- **Risk:** Reads today's event log and the report that already exist; it must not add a second store of the day's state.
-- **Status:** done
-
-### S-08: Week summary
-
-- **Outcome:** user can see in "Work time" the current week's sum against the week's norm, day by day.
-- **Change ID:** week-summary
-- **PRD refs:** MS-18, FR-014
-- **Prerequisites:** S-01
-- **Parallel with:** S-02, S-03, S-04, S-05, S-06, S-07
-- **Blockers:** —
-- **Unknowns:**
-  - A section in "Work time" or a separate view; a week that crosses months. — Owner: user. Block: no (settled in `/10x-plan`).
-- **Risk:** The week's norm must use the same rule as the month (holidays from S-01), computed in Rust, not summed again in the UI.
+  - Resolved 2026-11-27: only a state change or a comment by someone else brings a merge request back (the FR-003 rule); no approvals, commits or pipelines. — Owner: user. Block: no.
+- **Risk:** Builds on the hiding rules S-01 generalises and on S-06's review section; a migration unless S-01's storage already holds merge requests.
 - **Status:** done
 
 ## Backlog Handoff
 
-| Roadmap ID | Change ID               | Suggested issue title                                        | Ready for `/10x-plan` | Notes |
-| ---------- | ----------------------- | ------------------------------------------------------------ | --------------------- | ----- |
-| S-01       | public-holidays-norm    | Czas pracy: polskie święta państwowe w normie                | yes                   | Issue #25; north star |
-| S-02       | configurable-daily-norm | Czas pracy: konfigurowalna norma dzienna i pół dnia wolnego  | yes                   | Issue #26; after S-01 |
-| S-03       | tray-timer-control      | Zasobnik: START/STOP i bieżący czas pracy                    | yes                   | Issue #23 |
-| S-04       | windows-autostart       | Decyzja: autostart z Windows                                 | yes                   | Issue #17; plan after S-03 or before it, not at once |
-| S-05       | month-report-copy       | Czas pracy: kopiowanie raportu miesiąca do schowka           | yes                   | Issue #24 |
-| S-06       | work-entry-note         | Czas pracy: notatka przy wpisie                              | yes                   | Issue #27 |
-| S-07       | end-of-day-summary      | Decyzja: zamknięcie dnia                                     | yes                   | Issue #19 |
-| S-08       | week-summary            | Decyzja: widok tygodnia                                      | yes                   | Issue #18; after S-01 |
+| Roadmap ID | Change ID                  | Suggested issue title                                              | Ready for `/10x-plan` | Notes |
+| ---------- | -------------------------- | ------------------------------------------------------------------ | --------------------- | ----- |
+| F-01       | source-refresh-skeleton    | Wspólny mechanizm odświeżania źródeł (GitLab i GitHub)             | yes                   | Issue #28 |
+| S-01       | github-hide-resurface      | GitHub: ukrywanie zgłoszeń z powrotem po zmianie                   | no                    | Issue #31; north star; after F-01 |
+| S-02       | github-refresh-interval    | GitHub: interwał odświeżania w ustawieniach i czas następnej próby | no                    | Issue #29; after F-01 |
+| S-03       | github-new-and-notify      | GitHub: flaga NOWE (bez powiadomień)                               | no                    | Issue #30; after F-01; migration wave apart from S-01 |
+| S-04       | gitlab-offline-last-list   | GitLab: ostatnia lista znika przy braku VPN                        | yes                   | Issue #32 |
+| S-05       | gitlab-view-memory         | GitLab: filtr widoku zapamiętany między uruchomieniami             | yes                   | Issue #34 |
+| S-06       | gitlab-review-requests     | Decyzja: MR-y, w których jestem reviewerem                         | no                    | Issue #35; after F-01 |
+| S-07       | gitlab-hide-merge-requests | GitLab: ukrywanie merge requestów                                  | no                    | Issue #33; after S-01 and S-06 |
 
 ## Open Roadmap Questions
 
 1. **Nazwa produktu** — robocza „Nawigator dnia”. Owner: użytkownik. Block: none.
-2. **FR for the M-3 issues** — #17, #18, #19, #23, #24, #26 and #27 have no FR in the PRD, and #25 lifts a PRD Non-Goal ("no automatic holiday calendar"). Add FR-027+ to the PRD (as M-2 did with FR-019–FR-026), or keep them anchored as MS-NN here? Owner: user. Block: none (slices trace to MS-NN).
-3. **AGENTS.md rule changes** — S-04 (a registry entry outside the app's folders), S-05 (a file outside the app's folders, if chosen) and S-06 (entry notes in the app data) each need a rule update in AGENTS.md together with the change. Owner: user. Block: none (each settled in its `/10x-plan`).
+2. **PRD notes for M-4** — no new FR (decided 2026-11-27); S-06 lifts the Non-Goal "reviewer MRs outside v1" and S-07 widens hiding to merge requests, each with a one-line note in the PRD (as M-3 did for autostart and the week view), without new or changed FR numbers. Owner: user. Block: none.
+3. **AGENTS.md rule changes** — S-05 (remembered view state in the app data dir, and the "in memory only" line for the GitLab list state), S-01 and S-07 (hidden snapshots of GitHub issues and GitLab MRs) and S-03 (GitHub seen keys and view mark) each update the app-data list in AGENTS.md together with the change. Owner: user. Block: none (each settled in its `/10x-plan`).
 
 ## Parked
 
 - **Writing to GitLab and GitHub** — Why parked: PRD Non-Goals; read-only (no closing, status changes, comments or assignment).
-- **Obsidian vault access** — Why parked: PRD Non-Goals; no reading or writing. The dormant vault code was removed in M-2; any future vault access starts from a new plan, and the PRD Non-Goal is unchanged.
-- **Other work-time automation** — Why parked: PRD Non-Goals; no idle detection, activity tracking or automatic stop. The holiday calendar moved into M-3 (S-01) on 2026-11-25; the rest of the Non-Goal stays.
-- **MRs where the user is a reviewer; deleting tasks (FR-009)** — Why parked: PRD Non-Goals ("Poza v1"). The reviewer question is open as issue #35 (GitHub milestone M-4).
-- **Editing settings in the app** — Why parked: the app reads `settings.json` and never writes it; panels stay read-only.
+- **Obsidian vault access** — Why parked: PRD Non-Goals; no reading or writing. Any future vault access starts from a new plan, and the PRD Non-Goal is unchanged.
+- **Other work-time automation** — Why parked: PRD Non-Goals; no idle detection, activity tracking or automatic stop.
+- **Deleting tasks (FR-009)** — Why parked: PRD Non-Goals ("Poza v1"). Reviewer MRs moved into M-4 (S-06) on 2026-11-27.
+- **Remembering the GitLab view filter values** — Why parked: decided 2026-11-27 (MS-34); the values are work data (project, label and milestone names), so the filter stays in memory only.
 - **Signed installer (MS-13, issue #13)** — Why parked: decided by the user on 2026-11-24. For one user on one machine, a signature does not remove the SmartScreen warning right away, because reputation builds with downloads. Azure Artifact Signing is not open to individuals in Poland, and an OV certificate costs a yearly fee. Free OSS signing (SignPath Foundation) asks for proof of reputation the project does not have yet. Research: `context/archive/2026-11-24-installer-signing/research.md`. Comes back if the app is ever shared with others and has users to show.
 - **Breaks and pomodoro, distraction blocker, morning "plan the day"** — Why parked: PRD "considered, deliberately NOT excluded"; no FR and no issue covers them.
-- **GitHub milestones M-4–M-6 (#20, #28–#52)** — Why parked: outside M-3; each opens as the next milestone of this file after M-3 closes (sources, GitHub parity, lists and daily comfort, code tidy-up and distribution).
+- **GitHub milestones M-5 and M-6** — Why parked: outside M-4; each opens as the next milestone of this file after M-4 closes (lists and daily comfort, code tidy-up and distribution).
+
+"Editing settings in the app" was parked here; it was lifted on 2026-11-28 by change `settings-button`.
 
 ## Milestone History
 
 - **M-1: The narrowed day flow runs in the app** (`full-day-flow`) — closed 2026-11-23. The day flow from PRD v1 runs in the app: GitLab issues and MRs (filter, hiding, notifications), GitHub issues, own tasks, the "To do" list, and the work-time counter with its norm report and reminders. FR-001–FR-008 and FR-010–FR-018 are covered.
 - **M-2: Konsola mockup gaps closed and the codebase cleaned up** (`konsola-gaps-and-cleanup`) — closed 2026-11-24. The Konsola mockup gaps are now in the app: the event log, the days table, the reminders panel, the app-data details, the GitLab NEW flag, hidden date and filter bar, GitHub labels, and "+" to "To do". They sit on a cleaner base (shared UI tools and timer state, no vault layer), and the design-system artifact matches the app. Releases carry a changelog and real metadata (0.2.1, 0.3.0). FR-019–FR-026 and MS-09–MS-12 and MS-14–MS-16 are covered. MS-13 (installer signing) was parked.
 - **M-3: Work time and the tray** (`worktime-and-tray`) — closed 2026-11-27. The work-time counter and its norm report can be trusted and reached without opening the window: Polish public holidays count out of the norm, the daily norm is configurable with a half day off, the counter starts and stops from the tray (with today's time in the tooltip and a running icon), the app can start with Windows into the tray, the month report copies to the clipboard for a spreadsheet, work-time entries carry a short note, STOP shows an end-of-day summary, and "Work time" shows a week summary against the week's norm. MS-17, MS-18, MS-19 and MS-23–MS-27 are covered.
+- **M-4: Sources — GitHub on a par with GitLab** (`sources-github-parity`) — closed 2026-11-28. "Projects (GitHub)" now behaves like "Work (GitLab)" on one shared refresh skeleton: its own refresh interval with the next try shown, a NEW flag on issues new since the last visit (no GitHub notices), and hiding until a state change or someone else's comment brings an issue back marked "Changed". "Work (GitLab)" closed its gaps: without VPN the calm unavailable card shows the last list dimmed under it, the type choice and the hidden expansion are remembered between runs, merge requests where the user is a reviewer appear in a "Do review" section with notices and "+" to "To do", and merge requests can be hidden too. MS-28–MS-35 are covered; no new FR.
 
 ## Done
 
-Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to its earlier decomposition, archived at `context/foundation/archive/2026-11-23-roadmap-full-day-flow.md`), not to the F-NN/S-NN above. Entries from 2026-11-24 belong to M-2 and refer to M-2's items. New entries for M-3 are appended below them; each entry's IDs refer to the milestone it closed in.
+Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to its earlier decomposition, archived at `context/foundation/archive/2026-11-23-roadmap-full-day-flow.md`), not to the F-NN/S-NN above. Entries from 2026-11-24 belong to M-2 and those from 2026-11-26 and 2026-11-27 to M-3. New entries for M-4 are appended below them; each entry's IDs refer to the milestone it closed in.
 
 - **F-01: (foundation) the app reads and writes only inside vault folders configured per space (Work, Private), never sees excluded paths, changes only the targeted line or section of a note (rest of the file byte-identical), and sends deletions to the vault trash — proven against a small invented test vault.** — Archived 2026-11-20 → `context/archive/2026-11-20-safe-vault-access/`. Lesson: —.
 - **F-03: (foundation) a private GitHub repository exists, every change is built and tested in CI against invented data only, and a merge to `main` publishes a Windows installer as a GitHub Release named "Nawigator dnia" only when it bumps the version in `src-tauri/Cargo.toml`; every other merge only runs CI.** — Archived 2026-11-21 → `context/archive/2026-11-20-ci-release-pipeline/`. Lesson: —.
@@ -277,3 +270,11 @@ Entries up to 2026-11-23 belong to M-1; their IDs refer to M-1's items (or to it
 - **S-05: user can copy the month report (days, entries, sums, deviation, days off) to the clipboard as text that pastes into a spreadsheet.** — Archived 2026-11-27 → `context/archive/2026-11-26-month-report-copy/`. Lesson: —.
 - **S-07: user can see, after STOP, a summary of the day: time worked today, the month's deviation, what was ticked off and what carries over to tomorrow, with no decision forced.** — Archived 2026-11-27 → `context/archive/2026-11-26-end-of-day-summary/`. Lesson: —.
 - **S-04: user can have the app start with Windows into the tray, without showing the window, controlled by a switch in `settings.json`.** — Archived 2026-11-27 → `context/archive/2026-11-26-windows-autostart/`. Lesson: —.
+- **F-01: (foundation) GitLab and GitHub refresh through one shared skeleton (thread with a `ThreadDown` stand-in, interval, wake after sleep, "Check now", snapshot publication, `lastSuccessMs` and `nextRefreshAtMs`), with the fetch and rules left in each source's module, and no change in behaviour, commands or existing test bodies.** — Archived 2026-11-27 → `context/archive/2026-11-27-source-refresh-skeleton/`. Lesson: —.
+- **S-04: user can see, without VPN, the calm "GitLab unavailable" card with the last success and next try, and under it the session's last list, dimmed as in GitHub; the view header shows that list's counts instead of only "source unavailable".** — Archived 2026-11-27 → `context/archive/2026-11-27-gitlab-offline-last-list/`. Lesson: —.
+- **S-05: user can close and reopen the app and find "Work (GitLab)" with the same type choice (issues/MRs) and the same "Hidden" section expansion; the view filter still resets.** — Archived 2026-11-27 → `context/archive/2026-11-27-gitlab-view-memory/`. Lesson: —.
+- **S-01: user can hide and show a GitHub issue in its row, see a "Hidden (n)" section with the hide date, and see a hidden issue come back marked "Changed" when its state changes or someone other than them comments.** — Archived 2026-11-28 → `context/archive/2026-11-27-github-hide-resurface/`. Lesson: —.
+- **S-02: user can set GitHub's refresh interval in `settings.json` (`githubRefresh.minutes`, same range and default as GitLab) and see "every N min — next try in M min (HH:MM)" in GitHub's unavailable and error states.** — Archived 2026-11-28 → `context/archive/2026-11-27-github-refresh-interval/`. Lesson: —.
+- **S-06: user can see the GitLab merge requests where they are a reviewer in a "Do review" section of "Work (GitLab)", under the same settings filter, add them to "To do" with "+", and get a Windows notice of a new review request by the FR-004 mechanism and threshold, whatever the filter says.** — Archived 2026-11-28 → `context/archive/2026-11-27-gitlab-review-requests/`. Lesson: —.
+- **S-03: user can see a "Nowe" flag on GitHub items that appeared since their last visit to the GitHub view; the flag clears on leaving the view or hiding the window, and GitHub gives no Windows notice.** — Archived 2026-11-28 → `context/archive/2026-11-28-github-new-and-notify/`. Lesson: —.
+- **S-07: user can hide a GitLab merge request (assigned or in "Do review") and see it come back marked "Changed" when its state changes or someone other than them comments.** — Archived 2026-11-28 → `context/archive/2026-11-28-gitlab-hide-merge-requests/`. Lesson: —.

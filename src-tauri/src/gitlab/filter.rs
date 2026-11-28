@@ -150,6 +150,7 @@ mod tests {
             milestone: None,
             is_new: false,
             hidden_at_ms: None,
+            review_requested: false,
         }
     }
 

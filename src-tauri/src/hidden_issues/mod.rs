@@ -1,5 +1,8 @@
-//! Hidden GitLab issues (S-03): the hide records in the app data store and the
-//! rules that bring an issue back.
+//! Hidden issues: the hide records in the app data store and the rules that
+//! bring an issue back. GitLab issues live in `hidden_issues` (S-03, this
+//! module); `items` holds the source-neutral table `hidden_items` (GitHub
+//! issues, GitLab merge requests in `merge_requests`). The rules in `rules`
+//! serve all of them.
 //!
 //! No `tauri` import and no clock: `now_ms` is a parameter. Every mutation is
 //! one `Store::write`, so a refusal changes nothing. A record holds ids,
@@ -9,6 +12,10 @@
 
 pub mod commands;
 pub mod error;
+pub mod github_round;
+pub mod items;
+pub mod merge_requests;
+pub mod mr_round;
 pub mod round;
 pub mod rules;
 
@@ -18,13 +25,20 @@ mod tests;
 use rusqlite::{Connection, Row};
 
 use crate::cli::GitlabHost;
-use crate::gitlab::{ChangeReason, GitlabItem, ItemKind};
+pub use crate::gitlab::ChangeReason;
+use crate::gitlab::{GitlabItem, ItemKind};
 use crate::store::{Store, StoreError};
 pub use error::HiddenIssueError;
+pub use merge_requests::{
+    GitlabHidden, list_gitlab, mr_key, new_hidden_mr, partition_merge_requests,
+};
+pub use mr_round::{
+    MrRoundChecks, MrRoundOutcome, check_mr_round, commit_mr_round, mr_calls_allowed,
+};
 pub use round::{RoundChecks, RoundOutcome, check_round, commit_round};
 pub use rules::{
-    CommentVerdict, HiddenRecord, PRUNE_AFTER_MS, SETTLE_MS, Transition, comment_verdict,
-    needs_comment_check, plan_round, scoped_labels, status_changed,
+    Comment, CommentVerdict, HiddenRecord, HideItem, HideRecord, PRUNE_AFTER_MS, SETTLE_MS,
+    Transition, comment_verdict, needs_comment_check, plan_round, scoped_labels, status_changed,
 };
 
 const COLUMNS: &str = "issue_id, project_id, iid, scoped_labels, baseline_updated_at, \

@@ -18,6 +18,21 @@ export function formatClock(ms: number): string {
   return clock(new Date(ms));
 }
 
+/** The refresh interval and when the next automatic try is due. */
+export function retryText(
+  refreshMinutes: number,
+  nextRefreshAtMs: number | null,
+  refreshing: boolean,
+  now: number,
+): string {
+  const every = `Odświeżam co ${refreshMinutes} min`;
+  if (refreshing) return `${every} — sprawdzam teraz…`;
+  if (nextRefreshAtMs === null) return `${every}.`;
+  const left = nextRefreshAtMs - now;
+  if (left <= 0) return `${every} — następna próba lada chwila.`;
+  return `${every} — następna próba za ${Math.ceil(left / 60_000)} min (${formatClock(nextRefreshAtMs)}).`;
+}
+
 /** Whole local calendar days from `ms` to `nowMs` (DST-safe; negative when `ms` is later). */
 function calendarDays(ms: number, nowMs: number): number {
   const a = new Date(ms);

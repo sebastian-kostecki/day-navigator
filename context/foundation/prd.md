@@ -224,7 +224,7 @@ No access control changes — current model preserved.
 - **Brak zapisu do GitLaba i GitHuba.** Aplikacja nie zamyka zgłoszeń, nie zmienia statusów, nie komentuje i nie przypisuje; tylko odczyt.
 - **Brak dostępu do vaultów Obsidian.** Ani odczytu, ani zapisu (plan dnia, dziennik, `Tasks/`, `Issues/`) — zapis do vaultów to „później”.
 - **Brak automatyki czasu pracy.** Bez wykrywania bezczynności i mierzenia aktywności; czas liczy się wyłącznie z przycisków START/STOP i ręcznej korekty (FR-017).
-- **Poza v1 (z rundy Sokratesa):** MR-y, w których użytkownik jest reviewerem; usuwanie zadań (FR-009 usunięty).
+- **Poza v1 (z rundy Sokratesa):** usuwanie zadań (FR-009 usunięty).
 
 ### Niezmieniane w istniejącym systemie
 - Typ produktu (desktop, Windows 11) i skala (jeden użytkownik) bez zmian.
@@ -238,6 +238,12 @@ Widok tygodnia jest zbudowany jako panel „Bieżący tydzień” w „Czas prac
 Zamknięcie dnia jest zbudowane jako podsumowanie dnia po STOP (MS-19), bez nowego FR.
 
 Autostart z Windows jest dostarczany w M-3 jako MS-17 (roadmapa): domyślnie wyłączony, przełącznik `autostart.enabled` w `settings.json`, start do zasobnika bez okna; bez nowego FR.
+
+MR-y, w których użytkownik jest reviewerem, są dostarczane w M-4 jako MS-35 (roadmapa): sekcja „Do review” w „Praca (GitLab)” pod filtrem FR-002, „+” do „Do zrobienia”, powiadomienia mechanizmem i progiem FR-004; bez nowego FR.
+
+Ukrywanie MR-ów (przypisanych i z „Do review”) jest dostarczane w M-4 jako MS-33 (roadmapa): ukryty MR wraca jako „Zmienione” po komentarzu kogoś innego albo po powrocie na listę (zmiana stanu), regułą FR-003; zatwierdzenia, commity i pipeline'y go nie przywracają; bez nowego FR.
+
+Ustawienia można zmieniać w aplikacji (okno „Ustawienia”, zapis do `settings.json`; panel „Przypomnienia” z FR-021 sam nadal niczego nie edytuje), a powiadomienia o nowych przypisaniach, problemach GitLaba i GitHuba oraz podsumowanie dnia po STOP z zasobnika można wyłączyć (change `settings-button`, 2026-11-28); bez nowego FR.
 
 ## Open Questions
 

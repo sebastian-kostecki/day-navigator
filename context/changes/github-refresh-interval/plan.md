@@ -316,8 +316,8 @@ Same base `develop` 00e6a19. Edits in shared files stay small and appended; no r
 
 #### Manual
 
-- [ ] 3.5 Without a githubRefresh key, with GitHub unreachable (network off), "GitHub niedostępny" shows "Odświeżam co 10 min — następna próba za M min (HH:MM)." and no warn notice
-- [ ] 3.6 With "githubRefresh": {"minutes": 3}, after "Sprawdź teraz" the text says "co 3 min", the HH:MM is about 3 min ahead, and the next automatic round comes about 3 min later without a restart
-- [ ] 3.7 An invalid githubRefresh.minutes (0, 15, "10") shows the warn notice naming githubRefresh.minutes and "co 10 min"; GitLab shows no refresh notice, and an invalid gitlabRefresh.minutes shows no GitHub notice
-- [ ] 3.8 In the GitHub error state (for example "github": {"repos": "nope"}) the retry text follows the error message; while a round runs it reads "sprawdzam teraz…"
-- [ ] 3.9 GitLab regression: without VPN the "GitLab niedostępny" card shows the same retry text as before, and the gitlabRefresh notice is unchanged
+- [x] 3.5 Without a githubRefresh key, with GitHub unreachable (network off), "GitHub niedostępny" shows "Odświeżam co 10 min — następna próba za M min (HH:MM)." and no warn notice — manual 2026-11-28
+- [x] 3.6 With "githubRefresh": {"minutes": 3}, after "Sprawdź teraz" the text says "co 3 min", the HH:MM is about 3 min ahead, and the next automatic round comes about 3 min later without a restart — manual 2026-11-28
+- [x] 3.7 An invalid githubRefresh.minutes (0, 15, "10") shows the warn notice naming githubRefresh.minutes and "co 10 min"; GitLab shows no refresh notice, and an invalid gitlabRefresh.minutes shows no GitHub notice — manual 2026-11-28
+- [x] 3.8 In the GitHub error state (for example "github": {"repos": "nope"}) the retry text follows the error message; while a round runs it reads "sprawdzam teraz…" — manual 2026-11-28
+- [x] 3.9 GitLab regression: without VPN the "GitLab niedostępny" card shows the same retry text as before, and the gitlabRefresh notice is unchanged — manual 2026-11-28

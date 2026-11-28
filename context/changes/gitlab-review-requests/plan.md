@@ -716,13 +716,13 @@ Rollback to an older build is safe. Old code never reads the marker row, and the
 
 #### Manual
 
-- [ ] 5.5 reviews_for_me is supported on the real instance and the section lists review MRs
-- [ ] 5.6 With gitlab.user set, the section lists that user's review MRs
-- [ ] 5.7 Section placement, type switch, "+" without hide, settings filter footer, view filter, header count
-- [ ] 5.8 "+" adds a review MR to Do zrobienia; not ticked on refresh; ticked after merge or close
-- [ ] 5.9 New review request gives "nowy MR do review" notice despite the filter; threshold; event log line
-- [ ] 5.10 First run after upgrade: no notice burst and no Nowe flags for already-open review MRs
-- [ ] 5.11 MR both assigned and to review shows once with a Do review flag and gives at most one notice
-- [ ] 5.12 Without VPN: calm unavailable, Do review stays visible and dimmed, no repeated notices after
-- [ ] 5.13 Do zrobienia picker lists and adds review MRs; its filter note counts them
-- [ ] 5.14 A new review MR row shows Nowe until the view is left
+- [x] 5.5 reviews_for_me is supported on the real instance and the section lists review MRs — manual 2026-11-28
+- [x] 5.6 With gitlab.user set, the section lists that user's review MRs — manual 2026-11-28
+- [x] 5.7 Section placement, type switch, "+" without hide, settings filter footer, view filter, header count — manual 2026-11-28
+- [x] 5.8 "+" adds a review MR to Do zrobienia; not ticked on refresh; ticked after merge or close — manual 2026-11-28
+- [x] 5.9 New review request gives "nowy MR do review" notice despite the filter; threshold; event log line — manual 2026-11-28
+- [x] 5.10 First run after upgrade: no notice burst and no Nowe flags for already-open review MRs — manual 2026-11-28
+- [x] 5.11 MR both assigned and to review shows once with a Do review flag and gives at most one notice — manual 2026-11-28
+- [x] 5.12 Without VPN: calm unavailable, Do review stays visible and dimmed, no repeated notices after — manual 2026-11-28
+- [x] 5.13 Do zrobienia picker lists and adds review MRs; its filter note counts them — manual 2026-11-28
+- [x] 5.14 A new review MR row shows Nowe until the view is left — manual 2026-11-28

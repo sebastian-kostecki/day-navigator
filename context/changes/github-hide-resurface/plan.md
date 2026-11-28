@@ -598,7 +598,7 @@ v15 only creates `hidden_items`; existing data is untouched and no GitLab row mo
 
 #### Manual
 
-- [ ] 1.4 Real-CLI smoke test prints gh:user -> data on the user's machine
+- [x] 1.4 Real-CLI smoke test prints gh:user -> data on the user's machine — manual 2026-11-28
 
 ### Phase 2: Migration v15, hidden-item store and shared rules
 
@@ -637,12 +637,12 @@ v15 only creates `hidden_items`; existing data is untouched and no GitLab row mo
 
 #### Manual
 
-- [ ] 5.4 Hiding removes the issue; the toggle shows it dimmed with ukryte DD.MM
-- [ ] 5.5 Pokaż na liście brings the issue back unmarked
-- [ ] 5.6 A comment by another account resurfaces it with Zmienione (nowy komentarz); OK, zauważone clears it
-- [ ] 5.7 The user's own comment leaves it hidden
-- [ ] 5.8 Close and reopen brings it back with wróciło na listę
-- [ ] 5.9 A hidden issue in Do zrobienia keeps its entry and its button
-- [ ] 5.10 GitLab hiding works as before
-- [ ] 5.11 Built app shows no CSP violation and the log holds no repo, login, title or comment text
-- [ ] 5.12 A returned GitHub issue in Do zrobienia shows zmienione until dismissed
+- [x] 5.4 Hiding removes the issue; the toggle shows it dimmed with ukryte DD.MM — manual 2026-11-28
+- [x] 5.5 Pokaż na liście brings the issue back unmarked — manual 2026-11-28
+- [x] 5.6 A comment by another account resurfaces it with Zmienione (nowy komentarz); OK, zauważone clears it — manual 2026-11-28
+- [x] 5.7 The user's own comment leaves it hidden — manual 2026-11-28
+- [x] 5.8 Close and reopen brings it back with wróciło na listę — manual 2026-11-28
+- [x] 5.9 A hidden issue in Do zrobienia keeps its entry and its button — manual 2026-11-28
+- [x] 5.10 GitLab hiding works as before — manual 2026-11-28
+- [x] 5.11 Built app shows no CSP violation and the log holds no repo, login, title or comment text — manual 2026-11-28
+- [x] 5.12 A returned GitHub issue in Do zrobienia shows zmienione until dismissed — manual 2026-11-28

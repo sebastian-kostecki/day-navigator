@@ -15,6 +15,7 @@ pub mod error;
 pub mod github_round;
 pub mod items;
 pub mod merge_requests;
+pub mod mr_round;
 pub mod round;
 pub mod rules;
 
@@ -28,6 +29,9 @@ pub use crate::gitlab::ChangeReason;
 use crate::gitlab::{GitlabItem, ItemKind};
 use crate::store::{Store, StoreError};
 pub use error::HiddenIssueError;
+pub use mr_round::{
+    MrRoundChecks, MrRoundOutcome, check_mr_round, commit_mr_round, mr_calls_allowed,
+};
 pub use round::{RoundChecks, RoundOutcome, check_round, commit_round};
 pub use rules::{
     Comment, CommentVerdict, HiddenRecord, HideItem, HideRecord, PRUNE_AFTER_MS, SETTLE_MS,

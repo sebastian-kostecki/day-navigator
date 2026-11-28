@@ -741,3 +741,11 @@ fn new_hidden_mr_has_empty_fingerprint_and_both_refs() {
     assert!(n.status_fingerprint.is_empty());
     assert_eq!(n.baseline_updated_at, T0);
 }
+
+#[test]
+fn mr_calls_allowed_skips_after_an_issue_stop_but_never_twice() {
+    assert!(mr_calls_allowed(false, false));
+    assert!(mr_calls_allowed(false, true));
+    assert!(!mr_calls_allowed(true, false));
+    assert!(mr_calls_allowed(true, true));
+}

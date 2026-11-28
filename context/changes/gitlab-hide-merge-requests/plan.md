@@ -690,10 +690,10 @@ None: MR records are new rows in `hidden_items` (v15). A database written by thi
 
 #### Automated
 
-- [ ] 4.1 MR round integration tests pass
-- [ ] 4.2 GitLab issue round tests pass unchanged
-- [ ] 4.3 No leak marker in any error or Debug output
-- [ ] 4.4 All AGENTS.md gates green
+- [x] 4.1 MR round integration tests pass
+- [x] 4.2 GitLab issue round tests pass unchanged
+- [x] 4.3 No leak marker in any error or Debug output
+- [x] 4.4 All AGENTS.md gates green
 
 ### Phase 5: State shaping, actions on either kind, and commands
 

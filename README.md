@@ -43,11 +43,23 @@ the hours you spend on it.
 - **Do zrobienia (To do):** a daily list picked from GitLab, GitHub and your own tasks, with
   a limit (5 by default). Unticked items carry over to the next day. Items closed in GitLab or
   GitHub tick themselves off. Use "+" on any row to add it.
-- **GitLab:** the issues and merge requests assigned to you, refreshed in the background.
-  Includes a visibility filter (projects, labels, milestones, recently closed), a NEW flag for
-  items that appeared since your last visit, and hiding an item until it changes. Windows
-  notifications report new assignments.
-- **GitHub:** open issues assigned to you in the repositories you list, with their labels.
+- **GitLab:** the issues and merge requests assigned to you, refreshed in the background, and
+  a "Do review" section with the merge requests where you are a reviewer (with "+" to "To do").
+  Includes:
+  - a visibility filter (projects, labels, milestones, recently closed) for both;
+  - a NEW flag for items that appeared since your last visit;
+  - hiding an item until it changes ("Pokaż ukryte" shows the hidden rows). An issue comes
+    back marked "Zmienione" on a status change or a comment by someone else; a merge request
+    (assigned or to review) only after a comment by someone else, or after it leaves the open
+    list and returns;
+  - Windows notifications for new assignments and new review requests, whatever the filter says;
+  - the type choice (issues, merge requests or both) and the "Pokaż ukryte" state, remembered
+    between runs (the filter values are not stored).
+- **GitHub:** open issues assigned to you in the repositories you list, with their labels,
+  refreshed at their own interval. Includes a NEW flag for issues that appeared since your last
+  visit (GitHub gives no Windows notifications), and hiding an issue until it changes: it comes
+  back marked "Zmienione" on a state change or a comment by someone else ("Pokaż ukryte" shows
+  the hidden rows).
 - **Moje zadania (My tasks):** your own tasks in a Work or Private space, with an optional due
   date and priority.
 - **Czas pracy (Work time):** a START/STOP counter that is always visible in the header and
@@ -78,10 +90,13 @@ the hours you spend on it.
   edits, closes, comments on or assigns anything.
 - **Local data.** Your data stays on your machine. Settings are in the app config folder.
   Your own tasks, the "To do" list and work time are kept in a local SQLite database in the
-  app data folder, with a daily backup (7 kept). With `autostart` on, the app also keeps one
+  app data folder, with a daily backup (7 kept). It also holds what hiding and the NEW flags
+  need (item ids, states and times; no titles or comment text) and the GitLab view's type and
+  "Pokaż ukryte" choice. With `autostart` on, the app also keeps one
   entry in the current user's Windows Run key (see Configuration).
 - **No VPN.** When the work GitLab cannot be reached, the app shows a calm "unavailable"
-  state with the time of the last successful refresh.
+  state with the time of the last successful refresh and the next try, and the last list
+  dimmed under it. GitHub does the same when it cannot be reached.
 
 ## Requirements
 

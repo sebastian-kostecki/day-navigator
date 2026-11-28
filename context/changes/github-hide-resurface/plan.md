@@ -613,10 +613,10 @@ v15 only creates `hidden_items`; existing data is untouched and no GitLab row mo
 
 #### Automated
 
-- [ ] 3.1 Round integration tests pass
-- [ ] 3.2 Partition and snapshot unit tests pass
-- [ ] 3.3 No leak marker in any error, Debug or snapshot error text
-- [ ] 3.4 All AGENTS.md gates green
+- [x] 3.1 Round integration tests pass — a6a4de1
+- [x] 3.2 Partition and snapshot unit tests pass — a6a4de1
+- [x] 3.3 No leak marker in any error, Debug or snapshot error text — a6a4de1
+- [x] 3.4 All AGENTS.md gates green — a6a4de1
 
 ### Phase 4: Refresh wiring and commands
 

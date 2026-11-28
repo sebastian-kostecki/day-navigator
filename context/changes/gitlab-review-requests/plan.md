@@ -669,21 +669,21 @@ Rollback to an older build is safe. Old code never reads the marker row, and the
 
 #### Automated
 
-- [x] 1.1 Guard test passes with the new counts and refuses the negative review endpoint
-- [x] 1.2 Runner echo test covers the new examples
-- [x] 1.3 cargo fmt --check and cargo clippy --all-targets -- -D warnings are clean
-- [x] 1.4 Full suite green: cargo test
+- [x] 1.1 Guard test passes with the new counts and refuses the negative review endpoint — 721b794
+- [x] 1.2 Runner echo test covers the new examples — 721b794
+- [x] 1.3 cargo fmt --check and cargo clippy --all-targets -- -D warnings are clean — 721b794
+- [x] 1.4 Full suite green: cargo test — 721b794
 
 ### Phase 2: Review list in the round: fetch, dedupe, filter, kept list, TS mirror
 
 #### Automated
 
-- [x] 2.1 Dedupe unit tests pass
-- [x] 2.2 Round, filter and kept-list unit tests pass
-- [x] 2.3 Fetch integration tests pass, including the two new failure scenarios
-- [x] 2.4 TS mirror type-checks: npm run build
-- [x] 2.5 npm run lint, npm run format:check, cargo fmt --check, cargo clippy are clean
-- [x] 2.6 Full suite green: cargo test
+- [x] 2.1 Dedupe unit tests pass — 557da2a
+- [x] 2.2 Round, filter and kept-list unit tests pass — 557da2a
+- [x] 2.3 Fetch integration tests pass, including the two new failure scenarios — 557da2a
+- [x] 2.4 TS mirror type-checks: npm run build — 557da2a
+- [x] 2.5 npm run lint, npm run format:check, cargo fmt --check, cargo clippy are clean — 557da2a
+- [x] 2.6 Full suite green: cargo test — 557da2a
 
 ### Phase 3: FR-004 notices, NEW flags and the silent first-round baseline
 
@@ -699,20 +699,20 @@ Rollback to an older build is safe. Old code never reads the marker row, and the
 
 #### Automated
 
-- [x] 4.1 To-do unit tests pass, including the review-only presence and tick cases
-- [x] 4.2 To-do integration tests stay green
-- [x] 4.3 npm run lint, npm run format:check, npm run build are clean
-- [x] 4.4 cargo fmt --check and cargo clippy --all-targets -- -D warnings are clean
-- [x] 4.5 Full suite green: cargo test
+- [x] 4.1 To-do unit tests pass, including the review-only presence and tick cases — df2be1e
+- [x] 4.2 To-do integration tests stay green — df2be1e
+- [x] 4.3 npm run lint, npm run format:check, npm run build are clean — df2be1e
+- [x] 4.4 cargo fmt --check and cargo clippy --all-targets -- -D warnings are clean — df2be1e
+- [x] 4.5 Full suite green: cargo test — df2be1e
 
 ### Phase 5: "Do review" section in "Praca (GitLab)" and the PRD note
 
 #### Automated
 
-- [x] 5.1 UI type-checks and builds: npm run build
-- [x] 5.2 npm run lint and npm run format:check are clean
-- [x] 5.3 PRD has no reviewer Non-Goal and has the MS-35 note
-- [x] 5.4 cargo fmt --check, cargo clippy, cargo test stay green
+- [x] 5.1 UI type-checks and builds: npm run build — 807b06b
+- [x] 5.2 npm run lint and npm run format:check are clean — 807b06b
+- [x] 5.3 PRD has no reviewer Non-Goal and has the MS-35 note — 807b06b
+- [x] 5.4 cargo fmt --check, cargo clippy, cargo test stay green — 807b06b
 
 #### Manual
 

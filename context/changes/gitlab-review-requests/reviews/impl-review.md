@@ -81,6 +81,7 @@ Manual rows 5.5 to 5.14 are unticked and pending. They are for the user after in
   4. Add a second invented review-only MR and run the next round. Assert that `round.new` holds exactly that key, then record its events and assert that `events::list` for today returns exactly one `assigned` event with that reference.
   Invented data only.
 - **Decision**: FIX — the plan names this test explicitly, and it is cheap and pins the event-log contract.
+- **Status**: FIXED — `a_new_review_only_key_gives_exactly_one_assigned_event` added to `tests/new_assignments.rs`; break check (empty review keys) turned it red.
 
 ### F2 — Unsupported `scope=reviews_for_me` stops the whole GitLab source
 
@@ -117,6 +118,7 @@ Manual rows 5.5 to 5.14 are unticked and pending. They are for the user after in
   - Confidence: HIGH — a one-phrase doc edit.
   - Blind spot: A cleaner model (a nullable `reviews_seeded_at_ms` column) needs a migration. S-01 owns this wave's migration, so it is left for later if it is ever needed.
 - **Decision**: FIX (at integration, after S-01 lands) — a doc edit to AGENTS.md:11 only. Do not edit `store/schema.rs` (a shipped migration, and S-01 territory).
+- **Status**: DEFERRED to the integration branch (after S-01 merges; it edits AGENTS.md line 11). AGENTS.md not edited here.
 
 ### F4 — "Do review" flag uses the `info` tone, against the Flag tone doc
 
@@ -127,6 +129,7 @@ Manual rows 5.5 to 5.14 are unticked and pending. They are for the user after in
 - **Detail**: `<Flag tone="info">Do review</Flag>` is rendered next to "Nowe". `Flag.css:13-16` styles `info` and `new` the same blue. `Flag.tsx`'s doc says `info` means "closed in the source". The text still tells the two flags apart, but the documented meaning of the tone no longer holds.
 - **Fix**: Keep the tone and update the `FlagProps.tone` doc comment in `src/components/Flag/Flag.tsx:5-6` to read "info = blue (closed in the source; Do review, an assigned MR that also awaits the user's review)". Comment only; no CSS change.
 - **Decision**: FIX — a one-line comment that keeps the component contract honest. Changing the colour would need a design-system decision.
+- **Status**: FIXED — `Flag.tsx` doc comment updated.
 
 ### F5 — Phase 3 doc comment in `fetch.rs` not re-wrapped
 
@@ -137,6 +140,7 @@ Manual rows 5.5 to 5.14 are unticked and pending. They are for the user after in
 - **Detail**: The updated comment "Merge requests, then issues, then the review list…" left line 17 at 94 characters against 77 and 68 around it. rustfmt does not wrap comments.
 - **Fix**: Re-wrap the three comment lines to the surrounding width (≤ 80 columns) without changing the wording.
 - **Decision**: FIX — cosmetic, one comment block.
+- **Status**: FIXED — comment re-wrapped to <= 80 columns.
 
 ### F6 — Progress rows of phases 1, 2, 4 and 5 lack commit SHAs
 
@@ -151,6 +155,7 @@ Manual rows 5.5 to 5.14 are unticked and pending. They are for the user after in
   - ` — df2be1e` to rows 4.1–4.5;
   - ` — 807b06b` to rows 5.1–5.4.
 - **Decision**: FIX — trivial bookkeeping that `/10x-status` and archive rely on.
+- **Status**: FIXED — SHA suffixes appended to rows 1.1-1.4, 2.1-2.6, 4.1-4.5, 5.1-5.4.
 
 ### F7 — No direct test that a filtered-out review key still notifies
 

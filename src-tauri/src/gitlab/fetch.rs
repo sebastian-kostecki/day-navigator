@@ -14,8 +14,9 @@ use super::{
 use crate::cli::{CliCall, CliRunner, GitlabConfig, GitlabHost, IssueRef, UpdatedAfter};
 
 /// Merge requests, then issues, then the review list. The first failure ends
-/// the round and the later calls are not started: no partial list. With a configured user the
-/// calls list that user's items instead of the logged-in account's.
+/// the round and the later calls are not started: no partial list. With a
+/// configured user the calls list that user's items instead of the
+/// logged-in account's.
 pub fn fetch_assigned(
     runner: &CliRunner,
     config: &GitlabConfig,

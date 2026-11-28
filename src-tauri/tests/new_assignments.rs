@@ -4,9 +4,11 @@ mod common;
 
 use chrono::NaiveDate;
 use common::test_store_dir;
-use day_navigator_lib::gitlab::ItemKind;
+use day_navigator_lib::events::{EventView, NewEvent, list_today, record};
+use day_navigator_lib::gitlab::{AssignedItems, GitlabItem, ItemKind};
 use day_navigator_lib::new_assignments::{
-    FORGET_AFTER_MS, ItemKey, mark_view_seen, record_round, review_marker_key,
+    FORGET_AFTER_MS, ItemKey, items_for, keys_of as keys_of_items, mark_view_seen, record_round,
+    review_marker_key, review_only_keys,
 };
 use day_navigator_lib::store::{Store, StoreError, StoreHandle, schema};
 use rusqlite::OptionalExtension;
@@ -511,4 +513,89 @@ fn review_baseline_keeps_last_seen_current_so_an_old_mark_does_not_forget_it() {
     // One absent round shortly after does not forget it.
     record_round(&mut store, ACCOUNT_A, &[issue(1)], &[], at + 1_000).unwrap();
     assert!(seen_row(&store, ACCOUNT_A, 3).is_some());
+}
+
+fn review_mr(id: u64) -> GitlabItem {
+    GitlabItem {
+        kind: ItemKind::MergeRequest,
+        id,
+        project_id: 1,
+        iid: id,
+        reference: format!("acme/web!{id}"),
+        title: format!("Wymyślony przegląd {id}"),
+        web_url: Some(format!(
+            "https://gitlab.example.invalid/acme/web/-/merge_requests/{id}"
+        )),
+        updated_at: "2026-11-23T08:00:00+00:00".to_string(),
+        labels: Vec::new(),
+        draft: false,
+        changed: None,
+        milestone: None,
+        is_new: false,
+        hidden_at_ms: None,
+        review_requested: true,
+    }
+}
+
+fn review_list(ids: &[u64]) -> AssignedItems {
+    AssignedItems {
+        review_requests: ids.iter().map(|id| review_mr(*id)).collect(),
+        ..AssignedItems::default()
+    }
+}
+
+/// Mirrors `record_seen` in the refresh: the round's new keys become `Assigned`
+/// events, stored in one write.
+fn record_assigned_events(store: &mut Store, items: &AssignedItems, new: &[ItemKey]) -> usize {
+    let events: Vec<NewEvent> = items_for(items, new)
+        .into_iter()
+        .map(|i| NewEvent::Assigned {
+            item_kind: i.kind,
+            reference: i.reference.clone(),
+            title: i.title.clone(),
+        })
+        .collect();
+    let now = today().and_hms_opt(9, 0, 0).unwrap();
+    record(store, today(), now, &events).unwrap()
+}
+
+#[test]
+fn a_new_review_only_key_gives_exactly_one_assigned_event() {
+    let (_tmp, dir) = test_store_dir();
+    let mut store = Store::open(&dir, schema::MIGRATIONS, today()).unwrap();
+    seed_pre_release(&mut store, ACCOUNT_A);
+
+    // The first review round after the release is the silent baseline.
+    let first = review_list(&[7]);
+    let round = record_round(
+        &mut store,
+        ACCOUNT_A,
+        &keys_of_items(&first),
+        &review_only_keys(&first),
+        NOW + 1_000,
+    )
+    .unwrap();
+    assert!(round.new.is_empty());
+    assert_eq!(record_assigned_events(&mut store, &first, &round.new), 0);
+    assert!(list_today(&store, today()).unwrap().events.is_empty());
+
+    // A second review-only MR is new: one key, one event.
+    let second = review_list(&[7, 8]);
+    let round = record_round(
+        &mut store,
+        ACCOUNT_A,
+        &keys_of_items(&second),
+        &review_only_keys(&second),
+        NOW + 2_000,
+    )
+    .unwrap();
+    assert_eq!(round.new, vec![mr(8)]);
+    assert_eq!(record_assigned_events(&mut store, &second, &round.new), 1);
+
+    let log = list_today(&store, today()).unwrap();
+    assert_eq!(log.events.len(), 1);
+    match &log.events[0].event {
+        EventView::Assigned { reference, .. } => assert_eq!(reference, "acme/web!8"),
+        other => panic!("expected an assigned event, got {other:?}"),
+    }
 }

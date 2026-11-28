@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use chrono::NaiveTime;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
+use serde_json::Value;
 
 use crate::cli::{GithubConfig, GithubRepo, GitlabConfig, GitlabHost, GitlabUser};
 use crate::github::GithubError;
@@ -14,8 +15,15 @@ use crate::gitlab::filter::{DimensionRule, GitlabFilter};
 use crate::todo::{DEFAULT_TODO_LIMIT, TodoError};
 
 mod autostart;
+mod field_error;
+mod notices;
+#[cfg(test)]
+mod validator_tests;
 mod work_time;
 pub use autostart::{AutostartSettings, AutostartSettingsInvalid, load_autostart_settings};
+pub use field_error::FieldError;
+use field_error::{checked, object_with_keys, present};
+pub use notices::{NoticeSettings, load_notice_settings, validate_notices};
 pub use work_time::{WorkTimeSettings, WorkTimeSettingsInvalid, load_work_time_settings};
 const SUPPORTED_VERSION: u64 = 1;
 
@@ -90,14 +98,6 @@ fn check_settings_text(text: &str) -> Result<(), SettingsError> {
     }
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawGitlab {
-    host: String,
-    #[serde(default)]
-    user: Option<String>,
-}
-
 /// Reads only the top-level `gitlab` block, on its own: a typo there never
 /// breaks the other blocks and a typo elsewhere never hides the GitLab list. A
 /// missing file, an absent block or `null` is `Ok(None)`. Every failure is
@@ -124,28 +124,40 @@ fn parse_gitlab_settings(text: &str) -> Result<Option<GitlabConfig>, GitlabError
     let Some(block) = value.get("gitlab") else {
         return Ok(None);
     };
-    // serde would also accept a bare array for a struct; only an object is valid.
-    if !block.is_object() && !block.is_null() {
-        return Err(GitlabError::SettingsInvalid);
-    }
-    let raw: Option<RawGitlab> =
-        serde_json::from_value(block.clone()).map_err(|_| GitlabError::SettingsInvalid)?;
-    raw.map(|r| {
-        let host = GitlabHost::parse(&r.host).map_err(|_| GitlabError::SettingsInvalid)?;
-        let user = r
-            .user
-            .map(|u| GitlabUser::parse(&u).map_err(|_| GitlabError::SettingsInvalid))
-            .transpose()?;
-        Ok(GitlabConfig { host, user })
-    })
-    .transpose()
+    validate_gitlab(block).map_err(|_| GitlabError::SettingsInvalid)
 }
 
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawGithub {
-    #[serde(default)]
-    repos: Vec<String>,
+/// Checks a `gitlab` block, reporting every bad field; `null` is `Ok(None)`.
+fn validate_gitlab(block: &Value) -> Result<Option<GitlabConfig>, Vec<FieldError>> {
+    if block.is_null() {
+        return Ok(None);
+    }
+    let map = object_with_keys(block, "gitlab", &["host", "user"]).map_err(|e| vec![e])?;
+    let mut errors = Vec::new();
+    let host = map
+        .get("host")
+        .and_then(Value::as_str)
+        .and_then(|h| GitlabHost::parse(h).ok());
+    if host.is_none() {
+        errors.push(FieldError::new(
+            "gitlab.host",
+            "Podaj samą nazwę hosta, bez protokołu, portu i ścieżki.",
+        ));
+    }
+    let user = present(map, "user").and_then(|v| {
+        let user = v.as_str().and_then(|u| GitlabUser::parse(u).ok());
+        if user.is_none() {
+            errors.push(FieldError::new(
+                "gitlab.user",
+                "To nie jest poprawny login GitLaba.",
+            ));
+        }
+        user
+    });
+    match host {
+        Some(host) if errors.is_empty() => Ok(Some(GitlabConfig { host, user })),
+        _ => Err(errors),
+    }
 }
 
 const GITHUB_REPOS_MAX: usize = 50;
@@ -176,37 +188,44 @@ fn parse_github_settings(text: &str) -> Result<Option<GithubConfig>, GithubError
     let Some(block) = value.get("github") else {
         return Ok(None);
     };
+    validate_github(block).map_err(|_| GithubError::SettingsInvalid)
+}
+
+/// Checks a `github` block, reporting every bad entry; `null` and an empty
+/// `repos` list are `Ok(None)`.
+fn validate_github(block: &Value) -> Result<Option<GithubConfig>, Vec<FieldError>> {
+    const FIELD: &str = "github.repos";
     if block.is_null() {
         return Ok(None);
     }
-    // serde would also accept a bare array for a struct; only an object is valid.
-    if !block.is_object() {
-        return Err(GithubError::SettingsInvalid);
-    }
-    let raw: RawGithub =
-        serde_json::from_value(block.clone()).map_err(|_| GithubError::SettingsInvalid)?;
-    let mut repos: Vec<GithubRepo> = Vec::with_capacity(raw.repos.len());
+    let map = object_with_keys(block, "github", &["repos"]).map_err(|e| vec![e])?;
+    let entries = match map.get("repos") {
+        None => &[][..],
+        Some(Value::Array(entries)) => entries.as_slice(),
+        Some(_) => return Err(vec![FieldError::new(FIELD, "Oczekiwano listy.")]),
+    };
+    let mut errors = Vec::new();
+    let mut repos: Vec<GithubRepo> = Vec::with_capacity(entries.len());
     let mut seen = std::collections::HashSet::new();
-    for entry in &raw.repos {
-        let repo = GithubRepo::parse(entry).map_err(|_| GithubError::SettingsInvalid)?;
-        if seen.insert(repo.key()) {
-            repos.push(repo);
+    for (index, entry) in entries.iter().enumerate() {
+        match entry.as_str().and_then(|e| GithubRepo::parse(e).ok()) {
+            Some(repo) => {
+                if seen.insert(repo.key()) {
+                    repos.push(repo);
+                }
+            }
+            None => errors.push(FieldError::at(
+                FIELD,
+                index,
+                "Repozytorium podaj jako właściciel/nazwa.",
+            )),
         }
     }
     if repos.len() > GITHUB_REPOS_MAX {
-        return Err(GithubError::SettingsInvalid);
+        errors.push(FieldError::new(FIELD, "Najwyżej 50 repozytoriów."));
     }
-    if repos.is_empty() {
-        return Ok(None);
-    }
-    Ok(Some(GithubConfig { repos }))
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawTodo {
-    #[serde(default)]
-    limit: Option<serde_json::Value>,
+    let config = (!repos.is_empty()).then_some(GithubConfig { repos });
+    checked(config, errors)
 }
 
 const TODO_LIMIT_MAX: u64 = 20;
@@ -237,19 +256,23 @@ fn parse_todo_limit(text: &str) -> Result<u32, TodoError> {
     let Some(block) = value.get("todo") else {
         return Ok(DEFAULT_TODO_LIMIT);
     };
+    validate_todo(block).map_err(|_| TodoError::SettingsInvalid)
+}
+
+/// Checks a `todo` block and gives the limit.
+fn validate_todo(block: &Value) -> Result<u32, Vec<FieldError>> {
     if block.is_null() {
         return Ok(DEFAULT_TODO_LIMIT);
     }
-    if !block.is_object() {
-        return Err(TodoError::SettingsInvalid);
-    }
-    let raw: RawTodo =
-        serde_json::from_value(block.clone()).map_err(|_| TodoError::SettingsInvalid)?;
-    match raw.limit {
+    let map = object_with_keys(block, "todo", &["limit"]).map_err(|e| vec![e])?;
+    match present(map, "limit") {
         None => Ok(DEFAULT_TODO_LIMIT),
         Some(v) => match v.as_u64() {
             Some(n) if (1..=TODO_LIMIT_MAX).contains(&n) => Ok(n as u32),
-            _ => Err(TodoError::SettingsInvalid),
+            _ => Err(vec![FieldError::new(
+                "todo.limit",
+                "Podaj liczbę całkowitą od 1 do 20.",
+            )]),
         },
     }
 }
@@ -288,15 +311,6 @@ pub struct ReminderOrigin {
 pub enum ReminderSettingsError {
     #[error("the reminders settings block is invalid")]
     SettingsInvalid,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct RawReminders {
-    #[serde(default)]
-    long_running_hours: Option<serde_json::Value>,
-    #[serde(default)]
-    not_running_after: Option<serde_json::Value>,
 }
 
 /// Reads only the top-level `reminders` block, on its own, like the `todo`
@@ -360,18 +374,25 @@ fn parse_reminder_settings(
     let Some(block) = value.get("reminders") else {
         return Ok(defaults());
     };
-    if block.is_null() {
-        return Ok(defaults());
-    }
-    if !block.is_object() {
-        return Err(INVALID);
-    }
-    let raw: RawReminders = serde_json::from_value(block.clone()).map_err(|_| INVALID)?;
+    validate_reminders(block).map_err(|_| INVALID)
+}
+
+/// Checks a `reminders` block, reporting every bad field, and says which fields
+/// it set.
+fn validate_reminders(
+    block: &Value,
+) -> Result<(ReminderSettings, ReminderOrigin), Vec<FieldError>> {
     let mut settings = ReminderSettings::default();
     let mut origin = ReminderOrigin::default();
-    match raw.long_running_hours {
+    if block.is_null() {
+        return Ok((settings, origin));
+    }
+    let keys = ["longRunningHours", "notRunningAfter"];
+    let map = object_with_keys(block, "reminders", &keys).map_err(|e| vec![e])?;
+    let mut errors = Vec::new();
+    match present(map, "longRunningHours") {
         None => {}
-        Some(serde_json::Value::Bool(false)) => {
+        Some(Value::Bool(false)) => {
             settings.long_running = None;
             origin.long_running_from_file = true;
         }
@@ -380,22 +401,29 @@ fn parse_reminder_settings(
                 settings.long_running = Some(Duration::from_secs(n * 3600));
                 origin.long_running_from_file = true;
             }
-            _ => return Err(INVALID),
+            _ => errors.push(FieldError::new(
+                "reminders.longRunningHours",
+                "Podaj liczbę całkowitą od 1 do 24 albo false.",
+            )),
         },
     }
-    match raw.not_running_after {
-        None => {}
-        Some(serde_json::Value::Bool(false)) => {
-            settings.not_running_after = None;
-            origin.not_running_after_from_file = true;
+    if let Some(value) = present(map, "notRunningAfter") {
+        let time = match value {
+            Value::Bool(false) => Some(None),
+            other => other.as_str().and_then(parse_hhmm).map(Some),
+        };
+        match time {
+            Some(time) => {
+                settings.not_running_after = time;
+                origin.not_running_after_from_file = true;
+            }
+            None => errors.push(FieldError::new(
+                "reminders.notRunningAfter",
+                "Podaj godzinę w formacie GG:MM albo false.",
+            )),
         }
-        Some(serde_json::Value::String(s)) => {
-            settings.not_running_after = Some(parse_hhmm(&s).ok_or(INVALID)?);
-            origin.not_running_after_from_file = true;
-        }
-        Some(_) => return Err(INVALID),
     }
-    Ok((settings, origin))
+    checked((settings, origin), errors)
 }
 
 pub const DEFAULT_REFRESH_MINUTES: u32 = 10;
@@ -408,13 +436,6 @@ pub const REFRESH_MINUTES_MAX: u64 = 14;
 /// detail: serde errors can quote the value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RefreshSettingInvalid;
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawRefresh {
-    #[serde(default)]
-    minutes: Option<serde_json::Value>,
-}
 
 /// Reads only the top-level `gitlabRefresh` block, on its own. A file-level
 /// problem (unreadable, bad UTF-8 or JSON, wrong `version`) is `Ok(10)`: the
@@ -453,19 +474,24 @@ fn parse_refresh_minutes(text: &str, key: &str) -> Result<u32, RefreshSettingInv
     let Some(block) = value.get(key) else {
         return Ok(DEFAULT_REFRESH_MINUTES);
     };
+    validate_refresh(block, key).map_err(|_| RefreshSettingInvalid)
+}
+
+/// Checks a `gitlabRefresh` or `githubRefresh` block (`key` names it) and
+/// gives the minutes.
+fn validate_refresh(block: &Value, key: &str) -> Result<u32, Vec<FieldError>> {
     if block.is_null() {
         return Ok(DEFAULT_REFRESH_MINUTES);
     }
-    if !block.is_object() {
-        return Err(RefreshSettingInvalid);
-    }
-    let raw: RawRefresh =
-        serde_json::from_value(block.clone()).map_err(|_| RefreshSettingInvalid)?;
-    match raw.minutes {
-        None | Some(serde_json::Value::Null) => Ok(DEFAULT_REFRESH_MINUTES),
+    let map = object_with_keys(block, key, &["minutes"]).map_err(|e| vec![e])?;
+    match present(map, "minutes") {
+        None => Ok(DEFAULT_REFRESH_MINUTES),
         Some(v) => match v.as_u64() {
             Some(n) if (1..=REFRESH_MINUTES_MAX).contains(&n) => Ok(n as u32),
-            _ => Err(RefreshSettingInvalid),
+            _ => Err(vec![FieldError::new(
+                format!("{key}.minutes"),
+                "Podaj liczbę całkowitą od 1 do 14.",
+            )]),
         },
     }
 }
@@ -479,28 +505,6 @@ pub struct FilterSettingInvalid;
 const FILTER_ENTRIES_MAX: usize = 100;
 const FILTER_ENTRY_CHARS_MAX: usize = 255;
 const FILTER_CLOSED_DAYS_MAX: u64 = 30;
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct RawGitlabFilter {
-    #[serde(default)]
-    projects: Option<serde_json::Value>,
-    #[serde(default)]
-    labels: Option<serde_json::Value>,
-    #[serde(default)]
-    milestones: Option<serde_json::Value>,
-    #[serde(default)]
-    closed_days: Option<serde_json::Value>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RawDimension {
-    #[serde(default)]
-    include: Option<serde_json::Value>,
-    #[serde(default)]
-    exclude: Option<serde_json::Value>,
-}
 
 /// Reads only the top-level `gitlabFilter` block, on its own, and fails open.
 /// Shape:
@@ -548,78 +552,120 @@ fn parse_gitlab_filter(text: &str) -> Result<GitlabFilter, FilterSettingInvalid>
     let Some(block) = value.get("gitlabFilter") else {
         return Ok(GitlabFilter::default());
     };
+    validate_gitlab_filter(block).map_err(|_| FilterSettingInvalid)
+}
+
+/// Checks a `gitlabFilter` block, reporting every bad field and list entry.
+fn validate_gitlab_filter(block: &Value) -> Result<GitlabFilter, Vec<FieldError>> {
     if block.is_null() {
         return Ok(GitlabFilter::default());
     }
-    if !block.is_object() {
-        return Err(FilterSettingInvalid);
-    }
-    let raw: RawGitlabFilter =
-        serde_json::from_value(block.clone()).map_err(|_| FilterSettingInvalid)?;
-    let closed_days = match raw.closed_days {
-        None | Some(serde_json::Value::Null) => None,
-        Some(v) => match v.as_u64() {
-            Some(n) if (1..=FILTER_CLOSED_DAYS_MAX).contains(&n) => Some(n as u32),
-            _ => return Err(FilterSettingInvalid),
-        },
+    let keys = ["projects", "labels", "milestones", "closedDays"];
+    let map = object_with_keys(block, "gitlabFilter", &keys).map_err(|e| vec![e])?;
+    let mut errors = Vec::new();
+    let closed_days = present(map, "closedDays").and_then(|v| match v.as_u64() {
+        Some(n) if (1..=FILTER_CLOSED_DAYS_MAX).contains(&n) => Some(n as u32),
+        _ => {
+            errors.push(FieldError::new(
+                "gitlabFilter.closedDays",
+                "Podaj liczbę całkowitą od 1 do 30.",
+            ));
+            None
+        }
+    });
+    let mut dimension = |key: &str, project_paths: bool| {
+        filter_dimension(
+            present(map, key),
+            &format!("gitlabFilter.{key}"),
+            project_paths,
+            &mut errors,
+        )
     };
-    Ok(GitlabFilter {
-        projects: parse_filter_dimension(raw.projects, true)?,
-        labels: parse_filter_dimension(raw.labels, false)?,
-        milestones: parse_filter_dimension(raw.milestones, false)?,
+    let filter = GitlabFilter {
+        projects: dimension("projects", true),
+        labels: dimension("labels", false),
+        milestones: dimension("milestones", false),
         closed_days,
-    })
+    };
+    checked(filter, errors)
 }
 
-fn parse_filter_dimension(
-    value: Option<serde_json::Value>,
+/// One filter dimension; whatever is wrong with it goes into `errors`.
+fn filter_dimension(
+    value: Option<&Value>,
+    field: &str,
     project_paths: bool,
-) -> Result<DimensionRule, FilterSettingInvalid> {
+    errors: &mut Vec<FieldError>,
+) -> DimensionRule {
     let Some(value) = value else {
-        return Ok(DimensionRule::default());
+        return DimensionRule::default();
     };
-    // serde would also accept a bare array for a struct; only an object is valid.
-    if !value.is_object() {
-        return Err(FilterSettingInvalid);
+    let map = match object_with_keys(value, field, &["include", "exclude"]) {
+        Ok(map) => map,
+        Err(e) => {
+            errors.push(e);
+            return DimensionRule::default();
+        }
+    };
+    let mut list = |key: &str| {
+        filter_list(
+            present(map, key),
+            &format!("{field}.{key}"),
+            project_paths,
+            errors,
+        )
+    };
+    DimensionRule {
+        include: list("include"),
+        exclude: list("exclude"),
     }
-    let raw: RawDimension = serde_json::from_value(value).map_err(|_| FilterSettingInvalid)?;
-    Ok(DimensionRule {
-        include: parse_filter_list(raw.include, project_paths)?,
-        exclude: parse_filter_list(raw.exclude, project_paths)?,
-    })
 }
 
-fn parse_filter_list(
-    value: Option<serde_json::Value>,
+/// The valid entries of one list, trimmed and lowercased.
+fn filter_list(
+    value: Option<&Value>,
+    field: &str,
     project_paths: bool,
-) -> Result<Vec<String>, FilterSettingInvalid> {
+    errors: &mut Vec<FieldError>,
+) -> Vec<String> {
     let Some(value) = value else {
-        return Ok(Vec::new());
+        return Vec::new();
     };
-    let serde_json::Value::Array(entries) = value else {
-        return Err(FilterSettingInvalid);
+    let Value::Array(entries) = value else {
+        errors.push(FieldError::new(field, "Oczekiwano listy."));
+        return Vec::new();
     };
     if entries.len() > FILTER_ENTRIES_MAX {
-        return Err(FilterSettingInvalid);
+        errors.push(FieldError::new(field, "Najwyżej 100 pozycji."));
     }
     let mut out = Vec::with_capacity(entries.len());
-    for entry in entries {
-        let serde_json::Value::String(text) = entry else {
-            return Err(FilterSettingInvalid);
-        };
-        if text.chars().any(char::is_control) {
-            return Err(FilterSettingInvalid);
+    for (index, entry) in entries.iter().enumerate() {
+        match filter_entry(entry, project_paths) {
+            Ok(text) => out.push(text),
+            Err(message) => errors.push(FieldError::at(field, index, message)),
         }
-        let text = text.trim();
-        if text.is_empty() || text.chars().count() > FILTER_ENTRY_CHARS_MAX {
-            return Err(FilterSettingInvalid);
-        }
-        if project_paths && text.split('/').any(str::is_empty) {
-            return Err(FilterSettingInvalid);
-        }
-        out.push(text.to_lowercase());
     }
-    Ok(out)
+    out
+}
+
+fn filter_entry(entry: &Value, project_paths: bool) -> Result<String, &'static str> {
+    let Value::String(text) = entry else {
+        return Err("Pozycja musi być tekstem.");
+    };
+    if text.chars().any(char::is_control) {
+        return Err("Pozycja zawiera niedozwolone znaki sterujące.");
+    }
+    let text = text.trim();
+    if text.is_empty() {
+        return Err("Pozycja nie może być pusta.");
+    }
+    if text.chars().count() > FILTER_ENTRY_CHARS_MAX {
+        return Err("Pozycja może mieć najwyżej 255 znaków.");
+    }
+    if project_paths && text.split('/').any(str::is_empty) {
+        return Err("Ścieżka projektu nie może zaczynać ani kończyć się „/” ani zawierać „//”.");
+    }
+    Ok(text.to_lowercase())
 }
 
 #[cfg(test)]

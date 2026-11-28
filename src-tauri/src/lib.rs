@@ -5,6 +5,7 @@ pub mod day_summary;
 pub mod events;
 pub mod github;
 pub mod github_refresh;
+pub mod github_seen;
 pub mod gitlab;
 pub mod gitlab_refresh;
 pub mod gitlab_view_state;

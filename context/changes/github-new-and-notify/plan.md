@@ -536,11 +536,11 @@ One extra `Store::write` per GitHub round (at most 50 repos × 500 issues, the e
 
 #### Automated
 
-- [ ] 1.1 Rule unit tests pass: `cargo test --lib github_seen` (in `src-tauri/`)
-- [ ] 1.2 Migration tests pass: `cargo test --test github_seen` (in `src-tauri/`)
-- [ ] 1.3 Schema validation still passes: `cargo test --lib store::schema`
-- [ ] 1.4 Full Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
-- [ ] 1.5 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
+- [x] 1.1 Rule unit tests pass: `cargo test --lib github_seen` (in `src-tauri/`)
+- [x] 1.2 Migration tests pass: `cargo test --test github_seen` (in `src-tauri/`)
+- [x] 1.3 Schema validation still passes: `cargo test --lib store::schema`
+- [x] 1.4 Full Rust gates pass: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`
+- [x] 1.5 Frontend gates pass: `npm run lint`, `npm run format:check`, `npm run build`
 
 ### Phase 2: Seen-set store operations
 

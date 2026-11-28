@@ -661,9 +661,9 @@ None: MR records are new rows in `hidden_items` (v15). A database written by thi
 
 #### Automated
 
-- [ ] 1.1 Guard tests pass with the MR shape accepted and every near-miss rejected
-- [ ] 1.2 MR notes fetch tests pass through fake-cli
-- [ ] 1.3 All AGENTS.md gates green
+- [x] 1.1 Guard tests pass with the MR shape accepted and every near-miss rejected
+- [x] 1.2 MR notes fetch tests pass through fake-cli
+- [x] 1.3 All AGENTS.md gates green
 
 #### Manual
 

@@ -7,7 +7,9 @@ use chrono::{DateTime, FixedOffset, NaiveDate};
 use day_navigator_lib::cli::{
     CliRunner, GitlabConfig, GitlabHost, GitlabUser, IssueRef, UpdatedAfter,
 };
-use day_navigator_lib::gitlab::fetch::{fetch_assigned, fetch_issue_notes, fetch_recently_closed};
+use day_navigator_lib::gitlab::fetch::{
+    fetch_assigned, fetch_issue_notes, fetch_merge_request_notes, fetch_recently_closed,
+};
 use day_navigator_lib::gitlab::notes::IssueNote;
 use day_navigator_lib::gitlab::{GitlabError, GitlabLabel, ItemKind};
 
@@ -469,4 +471,55 @@ fn notes_failures_map_to_their_gitlab_errors() {
         fetch_issue_notes(&r, &gitlab_host(), WITH_NOTES),
         Err(GitlabError::ToolMissing)
     );
+}
+
+// ------------------------------------------------------- merge request notes
+
+/// Merge request 6002 `acme/widgets!34` has notes in the fake GitLab (project
+/// 102, iid 34).
+const MR_WITH_NOTES: IssueRef = IssueRef {
+    project_id: 102,
+    iid: 34,
+};
+
+fn mr_notes(scenario: &str, mr: IssueRef) -> Result<Vec<IssueNote>, GitlabError> {
+    fetch_merge_request_notes(&runner(scenario), &gitlab_host(), mr)
+}
+
+#[test]
+fn merge_request_notes_are_parsed_newest_first() {
+    let got = mr_notes("gitlab-notes-other", MR_WITH_NOTES).expect("notes");
+    assert_eq!(authors(&got), ["other.invented", "invented.user"]);
+    assert!(got.iter().all(|n| !n.system));
+    assert!(got[0].created_at > got[1].created_at);
+}
+
+#[test]
+fn a_merge_request_is_told_apart_from_the_issue_with_the_same_numbers() {
+    let mr_12 = IssueRef {
+        project_id: 102,
+        iid: 12,
+    };
+    assert!(mr_notes("gitlab-notes-other", mr_12).unwrap().is_empty());
+    assert_eq!(notes("gitlab-notes-other", WITH_NOTES).unwrap().len(), 2);
+}
+
+#[test]
+fn merge_request_notes_unavailable_and_bad_json_are_errors() {
+    assert_eq!(
+        mr_notes("gitlab-notes-unavailable", MR_WITH_NOTES),
+        Err(GitlabError::Unavailable)
+    );
+    let err = mr_notes("gitlab-notes-bad-json", MR_WITH_NOTES).unwrap_err();
+    assert_eq!(err, GitlabError::ResponseInvalid);
+    let shown = [
+        format!("{err:?}"),
+        err.to_string(),
+        serde_json::to_string(&err).unwrap(),
+        err.message_pl(),
+    ];
+    for text in shown {
+        assert!(!text.contains("LEAK-MARKER-NOTE-4b2d"), "{text}");
+        assert!(!text.contains("example.invalid"), "{text}");
+    }
 }

@@ -41,6 +41,12 @@ const GH_LOGIN_MARKER: &str = "LEAK-MARKER-GH-LOGIN-6b1c";
 const NOTES_PROJECT_ID: u64 = 102;
 const NOTES_IID: u64 = 12;
 
+/// The merge requests that have notes in the notes scenarios, as (project id,
+/// iid): MR 6002 `acme/widgets!34` (assigned and awaiting review) and MR 6101
+/// `acme/gadgets!21` (review-only). Every other merge request, including
+/// 6003 `(102, 12)`, gets `[]`: its notes call is told apart by path.
+const MR_NOTES_KEYS: [(u64, u64); 2] = [(102, 34), (104, 21)];
+
 /// Which endpoint was asked for, from the `glab api` arguments.
 #[derive(PartialEq)]
 enum Endpoint {
@@ -57,17 +63,47 @@ enum Endpoint {
         project_id: u64,
         iid: u64,
     },
+    /// `projects/<project_id>/merge_requests/<iid>/notes?...`
+    MrNotes {
+        project_id: u64,
+        iid: u64,
+    },
     Other,
 }
 
 fn parse_notes_endpoint(arg: &str) -> Option<Endpoint> {
     let rest = arg.strip_prefix("projects/")?;
     let (ids, _query) = rest.split_once("/notes?")?;
-    let (project, iid) = ids.split_once("/issues/")?;
-    Some(Endpoint::Notes {
+    if let Some((project, iid)) = ids.split_once("/issues/") {
+        return Some(Endpoint::Notes {
+            project_id: project.parse().ok()?,
+            iid: iid.parse().ok()?,
+        });
+    }
+    let (project, iid) = ids.split_once("/merge_requests/")?;
+    Some(Endpoint::MrNotes {
         project_id: project.parse().ok()?,
         iid: iid.parse().ok()?,
     })
+}
+
+/// The (project id, iid) of a notes call and whether it is a merge request's.
+fn notes_target(endpoint: &Endpoint) -> Option<(u64, u64, bool)> {
+    match endpoint {
+        Endpoint::Notes { project_id, iid } => Some((*project_id, *iid, false)),
+        Endpoint::MrNotes { project_id, iid } => Some((*project_id, *iid, true)),
+        _ => None,
+    }
+}
+
+/// Whether the fixed fake GitLab has notes for this notes call: the issue
+/// (102, 12), or a merge request listed in `MR_NOTES_KEYS`.
+fn has_notes(endpoint: &Endpoint) -> bool {
+    match notes_target(endpoint) {
+        Some((project_id, iid, true)) => MR_NOTES_KEYS.contains(&(project_id, iid)),
+        Some((project_id, iid, false)) => project_id == NOTES_PROJECT_ID && iid == NOTES_IID,
+        None => false,
+    }
 }
 
 fn endpoint() -> Endpoint {
@@ -325,7 +361,7 @@ fn gitlab_assigned_body(endpoint: &Endpoint, paged: bool) -> Option<String> {
         Endpoint::ClosedMergeRequests | Endpoint::ClosedIssues => {
             return gitlab_closed_body(endpoint);
         }
-        Endpoint::Notes { .. } | Endpoint::Other => return None,
+        Endpoint::Notes { .. } | Endpoint::MrNotes { .. } | Endpoint::Other => return None,
     };
     Some(body.to_string())
 }
@@ -345,10 +381,8 @@ fn note_value(author: &str, system: bool, created_at: &str) -> serde_json::Value
 /// a notes scenario or the endpoint is not a notes call. Only the fixed
 /// project/iid has notes; any other issue gets `[]`.
 fn gitlab_notes_body(scenario: &str, endpoint: &Endpoint) -> Option<String> {
-    let Endpoint::Notes { project_id, iid } = endpoint else {
-        return None;
-    };
-    let mine = *project_id == NOTES_PROJECT_ID && *iid == NOTES_IID;
+    notes_target(endpoint)?;
+    let mine = has_notes(endpoint);
     let notes: Vec<serde_json::Value> = match (scenario, mine) {
         (_, false) => vec![],
         // A comment by someone else, older ones by the configured user.
@@ -409,11 +443,11 @@ fn record_notes_call() {
 fn gitlab_notes_scenario(scenario: &str) -> i32 {
     let endpoint = endpoint();
     let paged = scenario == "gitlab-two-pages";
-    if matches!(endpoint, Endpoint::Notes { .. }) {
+    if notes_target(&endpoint).is_some() {
         record_notes_call();
     }
     let body = match &endpoint {
-        Endpoint::Notes { .. } => match scenario {
+        Endpoint::Notes { .. } | Endpoint::MrNotes { .. } => match scenario {
             "gitlab-notes-unavailable" => {
                 eprint!("{GLAB_NO_NETWORK}");
                 return 1;
@@ -421,10 +455,10 @@ fn gitlab_notes_scenario(scenario: &str) -> i32 {
             // Only the issue without notes is unreachable (like a slow call that
             // timed out); the one with notes answers as in `gitlab-notes-other`.
             "gitlab-notes-one-unavailable" => {
-                let Endpoint::Notes { project_id, iid } = &endpoint else {
+                if notes_target(&endpoint).is_none() {
                     return 98;
-                };
-                if (*project_id, *iid) != (NOTES_PROJECT_ID, NOTES_IID) {
+                }
+                if !has_notes(&endpoint) {
                     eprint!("{GLAB_NO_NETWORK}");
                     return 1;
                 }

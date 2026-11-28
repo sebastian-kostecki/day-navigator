@@ -699,9 +699,9 @@ None: MR records are new rows in `hidden_items` (v15). A database written by thi
 
 #### Automated
 
-- [ ] 5.1 State unit tests pass
-- [ ] 5.2 The three MR commands are registered
-- [ ] 5.3 All AGENTS.md gates green
+- [x] 5.1 State unit tests pass
+- [x] 5.2 The three MR commands are registered
+- [x] 5.3 All AGENTS.md gates green
 
 ### Phase 6: The MR round in the refresh thread
 

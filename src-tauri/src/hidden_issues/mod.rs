@@ -29,6 +29,9 @@ pub use crate::gitlab::ChangeReason;
 use crate::gitlab::{GitlabItem, ItemKind};
 use crate::store::{Store, StoreError};
 pub use error::HiddenIssueError;
+pub use merge_requests::{
+    GitlabHidden, list_gitlab, mr_key, new_hidden_mr, partition_merge_requests,
+};
 pub use mr_round::{
     MrRoundChecks, MrRoundOutcome, check_mr_round, commit_mr_round, mr_calls_allowed,
 };

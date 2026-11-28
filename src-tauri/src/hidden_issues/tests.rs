@@ -527,6 +527,8 @@ fn gh_issue(number: u64, updated: &str) -> crate::github::GithubIssue {
         web_url: None,
         updated_at: updated.into(),
         labels: vec!["area::api".into(), "bug".into()],
+        changed: None,
+        hidden_at_ms: None,
     }
 }
 

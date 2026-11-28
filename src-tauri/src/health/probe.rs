@@ -339,6 +339,7 @@ mod tests {
         let repo = |name: &str, kind: Option<&str>| RepoView {
             repo: name.to_string(),
             issues: vec![],
+            hidden: vec![],
             error: kind.map(|k| RepoErrorView {
                 kind: k.to_string(),
                 message: "m".to_string(),

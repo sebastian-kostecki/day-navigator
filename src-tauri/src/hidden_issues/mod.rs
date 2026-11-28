@@ -11,6 +11,7 @@
 
 pub mod commands;
 pub mod error;
+pub mod github_round;
 pub mod items;
 pub mod round;
 pub mod rules;

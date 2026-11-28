@@ -267,6 +267,7 @@ mod tests {
         github::RepoView {
             repo: repo.to_string(),
             issues: vec![],
+            hidden: vec![],
             error: error.then(|| github::RepoErrorView {
                 kind: "Failed".into(),
                 message: String::new(),

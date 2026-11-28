@@ -709,10 +709,10 @@ Rollback to an older build is safe. Old code never reads the marker row, and the
 
 #### Automated
 
-- [ ] 5.1 UI type-checks and builds: npm run build
-- [ ] 5.2 npm run lint and npm run format:check are clean
-- [ ] 5.3 PRD has no reviewer Non-Goal and has the MS-35 note
-- [ ] 5.4 cargo fmt --check, cargo clippy, cargo test stay green
+- [x] 5.1 UI type-checks and builds: npm run build
+- [x] 5.2 npm run lint and npm run format:check are clean
+- [x] 5.3 PRD has no reviewer Non-Goal and has the MS-35 note
+- [x] 5.4 cargo fmt --check, cargo clippy, cargo test stay green
 
 #### Manual
 
